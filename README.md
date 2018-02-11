@@ -1,2 +1,3 @@
 # pub_musings
-Collection of random hacks and interesting code
+
+Public collection of random hacks and interesting code
