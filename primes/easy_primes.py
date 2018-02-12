@@ -16,6 +16,9 @@ if sys.version_info.major >= 3:
     from typing import (Dict, List, Tuple)
 
 
+# For more random facts and info about prime numbers, checkout
+# https://en.wikipedia.org/wiki/Prime_number and https://oeis.org/A000040
+
 def getPrimes(known_primes=[2], max_num=2**12, should_print=False):
     # type: (List[int], int, bool) -> List[int]
     """This is a really simple method for finding primes"""
@@ -38,12 +41,20 @@ def getPrimes(known_primes=[2], max_num=2**12, should_print=False):
 def getPrimesWithSkips(primes=[2,3,5], max_num=2**12):
     # type: (List[int], int) -> List[int]
     """This is builds up a sieve, then uses the distances between potential
-    primes to skip more numbers than just two at a time."""
+    primes to skip more numbers than just two at a time. Its a lot like
+    wheel factorization, but instead we're using the "wheel" to efficiently
+    generate prime candidates and then run through simple trial division."""
     assert primes[0] == 2, '2 should always be the first prime'
     assert len(primes) >= 2, 'primes too short, try getPrimes()'
+    # For 2,3,5 this is 30; for 2,3,5,7 it's 210; for 2,3,5,7,11 it's 2310.
+    # This grows very fast. Adding the next few primes yields 30030, 510510,
+    # 9699690, 223092870 and 6469693230. Yup, the product of the first ten
+    # primes is almost 6.5B. Holding the `skips` list in memory at that point
+    # is quite intense. Checkout https://oeis.org/A002110 for more info
     start_skipping = 1
     for i in range(len(primes)):
         start_skipping *= primes[i]
+    # For 2,3,5 this yields [1,7,11,13,17,19,23,29]
     skip_steps = []
     for i in range(start_skipping):
         is_multiple = False
@@ -53,6 +64,7 @@ def getPrimesWithSkips(primes=[2,3,5], max_num=2**12):
                 break
         if not is_multiple:
             skip_steps.append(i)
+    # For 2,3,5 this yields [6,4,2,4,2,4,6,2]
     skips = []
     for i in range(1, len(skip_steps)):
         skips.append(skip_steps[i] - skip_steps[i-1])
@@ -181,7 +193,11 @@ def main():
     # --list to be different than for --factor
     max_num = args.less_than
     if max_num is None:
-        # 7919 is the 1000th prime number
+        # 7919 is the 1000th prime number. Not helpful here, but 104729 is the
+        # 10,000th prime number and 1299709 is the 100,00th. See list of first
+        # 10K primes at https://oeis.org/A000040/b000040.txt and first 100K
+        # primes at https://oeis.org/A000040/a000040.txt . For similar output
+        # try `python easy_primes.py -l -t 104729 | awk '{ print NR " " $0 }'`
         max_num = 2 ** 16 if factoring else 7919
 
     print("Searching for primes less than %d" % (max_num), file=sys.stderr)
