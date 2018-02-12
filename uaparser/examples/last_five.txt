@@ -1,0 +1,5 @@
+NokiaC3-00/5.0 (04.60) Profile/MIDP-2.1 Configuration/CLDC-1.1 Mozilla/5.0 AppleWebKit/420+ (KHTML, like Gecko) Safari/420+
+Mozilla/4.0 (compatible; MSIE 5.0; Windows NT;)
+Mozilla/4.0 (compatible; MSIE 5.0; Windows NT;)
+Mozilla/4.0 (compatible; MSIE 5.0; Windows NT;)
+Mozilla/4.0 (compatible; MSIE 5.0; Windows NT;)

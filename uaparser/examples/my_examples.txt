@@ -1,0 +1,4 @@
+Windows NT 6
+(My Example UA String)
+(Non Sense 2.3)
+(sweet; stuff)
