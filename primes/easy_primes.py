@@ -46,6 +46,7 @@ def getPrimesWithSkips(primes=[2,3,5], max_num=2**12):
     generate prime candidates and then run through simple trial division."""
     assert primes[0] == 2, '2 should always be the first prime'
     assert len(primes) >= 2, 'primes too short, try getPrimes()'
+
     # For 2,3,5 this is 30; for 2,3,5,7 it's 210; for 2,3,5,7,11 it's 2310.
     # This grows very fast. Adding the next few primes yields 30030, 510510,
     # 9699690, 223092870 and 6469693230. Yup, the product of the first ten
@@ -64,12 +65,14 @@ def getPrimesWithSkips(primes=[2,3,5], max_num=2**12):
                 break
         if not is_multiple:
             skip_steps.append(i)
+
     # For 2,3,5 this yields [6,4,2,4,2,4,6,2]
     skips = []
     for i in range(1, len(skip_steps)):
         skips.append(skip_steps[i] - skip_steps[i-1])
     # This is because -1 mod start_skipping is two away from 1 mod
     skips.append(2)
+
     i = skips[0] + 1
     skip_i = 1
     while i <= max_num:
@@ -160,7 +163,7 @@ def main():
         help='The inclusive starting range for factoring')
     parser.add_argument('--factor-to', type=int, action='store',
         help='The inclusive ending range for factoring')
-    parser.add_argument('--json-factors', action='store_true',
+    parser.add_argument('-j', '--json-factors', action='store_true',
         help='Enables JSON printing of factors')
     parser.add_argument('-s', action='store_true', help='With skips')
 
