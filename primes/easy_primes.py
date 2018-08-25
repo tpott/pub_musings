@@ -101,6 +101,7 @@ def getFactorization(primes, n):
     max_num = int(2 ** natural_log)
     print("Searching for factors of %d up to %d (except not really)" % (
         n, max_num), file=sys.stderr)
+
     factors = {}
     for i in range(len(primes)):
         # TODO state this as n = a * primes[i] + b, and if b != 0 ...
@@ -115,6 +116,15 @@ def getFactorization(primes, n):
             n = n // primes[i]
         if n == 1:
             break
+
+    if n != 1:
+        # Re-compute the max_num. For composites like 308634695716 =
+        # 2^2 * 77158673929, the largest number necessary to check for
+        # 77158673929 is 277774. So as long as we checked all primes greater
+        # than that, then the last value of n must also be prime.
+        natural_log = math.ceil(math.log(n, 2) / 2)
+        max_num = int(2 ** natural_log)
+
     if primes[-1] >= max_num and n != 1:
         # It can be proven that n must be prime by contradiction. Assume that
         # n is not prime, then it must be a composite. If it's a composite,
@@ -201,7 +211,7 @@ def main():
     max_num = args.less_than
     if max_num is None:
         # 7919 is the 1000th prime number. Not helpful here, but 104729 is the
-        # 10,000th prime number and 1299709 is the 100,00th. See list of first
+        # 10,000th prime number and 1299709 is the 100,000th. See list of first
         # 10K primes at https://oeis.org/A000040/b000040.txt and first 100K
         # primes at https://oeis.org/A000040/a000040.txt . For similar output
         # try `python easy_primes.py -l -t 104729 | awk '{ print NR " " $0 }'`
@@ -212,6 +222,7 @@ def main():
         primes = getPrimesWithSkips([2, 3, 5], max_num)
     else:
         primes = getPrimes([2], max_num)
+
     if args.list:
         for p in primes:
             print("%d" % (p))
