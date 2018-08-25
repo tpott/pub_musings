@@ -13,15 +13,17 @@ import math
 import sys
 
 if sys.version_info.major >= 3:
-    from typing import (Dict, List, Tuple)
+    from typing import (Dict, List, Optional, Tuple)
 
 
 # For more random facts and info about prime numbers, checkout
 # https://en.wikipedia.org/wiki/Prime_number and https://oeis.org/A000040
 
-def getPrimes(known_primes=[2], max_num=2**12, should_print=False):
-    # type: (List[int], int, bool) -> List[int]
+def getPrimes(known_primes=None, max_num=2**12, should_print=False):
+    # type: (Optional[List[int]], int, bool) -> List[int]
     """This is a really simple method for finding primes"""
+    if known_primes is None:
+        known_primes = [2]
     assert known_primes[0] == 2, '2 should always be the first prime'
     # Why did I think this was to "avoid side effects" again?
     known_primes = list(known_primes)
@@ -38,12 +40,14 @@ def getPrimes(known_primes=[2], max_num=2**12, should_print=False):
     return known_primes
 
 
-def getPrimesWithSkips(primes=[2,3,5], max_num=2**12):
-    # type: (List[int], int) -> List[int]
+def getPrimesWithSkips(primes=None, max_num=2**12):
+    # type: (Optional[List[int]], int) -> List[int]
     """This is builds up a sieve, then uses the distances between potential
     primes to skip more numbers than just two at a time. Its a lot like
     wheel factorization, but instead we're using the "wheel" to efficiently
     generate prime candidates and then run through simple trial division."""
+    if primes is None:
+        primes = [2, 3, 5]
     assert primes[0] == 2, '2 should always be the first prime'
     assert len(primes) >= 2, 'primes too short, try getPrimes()'
 
@@ -205,7 +209,7 @@ def main():
 
     print("Searching for primes less than %d" % (max_num), file=sys.stderr)
     if args.s:
-        primes = getPrimesWithSkips([2, 3, 5, 7, 11], max_num)
+        primes = getPrimesWithSkips([2, 3, 5], max_num)
     else:
         primes = getPrimes([2], max_num)
     if args.list:
