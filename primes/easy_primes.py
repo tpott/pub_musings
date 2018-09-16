@@ -10,6 +10,7 @@ import argparse
 import functools
 import json
 import math
+import random
 import sys
 
 if sys.version_info.major >= 3:
@@ -25,6 +26,8 @@ def getPrimes(known_primes=None, max_num=2**12, should_print=False):
     if known_primes is None:
         known_primes = [2]
     assert known_primes[0] == 2, '2 should always be the first prime'
+    assert known_primes == sorted(known_primes), 'please sort your primes'
+
     # Why did I think this was to "avoid side effects" again?
     known_primes = list(known_primes)
     for i in range(3, max_num + 1, 2):
@@ -33,10 +36,12 @@ def getPrimes(known_primes=None, max_num=2**12, should_print=False):
             if i % known_primes[j] == 0:
                 is_prime = False
                 break
-        if is_prime:
-            if should_print:
-                print("%d" % i)
-            known_primes.append(i)
+        if not is_prime:
+            continue
+        if should_print:
+            print("%d" % i)
+        known_primes.append(i)
+
     return known_primes
 
 
@@ -50,6 +55,7 @@ def getPrimesWithSkips(primes=None, max_num=2**12):
         primes = [2, 3, 5]
     assert primes[0] == 2, '2 should always be the first prime'
     assert len(primes) >= 2, 'primes too short, try getPrimes()'
+    assert primes == sorted(primes), 'please sort your primes'
 
     # For 2,3,5 this is 30; for 2,3,5,7 it's 210; for 2,3,5,7,11 it's 2310.
     # This grows very fast. Adding the next few primes yields 30030, 510510,
@@ -142,7 +148,56 @@ def getFactorization(primes, n):
     elif n != 1:
         print("FAIL partial factors. Final n: %d" % (n), file=sys.stderr)
         return (False, factors)
+
     return (True, factors)
+
+
+def fermatPrimeTest(p, n):
+    # type: (int, int) -> Tuple[bool, Optional[int]]
+    """If we find an int that proves p is composite, then we'll return it"""
+    assert n > 1, 'number of tests, n, must be positive'
+    if p == 2 or p == 3:
+        return (True, None)
+    assert p > 1, 'please only test numbers greater than 1'
+
+    for _ in range(n):
+        a = random.randint(2, p - 2)
+        m = pow(a, p - 1, p)
+        if m != 1:
+            return (False, a)
+
+    return (True, None)
+
+
+def lucasPrimeTest(p, n=100, primes=None):
+    # type: (int, int, Optional[List[int]]) -> Tuple[bool, Optional[int]]
+    """If we find an int that proves p is prime, then we'll return it"""
+    if p == 2 or p == 3:
+        return (True, None)
+    assert p > 1, 'please only test numbers greater than 1'
+
+    if primes is None:
+        primes = getPrimes()
+    # Ugh, I forgot that getFactorization prints to stderr
+    success, factors = getFactorization(primes, p - 1)
+    # What to do when success is False?
+    divs = list(map(lambda q: (p - 1) // q, factors.keys()))
+
+    for _ in range(n):
+        a = random.randint(2, p - 2)
+        if pow(a, p - 1, p) != 1:
+            return (False, None)  # Should we include `a` in the return here?
+
+        all_not_one = True
+        for d in divs:
+            if pow(a, d, p) == 1:
+                all_not_one = False
+                break
+        if all_not_one:
+            return (True, a)
+
+    # TODO wut to explain here?
+    return (False, None)
 
 
 def prettyPrint(factors):
