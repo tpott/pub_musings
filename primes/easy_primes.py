@@ -254,8 +254,11 @@ def main():
         assert args.factor_to >= args.factor_from
         factoring = True
         factor_from, factor_to = args.factor_from, args.factor_to
-    else:
-        assert args.factor_to is None, 'Can\'t factor-to and not factor-from'
+    elif args.factor_to is not None:
+        assert not args.list, 'Can\'t list and factor-to'
+        assert args.factor_to >= 2
+        factoring = True
+        factor_from, factor_to = 2, args.factor_to
 
     if args.json_factors:
         assert factoring, 'Can\'t print JSON factors if not factoring'
@@ -264,15 +267,20 @@ def main():
     # a default in the ArgumentParser because we want the default for
     # --list to be different than for --factor
     max_num = args.less_than
-    if max_num is None:
+    if max_num is None and factoring:
+        # This is just another way for computing an upper bound on the sqrt of n
+        natural_log = math.ceil(math.log(factor_to, 2) / 2)
+        max_num = int(2 ** natural_log)
+    elif max_num is None:
         # 7919 is the 1000th prime number. Not helpful here, but 104729 is the
         # 10,000th prime number and 1299709 is the 100,000th. See list of first
         # 10K primes at https://oeis.org/A000040/b000040.txt and first 100K
         # primes at https://oeis.org/A000040/a000040.txt . For similar output
         # try `python easy_primes.py -l -t 104729 | awk '{ print NR " " $0 }'`
-        max_num = 2 ** 16 if factoring else 7919
+        max_num = 7919
 
-    print("Searching for primes less than %d" % (max_num), file=sys.stderr)
+    print("Searching for primes less than or equal to %d" % (max_num),
+        file=sys.stderr)
     if args.s:
         primes = getPrimesWithSkips([2, 3, 5], max_num)
     else:
