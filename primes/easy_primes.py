@@ -20,7 +20,7 @@ if sys.version_info.major >= 3:
 # For more random facts and info about prime numbers, checkout
 # https://en.wikipedia.org/wiki/Prime_number and https://oeis.org/A000040
 
-def getPrimes(known_primes=None, max_num=2**12, should_print=False):
+def getPrimes(known_primes=None, max_num=2**12, plus_one=False):
     # type: (Optional[List[int]], int, bool) -> List[int]
     """This is a really simple method for finding primes"""
     if known_primes is None:
@@ -38,15 +38,29 @@ def getPrimes(known_primes=None, max_num=2**12, should_print=False):
                 break
         if not is_prime:
             continue
-        if should_print:
-            print("%d" % i)
         known_primes.append(i)
+
+    if not plus_one:
+        return known_primes
+
+    found_one_more = False
+    i = max_num - (max_num % 2) + 1
+    while not found_one_more:
+        is_prime = True
+        for j in range(len(known_primes)):
+            if i % known_primes[j] == 0:
+                is_prime = False
+                break
+        if is_prime:
+            found_one_more = True
+            known_primes.append(i)
+        i += 2
 
     return known_primes
 
 
-def getPrimesWithSkips(primes=None, max_num=2**12):
-    # type: (Optional[List[int]], int) -> List[int]
+def getPrimesWithSkips(primes=None, max_num=2**12, plus_one=False):
+    # type: (Optional[List[int]], int, bool) -> List[int]
     """This is builds up a sieve, then uses the distances between potential
     primes to skip more numbers than just two at a time. Its a lot like
     wheel factorization, but instead we're using the "wheel" to efficiently
@@ -95,6 +109,24 @@ def getPrimesWithSkips(primes=None, max_num=2**12):
             primes.append(i)
         i += skips[skip_i]
         skip_i = (skip_i + 1) % len(skips)
+
+    if not plus_one:
+        return primes
+
+    found_one_more = False
+    i = max_num - (max_num % 2) + 1
+    while not found_one_more:
+        is_prime = True
+        for p in primes:
+            if i % p == 0:
+                is_prime = False
+                break
+        if is_prime:
+            found_one_more = True
+            primes.append(i)
+        i += skips[skip_i]
+        skip_i = (skip_i + 1) % len(skips)
+
     return primes
 
 
@@ -103,8 +135,8 @@ def getFactorization(primes, n):
     assert n > 1, 'n must be greater than 1'
     is_prime = False
     # This is just another way for computing an upper bound on the sqrt of n
-    natural_log = math.ceil(math.log(n, 2) / 2)
-    max_num = int(2 ** natural_log)
+    natural_log = math.log(n, 2) / 2
+    max_num = int(math.ceil(2 ** natural_log))
     print("Searching for factors of %d up to %d (except not really)" % (
         n, max_num), file=sys.stderr)
 
@@ -128,8 +160,8 @@ def getFactorization(primes, n):
         # 2^2 * 77158673929, the largest number necessary to check for
         # 77158673929 is 277774. So as long as we checked all primes greater
         # than that, then the last value of n must also be prime.
-        natural_log = math.ceil(math.log(n, 2) / 2)
-        max_num = int(2 ** natural_log)
+        natural_log = math.log(n, 2) / 2
+        max_num = int(math.ceil(2 ** natural_log))
 
     if primes[-1] >= max_num and n != 1:
         # It can be proven that n must be prime by contradiction. Assume that
@@ -146,7 +178,8 @@ def getFactorization(primes, n):
         factors[n] = 1
         n = 1
     elif n != 1:
-        print("FAIL partial factors. Final n: %d" % (n), file=sys.stderr)
+        print("FAIL partial factors. Final n: %d / %d %d" % (n, max_num,
+            primes[-1]), file=sys.stderr)
         return (False, factors)
 
     return (True, factors)
@@ -269,8 +302,8 @@ def main():
     max_num = args.less_than
     if max_num is None and factoring:
         # This is just another way for computing an upper bound on the sqrt of n
-        natural_log = math.ceil(math.log(factor_to, 2) / 2)
-        max_num = int(2 ** natural_log)
+        natural_log = math.log(factor_to, 2) / 2
+        max_num = int(math.ceil(2 ** natural_log))
     elif max_num is None:
         # 7919 is the 1000th prime number. Not helpful here, but 104729 is the
         # 10,000th prime number and 1299709 is the 100,000th. See list of first
@@ -282,9 +315,9 @@ def main():
     print("Searching for primes less than or equal to %d" % (max_num),
         file=sys.stderr)
     if args.s:
-        primes = getPrimesWithSkips([2, 3, 5], max_num)
+        primes = getPrimesWithSkips([2, 3, 5], max_num, True)
     else:
-        primes = getPrimes([2], max_num)
+        primes = getPrimes([2], max_num, True)
 
     if args.list:
         for p in primes:

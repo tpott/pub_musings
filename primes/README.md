@@ -9,10 +9,20 @@ Example usage:
 # 1000, inclusive. Then prints the factors in JSON, where the key is the prime
 # and the value is the power of that prime. The other pipes are for pretty
 # printing the factors in a TSV.
-$ pypy primes/easy_primes.py --factor-from 2 --factor-to 1000 --json-factor 2>/dev/null
+$ pypy primes/easy_primes.py --factor-to 1000 --json-factor 2>/dev/null
   | mlr --ijson --otsv unsparsify --fill-with -
   | python tsv_transpose.py 2>/dev/null
   | sort -n
   | python tsv_transpose.py 2>/dev/null
   > primes/first_1k.tsv
+
+# To get each number and it's prime decomposition in the --json-factor format,
+# this will first get the decompositions and then pipe the results through `jq`
+# to format the TSV output
+$ pypy primes/easy_primes.py --factor-to 1000000 --json-factors 2>/dev/null
+  | jq -cr '[
+    (to_entries | map(pow((.key | tonumber); .value)) | reduce .[] as $f (1; . * $f)),
+    length,
+    (length | . == 1) and (to_entries | .[0].value == 1),
+    (. | tojson)] | @tsv'
 ```
