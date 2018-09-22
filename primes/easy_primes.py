@@ -315,9 +315,9 @@ def main():
     print("Searching for primes less than or equal to %d" % (max_num),
         file=sys.stderr)
     if args.s:
-        primes = getPrimesWithSkips([2, 3, 5], max_num, True)
+        primes = getPrimesWithSkips([2, 3, 5], max_num, factoring)
     else:
-        primes = getPrimes([2], max_num, True)
+        primes = getPrimes([2], max_num, factoring)
 
     if args.list:
         for p in primes:
