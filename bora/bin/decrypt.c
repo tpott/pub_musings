@@ -1,6 +1,6 @@
-// encrypt.c
+// decrypt.c
 // Trevor Pottinger
-// Sat Oct 27 21:54:07 PDT 2018
+// Sat Oct 27 22:07:26 PDT 2018
 
 #include <stdio.h>
 
@@ -13,7 +13,7 @@ typedef long long i64;
 #define NEWLINE '\n'
 
 int main(int argc, char **argv) {
-    i64 hi = 42;
+    i64 hi = 24;
     printf("hello world %lld\n", hi);
     return 0;
 }
