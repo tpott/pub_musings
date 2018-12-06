@@ -1,4 +1,4 @@
-# bora (बोरा)
+# bada bora (बड़ा बोरा)
 
 A collection of backup related utilities. The basic idea is that you can use
 simple FAT formatted USB as a backup, even if you have files greater than 4GB.
