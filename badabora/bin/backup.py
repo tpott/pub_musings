@@ -4,6 +4,9 @@
 
 import sys
 
+# allows importing of other modules in bodabora, but only when run from inside
+# bodabora/bin/. Maybe import os.path.abspath(sys.path[0] + '/..')?
+# sys.path.insert(0, os.path.abspath('..'))
 from lib.operators import (BashOperator, PythonOperator, SelectOperator)
 
 
