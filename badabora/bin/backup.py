@@ -8,6 +8,7 @@ import sys
 # bodabora/bin/. Maybe import os.path.abspath(sys.path[0] + '/..')?
 # sys.path.insert(0, os.path.abspath('..'))
 from lib.operators import (BashOperator, PythonOperator, SelectOperator)
+from lib.walk import Walk
 
 
 # To support `mypy --strict {file}` type checking
@@ -31,6 +32,14 @@ def collect_small_files(min_size, max_size):
     return _collector
 
 
+def list_files(hash_func):
+    # type: (str) -> Callable[[], None]
+    def _walk():
+        # type: () -> None
+        pass
+    return _walk
+
+
 def main():
     # type: () -> None
     max_size = 2 ** 29  # ~512MB
@@ -43,6 +52,7 @@ def main():
     # Writes to <TABLE:files>, <TABLE:file2fragments>
     fs_walk = PythonOperator(
         deps=[],
+        func=list_files(hasher),
     )
 
     # TODO: de-duplicate existing files by file hash
