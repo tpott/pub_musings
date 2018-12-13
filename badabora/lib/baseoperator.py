@@ -17,11 +17,15 @@ class BaseOperator(object):
         self.deps = deps
         self.finished = False
 
+    # def write ? Bytes, Tuple, NamedTuple
+
     def run(self):
         # type: () -> None
         if self.finished:
             return
         for dep in self.deps:
+            if dep.finished:
+                continue
             dep.run()
         print(self.runMessage())
         self.finished = True
