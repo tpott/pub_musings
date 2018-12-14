@@ -7,7 +7,7 @@ from lib.baseoperator import BaseOperator
 
 import sys
 if sys.version_info >= (3, 4):
-    from typing import (Any, List)
+    from typing import (Any, List, Union, Tuple)
 
 
 class SelectOperator(BaseOperator):
@@ -16,6 +16,10 @@ class SelectOperator(BaseOperator):
         # type: (str, **Any) -> None
         super(SelectOperator, self).__init__(**kwargs)
         self.where = where
+
+    def read(self, something):
+        # type: (Union[str, Tuple[Any, ...]]) -> None
+        pass
 
     def runMessage(self):
         # type: () -> str

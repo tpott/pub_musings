@@ -10,6 +10,7 @@ import sys
 # allows importing of other modules in bodabora, but only when run from inside
 # bodabora/bin/. Maybe import os.path.abspath(sys.path[0] + '/..')?
 # sys.path.insert(0, os.path.abspath('..'))
+from lib.baseoperator import BaseOperator
 from lib.operators import (BashOperator, PythonOperator, SelectOperator)
 from lib.walk import Walk
 
@@ -17,34 +18,32 @@ from lib.walk import Walk
 # To support `mypy --strict {file}` type checking
 if sys.version_info >= (3, 4):
     from typing import Callable
-    from lib.operatoroutput import OperatorOutput
 
 
 def split_large_files(min_size, max_size):
-    # type: (int, int) -> Callable[[OperatorOutput], None]
+    # type: (int, int) -> Callable[[BaseOperator], None]
     def _splitter(_out):
-        # type: (OperatorOutput) -> None
+        # type: (BaseOperator) -> None
         pass
     return _splitter
 
 
 def collect_small_files(min_size, max_size):
-    # type: (int, int) -> Callable[[OperatorOutput], None]
+    # type: (int, int) -> Callable[[BaseOperator], None]
     def _collector(_out):
-        # type: (OperatorOutput) -> None
+        # type: (BaseOperator) -> None
         pass
     return _collector
 
 
 def list_files(hash_func, output_dir):
-    # type: (str, str) -> Callable[[OperatorOutput], None]
+    # type: (str, str) -> Callable[[BaseOperator], None]
     walker = Walk(hash_func, output_dir)
     def _walk(out):
-        # type: (OperatorOutput) -> None
+        # type: (BaseOperator) -> None
         print('walking')
         for (path, size, hash_val) in walker.gen():
             out.write((path, size, hash_val))
-            print((path, size, hash_val))
         print('done walking')
     return _walk
 
