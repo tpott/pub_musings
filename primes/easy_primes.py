@@ -130,15 +130,17 @@ def getPrimesWithSkips(primes=None, max_num=2**12, plus_one=False):
     return primes
 
 
-def getFactorization(primes, n):
-    # type: (List[int], int) -> Tuple[bool, Dict[int, int]]
+def getFactorization(primes, n, verbose):
+    # type: (List[int], int, int) -> Tuple[bool, Dict[int, int]]
     assert n > 1, 'n must be greater than 1'
+    assert verbose >= 0, 'verbose must be non-negative'
     is_prime = False
     # This is just another way for computing an upper bound on the sqrt of n
     natural_log = math.log(n, 2) / 2
     max_num = int(math.ceil(2 ** natural_log))
-    print("Searching for factors of %d up to %d (except not really)" % (
-        n, max_num), file=sys.stderr)
+    if verbose >= 1:
+        print("Searching for factors of %d up to %d (except not really)" % (
+            n, max_num), file=sys.stderr)
 
     factors = {}
     for i in range(len(primes)):
@@ -146,7 +148,8 @@ def getFactorization(primes, n):
         # See: Euclidean algorithm. Then factors[primes[i]] = a ?
         if n % primes[i] != 0:
             continue
-        print("Found factor %d" % (primes[i]), file=sys.stderr)
+        if verbose >= 2:
+            print("Found factor %d" % (primes[i]), file=sys.stderr)
         factors[primes[i]] = 1
         n = n // primes[i]
         while n % primes[i] == 0:
@@ -174,12 +177,14 @@ def getFactorization(primes, n):
         # be, because even if there are just two factors equal to max_num,
         # then n must be greater than the original n. Thus, the current n
         # cannot be composite, and therefore must be prime.
-        print("Previously unfound/unknown prime: %d" % (n), file=sys.stderr)
+        if verbose >= 1:
+            print("Previously unfound/unknown prime: %d" % (n), file=sys.stderr)
         factors[n] = 1
         n = 1
     elif n != 1:
-        print("FAIL partial factors. Final n: %d / %d %d" % (n, max_num,
-            primes[-1]), file=sys.stderr)
+        if verbose >= 1:
+            print("FAIL partial factors. Final n: %d / %d %d" % (n, max_num,
+                primes[-1]), file=sys.stderr)
         return (False, factors)
 
     return (True, factors)
@@ -202,8 +207,8 @@ def fermatPrimeTest(p, n):
     return (True, None)
 
 
-def lucasPrimeTest(p, n=100, primes=None):
-    # type: (int, int, Optional[List[int]]) -> Tuple[bool, Optional[int]]
+def lucasPrimeTest(p, n=100, primes=None, verbose=0):
+    # type: (int, int, Optional[List[int]], int) -> Tuple[bool, Optional[int]]
     """If we find an int that proves p is prime, then we'll return it"""
     if p == 2 or p == 3:
         return (True, None)
@@ -212,7 +217,7 @@ def lucasPrimeTest(p, n=100, primes=None):
     if primes is None:
         primes = getPrimes()
     # Ugh, I forgot that getFactorization prints to stderr
-    success, factors = getFactorization(primes, p - 1)
+    success, factors = getFactorization(primes, p - 1, verbose)
     # What to do when success is False?
     divs = list(map(lambda q: (p - 1) // q, factors.keys()))
 
@@ -268,6 +273,8 @@ def main():
     parser.add_argument('-j', '--json-factors', action='store_true',
         help='Enables JSON printing of factors')
     parser.add_argument('-s', action='store_true', help='With skips')
+    parser.add_argument('-v', '--verbose', action='count', default=0,
+        help='Makes the output more verbose')
 
     args = parser.parse_args()
 
@@ -312,8 +319,9 @@ def main():
         # try `python easy_primes.py -l -t 104729 | awk '{ print NR " " $0 }'`
         max_num = 7919
 
-    print("Searching for primes less than or equal to %d" % (max_num),
-        file=sys.stderr)
+    if args.verbose >= 2:
+        print("Searching for primes less than or equal to %d" % (max_num),
+            file=sys.stderr)
     if args.s:
         primes = getPrimesWithSkips([2, 3, 5], max_num, factoring)
     else:
@@ -324,18 +332,20 @@ def main():
             print("%d" % (p))
         return 0
 
-    print("Largest prime %d" % (primes[-1]), file=sys.stderr)
+    if args.verbose >= 1:
+        print("Largest prime %d" % (primes[-1]), file=sys.stderr)
     if factor_from == 0:
         return 0  # nothing to compute?
 
     for i in range(factor_from, factor_to + 1):
-        success, factors = getFactorization(primes, i)
+        success, factors = getFactorization(primes, i, args.verbose)
         if not success:
             continue  # print error message?
         if args.json_factors:
             print("%s" % (json.dumps(factors, sort_keys=True)))
             continue
-        print("Successfully found factors: %s" % (prettyPrint(factors)))
+        if args.verbose >= 1:
+            print("Successfully found factors: %s" % (prettyPrint(factors)))
     return 0
 
 
