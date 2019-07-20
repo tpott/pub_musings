@@ -21,7 +21,7 @@ def main():
 
     rows.sort(key=lambda x: x[0])
 
-    format_s = "\t".join(["%f"] * d)
+    format_s = "\t".join(["%d"] * d)
     for row in rows:
         print(format_s % row)
 

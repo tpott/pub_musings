@@ -20,11 +20,11 @@ def main():
     assert n >= 0, '--count must be non-negative'
     assert d > 0, '--dimensions must be greater than zero'
 
-    format_s = "\t".join(["%f"] * d)
+    format_s = "\t".join(["%d"] * d)
     for _ in range(n):
         row = []
         for _ in range(d):
-            row.append(random.random())
+            row.append(random.randint(-2**63, 2**63-1))
         print(format_s % tuple(row))
 
 if __name__ == '__main__':
