@@ -1,3 +1,5 @@
+# This is copied and modified from https://rosettacode.org/wiki/Prime_decomposition#Python
+
 from __future__ import print_function
  
 import sys
@@ -68,9 +70,9 @@ def decompose(n):
             n //=p
     if n > 1:
         yield n
- 
- 
-if __name__ == '__main__':
+
+
+def main():
     # Example: calculate factors of Mersenne numbers to M59 #
  
     import time
@@ -86,3 +88,11 @@ if __name__ == '__main__':
         print( "=> {0:.2f}s".format( time.time()-start ) )
         if m >= 59:
             break
+
+
+if __name__ == '__main__':
+    max_n = int(sys.argv[1])
+    for m in primes():
+        if m > max_n:
+            break
+        print(m)
