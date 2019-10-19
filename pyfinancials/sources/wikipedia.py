@@ -15,7 +15,7 @@ class Wikipedia(object):
         url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
 
         # want: https://aiohttp.readthedocs.io/en/stable/
-        with open('source_data/s_and_p_500_list', 'wb') as out_f:
+        with open('source_data/s_and_p_500_list.html', 'wb') as out_f:
             with urllib.request.urlopen(url) as f:
                 chunk = f.read(cls.CHUNK_SIZE)
                 while len(chunk) > 0:

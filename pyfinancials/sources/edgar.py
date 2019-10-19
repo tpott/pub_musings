@@ -18,7 +18,7 @@ class Edgar(object):
                '?action=getcompany&CIK=%s&type=10-k&owner=include' +
                '&count=40') % cik
 
-        with open('source_data/%s' % cik_str, 'wb') as out_f:
+        with open('source_data/%s.html' % cik_str, 'wb') as out_f:
             with urllib.request.urlopen(url) as f:
                 chunk = f.read(cls.CHUNK_SIZE)
                 while len(chunk) > 0:
@@ -47,7 +47,7 @@ class Edgar(object):
                 resp += chunk
                 chunk = f.read(cls.CHUNK_SIZE)
 
-        with open('source_data/%s' % hasher.hexdigest(), 'wb') as out_f:
+        with open('source_data/%s.html' % hasher.hexdigest(), 'wb') as out_f:
             out_f.write(resp)
 
         # Need to parse the table
@@ -71,7 +71,7 @@ class Edgar(object):
                 chunk = f.read(cls.CHUNK_SIZE)
 
         print('Fetching 10-K %s' % hasher.hexdigest())
-        with open('source_data/%s' % hasher.hexdigest(), 'wb') as out_f:
+        with open('source_data/%s.html' % hasher.hexdigest(), 'wb') as out_f:
             out_f.write(resp)
 
 
