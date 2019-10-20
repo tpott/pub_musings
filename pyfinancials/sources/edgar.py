@@ -7,6 +7,10 @@ from typing import (Any, Dict, List)
 import hashlib
 import urllib.request
 
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 
 class Edgar(object):
     CHUNK_SIZE = 1000  # num bytes
@@ -25,15 +29,38 @@ class Edgar(object):
                     out_f.write(chunk)
                     chunk = f.read(cls.CHUNK_SIZE)
 
-        # Need to parse the table
-        # Filings, Format (<a href>), Description, Filing Date, File/Film Number
-        ret = [
-            {'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837019000470/0001558370-19-000470-index.htm'}
-            , {'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837018000535/0001558370-18-000535-index.htm'}
-            , {'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837017000479/0001558370-17-000479-index.htm'}
-        ]
-        if cik != 66740:
-            ret = []
+        rows = []
+        if BeautifulSoup is not None:
+            with open('source_data/%s.html' % cik_str, 'rb') as out_f:
+                soup = BeautifulSoup(out_f.read(), features='html.parser')
+                tables = soup.select('#seriesDiv > table')
+                for table in tables:
+                    if table.name != 'table':
+                        continue
+                    # Skip the header
+                    rows = list(table.find_all('tr'))[1:]
+
+        ret = []
+        for row in rows:
+            cols = list(row.find_all('td'))
+            filings = cols[0].string
+            rel_url = cols[1].find(id='documentsbutton')['href']
+            documents_url = 'https://sec.gov%s' % rel_url
+            # description
+            filing_date = cols[3].string
+            # file_num
+            ret.append({
+                'filings': filings,
+                'filing_date': filing_date,
+                'url': documents_url
+            })
+
+        # Example data looks like:
+        # ret = [
+            # {'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837019000470/0001558370-19-000470-index.htm'}
+            # , {'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837018000535/0001558370-18-000535-index.htm'}
+            # , {'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837017000479/0001558370-17-000479-index.htm'}
+        # ]
         return ret
 
     @classmethod
@@ -49,6 +76,16 @@ class Edgar(object):
 
         with open('source_data/%s.html' % hasher.hexdigest(), 'wb') as out_f:
             out_f.write(resp)
+
+        rows = []
+        if BeautifulSoup is not None:
+            soup = BeautifulSoup(resp, features='html.parser')
+            tables = soup.select('#formDiv > div > table')
+            for table in tables:
+                if table.name != 'table':
+                    continue
+                rows = list(table.find_all('tr'))[1:]
+        # TODO finish parsing out links to the raw 10-K file
 
         # Need to parse the table
         # Seq, Description, Document (<a href>), Type, Size

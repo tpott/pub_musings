@@ -10,12 +10,13 @@ from sources.wikipedia import Wikipedia
 
 async def main() -> None:
     companies = await Wikipedia.gen_list_s_and_p_500()
-    print(companies)
 
-    for company in companies:
+    for company in companies[:7]: # TODO remove [:7]
+        print(company)
         cik = int(company[7])
         filings = await Edgar.gen_10ks(cik)
-        for filing in filings:
+        for filing in filings[:3]:  # TODO remove [:3]
+            print(filing)
             documents = await Edgar.gen_documents(filing['url'])
             for document in documents:
                 if document['type'] != '10-K':
