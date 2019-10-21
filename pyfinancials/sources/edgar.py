@@ -45,7 +45,7 @@ class Edgar(object):
             cols = list(row.find_all('td'))
             filings = cols[0].string
             rel_url = cols[1].find(id='documentsbutton')['href']
-            documents_url = 'https://sec.gov%s' % rel_url
+            documents_url = 'https://www.sec.gov%s' % rel_url
             # description
             filing_date = cols[3].string
             # file_num
@@ -84,16 +84,32 @@ class Edgar(object):
             for table in tables:
                 if table.name != 'table':
                     continue
+                # Drop the header row
                 rows = list(table.find_all('tr'))[1:]
-        # TODO finish parsing out links to the raw 10-K file
+                # And stop, because there's two tables that match and we just
+                # want the first one.
+                break
 
-        # Need to parse the table
-        # Seq, Description, Document (<a href>), Type, Size
-        ret = [
-            {'seq': 1, 'type': '10-K', 'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837018000535/mmm-20171231x10k.htm'}
-        ]
-        if url != 'https://www.sec.gov/Archives/edgar/data/66740/000155837018000535/0001558370-18-000535-index.htm':
-            ret = []
+        ret = []
+        for row in rows:
+            cols = list(row.find_all('td'))
+            seq = cols[0].string
+            description = cols[1].string
+            document_url = 'https://www.sec.gov%s' % cols[2].find('a')['href']
+            document_type = cols[3].string
+            size = cols[4].string
+            ret.append({
+                'description': description,
+                'seq': seq,
+                'size': size,
+                'type': document_type,
+                'url': document_url
+            })
+
+        # Example:
+        # ret = [
+            # {'seq': 1, 'type': '10-K', 'url': 'https://www.sec.gov/Archives/edgar/data/66740/000155837018000535/mmm-20171231x10k.htm'}
+        # ]
         return ret
 
     @classmethod
@@ -107,8 +123,9 @@ class Edgar(object):
                 resp += chunk
                 chunk = f.read(cls.CHUNK_SIZE)
 
-        print('Fetching 10-K %s' % hasher.hexdigest())
         with open('source_data/%s.html' % hasher.hexdigest(), 'wb') as out_f:
             out_f.write(resp)
+
+        return {'sha256': hasher.hexdigest()}
 
 
