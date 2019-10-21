@@ -16,16 +16,22 @@ class Edgar(object):
     CHUNK_SIZE = 1000  # num bytes
 
     @classmethod
-    async def gen_10ks(cls, cik: int) -> List[Dict[str, Any]]:
+    def get_search_url(cls, cik: int) -> str:
         cik_str = '%010d' % cik
-        url = ('https://www.sec.gov/cgi-bin/browse-edgar' +
-               '?action=getcompany&CIK=%s&type=10-k&owner=include' +
-               '&count=40') % cik
+        return ('https://www.sec.gov/cgi-bin/browse-edgar' +
+                '?action=getcompany&CIK=%s&type=10-k&owner=include' +
+                '&count=40') % cik_str
 
+    @classmethod
+    async def gen_10ks(cls, cik: int) -> List[Dict[str, Any]]:
+        url = cls.get_search_url(cik)
+        cik_str = '%010d' % cik
+        hasher = hashlib.sha256()
         with open('source_data/%s.html' % cik_str, 'wb') as out_f:
             with urllib.request.urlopen(url) as f:
                 chunk = f.read(cls.CHUNK_SIZE)
                 while len(chunk) > 0:
+                    hasher.update(chunk)
                     out_f.write(chunk)
                     chunk = f.read(cls.CHUNK_SIZE)
 
@@ -52,6 +58,7 @@ class Edgar(object):
             ret.append({
                 'filings': filings,
                 'filing_date': filing_date,
+                'source_file': hasher.hexdigest(),
                 'url': documents_url
             })
 
@@ -102,6 +109,7 @@ class Edgar(object):
                 'description': description,
                 'seq': seq,
                 'size': size,
+                'source_file': hasher.hexdigest(),
                 'type': document_type,
                 'url': document_url
             })

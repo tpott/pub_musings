@@ -52,10 +52,19 @@ class Wikipedia(object):
             date_added = cols[6].string
             cik = cols[7].string.strip()
             founded = cols[8].string.strip()
-            ret.append((symbol, security, 'reports', sector, sub_sector,
-                location, date_added, cik, founded))
+            ret.append({
+                'symbol': symbol,
+                'name': security,
+                # 'reports',
+                'sector': sector,
+                'sub_sector': sub_sector,
+                'headquarters_location': location,
+                'date_added': date_added,
+                'cik': cik,
+                'date_founded': founded
+            })
 
-        # Examples:
+        # (tuple) Examples:
         # ret = [
             # ('MMM', '3M Company', 'reports', 'Industrials', 'Industrial Conglomerates', 'St. Paul, Minnesota', '', '0000066740', '1902')
             # , ('ATVI', 'Activision Blizzard', 'reports', 'Communication Services', 'Interactive Home Entertainment', 'Santa Monica, California', '2015-08-31', '0000718877', '2008')

@@ -9,7 +9,13 @@ then the final data should be easily presentable.
 
 # Open Questions
 
-How to parse HTML without a complex HTML parsing library?
+## How to parse HTML without a complex HTML parsing library?
+
+Instead of answering this, I cheated and used [BeautifulSoup](https://github.com/edouardswiac/python-edgar). I would
+like to wrap this inside the API in html_parser.py so that I can work on
+removing this dependency.
+
+## How best to cache the fetched data and avoid re-fetching?
 
 # Notes
 
@@ -20,6 +26,11 @@ How to parse HTML without a complex HTML parsing library?
   | python3 n_squared.py \
   | python3 ~/tsv_summarize.py --cast_types f --agg_types n
 ```
+
+S&P 500 fetching ends up functioning like this:
+1) fetch company list from wikipedia (`Wikipedia.gen_list_s_and_p_500`)
+2) for each company, fetch list of 10-Ks' metadata (`Edgar.gen_10ks`)
+3) for each 10-K, fetch it's metadata (`Edgar.gen_documents`). Then fetch it's content (`Edgar.gen_ten_k`)
 
 # Other Projects
 
