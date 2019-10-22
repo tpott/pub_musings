@@ -17,6 +17,18 @@ removing this dependency.
 
 ## How best to cache the fetched data and avoid re-fetching?
 
+We have URLs, and their raw responses. We can save the time, but how long
+should we cache the response for? And maybe keep the cache, just overwrite
+the current "state" so we can look at historical changes.
+
+But how do we differentiate the different cached data? And what about the
+metadata? Knowing which 10-Ks are for AAPL and which are for GOOG is quite
+important.
+
+If the script can apply a filter, and effectively cache responses, then it
+can fetch just the necessary bits. It would print out previously seen
+responses, which could manually be inspected.
+
 # Notes
 
 ```
