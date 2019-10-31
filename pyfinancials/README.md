@@ -53,10 +53,14 @@ $ python3 runall.py --num_filings 10 --min_i 50 --max_i 60 | tee source_data/std
 $ tail -n +2 source_data/stdout | jq -sc 'group_by(.cik) | .[]'
 # For each company, group their logs by source file
 $ tail -n +2 source_data/stdout | jq -sc 'group_by(.cik) | .[] | group_by(.source_file)'
+# For each company, group their logs by filing date
+$ tail -n +2 source_data/stdout | jq -sc 'group_by(.cik) | .[] | group_by(.filing_date)'
 ```
 
 Base files: stdout, s_and_p_500_list.html
+
 Each company: {cik}.html
+
 Each filing: {filing_page_hash}.html, {filing_hash}.html
 
 Example stdout:
