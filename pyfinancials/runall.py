@@ -4,6 +4,7 @@
 
 import argparse
 import asyncio
+import json
 from typing import Optional
 
 from sources.edgar import Edgar
@@ -20,12 +21,12 @@ async def main(min_i: int, max_i: Optional[int], num_filings: int) -> None:
         cik = int(company['cik'])
         search_url = Edgar.get_search_url(cik)
         company['search_url'] = search_url
-        print(company)
+        print(json.dumps(company))
 
         filings = await Edgar.gen_10ks(cik)
         for filing in filings[:num_filings]:
             filing['cik'] = company['cik']
-            print(filing)
+            print(json.dumps(filing))
             documents = await Edgar.gen_documents(filing['url'])
             for document in documents:
                 document['cik'] = company['cik']
@@ -34,7 +35,7 @@ async def main(min_i: int, max_i: Optional[int], num_filings: int) -> None:
                     continue
                 ten_k = await Edgar.gen_ten_k(document['url'])
                 document['sha256'] = ten_k['sha256']
-                print(document)
+                print(json.dumps(document))
             # end document loop
         # end filing loop
     # end company loop
@@ -62,7 +63,6 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    print(args)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(
         args.min_i,

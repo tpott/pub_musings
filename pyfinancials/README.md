@@ -44,6 +44,38 @@ S&P 500 fetching ends up functioning like this:
 2) for each company, fetch list of 10-Ks' metadata (`Edgar.gen_10ks`)
 3) for each 10-K, fetch it's metadata (`Edgar.gen_documents`). Then fetch it's content (`Edgar.gen_ten_k`)
 
+## Docs
+
+```
+# Fetch up to 10 filings for 10 companies
+$ python3 runall.py --num_filings 10 --min_i 50 --max_i 60 | tee source_data/stdout
+# Group all the stdout logs by company (`cik`)
+$ tail -n +2 source_data/stdout | jq -sc 'group_by(.cik) | .[]'
+# For each company, group their logs by source file
+$ tail -n +2 source_data/stdout | jq -sc 'group_by(.cik) | .[] | group_by(.source_file)'
+```
+
+Base files: stdout, s_and_p_500_list.html
+Each company: {cik}.html
+Each filing: {filing_page_hash}.html, {filing_hash}.html
+
+Example stdout:
+* Company
+* Filing Page
+* Filing
+* Filing Page
+* Filing
+* Company
+* Filing Page
+* Filing
+* Filing Page
+* Filing Page
+* Filing
+
+Could group by `cik` across all three. If `search_url` is present, then it's a
+Company row. If `sha256` is present, then it's a Filing row. Else, it's a
+Filing Page row.
+
 # Other Projects
 
 * https://github.com/joeyism/py-edgar
