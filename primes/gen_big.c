@@ -127,8 +127,8 @@ int main(int argc, char** argv) {
   while (running) {
     bool is_prime = false;
     while (!is_prime) {
-      // TODO random.getrandbits(n_bits) instead of randrange
-      i64 n = randrange(2L, 1L << 32);
+      // TODO switch i64 to iN and handle n_bits > 63
+      i64 n = randrange(2L, 1L << n_bits);
       if (n <= 1 || !isPrime(n)) {
         continue;
       }
