@@ -31,6 +31,22 @@ def millerRabin(k, n):
     return True
 
 
+def isPowerOfTwo(n):
+    # type: (greater_than_one) -> bool
+    return (n & (n - 1)) == 0
+
+
+def lucasLehmer(n):
+    # type: (greater_than_one) -> bool
+    """Based on https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer_primality_test"""
+    # Maybe assert(isPowerOfTwo(n + 1)) ??
+    p = int(math.floor(math.log(n + 1, 2)))
+    s = 4
+    for _ in range(p - 2):
+        s = pow(s, 2, n) - 2
+    return s == 0
+
+
 def isPrime(n):
     # type: (greater_than_one) -> bool
     if n == 2:
@@ -39,7 +55,13 @@ def isPrime(n):
         return True
     # TODO pick the number of iterations to run miller-rabin
     elif millerRabin(200, n):
-        return True
+        if not isPowerOfTwo(n + 1) and n > 3:
+            # Lucas-Lehmer only works on `n` of the form `2 ** p - 1`,
+            # for `p` > 2
+            return True
+        return lucasLehmer(n)
+
+    # TODO try an AKS test, else we may incorrectly return False
 
     return False
 
