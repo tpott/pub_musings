@@ -26,3 +26,9 @@ $ pypy primes/easy_primes.py --factor-to 1000000 --json-factors 2>/dev/null
     (length | . == 1) and (to_entries | .[0].value == 1),
     (. | tojson)] | @tsv'
 ```
+
+# Links
+
+* [primenet](https://www.mersenne.org/primenet/)'s exponent status
+* [OEIS list](https://oeis.org/A000043/list) of Mersenne primes
+* [RSA240 factored](https://lists.gforge.inria.fr/pipermail/cado-nfs-discuss/2019-December/001139.html) and brief explanation

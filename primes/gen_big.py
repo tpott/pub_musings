@@ -20,14 +20,14 @@ if sys.version_info >= (3, 3):
 def millerRabin(k, n):
     # type: (greater_than_one, greater_than_one) -> bool
     """Run k tests to check if n is a prime. Each test picks a random int from
-    the range [2, n), and checks if `a**(n-1) % n == 1`. Note that Carmichael
-    numbers are composite numbers that will pass all their tests."""
-
+    the range [2, n), and checks if `a ** (n - 1) % n == 1`. Note that
+    Carmichael numbers are composite numbers that will pass all their tests."""
+    assert k > 1, 'type violation, expected k > 1'
+    assert n > 1, 'type violation, expected n > 1'
     for _ in range(k):
         a = random.randrange(2, n)
         if pow(a, n - 1, n) != 1:
             return False
-
     return True
 
 
@@ -39,7 +39,8 @@ def isPowerOfTwo(n):
 def lucasLehmer(n):
     # type: (greater_than_one) -> bool
     """Based on https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer_primality_test"""
-    # Maybe assert(isPowerOfTwo(n + 1)) ??
+    assert n > 3, 'lucasLehmer only valid for n > 3'
+    assert isPowerOfTwo(n + 1), 'lucasLehmer only valid for 2 ** p - 1'
     p = int(math.floor(math.log(n + 1, 2)))
     s = 4
     for _ in range(p - 2):
@@ -49,10 +50,12 @@ def lucasLehmer(n):
 
 def isPrime(n):
     # type: (greater_than_one) -> bool
+    assert n > 1, 'type violation, expected n > 1'
     if n == 2:
         return True
     elif n in set([3, 5, 7, 11, 13, 17, 19, 23, 29]):
         return True
+
     # TODO pick the number of iterations to run miller-rabin
     elif millerRabin(200, n):
         if not isPowerOfTwo(n + 1) and n > 3:
@@ -62,7 +65,6 @@ def isPrime(n):
         return lucasLehmer(n)
 
     # TODO try an AKS test, else we may incorrectly return False
-
     return False
 
 
