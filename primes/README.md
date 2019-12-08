@@ -27,8 +27,26 @@ $ pypy primes/easy_primes.py --factor-to 1000000 --json-factors 2>/dev/null
     (. | tojson)] | @tsv'
 ```
 
+# rosetta.py
+
+This is an implementation that has a similar, but not exactly the same, interface
+as to easy_primes.py. The implementation is from rosettacode.org, and way faster
+than easy_primes.py
+
+# gen_big.py
+
+A simple script for generating random, large primes. It uses repeated
+Miller-Rabin tests to ensure the random integers are prime.
+
+```
+$ python gen_big.py 510 > probable_primes
+```
+
 # Links
 
 * [primenet](https://www.mersenne.org/primenet/)'s exponent status
 * [OEIS list](https://oeis.org/A000043/list) of Mersenne primes
 * [RSA240 factored](https://lists.gforge.inria.fr/pipermail/cado-nfs-discuss/2019-December/001139.html) and brief explanation
+* https://github.com/NachiketUN/Quadratic-Sieve-Algorithm/blob/master/src/main.py and
+* https://github.com/Maosef/Quadratic-Sieve/blob/master/Quadratic%20Sieve.py are very similar
+* https://github.com/skollmann/PyFactorise/blob/master/factorise.py is more unique
