@@ -13,6 +13,7 @@ if sys.version_info >= (3, 3):
     greater_than_one = int
     greater_than_zero = int
     matrix = List[List[int]]
+    maybe_prime = int
     nonnegative = int
     prime = int
 
@@ -29,6 +30,7 @@ def gcd(a, b):
     return gcd(b, a % b)
 
 
+# TODO remove
 def pi(n):
     # type: (nonnegative) -> nonnegative
     """Returns the number of primes less than or equal to n"""
@@ -48,7 +50,7 @@ def isSquare(n):
 
 
 def fermats_method(n):
-    # type: (nonnegative) -> Dict[nonnegative, nonnegative]
+    # type: (nonnegative) -> Dict[maybe_prime, nonnegative]
     """Implements Fermat's method for factoring numbers. The idea is to find
     two numbers, a, and b, such that a ** 2 - b ** 2 == n. This form can be
     represented as (a - b) * (a + b), which therefore are two factors of n."""
@@ -58,19 +60,36 @@ def fermats_method(n):
         d = s ** 2 - n
         d_root, is_square = isSquare(d)
         if is_square:
-            return {
-                s - d_root: 1,
-                s + d_root: 1
-            }
+            return {s - d_root: 1, s + d_root: 1}
         s += 1
     return {}
 
 
-def factors(n):
-    # type: (greater_than_one) -> Dict[prime, greater_than_zero]
+def slow_primes(n):
+    # type: (greater_than_one) -> List[prime]
+    """Returns all primes less than or equal to n"""
     assert n > 1, 'type violation, expected n > 1'
-    # TODO use a sieve to derive primes, or use easy_primes.py
-    primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+    if n == 2:
+        return [2]
+    primes = [2]
+    for i in range(3, n + 1, 2):
+        is_prime = True
+        for p in primes:
+            if i % p == 0:
+                is_prime = False
+                break
+        if is_prime:
+            primes.append(i)
+    return primes
+
+
+def slow_factors(n, primes=None):
+    # type: (greater_than_one, Optional[List[prime]]) -> Dict[prime, greater_than_zero]
+    assert n > 1, 'type violation, expected n > 1'
+    if primes is None:
+        # generate all primes up to n, instead of up to ceil(sqrt(n)) b/c
+        # we don't have logic to treat the remainder as a prime
+        primes = slow_primes(n)
     ret = {}
     for p in primes:
         exponent = 0
@@ -173,40 +192,99 @@ def transpose(matrix):
     return cols
 
 
+def matstr(mat):
+    # type: (matrix) -> str
+    return  "[" + ",\n ".join(map(str, mat)) + "]"
+
+
+def mat_extend(mat_a, mat_b):
+    # type: (matrix, matrix) -> matrix
+    nrows = len(mat_a)
+    assert nrows > 0, 'mat_a must have at least one row'
+    assert nrows == len(mat_b), 'mat_b must have the same nrows as mat_a'
+    ncols = len(mat_a[0]) + len(mat_b[0])
+    assert ncols > 0, 'mat_a + mat_b must have at least one column'
+    ret = []
+    for i in range(nrows):
+        ret.append(mat_a[i] + mat_b[i])
+    return ret
+
+
+def identity(nrows, ncols=None):
+    # type: (greater_than_zero, Optional[greater_than_zero]) -> matrix
+    assert nrows > 0, 'type violation, expected nrows > 0'
+    assert ncols is None or ncols > 0, 'type violation, expected ncols > 0'
+    if ncols is None:
+        ncols = nrows
+    ret = []
+    for i in range(nrows):
+        ret.append([0 for _ in range(i)])
+        if i == ncols:
+            continue
+        ret[i].append(1)
+        ret[i].extend([0 for _ in range(ncols - i - 1)])
+    return ret
+
+
 def find_square_product(ints):
-    # type: (List[nonnegative]) -> nonnegative
-    """Given a list of distinct integers, finds a product of a subset of them
-    that is a square and returns that product."""
+    # type: (List[nonnegative]) -> List[nonnegative]
+    """Given a list of distinct integers, finds products of a subset of them
+    that is a square and returns those products."""
+    primes = slow_primes(max(ints))
     rows = []
     for i in ints:
         # TODO limit factors to be B smooth
-        rows.append(factors(i))
-    exponents = vectorize(rows, 0)
+        rows.append(slow_factors(i, primes))
+    exponents = vectorize(rows, default=0)
     even_exponents = []
     for vector in exponents:
         even_exponents.append([e % 2 for e in vector])
-    print(even_exponents)
-    print(transpose(even_exponents))
-    print(modular_row_reduction(transpose(even_exponents), 2))
-    # TODO derive solution using row reduction result
-    # i.e. see `solve_row` in https://github.com/NachiketUN/Quadratic-Sieve-Algorithm/blob/master/src/main.py
-    return 1
+
+    # We might use less than all `primes`
+    n_primes = len(exponents[0])
+    n_ints = len(ints)
+    res = modular_row_reduction(mat_extend(even_exponents, identity(n_ints)), 2)
+    zero_row = [0 for _ in range(n_primes)]
+
+    solutions = []
+    for i in range(n_ints):
+        if res[i][:n_primes] != zero_row:
+            continue
+        solution = 1
+        for j, bit in enumerate(res[i][n_primes:]):
+            if bit == 0:
+                continue
+            solution *= ints[j]
+        solutions.append(solution)
+
+    return solutions
 
 
 def quadratic_sieve(n):
-    # type: (greater_than_one) -> Dict[prime, greater_than_zero]
+    # type: (greater_than_one) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
     # 1. choose smoothness bound B
+    B = 59
+    primes = slow_primes(B)
     # 2. find numbers that are B smooth
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     # 5. now we have a ** 2 mod n == b ** 2 mod n
     # 6. now we have (a - b) * (a + b) mod n == 0
 
+    # fermats_method
+    # s = int(math.ceil(math.sqrt(n)))
+    # while True:
+        # d = s ** 2 - n
+        # d_root, is_square = isSquare(d)
+        # if is_square:
+            # return {s - d_root: 1, s + d_root: 1}
+        # s += 1
+
     # factor base
     # smooth relations
     # exponent matrix
     # gaussian elimination
     # solve congruences
-    ret = {}  # type: Dict[prime, greater_than_zero]
+    ret = {}  # type: Dict[maybe_prime, greater_than_zero]
     return ret
