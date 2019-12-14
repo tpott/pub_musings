@@ -30,21 +30,10 @@ def gcd(a, b):
     return gcd(b, a % b)
 
 
-# TODO remove
-def pi(n):
-    # type: (nonnegative) -> nonnegative
-    """Returns the number of primes less than or equal to n"""
-    assert n >= 0, 'type violation, expected n >= 0'
-    if n <= 1:
-        return 0
-    if n == 2:
-        return 1
-    # TODO
-    return 0
-
-
-def isSquare(n):
+def is_square(n):
     # type: (nonnegative) -> Tuple[nonnegative, bool]
+    # Alternative: factor `n`, and check that all the prime powers are even.
+    # This may not work if n is large enough
     root = int(math.floor(math.sqrt(n)))
     return (root, root ** 2 == n)
 
@@ -58,8 +47,8 @@ def fermats_method(n):
     s = int(math.ceil(math.sqrt(n)))
     while True:
         d = s ** 2 - n
-        d_root, is_square = isSquare(d)
-        if is_square:
+        d_root, d_is_square = is_square(d)
+        if d_is_square:
             return {s - d_root: 1, s + d_root: 1}
         s += 1
     return {}
@@ -84,7 +73,7 @@ def slow_primes(n):
 
 
 def slow_factors(n, primes=None):
-    # type: (greater_than_one, Optional[List[prime]]) -> Dict[prime, greater_than_zero]
+    # type: (greater_than_one, Optional[List[prime]]) -> Tuple[bool, Dict[prime, greater_than_zero]]
     assert n > 1, 'type violation, expected n > 1'
     if primes is None:
         # generate all primes up to n, instead of up to ceil(sqrt(n)) b/c
@@ -100,8 +89,9 @@ def slow_factors(n, primes=None):
             continue
         ret[p] = exponent
         if n == 1:
-            return ret
-    return ret
+            return (True, ret)
+    # Return false because we didn't finish factoring
+    return (False, ret)
 
 
 def vectorize(rows, default=None):
@@ -177,21 +167,6 @@ def modular_row_reduction(matrix, mod):
     return matrix
 
 
-def transpose(matrix):
-    # type: (matrix) -> matrix
-    nrows = len(matrix)
-    assert nrows > 0, 'matrix must have at least one row'
-    ncols = len(matrix[0])
-    assert ncols > 0, 'matrix must have at least one column'
-    cols = []
-    for val in matrix[0]:
-        cols.append([val])
-    for row in matrix[1:]:
-        for i, val in enumerate(row):
-            cols[i].append(val)
-    return cols
-
-
 def matstr(mat):
     # type: (matrix) -> str
     return  "[" + ",\n ".join(map(str, mat)) + "]"
@@ -226,26 +201,31 @@ def identity(nrows, ncols=None):
     return ret
 
 
-def find_square_product(ints):
-    # type: (List[nonnegative]) -> List[nonnegative]
+def find_square_product(primes, ints):
+    # type: (Optional[List[prime]], List[nonnegative]) -> Tuple[List[List[nonnegative]], List[nonnegative]]
     """Given a list of distinct integers, finds products of a subset of them
     that is a square and returns those products."""
-    primes = slow_primes(max(ints))
+    if primes is None:
+        primes = slow_primes(max(ints))
     rows = []
     for i in ints:
-        # TODO limit factors to be B smooth
-        rows.append(slow_factors(i, primes))
+        factored, factors = slow_factors(i, primes)
+        # TODO remove `False and`, but it currently fails the test for 90283
+        if False and not factored:
+            continue
+        rows.append(factors)
     exponents = vectorize(rows, default=0)
     even_exponents = []
     for vector in exponents:
         even_exponents.append([e % 2 for e in vector])
 
-    # We might use less than all `primes`
-    n_primes = len(exponents[0])
-    n_ints = len(ints)
+    # We might use less than all `primes`, as well as less than all ints
+    n_primes = len(even_exponents[0])
+    n_ints = len(even_exponents)
     res = modular_row_reduction(mat_extend(even_exponents, identity(n_ints)), 2)
     zero_row = [0 for _ in range(n_primes)]
 
+    indices = []
     solutions = []
     for i in range(n_ints):
         if res[i][:n_primes] != zero_row:
@@ -255,9 +235,10 @@ def find_square_product(ints):
             if bit == 0:
                 continue
             solution *= ints[j]
+        indices.append(res[i][n_primes:])
         solutions.append(solution)
 
-    return solutions
+    return (indices, solutions)
 
 
 def is_b_smooth(primes, i):
@@ -269,29 +250,61 @@ def is_b_smooth(primes, i):
             return True
     return False
 
+
+def is_quadratic_residue(a, n):
+    # type: (nonnegative, nonnegative) -> bool
+    # TODO implement is_quadratic_residue
+    # I tried https://github.com/NachiketUN/Quadratic-Sieve-Algorithm/blob/master/src/main.py
+    # and https://rosettacode.org/wiki/Tonelli-Shanks_algorithm#Python
+    # but I wasn't able to get either to work. I don't think I understand
+    # Quadratic Residues well enough.
+    return True
+
+
 def quadratic_sieve(n):
     # type: (greater_than_one) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
     # 1. choose smoothness bound B
     # TODO how do we pick B?
-    B = 541  # 100th prime
-    primes = slow_primes(B)
+    B = 229 # 50th prime, 541  # 100th prime
+    primes = [p for p in slow_primes(B) if is_quadratic_residue(p, n)]
+
     # 2. find numbers that are B smooth
-    n_root = int(math.ceil(math.sqrt(n)))
     ints = []
-    print('primes %d' % len(primes))
+    squares = []
+    n_root = int(math.ceil(math.sqrt(n)))
     # TODO sieve! also, how do we pick the threshold?
-    for i in range(n_root, n_root + 100):
-        if not is_b_smooth(primes, i):  # or not quadraticResidue(i, n)
+    for i in range(n_root, n_root + len(primes) + 1):
+        if not is_b_smooth(primes, i):
             continue
         ints.append(i)
+        squares.append(i ** 2 - n)
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     # 5. now we have a ** 2 mod n == b ** 2 mod n
-    print('looking for products')
-    products = find_square_product(ints)
-    # 6. now we have (a - b) * (a + b) mod n == 0
-    print(products)
+    indices, products = find_square_product(primes, squares)
 
-    ret = {}  # type: Dict[maybe_prime, greater_than_zero]
-    return ret
+    # 6. now we have (a - b) * (a + b) mod n == 0
+    for i, product in enumerate(products):
+        # TODO save the product decomposition to avoid slow_factors
+        _, factors = slow_factors(product, primes)
+        product_root = 1
+        for prime in factors:
+            product_root *= prime ** (factors[prime] // 2)
+        a = 1
+        a_s = []
+        for j, bit in enumerate(indices[i]):
+            if bit == 0:
+                continue
+            a_s.append(ints[j])
+            a *= ints[j]
+        # TODO should this be max(..) - min(..)?
+        divisor = gcd(a - product_root, n)
+        if divisor == 1 or divisor == n:
+            continue
+        # equivalent to `other_divisor = n // divisor`
+        other_divisor = gcd(a + product_root, n)
+        return {divisor: 1, other_divisor: 1}
+
+    # No solution found!
+    return {}

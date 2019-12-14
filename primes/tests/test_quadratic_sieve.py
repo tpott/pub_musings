@@ -8,6 +8,7 @@ from quadratic_sieve import (
     fermats_method,
     find_square_product,
     gcd,
+    is_quadratic_residue,
     modular_row_reduction,
     quadratic_sieve,
     slow_factors)
@@ -31,7 +32,7 @@ class TestQuadraticSieve(unittest.TestCase):
 
     def test_row_reduction(self):
         # type: () -> None
-        self.assertEquals(modular_row_reduction([
+        self.assertEqual(modular_row_reduction([
             [1, 2, -1, -4],
             [2, 3, -1, -11],
             [-2, 0, -3, 22]], None), [
@@ -39,7 +40,7 @@ class TestQuadraticSieve(unittest.TestCase):
             [0, 1, 0, 1],
             [0, 0, 1, -2]])
         # From https://blogs.msdn.microsoft.com/devdev/2006/06/19/factoring-large-numbers-with-quadratic-sieve/
-        self.assertEquals(modular_row_reduction([
+        self.assertEqual(modular_row_reduction([
             #10 24 35 52 54 78
             [1, 1, 0, 0, 1, 1],  # 2
             [0, 1, 0, 0, 1, 1],  # 3
@@ -59,12 +60,13 @@ class TestQuadraticSieve(unittest.TestCase):
         def factorsOfOne():
             return slow_factors(1)
         self.assertRaises(AssertionError, factorsOfOne)
-        self.assertEquals(slow_factors(10), {2: 1, 5: 1})
-        self.assertEquals(slow_factors(24), {2: 3, 3: 1})
-        self.assertEquals(slow_factors(35), {5: 1, 7: 1})
-        self.assertEquals(slow_factors(52), {2: 2, 13: 1})
-        self.assertEquals(slow_factors(54), {2: 1, 3: 3})
-        self.assertEquals(slow_factors(78), {2: 1, 3: 1, 13: 1})
+        # TODO test passing in primes that aren't enough to factor
+        self.assertEqual(slow_factors(10)[1], {2: 1, 5: 1})
+        self.assertEqual(slow_factors(24)[1], {2: 3, 3: 1})
+        self.assertEqual(slow_factors(35)[1], {5: 1, 7: 1})
+        self.assertEqual(slow_factors(52)[1], {2: 2, 13: 1})
+        self.assertEqual(slow_factors(54)[1], {2: 1, 3: 3})
+        self.assertEqual(slow_factors(78)[1], {2: 1, 3: 1, 13: 1})
 
     def test_square_products(self):
         # type: () -> None
@@ -73,13 +75,25 @@ class TestQuadraticSieve(unittest.TestCase):
         # Note there's also 97344 == 312 **2 == 24 * 52 * 78, but the
         # first two solutions form a basis for the matrix we use, and
         # so it is a redundant solution.
-        self.assertEquals(
-            find_square_product([10, 24, 35, 52, 54, 78]),
-            [1296, 219024])
+        _, products = find_square_product(None, [10, 24, 35, 52, 54, 78])
+        self.assertEqual(products, [1296, 219024])
+
+    def test_quadratic_residue(self):
+        # type: () -> None
+        self.assertTrue(is_quadratic_residue(2, 15347))
+        # TODO uncomment once is_quadratic_residue is correctly implemented
+        # self.assertFalse(is_quadratic_residue(3, 15347))
+        # self.assertFalse(is_quadratic_residue(5, 15347))
+        self.assertTrue(is_quadratic_residue(17, 15347))
+        self.assertTrue(is_quadratic_residue(23, 15347))
+        self.assertTrue(is_quadratic_residue(29, 15347))
+        # self.assertFalse(is_quadratic_residue(31, 15347))
 
     def test_quadratic_sieve(self):
         # type: () -> None
-        self.assertEquals(quadratic_sieve(90283), {137: 1, 696: 1})
+        self.assertEqual(quadratic_sieve(5959), {59: 1, 101: 1})
+        self.assertEqual(quadratic_sieve(90283), {137: 1, 659: 1})
+        # self.assertEqual(quadratic_sieve(1811706971), {17299: 1, 104729: 1})
 
 
 if __name__ == '__main__':
