@@ -260,31 +260,38 @@ def find_square_product(ints):
     return solutions
 
 
+def is_b_smooth(primes, i):
+    # type: (List[prime], greater_than_one) -> bool
+    for p in primes:
+        while i % p == 0:
+            i //= p
+        if i == 1:
+            return True
+    return False
+
 def quadratic_sieve(n):
     # type: (greater_than_one) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
     # 1. choose smoothness bound B
-    B = 59
+    # TODO how do we pick B?
+    B = 541  # 100th prime
     primes = slow_primes(B)
     # 2. find numbers that are B smooth
+    n_root = int(math.ceil(math.sqrt(n)))
+    ints = []
+    print('primes %d' % len(primes))
+    # TODO sieve! also, how do we pick the threshold?
+    for i in range(n_root, n_root + 100):
+        if not is_b_smooth(primes, i):  # or not quadraticResidue(i, n)
+            continue
+        ints.append(i)
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     # 5. now we have a ** 2 mod n == b ** 2 mod n
+    print('looking for products')
+    products = find_square_product(ints)
     # 6. now we have (a - b) * (a + b) mod n == 0
+    print(products)
 
-    # fermats_method
-    # s = int(math.ceil(math.sqrt(n)))
-    # while True:
-        # d = s ** 2 - n
-        # d_root, is_square = isSquare(d)
-        # if is_square:
-            # return {s - d_root: 1, s + d_root: 1}
-        # s += 1
-
-    # factor base
-    # smooth relations
-    # exponent matrix
-    # gaussian elimination
-    # solve congruences
     ret = {}  # type: Dict[maybe_prime, greater_than_zero]
     return ret

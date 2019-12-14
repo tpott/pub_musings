@@ -5,11 +5,12 @@
 import unittest
 
 from quadratic_sieve import (
-    slow_factors,
     fermats_method,
     find_square_product,
     gcd,
-    modular_row_reduction)
+    modular_row_reduction,
+    quadratic_sieve,
+    slow_factors)
 
 
 class TestQuadraticSieve(unittest.TestCase):
@@ -67,10 +68,18 @@ class TestQuadraticSieve(unittest.TestCase):
 
     def test_square_products(self):
         # type: () -> None
-        # 97344 == 312 ** 2. Other answer: 1296 (36 ** 2)
+        # 1296 == 36 ** 2 == 24 * 54
+        # 219024 == 468 ** 2 == 52 * 54 * 78
+        # Note there's also 97344 == 312 **2 == 24 * 52 * 78, but the
+        # first two solutions form a basis for the matrix we use, and
+        # so it is a redundant solution.
         self.assertEquals(
             find_square_product([10, 24, 35, 52, 54, 78]),
             [1296, 219024])
+
+    def test_quadratic_sieve(self):
+        # type: () -> None
+        self.assertEquals(quadratic_sieve(90283), {137: 1, 696: 1})
 
 
 if __name__ == '__main__':
