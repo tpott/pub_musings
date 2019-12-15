@@ -210,8 +210,7 @@ def find_square_product(primes, ints):
     rows = []
     for i in ints:
         factored, factors = slow_factors(i, primes)
-        # TODO remove `False and`, but it currently fails the test for 90283
-        if False and not factored:
+        if not factored:
             continue
         rows.append(factors)
     exponents = vectorize(rows, default=0)
@@ -251,14 +250,51 @@ def is_b_smooth(primes, i):
     return False
 
 
-def is_quadratic_residue(a, n):
-    # type: (nonnegative, nonnegative) -> bool
-    # TODO implement is_quadratic_residue
-    # I tried https://github.com/NachiketUN/Quadratic-Sieve-Algorithm/blob/master/src/main.py
-    # and https://rosettacode.org/wiki/Tonelli-Shanks_algorithm#Python
-    # but I wasn't able to get either to work. I don't think I understand
-    # Quadratic Residues well enough.
-    return True
+# From https://rosettacode.org/wiki/Tonelli-Shanks_algorithm#Python
+def legendre(a, p):
+    return pow(a, (p - 1) // 2, p)
+
+
+# From https://rosettacode.org/wiki/Tonelli-Shanks_algorithm#Python
+def tonelli(n, p):
+    if not legendre(n, p) == 1:
+        # previously this asserted "not a square (mod p)"
+        return (False, None)
+    q = p - 1
+    s = 0
+    while q % 2 == 0:
+        q //= 2
+        s += 1
+    if s == 1:
+        return (True, pow(n, (p + 1) // 4, p))
+    z = 2
+    for i in range(2, p):
+        z = i
+        if p - 1 == legendre(z, p):
+            break
+    c = pow(z, q, p)
+    r = pow(n, (q + 1) // 2, p)
+    t = pow(n, q, p)
+    m = s
+    t2 = 0
+    while (t - 1) % p != 0:
+        t2 = (t * t) % p
+        for i in range(1, m):
+            if (t2 - 1) % p == 0:
+                break
+            t2 = (t2 * t2) % p
+        b = pow(c, 1 << (m - i - 1), p)
+        r = (r * b) % p
+        c = (b * b) % p
+        t = (t * c) % p
+        m = i
+    return (True, r)
+
+
+def is_quadratic_residue(p, n):
+    # type: (prime, nonnegative) -> bool
+    success, _modular_sqrt = tonelli(n, p)
+    return success
 
 
 def quadratic_sieve(n):
@@ -274,11 +310,14 @@ def quadratic_sieve(n):
     squares = []
     n_root = int(math.ceil(math.sqrt(n)))
     # TODO sieve! also, how do we pick the threshold?
-    for i in range(n_root, n_root + len(primes) + 1):
-        if not is_b_smooth(primes, i):
+    for i in range(n_root, n_root + 2 * len(primes) + 1):
+        # `i ** 2 - n` should be equivalent to `i ** 2 % n` because of the
+        # range that i is in, and therefore what `i ** 2` is in.
+        square_mod_n = i ** 2 - n
+        if not is_b_smooth(primes, square_mod_n):
             continue
         ints.append(i)
-        squares.append(i ** 2 - n)
+        squares.append(square_mod_n)
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     # 5. now we have a ** 2 mod n == b ** 2 mod n

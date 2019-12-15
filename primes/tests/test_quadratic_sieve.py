@@ -80,14 +80,22 @@ class TestQuadraticSieve(unittest.TestCase):
 
     def test_quadratic_residue(self):
         # type: () -> None
+        # 15347 is from https://en.wikipedia.org/wiki/Quadratic_sieve
         self.assertTrue(is_quadratic_residue(2, 15347))
-        # TODO uncomment once is_quadratic_residue is correctly implemented
-        # self.assertFalse(is_quadratic_residue(3, 15347))
-        # self.assertFalse(is_quadratic_residue(5, 15347))
+        self.assertFalse(is_quadratic_residue(3, 15347))
+        self.assertFalse(is_quadratic_residue(5, 15347))
+        self.assertFalse(is_quadratic_residue(7, 15347))
+        self.assertFalse(is_quadratic_residue(11, 15347))
+        self.assertFalse(is_quadratic_residue(13, 15347))
         self.assertTrue(is_quadratic_residue(17, 15347))
+        self.assertFalse(is_quadratic_residue(19, 15347))
         self.assertTrue(is_quadratic_residue(23, 15347))
         self.assertTrue(is_quadratic_residue(29, 15347))
-        # self.assertFalse(is_quadratic_residue(31, 15347))
+        # 90283 is from https://blogs.msdn.microsoft.com/devdev/2006/06/19/factoring-large-numbers-with-quadratic-sieve/
+        self.assertTrue(is_quadratic_residue(2, 90283))
+        self.assertTrue(is_quadratic_residue(3, 90283))
+        self.assertFalse(is_quadratic_residue(5, 90283))
+        self.assertTrue(is_quadratic_residue(7, 90283))
 
     def test_quadratic_sieve(self):
         # type: () -> None
