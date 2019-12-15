@@ -320,10 +320,8 @@ def quadratic_sieve(n):
         squares.append(square_mod_n)
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
-    # 5. now we have a ** 2 mod n == b ** 2 mod n
     indices, products = find_square_product(primes, squares)
 
-    # 6. now we have (a - b) * (a + b) mod n == 0
     for i, product in enumerate(products):
         # TODO save the product decomposition to avoid slow_factors
         _, factors = slow_factors(product, primes)
@@ -331,18 +329,18 @@ def quadratic_sieve(n):
         for prime in factors:
             product_root *= prime ** (factors[prime] // 2)
         a = 1
-        a_s = []
         for j, bit in enumerate(indices[i]):
             if bit == 0:
                 continue
-            a_s.append(ints[j])
             a *= ints[j]
+        # 5. now we have a ** 2 mod n == b ** 2 mod n
         # TODO should this be max(..) - min(..)?
         divisor = gcd(a - product_root, n)
         if divisor == 1 or divisor == n:
             continue
         # equivalent to `other_divisor = n // divisor`
         other_divisor = gcd(a + product_root, n)
+        # 6. now we have (a - b) * (a + b) mod n == 0
         return {divisor: 1, other_divisor: 1}
 
     # No solution found!
