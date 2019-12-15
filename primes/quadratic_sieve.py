@@ -310,7 +310,7 @@ def quadratic_sieve(n):
     squares = []
     n_root = int(math.ceil(math.sqrt(n)))
     # TODO sieve! also, how do we pick the threshold?
-    for i in range(n_root, n_root + 2 * len(primes) + 1):
+    for i in range(n_root, n_root + 15 * len(primes) + 1):
         # `i ** 2 - n` should be equivalent to `i ** 2 % n` because of the
         # range that i is in, and therefore what `i ** 2` is in.
         square_mod_n = i ** 2 - n
