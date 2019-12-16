@@ -10,6 +10,7 @@ from quadratic_sieve import (
     gcd,
     is_quadratic_residue,
     modular_row_reduction,
+    pollards_rho,
     quadratic_sieve,
     slow_factors)
 
@@ -23,6 +24,11 @@ class TestQuadraticSieve(unittest.TestCase):
         self.assertRaises(AssertionError, negativeGcd)
         self.assertEqual(gcd(1071, 462), 21)
         self.assertEqual(gcd(6, 7), 1)
+
+    def test_pollards(self):
+        # type: () -> None
+        self.assertEqual(pollards_rho(8051, None), 97)
+        self.assertEqual(pollards_rho(10403, None), 101)
 
     def test_fermats(self):
         # type: () -> None

@@ -9,7 +9,7 @@ import math
 import sys
 
 if sys.version_info >= (3, 3):
-    from typing import (Dict, List, Optional, Tuple)
+    from typing import (Callable, Dict, List, Optional, Tuple)
     greater_than_one = int
     greater_than_zero = int
     matrix = List[List[int]]
@@ -28,6 +28,23 @@ def gcd(a, b):
     if a < b:
         return gcd(b, a)
     return gcd(b, a % b)
+
+
+def pollards_rho(n, g):
+    # type: (nonnegative, Optional[Callable[[nonnegative, nonnegative], nonnegative]]) -> Optional[nonnegative]
+    # https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
+    if g is None:
+        g = lambda x, mod: (x ** 2 + 1) % mod
+    x = 2
+    y = 2
+    d = 1
+    while d == 1:
+        x = g(x, n)
+        y = g(g(y, n), n)
+        d = gcd(abs(x - y), n)
+    if d == n:
+        return None
+    return d
 
 
 def is_square(n):
