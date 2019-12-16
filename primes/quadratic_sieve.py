@@ -5,6 +5,7 @@
 from __future__ import division
 from __future__ import print_function
 
+import argparse
 import math
 import sys
 
@@ -366,3 +367,22 @@ def quadraticSieve(n, interval_mult=2):
 
     # No solution found!
     return {}
+
+
+def main():
+    # type: () -> None
+    parser = argparse.ArgumentParser(description='Factors a number using ' +
+        'a quadratic sieve (kinda)')
+    parser.add_argument('n', type=int, help='The number to factor')
+    # TODO add help for mult (aka interval_mult)
+    parser.add_argument('--mult', type=int, default=1)
+    args = parser.parse_args()
+
+    assert args.n > 3, 'expected n > 3'
+    assert args.mult >= 1, 'expected mult >= 1'
+
+    print(quadraticSieve(args.n, args.mult))
+
+
+if __name__ == '__main__':
+    main()
