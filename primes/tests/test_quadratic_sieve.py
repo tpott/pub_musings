@@ -107,7 +107,7 @@ class TestQuadraticSieve(unittest.TestCase):
         # type: () -> None
         self.assertEqual(quadraticSieve(5959), {59: 1, 101: 1})
         self.assertEqual(quadraticSieve(90283), {137: 1, 659: 1})
-        self.assertEqual(quadraticSieve(1811706971), {17299: 1, 104729: 1})
+        self.assertEqual(quadraticSieve(1811706971, 14), {17299: 1, 104729: 1})
 
 
 if __name__ == '__main__':

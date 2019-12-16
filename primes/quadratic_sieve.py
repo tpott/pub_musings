@@ -314,12 +314,15 @@ def isQuadraticResidue(p, n):
     return success
 
 
-def quadraticSieve(n):
-    # type: (greater_than_one) -> Dict[maybe_prime, greater_than_zero]
+def quadraticSieve(n, interval_mult=2):
+    # type: (greater_than_one, nonnegative) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
+    assert interval_mult > 0, 'type violation, expected interval_mult > 0'
     # 1. choose smoothness bound B
     # TODO how do we pick B?
     B = 229 # 50th prime, 541  # 100th prime
+    # `primes` here is commonly referred to as a "factor_base" in other
+    # implementations of the quadratic sieve
     primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
 
     # 2. find numbers that are B smooth
@@ -327,7 +330,8 @@ def quadraticSieve(n):
     squares = []
     n_root = int(math.ceil(math.sqrt(n)))
     # TODO sieve! also, how do we pick the threshold?
-    for i in range(n_root, n_root + 15 * len(primes) + 1):
+    # alternative loop condition: while len(ints) < len(primes) + 1
+    for i in range(n_root, n_root + interval_mult * len(primes) + 1):
         # `i ** 2 - n` should be equivalent to `i ** 2 % n` because of the
         # range that i is in, and therefore what `i ** 2` is in.
         square_mod_n = i ** 2 - n
