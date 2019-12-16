@@ -30,7 +30,7 @@ def gcd(a, b):
     return gcd(b, a % b)
 
 
-def pollards_rho(n, g):
+def pollardsRho(n, g):
     # type: (nonnegative, Optional[Callable[[nonnegative, nonnegative], nonnegative]]) -> Optional[nonnegative]
     # https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
     if g is None:
@@ -47,7 +47,7 @@ def pollards_rho(n, g):
     return d
 
 
-def is_square(n):
+def isSquare(n):
     # type: (nonnegative) -> Tuple[nonnegative, bool]
     # Alternative: factor `n`, and check that all the prime powers are even.
     # This may not work if n is large enough
@@ -55,7 +55,7 @@ def is_square(n):
     return (root, root ** 2 == n)
 
 
-def fermats_method(n):
+def fermatsMethod(n):
     # type: (nonnegative) -> Dict[maybe_prime, nonnegative]
     """Implements Fermat's method for factoring numbers. The idea is to find
     two numbers, a, and b, such that a ** 2 - b ** 2 == n. This form can be
@@ -64,14 +64,14 @@ def fermats_method(n):
     s = int(math.ceil(math.sqrt(n)))
     while True:
         d = s ** 2 - n
-        d_root, d_is_square = is_square(d)
+        d_root, d_is_square = isSquare(d)
         if d_is_square:
             return {s - d_root: 1, s + d_root: 1}
         s += 1
     return {}
 
 
-def slow_primes(n):
+def slowPrimes(n):
     # type: (greater_than_one) -> List[prime]
     """Returns all primes less than or equal to n"""
     assert n > 1, 'type violation, expected n > 1'
@@ -89,13 +89,13 @@ def slow_primes(n):
     return primes
 
 
-def slow_factors(n, primes=None):
+def slowFactors(n, primes=None):
     # type: (greater_than_one, Optional[List[prime]]) -> Tuple[bool, Dict[prime, greater_than_zero]]
     assert n > 1, 'type violation, expected n > 1'
     if primes is None:
         # generate all primes up to n, instead of up to ceil(sqrt(n)) b/c
         # we don't have logic to treat the remainder as a prime
-        primes = slow_primes(n)
+        primes = slowPrimes(n)
     ret = {}
     for p in primes:
         exponent = 0
@@ -135,7 +135,7 @@ def vectorize(rows, default=None):
     return ret
 
 
-def modular_row_reduction(matrix, mod):
+def modularRowReduction(matrix, mod):
     # type: (matrix, Optional[greater_than_one]) -> matrix
     # Based on https://rosettacode.org/wiki/Reduced_row_echelon_form#Python
     assert mod is None or mod > 1, 'type violation, expected mod > 1'
@@ -189,7 +189,7 @@ def matstr(mat):
     return  "[" + ",\n ".join(map(str, mat)) + "]"
 
 
-def mat_extend(mat_a, mat_b):
+def matExtend(mat_a, mat_b):
     # type: (matrix, matrix) -> matrix
     nrows = len(mat_a)
     assert nrows > 0, 'mat_a must have at least one row'
@@ -218,15 +218,15 @@ def identity(nrows, ncols=None):
     return ret
 
 
-def find_square_product(primes, ints):
+def findSquareProduct(primes, ints):
     # type: (Optional[List[prime]], List[nonnegative]) -> Tuple[List[List[nonnegative]], List[nonnegative]]
     """Given a list of distinct integers, finds products of a subset of them
     that is a square and returns those products."""
     if primes is None:
-        primes = slow_primes(max(ints))
+        primes = slowPrimes(max(ints))
     rows = []
     for i in ints:
-        factored, factors = slow_factors(i, primes)
+        factored, factors = slowFactors(i, primes)
         if not factored:
             continue
         rows.append(factors)
@@ -238,7 +238,7 @@ def find_square_product(primes, ints):
     # We might use less than all `primes`, as well as less than all ints
     n_primes = len(even_exponents[0])
     n_ints = len(even_exponents)
-    res = modular_row_reduction(mat_extend(even_exponents, identity(n_ints)), 2)
+    res = modularRowReduction(matExtend(even_exponents, identity(n_ints)), 2)
     zero_row = [0 for _ in range(n_primes)]
 
     indices = []
@@ -257,7 +257,7 @@ def find_square_product(primes, ints):
     return (indices, solutions)
 
 
-def is_b_smooth(primes, i):
+def isBSmooth(primes, i):
     # type: (List[prime], greater_than_one) -> bool
     for p in primes:
         while i % p == 0:
@@ -308,19 +308,19 @@ def tonelli(n, p):
     return (True, r)
 
 
-def is_quadratic_residue(p, n):
+def isQuadraticResidue(p, n):
     # type: (prime, nonnegative) -> bool
     success, _modular_sqrt = tonelli(n, p)
     return success
 
 
-def quadratic_sieve(n):
+def quadraticSieve(n):
     # type: (greater_than_one) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
     # 1. choose smoothness bound B
     # TODO how do we pick B?
     B = 229 # 50th prime, 541  # 100th prime
-    primes = [p for p in slow_primes(B) if is_quadratic_residue(p, n)]
+    primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
 
     # 2. find numbers that are B smooth
     ints = []
@@ -331,17 +331,17 @@ def quadratic_sieve(n):
         # `i ** 2 - n` should be equivalent to `i ** 2 % n` because of the
         # range that i is in, and therefore what `i ** 2` is in.
         square_mod_n = i ** 2 - n
-        if not is_b_smooth(primes, square_mod_n):
+        if not isBSmooth(primes, square_mod_n):
             continue
         ints.append(i)
         squares.append(square_mod_n)
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
-    indices, products = find_square_product(primes, squares)
+    indices, products = findSquareProduct(primes, squares)
 
     for i, product in enumerate(products):
-        # TODO save the product decomposition to avoid slow_factors
-        _, factors = slow_factors(product, primes)
+        # TODO save the product decomposition to avoid slowFactors
+        _, factors = slowFactors(product, primes)
         product_root = 1
         for prime in factors:
             product_root *= prime ** (factors[prime] // 2)
