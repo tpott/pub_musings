@@ -51,7 +51,7 @@ def pollardsRho(n, g):
 def isSquare(n):
     # type: (nonnegative) -> Tuple[nonnegative, bool]
     # Alternative: factor `n`, and check that all the prime powers are even.
-    # This may not work if n is large enough
+    # TODO this may not work if n is large enough
     root = int(math.floor(math.sqrt(n)))
     return (root, root ** 2 == n)
 
@@ -268,6 +268,26 @@ def isBSmooth(primes, i):
     return False
 
 
+def bSmoothList(primes, n, count):
+    # type: (List[prime], greater_than_one, greater_than_one) -> Tuple[List[greater_than_one], List[greater_than_one]]
+    """This isn't a real sieve. It's just really simple. Given an int, n,
+    and the number of smooth numbers to try getting, count, derive the list
+    of smooth ints."""
+    # TODO this may not work if n is large enough
+    n_root = int(math.ceil(math.sqrt(n)))
+    ints = []
+    squares = []
+    for i in range(n_root, n_root + count + 1):
+        # `i ** 2 - n` should be equivalent to `i ** 2 % n` because of the
+        # range that i is in, and therefore what `i ** 2` is in.
+        square_mod_n = i ** 2 - n
+        if not isBSmooth(primes, square_mod_n):
+            continue
+        ints.append(i)
+        squares.append(square_mod_n)
+    return (ints, squares)
+
+
 # From https://rosettacode.org/wiki/Tonelli-Shanks_algorithm#Python
 def legendre(a, p):
     return pow(a, (p - 1) // 2, p)
@@ -315,13 +335,13 @@ def isQuadraticResidue(p, n):
     return success
 
 
-def quadraticSieve(n, interval_mult=2):
+def quadraticSieve(n, interval_mult=2, max_prime=229):
     # type: (greater_than_one, nonnegative) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
     assert interval_mult > 0, 'type violation, expected interval_mult > 0'
     # 1. choose smoothness bound B
     # TODO how do we pick B?
-    B = 229 # 50th prime, 541  # 100th prime
+    B = max_prime
     # `primes` here is commonly referred to as a "factor_base" in other
     # implementations of the quadratic sieve
     primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
@@ -329,17 +349,9 @@ def quadraticSieve(n, interval_mult=2):
     # 2. find numbers that are B smooth
     ints = []
     squares = []
-    n_root = int(math.ceil(math.sqrt(n)))
-    # TODO sieve! also, how do we pick the threshold?
-    # alternative loop condition: while len(ints) < len(primes) + 1
-    for i in range(n_root, n_root + interval_mult * len(primes) + 1):
-        # `i ** 2 - n` should be equivalent to `i ** 2 % n` because of the
-        # range that i is in, and therefore what `i ** 2` is in.
-        square_mod_n = i ** 2 - n
-        if not isBSmooth(primes, square_mod_n):
-            continue
-        ints.append(i)
-        squares.append(square_mod_n)
+    # TODO how do we pick the threshold for bSmoothSieve?
+    ints, squares = bSmoothList(primes, n, interval_mult * len(primes))
+
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     indices, products = findSquareProduct(primes, squares)
@@ -376,12 +388,16 @@ def main():
     parser.add_argument('n', type=int, help='The number to factor')
     # TODO add help for mult (aka interval_mult)
     parser.add_argument('--mult', type=int, default=1)
+    parser.add_argument('--max_prime', type=int, default=229, help='The ' +
+        'max prime number to use for deriving B-smoothness. 229 is the ' +
+        '50th prime, and 541 is the 100th.')
     args = parser.parse_args()
 
     assert args.n > 3, 'expected n > 3'
     assert args.mult >= 1, 'expected mult >= 1'
+    assert args.max_prime >= 2, 'expected max_prime >= 2'
 
-    print(quadraticSieve(args.n, args.mult))
+    print(quadraticSieve(args.n, args.mult, args.max_prime))
 
 
 if __name__ == '__main__':

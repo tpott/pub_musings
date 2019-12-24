@@ -40,7 +40,48 @@ Miller-Rabin tests to ensure the random integers are prime.
 
 ```
 $ python gen_big.py 510 > probable_primes
+$ python gen_big.py 20
+{"log2": 19.44626955927234, "n": 714349}
+{"log2": 19.59390351827008, "n": 791321}
 ```
+
+# quadratic_sieve.py
+
+```
+$ calc '714349 * 791321'
+565279365029
+$ python quadratic_sieve.py 565279365029 --mult 10000
+{791321L: 1, 714349L: 1}
+$ python quadratic_sieve.py 565279365029 --max_prime 541 --mult 100
+{791321L: 1, 714349L: 1}
+$ python -m cProfile -o restats quadratic_sieve.py 10925004257145179 --mult 1000000
+$ python -m pstats restats
+restats% sort tottime
+restats% stats 20
+```
+
+I learned the most expensive part of the quadratic sieve was generating the
+list of b-smooth numbers. I didn't implement a proper sieve, but still managed
+to enumerate numbers at a rate ~200K numbers/second.
+
+Values to iterate on:
+* max prime
+* sieve interval size
+* how may extra ints more than primes
+
+Several of the implementations below will keep generating more b-smooth ints
+until they have count(ints) >= count(primes) + some number (typically just 1).
+The thinking is that a matrix with one more row than columns will have 50%
+odds of being a non-trivial solution.
+
+I wish there was a better way for determining these thresholds. If there was
+an incremental row reduction, then that would allow for looking for solutions
+after each new b-smooth int is found. And if we needed to add a new prime,
+then that would mean some previously non-b-smooth ints would become b-smooth.
+
+I'm also curious how Quadratic Sieve handles semi-primes where the factors are
+"nearer" to each other? And how does "nearer" change as the size of the numbers
+increases?
 
 # Links
 
@@ -50,3 +91,5 @@ $ python gen_big.py 510 > probable_primes
 * https://github.com/NachiketUN/Quadratic-Sieve-Algorithm/blob/master/src/main.py and
 * https://github.com/Maosef/Quadratic-Sieve/blob/master/Quadratic%20Sieve.py are very similar
 * https://github.com/skollmann/PyFactorise/blob/master/factorise.py is more unique
+* https://github.com/cramppet/quadratic-sieve/blob/master/QS.py is pretty minimal
+* https://github.com/alexbers/quadratic_sieve/blob/master/quadratic_sieve.py has some test semiprimes

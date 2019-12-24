@@ -5,6 +5,7 @@
 import unittest
 
 from quadratic_sieve import (
+    bSmoothList,
     fermatsMethod,
     findSquareProduct,
     gcd,
@@ -12,7 +13,8 @@ from quadratic_sieve import (
     modularRowReduction,
     pollardsRho,
     quadraticSieve,
-    slowFactors)
+    slowFactors,
+    slowPrimes)
 
 
 class TestQuadraticSieve(unittest.TestCase):
@@ -35,6 +37,15 @@ class TestQuadraticSieve(unittest.TestCase):
         # Example from
         # https://blogs.msdn.microsoft.com/devdev/2006/06/19/factoring-large-numbers-with-quadratic-sieve/
         self.assertEqual(fermatsMethod(5959), {59: 1, 101: 1})
+
+    def test_b_smooth_sieve(self):
+        # type: () -> None
+        n = 5959
+        primes = [p for p in slowPrimes(229) if isQuadraticResidue(p, n)]
+        ints, squares = bSmoothList(primes, n, 10)
+        # The `squares` are what are b-smooth
+        self.assertEqual(ints, [78, 79, 80, 81, 82, 83, 85, 87, 88])
+        self.assertEqual(squares, [125, 282, 441, 602, 765, 930, 1266, 1610, 1785])
 
     def test_row_reduction(self):
         # type: () -> None
