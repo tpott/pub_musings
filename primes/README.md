@@ -120,10 +120,10 @@ real    0m0.564s
 * How many b-smooth ints are found?
 
 The approach expects `n = small * big`, such that `2 < small < big < sqrt(n)`
-and if we look for `a` and `b` such that `n = (a - b) * (a + b)` then that
-implies `n = a ** 2 - b ** 2` and `small = a - b` and `big = a + b`. Which then
-implies `a = small + b`, `big = small + 2 * b`, and finally
-`b = (big - small) / 2`, `a = (big + small) / 2`.
+and if we look for `x` and `y` such that `n = (x - y) * (x + y)` then that
+implies `n = x ** 2 - y ** 2` and `small = x - y` and `big = x + y`. Which then
+implies `x = small + y`, `big = small + 2 * y`, and finally
+`y = (big - small) / 2`, `x = (big + small) / 2`.
 
 # Links
 
