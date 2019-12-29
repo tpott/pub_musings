@@ -363,6 +363,10 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
     for i, product in enumerate(products):
         # TODO save the product decomposition to avoid slowFactors
         _, factors = slowFactors(product, primes)
+        used_ints = None
+        if verbosity > 1:
+            used_ints = []
+            print('Checking gcd of %d, factors=%s' % (product, str(factors)))
         product_root = 1
         for prime in factors:
             product_root *= prime ** (factors[prime] // 2)
@@ -371,6 +375,10 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
             if bit == 0:
                 continue
             a *= ints[j]
+            if used_ints is not None:
+                used_ints.append(ints[j])
+        if used_ints is not None:
+            print('Used ints: %s' % (str(used_ints)))
         # 5. now we have a ** 2 mod n == b ** 2 mod n
         # TODO should this be max(..) - min(..)?
         divisor = gcd(a - product_root, n)
