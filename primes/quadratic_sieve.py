@@ -335,8 +335,8 @@ def isQuadraticResidue(p, n):
     return success
 
 
-def quadraticSieve(n, interval_mult=2, max_prime=229):
-    # type: (greater_than_one, nonnegative) -> Dict[maybe_prime, greater_than_zero]
+def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
+    # type: (greater_than_one, nonnegative, greater_than_one, nonnegative) -> Dict[maybe_prime, greater_than_zero]
     assert n > 1, 'type violation, expected n > 1'
     assert interval_mult > 0, 'type violation, expected interval_mult > 0'
     # 1. choose smoothness bound B
@@ -345,16 +345,20 @@ def quadraticSieve(n, interval_mult=2, max_prime=229):
     # `primes` here is commonly referred to as a "factor_base" in other
     # implementations of the quadratic sieve
     primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
+    if verbosity > 0:
+        print('Found %d primes less than or equal to %d, max is %d' % (len(primes), max_prime, primes[-1]))
 
     # 2. find numbers that are B smooth
-    ints = []
-    squares = []
     # TODO how do we pick the threshold for bSmoothSieve?
     ints, squares = bSmoothList(primes, n, interval_mult * len(primes))
+    if verbosity > 0:
+        print('Found %d b-smooth squares out of %d ints' % (len(squares), interval_mult * len(primes)))
 
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     indices, products = findSquareProduct(primes, squares)
+    if verbosity > 0:
+        print('Found %d solutions to the mod-2 matrix' % (len(products)))
 
     for i, product in enumerate(products):
         # TODO save the product decomposition to avoid slowFactors
@@ -391,13 +395,14 @@ def main():
     parser.add_argument('--max_prime', type=int, default=229, help='The ' +
         'max prime number to use for deriving B-smoothness. 229 is the ' +
         '50th prime, and 541 is the 100th.')
+    parser.add_argument('-v', '--verbose', action='count')
     args = parser.parse_args()
 
     assert args.n > 3, 'expected n > 3'
     assert args.mult >= 1, 'expected mult >= 1'
     assert args.max_prime >= 2, 'expected max_prime >= 2'
 
-    print(quadraticSieve(args.n, args.mult, args.max_prime))
+    print(quadraticSieve(args.n, args.mult, args.max_prime, args.verbose))
 
 
 if __name__ == '__main__':

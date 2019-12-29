@@ -83,6 +83,48 @@ I'm also curious how Quadratic Sieve handles semi-primes where the factors are
 "nearer" to each other? And how does "nearer" change as the size of the numbers
 increases?
 
+```
+# default max_prime=229
+$ time python quadratic_sieve.py 10925004257145179 --mult 1000000
+{111158357L: 1, 98283247L: 1}
+real    2m12.167s
+
+$ time python quadratic_sieve.py 10925004257145179 --mult 100000
+{}
+real    0m13.088s
+
+$ time python quadratic_sieve.py 10925004257145179 --mult 100000 --max_prime 541
+{111158357L: 1, 98283247L: 1}
+real    0m52.122s
+
+$ time python quadratic_sieve.py 10925004257145179 --mult 10000 --max_prime 541
+{111158357L: 1, 98283247L: 1}
+real    0m4.819s
+
+$ time python quadratic_sieve.py 10925004257145179 --mult 1000 --max_prime 541
+{}
+real    0m0.533s
+
+$ time python quadratic_sieve.py 10925004257145179 --mult 1000 --max_prime 1583
+{111158357L: 1, 98283247L: 1}
+real    0m14.857s
+
+$ time python quadratic_sieve.py 10925004257145179 --mult 100 --max_prime 1583
+{}
+real    0m0.564s
+```
+
+* What value of b should be used?
+* How many primes are quadratic residues of n?
+* How many ints to search through?
+* How many b-smooth ints are found?
+
+The approach expects `n = small * big`, such that `2 < small < big < sqrt(n)`
+and if we look for `a` and `b` such that `n = (a - b) * (a + b)` then that
+implies `n = a ** 2 - b ** 2` and `small = a - b` and `big = a + b`. Which then
+implies `a = small + b`, `big = small + 2 * b`, and finally
+`b = (big - small) / 2`, `a = (big + small) / 2`.
+
 # Links
 
 * [primenet](https://www.mersenne.org/primenet/)'s exponent status
