@@ -1,3 +1,4 @@
 *.pyc
 *.swp
 .mypy_cache/
+a.out

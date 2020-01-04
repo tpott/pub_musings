@@ -386,7 +386,11 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
             continue
         # equivalent to `other_divisor = n // divisor`
         other_divisor = gcd(a + product_root, n)
-        # 6. now we have (a - b) * (a + b) mod n == 0
+        # 6. now we have (x - y) * (x + y) mod n == 0
+        if verbosity > 1:
+            x = (divisor + other_divisor) / 2
+            y = (divisor - other_divisor) / 2
+            print('%d = x ** 2 - y ** 2 = (x - y) * (x + y), x = %d, y = %d' % (n, x, y))
         return {divisor: 1, other_divisor: 1}
 
     # No solution found!
