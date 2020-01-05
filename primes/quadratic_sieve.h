@@ -248,7 +248,16 @@ bool quadraticSieve(i64 n, i64 mult, i64 all_num_primes, i64 *results) {
     primes[num_primes] = all_primes[i];
     ++num_primes;
   }
-  printf("Successfully found %ld primes, max = %ld\n", num_primes, primes[num_primes - 1]);
+  printf("Successfully found %ld primes, max = %ld, out of all %ld primes considered\n", num_primes, primes[num_primes - 1], all_num_primes);
+
+  printf("Primes: [");
+  for (i64 i = 0; i < num_primes; ++i) {
+    printf("%ld", primes[i]);
+    if (i < num_primes - 1) {
+      printf(", ");
+    }
+  }
+  printf("]\n");
 
   // find b-smooth squares and their respective ints using n and primes
   i64 max_num_ints = mult * num_primes;

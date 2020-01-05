@@ -347,6 +347,8 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
     primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
     if verbosity > 0:
         print('Found %d primes less than or equal to %d, max is %d' % (len(primes), max_prime, primes[-1]))
+    if verbosity > 1:
+        print('Primes: %s' % (str(primes)))
 
     # 2. find numbers that are B smooth
     # TODO how do we pick the threshold for bSmoothSieve?
