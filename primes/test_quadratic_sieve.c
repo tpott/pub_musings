@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
   printf("isQuadraticResidue(2, 15347) = %d, expected 1\n", isQuadraticResidue(2L, 15347L));
   printf("isQuadraticResidue(3, 15347) = %d, expected 0\n", isQuadraticResidue(3L, 15347L));
   printf("isQuadraticResidue(73, 90283) = %d, expected 1\n", isQuadraticResidue(73L, 90283L));
+  printf("isQuadraticResidue(3, 758048026543) = %d, expected 1\n", isQuadraticResidue(3L, 758048026543L));
   printf("isQuadraticResidue(1223, 463001234381863703) = %d, expected 0\n", isQuadraticResidue(1223L, 463001234381863703L));
   printf("isQuadraticResidue(1217, 463001234381863703) = %d, expected 1\n", isQuadraticResidue(1217L, 463001234381863703L));
   return 0;

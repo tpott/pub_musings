@@ -39,19 +39,19 @@ int main(int argc, char** argv) {
   }
 
   // TODO parse an int larger than 64bits
-  i64 n = atoi(argv[1]);
+  i64 n = atoll(argv[1]);
   if (n <= 1) {
     printUsage(command);
     return N_TOO_SMALL;
   }
 
-  i64 mult = atoi(argv[2]);
+  i64 mult = atoll(argv[2]);
   if (mult <= 0) {
     printUsage(command);
     return MULT_TOO_SMALL;
   }
 
-  i64 num_primes = atoi(argv[3]);
+  i64 num_primes = atoll(argv[3]);
   if (num_primes <= 1) {
     printUsage(command);
     return NUM_PRIMES_TOO_SMALL;
