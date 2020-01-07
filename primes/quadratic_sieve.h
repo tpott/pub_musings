@@ -25,6 +25,14 @@ typedef int64_t greater_than_one;
 // Error codes
 #define INCORRECT_NUMBER_OF_ARGS 1
 
+// https://stackoverflow.com/questions/3437404/min-and-max-in-c
+i64 min(i64 a, i64 b) {
+  if (a <= b) {
+    return a;
+  }
+  return b;
+}
+
 i64 modPow(i64 base, i64 exp, i64 mod) {
   // TODO assert(mod > 1)
   i64 result = 1;
@@ -100,13 +108,13 @@ bool isBSmooth(i64 num_primes, i64 *primes, i64 n) {
   return false;
 }
 
-bool bSmoothList(i64 num_primes, i64 *primes, i64 n, i64 num_ints, i64 *num_ints_found, i64 *ints, i64 *squares) {
+bool bSmoothList(i64 num_primes, i64 *primes, i64 n, i64 num_ints, i64 max_num_ints, i64 *num_ints_found, i64 *ints, i64 *squares) {
   // assert n > 1
   *num_ints_found = 0;
   // TODO round the square root up, so we don't have to check if `squared`
   // is negative in the loop below
   i64 root = squareRoot(n);
-  for (i64 i = root; i < root + num_ints; ++i) {
+  for (i64 i = root; i < root + num_ints && *num_ints_found < max_num_ints; ++i) {
     // If we had multiple polynomials, this is would need changing
     i64 squared = i * i - n;
     if (squared < 0) {
@@ -260,16 +268,17 @@ bool quadraticSieve(i64 n, i64 mult, i64 all_num_primes, i64 *results) {
   printf("]\n");
 
   // find b-smooth squares and their respective ints using n and primes
-  i64 max_num_ints = mult * num_primes;
+  i64 num_search_ints = mult * num_primes;
+  i64 max_num_ints = min(num_search_ints, num_primes + 100);
   i64 ints[max_num_ints];
   i64 squares[max_num_ints];
   i64 num_ints_found = -1;
-  success = bSmoothList(num_primes, primes, n, max_num_ints, &num_ints_found, ints, squares);
+  success = bSmoothList(num_primes, primes, n, num_search_ints, max_num_ints, &num_ints_found, ints, squares);
   if (!success) {
     printf("Failed to find a list of b-smooth squares\n");
     return false;
   }
-  printf("Successfully found %ld b-smooth squares out of %ld\n", num_ints_found, max_num_ints);
+  printf("Successfully found %ld b-smooth squares out of %ld\n", num_ints_found, num_search_ints);
 
   // find square products using primes and squares
   i64 num_solutions = -1;
