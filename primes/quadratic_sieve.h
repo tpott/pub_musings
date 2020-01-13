@@ -158,6 +158,17 @@ bool slowFactor(i64 num_primes, i64 *primes, i64 n, i64 *num_factors, i64 *facto
   return false;
 }
 
+void printInts(i64 num_ints, i64 *ints) {
+  printf("[");
+  for (i64 i = 0; i < num_ints; ++i) {
+    printf("%ld", ints[i]);
+    if (i < num_ints - 1) {
+      printf(", ");
+    }
+  }
+  printf("]");
+}
+
 void printFactors(i64 num_factors, i64 *factors, i64 *exponents) {
   printf("[");
   for (i64 j = 0; j < num_factors; ++j) {
@@ -181,8 +192,8 @@ bool findSquareProducts(i64 num_primes, i64 *primes, i64 num_ints, i64 *ints) {
   // num_ints = num_primes + 1. Supposedly, each additional int more than prime
   // improves the likelyhood that a solution will be found.
   i64 num_factors[num_ints];
-  i64 factors[MAX_NUM_DISTINCT_PRIME_FACTORS][num_ints];
-  i64 exponents[MAX_NUM_DISTINCT_PRIME_FACTORS][num_ints];
+  i64 factors[num_ints][MAX_NUM_DISTINCT_PRIME_FACTORS];
+  i64 exponents[num_ints][MAX_NUM_DISTINCT_PRIME_FACTORS];
   for (i64 i = 0; i < num_ints; ++i) {
     bool factored = slowFactor(num_primes, primes, ints[i], &num_factors[i], factors[i], exponents[i]);
     // printf("Factored %ld: ", ints[i]);
@@ -258,14 +269,9 @@ bool quadraticSieve(i64 n, i64 mult, i64 all_num_primes, i64 *results) {
   }
   printf("Successfully found %ld primes, max = %ld, out of all %ld primes considered\n", num_primes, primes[num_primes - 1], all_num_primes);
 
-  printf("Primes: [");
-  for (i64 i = 0; i < num_primes; ++i) {
-    printf("%ld", primes[i]);
-    if (i < num_primes - 1) {
-      printf(", ");
-    }
-  }
-  printf("]\n");
+  printf("Primes: ");
+  printInts(num_primes, primes);
+  printf("\n");
 
   // find b-smooth squares and their respective ints using n and primes
   i64 num_search_ints = mult * num_primes;
@@ -274,11 +280,18 @@ bool quadraticSieve(i64 n, i64 mult, i64 all_num_primes, i64 *results) {
   i64 squares[max_num_ints];
   i64 num_ints_found = -1;
   success = bSmoothList(num_primes, primes, n, num_search_ints, max_num_ints, &num_ints_found, ints, squares);
+
   if (!success) {
     printf("Failed to find a list of b-smooth squares\n");
     return false;
   }
   printf("Successfully found %ld b-smooth squares out of %ld\n", num_ints_found, num_search_ints);
+  if (num_ints_found == max_num_ints) {
+    printf("Found the maximum number of b-smooth squares, rather than searching all ints\n");
+  }
+  printf("Ints: ");
+  printInts(num_ints_found, ints);
+  printf("\n");
 
   // find square products using primes and squares
   i64 num_solutions = -1;

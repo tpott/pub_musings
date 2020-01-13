@@ -48,12 +48,28 @@ def pollardsRho(n, g):
     return d
 
 
+# Translated from https://rosettacode.org/wiki/Integer_roots#C
+def intSqrt(n):
+    # type: (nonnegative) -> nonnegative
+		"""Returns the square root of n, rounded down"""
+		assert n >= 0, 'type violation, expected n >= 0'
+		c = 1
+		d = (1 + n) // 2
+		e = (d + n // d) // 2
+		while c != d and c != e:
+				c = d
+				d = e
+				e = (e + n // e) // 2
+		if d < e:
+				return d
+		return e
+
+
 def isSquare(n):
     # type: (nonnegative) -> Tuple[nonnegative, bool]
     # Alternative: factor `n`, and check that all the prime powers are even.
-    # TODO this may not work if n is large enough
-    root = int(math.floor(math.sqrt(n)))
-    return (root, root ** 2 == n)
+    root = intSqrt(n)
+    return (root, root * root == n)
 
 
 def fermatsMethod(n):
@@ -273,8 +289,10 @@ def bSmoothList(primes, n, count):
     """This isn't a real sieve. It's just really simple. Given an int, n,
     and the number of smooth numbers to try getting, count, derive the list
     of smooth ints."""
-    # TODO this may not work if n is large enough
-    n_root = int(math.ceil(math.sqrt(n)))
+    n_root = intSqrt(n)
+    # This ensures we take the ceiling of the sqrt
+    if n_root * n_root < n:
+        n_root += 1
     ints = []
     squares = []
     for i in range(n_root, n_root + count + 1):
@@ -347,7 +365,7 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
     primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
     if verbosity > 0:
         print('Found %d primes less than or equal to %d, max is %d' % (len(primes), max_prime, primes[-1]))
-    if verbosity > 1:
+    if verbosity > 2:
         print('Primes: %s' % (str(primes)))
 
     # 2. find numbers that are B smooth
@@ -355,6 +373,8 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
     ints, squares = bSmoothList(primes, n, interval_mult * len(primes))
     if verbosity > 0:
         print('Found %d b-smooth squares out of %d ints' % (len(squares), interval_mult * len(primes)))
+    if verbosity > 2:
+        print('Ints: %s' % (str(ints)))
 
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
@@ -363,15 +383,11 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
         print('Found %d solutions to the mod-2 matrix' % (len(products)))
 
     for i, product in enumerate(products):
-        # TODO save the product decomposition to avoid slowFactors
-        _, factors = slowFactors(product, primes)
         used_ints = None
         if verbosity > 1:
             used_ints = []
-            print('Checking gcd of %d, factors=%s' % (product, str(factors)))
-        product_root = 1
-        for prime in factors:
-            product_root *= prime ** (factors[prime] // 2)
+            print('Checking gcd of %d' % (product))
+        # TODO move this computation to findSquareProduct
         a = 1
         for j, bit in enumerate(indices[i]):
             if bit == 0:
@@ -381,6 +397,7 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
                 used_ints.append(ints[j])
         if used_ints is not None:
             print('Used ints: %s' % (str(used_ints)))
+        product_root = intSqrt(product)
         # 5. now we have a ** 2 mod n == b ** 2 mod n
         # TODO should this be max(..) - min(..)?
         divisor = gcd(a - product_root, n)
