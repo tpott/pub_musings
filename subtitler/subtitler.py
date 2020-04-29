@@ -18,11 +18,14 @@ def run(url: str, filename: str, lang: str) -> None:
   bucket = 'subtitler1'
   region = 'us-east-2'
   job_name = 'test-job-1'  # TODO randomize
+
   _resp = mysystem('youtube-dl {url} --output "temp.%(ext)s"'.format(url=url))
   _resp = mysystem('mv temp.* {filename}'.format(filename=filename))
   # supported file types: mp3 | mp4 | wav | flac
   # from https://docs.aws.amazon.com/transcribe/latest/dg/API_TranscriptionJob.html#transcribe-Type-TranscriptionJob-MediaFormat
   _resp = mysystem('ffmpeg -i {filename} temp.wav'.format(filename=filename))
+
+  # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
   _resp = mysystem('aws s3 cp temp.wav s3://{bucket}/'.format(bucket=bucket))
   job_obj = {
     'TranscriptionJobName': job_name,
@@ -39,8 +42,11 @@ def run(url: str, filename: str, lang: str) -> None:
   json_job_str = json.dumps(job_obj)
   _resp = mysystem('echo \'{json_job_str}\' > job-start-command.json'.format(json_job_str=json_job_str))
   _resp = mysystem('aws transcribe start-transcription-job --region {region} --cli-input-json file://job-start-command.json'.format(region=region))
+
+  # TODO do while in-progress
   # Then `aws transcribe list-transcription-jobs --region us-east-2 [--status IN_PROGRESS]`
   _resp = mysystem('curl -o output.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_name} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(job_name=job_name, region=region))
+
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
   # TODO format the SUB file based on the JSON output
