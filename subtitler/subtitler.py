@@ -3,30 +3,76 @@
 # Tue Apr 28 19:50:37 PDT 2020
 
 import argparse
+import base64
 import json
 import os
+import subprocess
+from typing import List
+import urllib.parse
 
 
-def mysystem(command: str) -> None:
-  if False:
-    os.system(command)
-  else:
+def urandom5() -> str:
+  """Reads 5 bytes from /dev/urandom and encodes them in lowercase base32"""
+  with open('/dev/urandom', 'rb') as f:
+    return base64.b32encode(f.read(5)).decode('utf-8').lower()
+
+
+def youtubeVideoID(url: str) -> str:
+  """Given a URL, validate that its for Youtube, and return its ID"""
+  obj = urllib.parse.urlparse(url)
+  assert obj.scheme == 'https'
+  assert obj.netloc == 'www.youtube.com'
+  data = urllib.parse.parse_qs(obj.query)
+  assert 'v' in data, 'Expected a "v" param, like "?v=SOME_ID"'
+  assert len(data['v']) == 1, 'Expected a single "v" value, got %d values' % len(data['v'])
+  return data['v'][0]
+
+
+def mysystem(command: List[str]) -> int:
+  if True:
     print(command)
+    return 0
+  res = subprocess.run(command)
+  return res.returncode
 
 
 def run(url: str, filename: str, lang: str) -> None:
   bucket = 'subtitler1'
   region = 'us-east-2'
-  job_name = 'test-job-1'  # TODO randomize
 
-  _resp = mysystem('youtube-dl {url} --output "temp.%(ext)s"'.format(url=url))
-  _resp = mysystem('mv temp.* {filename}'.format(filename=filename))
+  job_id = urandom5()
+  video_id = youtubeVideoID(url)
+  job_name = 'test-{job_id}-{video_id}'.format(
+    job_id=job_id,
+    video_id=video_id
+  )
+
+  _resp = mysystem(['youtube-dl', url, '--output', 'downloads/{video_id}.%(ext)s'.format(
+    video_id=video_id
+  )])
+
+  files = [f for f in os.listdir('downloads') if f.startswith(video_id)]
+  assert len(files) > 0, 'Expected at least one video file like %s.*' % video_id
+  video_file = files[0]
+
   # supported file types: mp3 | mp4 | wav | flac
   # from https://docs.aws.amazon.com/transcribe/latest/dg/API_TranscriptionJob.html#transcribe-Type-TranscriptionJob-MediaFormat
-  _resp = mysystem('ffmpeg -i {filename} temp.wav'.format(filename=filename))
+  _resp = mysystem([
+    'ffmpeg',
+    '-i',
+    'downloads/{video_file}'.format(video_file=video_file),
+    'audios/{video_id}.wav'.format(video_id=video_id),
+  ])
 
   # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
-  _resp = mysystem('aws s3 cp temp.wav s3://{bucket}/'.format(bucket=bucket))
+  _resp = mysystem([
+    'aws',
+    's3',
+    'cp',
+    'audios/{video_id}.wav'.format(video_id=video_id),
+    's3://{bucket}/'.format(bucket=bucket),
+  ])
+
   job_obj = {
     'TranscriptionJobName': job_name,
     'LanguageCode': lang,
@@ -40,12 +86,34 @@ def run(url: str, filename: str, lang: str) -> None:
     },
   }
   json_job_str = json.dumps(job_obj)
-  _resp = mysystem('echo \'{json_job_str}\' > job-start-command.json'.format(json_job_str=json_job_str))
-  _resp = mysystem('aws transcribe start-transcription-job --region {region} --cli-input-json file://job-start-command.json'.format(region=region))
+  with open('job-start-command.json', 'wb') as f:
+    f.write(json_job_str.encode('utf-8'))
+    f.write(b'\n')
+
+  _resp = mysystem([
+    'aws',
+    'transcribe',
+    'start-transcription-job',
+    '--region',
+    region,
+    '--cli-input-json',
+    'file://job-start-command.json',
+  ])
 
   # TODO do while in-progress
-  # Then `aws transcribe list-transcription-jobs --region us-east-2 [--status IN_PROGRESS]`
-  _resp = mysystem('curl -o output.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_name} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(job_name=job_name, region=region))
+  # Note: `--status IN_PROGRESS` is optional
+  _resp = mysystem([
+    'aws',
+    'transcribe',
+    'list-transcription-jobs',
+    '--region',
+    region,
+    '--status',
+    'IN_PROGRESS',
+  ])
+
+  # TODO split into two commands
+  _resp = os.system('curl -o output.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_name} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(job_name=job_name, region=region))
 
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
@@ -61,7 +129,9 @@ def run(url: str, filename: str, lang: str) -> None:
   """ # hours:minutes:seconds.centiseconds
   # timestart,timeend
   # TODO ffmpeg -i {filename} -i formatted.srt -c copy -c:s mov_text final_{filename}
+  print('ffmpeg -i downloads/{video_file} -i formatted.srt -c copy -c:s mov_text final/{filename}')
   return
+  # end def run
 
 
 # `aws configure list` should show an access key and secret key. Else try
