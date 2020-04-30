@@ -202,7 +202,7 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     results = [item for item in result_obj['results']['items']
                if 'start_time' in item]
   except KeyError as e:
-    print('%s: %s' % (type(e).__name__, str(e)))
+    print('Failed checking transcription results: %s: %s' % (type(e).__name__, str(e)))
     return
 
   subtitle_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
