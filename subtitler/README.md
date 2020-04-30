@@ -2,6 +2,7 @@
 
 * downloads/
 * audios/
-* jobs-start-command.json
+* job-start-command.json
 * outputs/
-* videos/
+* subtitles/
+* final/
