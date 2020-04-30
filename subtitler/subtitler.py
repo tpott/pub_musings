@@ -8,7 +8,8 @@ import json
 import math
 import os
 import subprocess
-from typing import (Any, Dict, List, Tuple)
+import time
+from typing import (Any, Dict, List, Optional, Tuple)
 import urllib.parse
 
 
@@ -35,6 +36,18 @@ def mysystem_wrapper(dry_run: bool, command: List[str]) -> int:
     return 0
   res = subprocess.run(command)
   return res.returncode
+
+
+def mysystem2(dry_run: bool, command: List[str]) -> Optional[str]:
+  if dry_run:
+    print(" ".join(command))
+    return None
+  res = subprocess.run(command, stdout=subprocess.PIPE)
+  stdout = res.stdout.decode('utf-8').replace('\n', '')
+  # Print this to be consistent with mysystem_wrapper...
+  # TODO strip all the extra whitespace from aws list-transcription-jobs
+  print(stdout)
+  return stdout
 
 
 # https://wiki.videolan.org/SubViewer/
@@ -74,9 +87,16 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   )
   print('Running job_name: {job_name}'.format(job_name=job_name))
 
-  _resp = mysystem(['youtube-dl', url, '--output', 'downloads/{video_id}.%(ext)s'.format(
-    video_id=video_id
-  )])
+  # --no-playlist is in case someone tries passing in a playlist URL
+  _resp = mysystem([
+    'youtube-dl',
+    '--no-playlist',
+    url,
+    '--output',
+    'downloads/{video_id}.%(ext)s'.format(
+      video_id=video_id
+    ),
+  ])
 
   files = [f for f in os.listdir('downloads') if f.startswith(video_id)]
   if dry_run and len(files) == 0:
@@ -135,17 +155,29 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     'file://job-start-command.json',
   ])
 
-  # TODO do while in-progress
-  # Note: `--status IN_PROGRESS` is optional
-  _resp = mysystem([
-    'aws',
-    'transcribe',
-    'list-transcription-jobs',
-    '--region',
-    region,
-    '--status',
-    'IN_PROGRESS',
-  ])
+  for _ in range(200):
+    # Note: `--status IN_PROGRESS` is optional
+    res = mysystem2(dry_run, [
+      'aws',
+      'transcribe',
+      'list-transcription-jobs',
+      '--region',
+      region,
+      '--status',
+      'IN_PROGRESS',
+    ])
+    try:
+      obj = json.loads(res)
+    except Exception as e:
+      print('aws list failed: %s: %s' % (type(e).__name__, str(e)))
+      break
+    try:
+      if len(obj['TranscriptionJobSummaries']) == 0:
+        break
+    except Exception as e:
+      print('aws list response was weird: %s: %s' % (type(e).__name__, str(e)))
+      break
+    time.sleep(3)
 
   # TODO split into two commands
   command = 'curl -o outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_name} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
