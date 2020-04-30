@@ -123,7 +123,7 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
       f.write(json_job_str.encode('utf-8'))
       f.write(b'\n')
   else:
-    print('job-start-command.json: {json_job_str}'.format(json_job_str=json_job_str))
+    print('echo \'{json_job_str}\' > job-start-command.json'.format(json_job_str=json_job_str))
 
   _resp = mysystem([
     'aws',
@@ -161,8 +161,10 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
 
-  with open('outputs/{video_id}.json'.format(video_id=video_id), 'rb') as f:
-    result_obj = json.loads(f.read().decode('utf-8'))
+  result_obj = {}
+  if os.path.exists('outputs/{video_id}.json'.format(video_id=video_id)):
+    with open('outputs/{video_id}.json'.format(video_id=video_id), 'rb') as f:
+      result_obj = json.loads(f.read().decode('utf-8'))
 
   try:
     results = [item for item in result_obj['results']['items']
