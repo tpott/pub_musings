@@ -32,9 +32,10 @@ Note that this command will prompt you to fill in several fields for the certifi
 Those are entirely optional. Because you will not be getting this certificate signed,
 you will see the "Not secure" warning in Chrome/other browsers.
 
-To run a jupyter server, I would then recommend running `jupyter notebook --certfile cert.pem --keyfile key.pem --notebook-dir notebooks/ 2> logs &`
+To run a jupyter server, I would then recommend running
+`jupyter notebook --certfile cert.pem --keyfile key.pem --notebook-dir notebooks/ 2> logs &`
 This will run the jupyter process in the [background](https://en.wikipedia.org/wiki/Background_process).
-To set a secure password, you can run `python3 -c "print(open(\"/dev/urandom\", \"rb\").read(16).hex())"`
+To set a secure password for your jupyter server, you can run `python3 -c "print(open(\"/dev/urandom\", \"rb\").read(16).hex())"`
 to generate a long, hexicode password. Finally, run `jupyter notebook password` and
 paste the password you generated.
 
