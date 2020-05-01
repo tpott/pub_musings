@@ -27,6 +27,9 @@ I would suggest installing this basket of packages (list from https://www.scipy.
 * sympy
 * nose
 
+`mlr` is also a really handy command-line tool. It can be pretty powerful when
+combined with `jq` in the modern age where everything is stored in json.
+
 You can then generate a new TLS certificate by running `openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 30`.
 Note that this command will prompt you to fill in several fields for the certificate.
 Those are entirely optional. Because you will not be getting this certificate signed,

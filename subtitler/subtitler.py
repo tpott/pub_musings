@@ -195,6 +195,11 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
 
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
+  # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), .alternatives[0].content] | @tsv' output.json
+  # then pipe to `mlr --itsvlite --otsv label start,end,duration,content then stats1 -a count,sum,mean,min,p25,p50,p75,max -f duration | transpose`
+  # where transpose is an alias for:
+  # `python3 -c 'from __future__ import (division, print_function); import sys; rows = [line.rstrip("\n").split("\t") for line in sys.stdin]; nrows = len(rows); assert nrows > 0, "Expected at least one row in input"; ncols = len(rows[0]); cols = [[rows[i][j] if j < len(rows[i]) else "" for i in range(nrows)] for j in range(ncols)]; print("\n".join(["\t".join(col) for col in cols]));'`
+  # or pipe to `mlr --itsvlite --otsv label start,end,duration,content then filter '$duration > 0.3'`
 
   result_obj = {}
   if os.path.exists('outputs/{video_id}.json'.format(video_id=video_id)):

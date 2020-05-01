@@ -7,3 +7,4 @@ final/
 cert.pem
 key.pem
 logs
+notebooks/.ipynb_checkpoints/
