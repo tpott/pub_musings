@@ -87,9 +87,12 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   )
   print('Running job_name: {job_name}'.format(job_name=job_name))
 
+  # --no-cache-dir is to avoid some 403 errors
+  #   see https://github.com/ytdl-org/youtube-dl/issues/6451
   # --no-playlist is in case someone tries passing in a playlist URL
   _resp = mysystem([
     'youtube-dl',
+    '--no-cache-dir',
     '--no-playlist',
     url,
     '--output',
@@ -237,7 +240,7 @@ def main() -> None:
   * youtube-dl
   * ffmpeg
   * awscli, version >= 1.18 (probably install via pip and export PATH=$PATH:~/.local/bin)
-  * [jq]
+  * jq
   """
   parser = argparse.ArgumentParser('Download and transcribe a video from youtube')
   parser.add_argument('video_url')

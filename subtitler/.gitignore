@@ -4,3 +4,6 @@ job-start-command.json
 outputs/
 subtitles/
 final/
+cert.pem
+key.pem
+logs
