@@ -12,8 +12,9 @@
 * awscli, version >= 1.18 (probably install via pip and export PATH=$PATH:~/.local/bin)
 * ffmpeg
 * jq
-* scipy
-* youtube-dl
+* scipy (pip)
+* youtube-dl (pip)
+* [mlr]
 
 # Development
 
@@ -26,6 +27,7 @@ I would suggest installing this basket of packages (list from https://www.scipy.
 * pandas
 * sympy
 * nose
+* scikit-learn
 
 `mlr` is also a really handy command-line tool. It can be pretty powerful when
 combined with `jq` in the modern age where everything is stored in json.
@@ -35,10 +37,12 @@ Note that this command will prompt you to fill in several fields for the certifi
 Those are entirely optional. Because you will not be getting this certificate signed,
 you will see the "Not secure" warning in Chrome/other browsers.
 
-To run a jupyter server, I would then recommend running
-`jupyter notebook --certfile cert.pem --keyfile key.pem --notebook-dir notebooks/ 2> logs &`
-This will run the jupyter process in the [background](https://en.wikipedia.org/wiki/Background_process).
 To set a secure password for your jupyter server, you can run `python3 -c "print(open(\"/dev/urandom\", \"rb\").read(16).hex())"`
 to generate a long, hexicode password. Finally, run `jupyter notebook password` and
 paste the password you generated.
 
+To run a jupyter server, I would then recommend running
+`jupyter notebook --certfile cert.pem --keyfile key.pem --notebook-dir notebooks/ 2> logs &`
+This will run the jupyter process in the [background](https://en.wikipedia.org/wiki/Background_process).
+Or you can start a screen (for example: `screen -S jup`), and run the jupyter server there.
+Same command but replace `2> logs &` with `2>&1 | tee logs`
