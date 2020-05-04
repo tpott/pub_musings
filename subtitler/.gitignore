@@ -2,6 +2,7 @@ downloads/
 audios/
 job-start-command.json
 outputs/
+tsvs/
 subtitles/
 final/
 cert.pem

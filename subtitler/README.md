@@ -1,11 +1,12 @@
 # subtitler
 
-* downloads/
-* audios/
-* job-start-command.json
-* outputs/
-* subtitles/
-* final/
+* `downloads/` for the initial download
+* `audios/` the audio from the video
+* `job-start-command.json` a temporary file for submitting to AWS for transcribing
+* `outputs/` raw JSON output from AWS
+* `tsvs/` TSV parsed data derived from the JSON output. May be modified to improve classification.
+* `subtitles/` formatted SubRip subtitles files
+* `final/` final formatted video with subtitles
 
 # Dependencies
 

@@ -201,6 +201,16 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   # `python3 -c 'from __future__ import (division, print_function); import sys; rows = [line.rstrip("\n").split("\t") for line in sys.stdin]; nrows = len(rows); assert nrows > 0, "Expected at least one row in input"; ncols = len(rows[0]); cols = [[rows[i][j] if j < len(rows[i]) else "" for i in range(nrows)] for j in range(ncols)]; print("\n".join(["\t".join(col) for col in cols]));'`
   # or pipe to `mlr --itsvlite --otsv label start,end,duration,content then filter '$duration > 0.3'`
 
+  # -c is for compact output
+  # -r is for "raw" output
+  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), .alternatives[0].content] | @tsv\' outputs/{video_id}.json > tsvs/{video_id}.tsv'.format(
+    video_id=video_id
+  )
+  if dry_run:
+    print(command)
+  else:
+    _resp = os.system(command)
+
   result_obj = {}
   if os.path.exists('outputs/{video_id}.json'.format(video_id=video_id)):
     with open('outputs/{video_id}.json'.format(video_id=video_id), 'rb') as f:
