@@ -47,3 +47,7 @@ To run a jupyter server, I would then recommend running
 This will run the jupyter process in the [background](https://en.wikipedia.org/wiki/Background_process).
 Or you can start a screen (for example: `screen -S jup`), and run the jupyter server there.
 Same command but replace `2> logs &` with `2>&1 | tee logs`
+
+# utterance server
+
+Tested by running `python3 utterance_server.py` and then opening [https://localhost:8000/label?video=wr2sVPTacTE&utterance=28](https://localhost:8000/label?video=wr2sVPTacTE&utterance=28)
