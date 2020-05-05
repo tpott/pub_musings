@@ -50,7 +50,7 @@ def readAndSpectro(start, end, video) -> Tuple[int, np.ndarray, np.ndarray, np.n
     nperseg=window_size,
     noverlap=window_size // 2
   )
-  return windows_per_second, times + min_time, freqs, np.abs(spectro).T
+  return windows_per_second, data, times + min_time, freqs, np.abs(spectro).T
 
 # This class is necessary to use the below syntax of `with Server(..) as ..`
 class TCPServer(socketserver.TCPServer):
@@ -123,7 +123,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
         }
     print('Labeling', utterance)
 
-    _windows_per_sec, times, freqs, spectro = readAndSpectro(
+    _windows_per_sec, data, times, freqs, spectro = readAndSpectro(
       utterance['start'],
       utterance['end'],
       video_id
