@@ -7,6 +7,7 @@
 * `tsvs/` TSV parsed data derived from the JSON output. May be modified to improve classification.
 * `subtitles/` formatted SubRip subtitles files
 * `final/` final formatted video with subtitles
+* [`tmp/` only for utterance_server.py]
 
 # Dependencies
 
@@ -51,3 +52,5 @@ Same command but replace `2> logs &` with `2>&1 | tee logs`
 # utterance server
 
 Tested by running `python3 utterance_server.py` and then opening [https://localhost:8000/label?video=wr2sVPTacTE&utterance=28](https://localhost:8000/label?video=wr2sVPTacTE&utterance=28)
+
+Writes to `tmp/`
