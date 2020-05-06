@@ -133,7 +133,11 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       video_id
     )
 
-    if not os.path.exists(image_file):
+    # TODO add a GET parameter to toggle this
+    # Problem is when changing the TSV, the start and end times may change,
+    # but the image already got cached.
+    ignore_cache = True
+    if ignore_cache or not os.path.exists(image_file):
       # TODO parameterize these limits
       max_freq = 60
       smaller_freqs = np.arange(freqs.shape[0])[:max_freq]
@@ -147,7 +151,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       plt.savefig(image_file)
       plt.clf()
 
-    if not os.path.exists(audio_file):
+    if ignore_cache or not os.path.exists(audio_file):
       scipy.io.wavfile.write(audio_file, rate, data)
 
     s = """<html>
