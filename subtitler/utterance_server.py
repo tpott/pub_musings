@@ -123,29 +123,32 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
           'content': cols[3],
         }
 
+    # TODO make this deterministic to avoid re-creating it
+    tmp_file_id = '%s-%d' % (video_id, utterance_id)
+    image_file = 'tmp/%s.png' % tmp_file_id
+    audio_file = 'tmp/%s.wav' % tmp_file_id
     _windows_per_sec, rate, data, times, freqs, spectro = readAndSpectro(
       utterance['start'],
       utterance['end'],
       video_id
     )
-    # TODO parameterize these limits
-    max_freq = 60
-    smaller_freqs = np.arange(freqs.shape[0])[:max_freq]
-    spectro_display = np.abs(spectro)[:, :max_freq].T
-    plt.pcolormesh(times, smaller_freqs, spectro_display)
-    plt.axvline(x=utterance['start'], color='#d62728')
-    plt.axvline(x=utterance['end'], color='#d62728')
-    plt.ylabel('Frequency')
-    plt.xlabel('Time (seconds)')
-    plt.gcf().set_size_inches([15, 4]) # default is 6 x 4
-    # TODO make this deterministic to avoid re-creating it
-    tmp_file_id = urandom(6).hex()
-    image_file = 'tmp/%s.png' % tmp_file_id
-    plt.savefig(image_file)
-    plt.clf()
 
-    audio_file = 'tmp/%s.wav' % tmp_file_id
-    scipy.io.wavfile.write(audio_file, rate, data)
+    if not os.path.exists(image_file):
+      # TODO parameterize these limits
+      max_freq = 60
+      smaller_freqs = np.arange(freqs.shape[0])[:max_freq]
+      spectro_display = np.abs(spectro)[:, :max_freq].T
+      plt.pcolormesh(times, smaller_freqs, spectro_display)
+      plt.axvline(x=utterance['start'], color='#d62728')
+      plt.axvline(x=utterance['end'], color='#d62728')
+      plt.ylabel('Frequency')
+      plt.xlabel('Time (seconds)')
+      plt.gcf().set_size_inches([15, 4]) # default is 6 x 4
+      plt.savefig(image_file)
+      plt.clf()
+
+    if not os.path.exists(audio_file):
+      scipy.io.wavfile.write(audio_file, rate, data)
 
     s = """<html>
   <head>
@@ -162,11 +165,16 @@ function redirect(n) {{
   window.location = dest;
 }}
 
+function play() {{
+  document.getElementsByTagName('audio')[0].play();
+}}
+
 document.addEventListener('keydown', event => {{
   let LEFT = 37;
   let RIGHT = 39;
   let N = 78;
   let P = 80;
+  let Y = 89;
   switch (event.keyCode) {{
     case RIGHT:
     case N:
@@ -175,6 +183,9 @@ document.addEventListener('keydown', event => {{
     case LEFT:
     case P:
       redirect(-1);
+      break;
+    case Y:
+      play();
       break;
   }}
 }});
