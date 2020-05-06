@@ -24,7 +24,7 @@ import scipy.signal
 # Run as `python3 utterance_server.py`
 
 
-def readAndSpectro(start, end, video) -> Tuple[int, np.ndarray, np.ndarray, np.ndarray]:
+def readAndSpectro(start, end, video) -> Tuple[int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   """return spectro: np.ndarray[dtype=float64, shape=[Nrows, Nfreqs]]"""
   rate, data = scipy.io.wavfile.read('audios/%s.wav' % video)
   length = data.shape[0] / rate
@@ -50,7 +50,8 @@ def readAndSpectro(start, end, video) -> Tuple[int, np.ndarray, np.ndarray, np.n
     nperseg=window_size,
     noverlap=window_size // 2
   )
-  return windows_per_second, data, times + min_time, freqs, np.abs(spectro).T
+  return windows_per_second, rate, data, times + min_time, freqs, np.abs(spectro).T
+
 
 # This class is necessary to use the below syntax of `with Server(..) as ..`
 class TCPServer(socketserver.TCPServer):
@@ -121,14 +122,12 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
           'duration': float(cols[2]),
           'content': cols[3],
         }
-    print('Labeling', utterance)
 
-    _windows_per_sec, data, times, freqs, spectro = readAndSpectro(
+    _windows_per_sec, rate, data, times, freqs, spectro = readAndSpectro(
       utterance['start'],
       utterance['end'],
       video_id
     )
-    print('spectro.shape=', spectro.shape)
     # TODO parameterize these limits
     max_freq = 60
     smaller_freqs = np.arange(freqs.shape[0])[:max_freq]
@@ -139,22 +138,86 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     plt.ylabel('Frequency')
     plt.xlabel('Time (seconds)')
     plt.gcf().set_size_inches([15, 4]) # default is 6 x 4
-    image_file = 'tmp/%s.png' % urandom(6).hex()
+    # TODO make this deterministic to avoid re-creating it
+    tmp_file_id = urandom(6).hex()
+    image_file = 'tmp/%s.png' % tmp_file_id
     plt.savefig(image_file)
     plt.clf()
+
+    audio_file = 'tmp/%s.wav' % tmp_file_id
+    scipy.io.wavfile.write(audio_file, rate, data)
 
     s = """<html>
   <head>
     <title>Utterance Labeler</title>
+    <script type="text/javascript">
+
+// Double curly braces are because this webpage is from python. It's a big
+// template string with `.format(...)` called on it.
+function redirect(n) {{
+  let video_id = '{video_id}';
+  let utterance_id = {utterance_id} + n;
+  let params = 'video=' + video_id + '&utterance=' + utterance_id.toString();
+  let dest = window.location.origin + window.location.pathname + '?' + params;
+  window.location = dest;
+}}
+
+document.addEventListener('keydown', event => {{
+  let LEFT = 37;
+  let RIGHT = 39;
+  let N = 78;
+  let P = 80;
+  switch (event.keyCode) {{
+    case RIGHT:
+    case N:
+      redirect(1);
+      break;
+    case LEFT:
+    case P:
+      redirect(-1);
+      break;
+  }}
+}});
+
+    </script>
   </head>
   <body>
     <p>Video = {video_id}</p>
     <img src="{image_file}" />
+    <audio controls src="{audio_file}">
+      Your browser doesn't support audio
+    </audio>
+    <!-- Other options are a <div> with <span>s -->
+    <!-- Or just a plain <p> with JSON -->
+    <!-- But I'd like to make this editable -->
+    <table>
+      <tr>
+        <td>"start": {start},</td>
+        <td>"end": {end},</td>
+        <td>"duration": {duration},</td>
+        <td>"content": "{content}",</td>
+      </tr>
+      <tr>
+        <td>"num_rows": {num_rows},</td>
+        <td>"num_cols": {num_cols},</td>
+        <td></td>
+        <td></td>
+      </tr>
+    </table>
   </body>
 </html>""".format(
+      audio_file=audio_file,
+      content=utterance['content'],
+      duration=utterance['duration'],
+      end=utterance['end'],
       image_file=image_file,
+      num_rows=spectro.shape[0],
+      num_cols=spectro.shape[1],
+      start=utterance['start'],
       video_id=video_id,
+      utterance_id=utterance_id,
     )
+
     s_bytes = s.encode('utf-8')
     self.send_response(http.server.HTTPStatus.OK)
     self.send_header('Content-Length', len(s_bytes))
@@ -171,8 +234,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     filename = parts[2]
     parts = filename.split('.')
     assert len(parts) == 2
-    assert parts[1] == 'png'
-    local_path = 'tmp/%s.png' % parts[0]
+    assert parts[1] in set(['png', 'wav'])
+    local_path = 'tmp/%s.%s' % (parts[0], parts[1])
     with open(local_path, 'rb') as f:
       fs = os.fstat(f.fileno())
       self.send_response(http.server.HTTPStatus.OK)
