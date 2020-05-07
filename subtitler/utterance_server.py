@@ -139,7 +139,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     ignore_cache = True
     if ignore_cache or not os.path.exists(image_file):
       # TODO parameterize these limits
-      max_freq = 60
+      max_freq = 110
       smaller_freqs = np.arange(freqs.shape[0])[:max_freq]
       spectro_display = np.abs(spectro)[:, :max_freq].T
       plt.pcolormesh(times, smaller_freqs, spectro_display)
