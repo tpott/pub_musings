@@ -5,6 +5,7 @@ outputs/
 tsvs/
 subtitles/
 final/
+tmp/
 cert.pem
 key.pem
 logs
