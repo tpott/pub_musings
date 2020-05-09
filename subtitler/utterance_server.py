@@ -264,7 +264,7 @@ document.addEventListener('keydown', event => {{
       shutil.copyfileobj(f, self.wfile)
     return
 
-  def do_GET(self):
+  def getHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
     # TODO move this check after the status check
@@ -279,6 +279,21 @@ document.addEventListener('keydown', event => {{
       return
     s = b'Unknown page'
     self.send_response(http.server.HTTPStatus.NOT_FOUND)
+    self.send_header('Content-Length', len(s))
+    self.end_headers()
+    self.wfile.write(s)
+    return
+
+  def do_GET(self):
+    s = None
+    try:
+      self.getHandler()
+    except Exception as e:
+      # TODO add stack trace and exception message
+      s = b'Unexpected exception: %s' % type(e).__name__.encode('utf-8')
+    if s is None:
+      return
+    self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
     self.send_header('Content-Length', len(s))
     self.end_headers()
     self.wfile.write(s)
