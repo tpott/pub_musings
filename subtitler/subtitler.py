@@ -12,6 +12,8 @@ import time
 from typing import (Any, Dict, List, Optional, Tuple)
 import urllib.parse
 
+from tsv2srt import tsv2srt
+
 
 def urandom5() -> str:
   """Reads 5 bytes from /dev/urandom and encodes them in lowercase base32"""
@@ -48,29 +50,6 @@ def mysystem2(dry_run: bool, command: List[str]) -> Optional[str]:
   # TODO strip all the extra whitespace from aws list-transcription-jobs
   print(stdout)
   return stdout
-
-
-# https://wiki.videolan.org/SubViewer/
-def timeize(seconds: float) -> str:
-  hours = int(math.floor(seconds / 3600))
-  seconds -= hours * 3600
-  minutes = int(math.floor(seconds / 60))
-  seconds -= minutes * 60
-  return "{hours:02d}:{minutes:02d}:{seconds:02.03f}".format(
-    hours=hours,
-    minutes=minutes,
-    seconds=seconds
-  )
-
-
-def textize(index_result_tuple: Tuple[int, Dict[str, Any]]) -> str:
-  index, result = index_result_tuple
-  end = timeize(float(result['end_time']))
-  start = timeize(float(result['start_time']))
-  text = result['alternatives'][0]['content']
-  return """{index}
-{start} --> {end}
-{text}""".format(index=index + 1, start=start, end=end, text=text)
 
 
 def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
@@ -170,9 +149,9 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
       'IN_PROGRESS',
     ])
     try:
-      obj = json.loads(res)
+      obj = json.loads(res if res is not None else '')
     except Exception as e:
-      print('aws list failed: %s: %s' % (type(e).__name__, str(e)))
+      print('aws list-transcription-jobs failed: %s: %s' % (type(e).__name__, str(e)))
       break
     try:
       if len(obj['TranscriptionJobSummaries']) == 0:
@@ -211,29 +190,26 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   else:
     _resp = os.system(command)
 
-  result_obj = {}
-  if os.path.exists('outputs/{video_id}.json'.format(video_id=video_id)):
-    with open('outputs/{video_id}.json'.format(video_id=video_id), 'rb') as f:
-      result_obj = json.loads(f.read().decode('utf-8'))
-
-  try:
-    results = [item for item in result_obj['results']['items']
-               if 'start_time' in item]
-  except KeyError as e:
-    print('Failed checking transcription results: %s: %s' % (type(e).__name__, str(e)))
+  tsv_file = 'tsvs/{video_id}.tsv'.format(video_id=video_id)
+  srt_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
+  if dry_run:
+    ok = True
+    print('python3 tsv2srt.py {tsv_file} {srt_file}'.format(
+      tsv_file=tsv_file,
+      srt_file=srt_file
+    ))
+  else:
+    ok = tsv2srt(tsv_file, srt_file)
+  if not ok:
+    print('Failed to convert tsv to srt')
     return
-
-  subtitle_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
-  text = "\n\n".join(list(map(textize, enumerate(results))))
-  with open(subtitle_file, 'wb') as f:
-    f.write(text.encode('utf-8'))
 
   _resp = mysystem([
     'ffmpeg',
     '-i',
     'downloads/{video_file}'.format(video_file=video_file),
     '-i',
-    subtitle_file,
+    srt_file,
     '-s',
     '720x480',
     # '-c',
