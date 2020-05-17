@@ -323,6 +323,7 @@ def main():
       'wut': 'example data!',
     })
     print('Serving at port:', PORT)
+    print('Try https://localhost:%d/label?video=wr2sVPTacTE&utterance=0' % PORT)
     # Generate a self signed cert by running the following:
     # `openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 30`
     httpd.socket = ssl.wrap_socket(
