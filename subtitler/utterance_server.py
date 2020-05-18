@@ -11,7 +11,8 @@ import shutil
 import ssl
 import sys
 import time
-from typing import Tuple
+import traceback
+from typing import NewType, Tuple
 import urllib
 
 import matplotlib
@@ -23,8 +24,10 @@ import scipy.signal
 
 # Run as `python3 utterance_server.py`
 
+FloatSeconds = NewType('FloatSeconds', float)
 
-def readAndSpectro(start, end, video) -> Tuple[int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+
+def readAndSpectro(start: FloatSeconds, end: FloatSeconds, max_duration: FloatSeconds, video) -> Tuple[int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   """return spectro: np.ndarray[dtype=float64, shape=[Nrows, Nfreqs]]"""
   rate, data = scipy.io.wavfile.read('audios/%s.wav' % video)
   length = data.shape[0] / rate
@@ -34,11 +37,12 @@ def readAndSpectro(start, end, video) -> Tuple[int, int, np.ndarray, np.ndarray,
     data = data[:, 0]
   start_i, end_i = 0, length
   mean = (start + end) / 2
-  if 1.5 < mean:
-    start_i = int((mean - 1.5) * rate)
+  half_duration = max_duration / 2
+  if half_duration < mean:
+    start_i = int((mean - half_duration) * rate)
   min_time = start_i / rate
-  if mean < length - 1.5:
-    end_i = int((mean + 1.5) * rate)
+  if mean < length - half_duration:
+    end_i = int((mean + half_duration) * rate)
   data = data[start_i : end_i].copy()
   window_size = int(rate) // 100
   step_size = window_size // 2
@@ -85,7 +89,6 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       self.example = None
     super().setup()
 
-  # TODO(@tpott) remove if this doesn't get used
   def _myRedirect(self, url: str) -> None:
     self.send_response(http.server.HTTPStatus.FOUND)
     self.send_header('Location', url)
@@ -101,11 +104,23 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.wfile.write(s)
     return
 
+  # TODO rename this to not sound so generic...
+  def redirect(self, video_id: str, utterance_id: int, duration: FloatSeconds) -> None:
+    self._myRedirect('/label?video={video_id}&utterance={utterance_id}&max_duration={duration}'.format(
+      duration=duration,
+      video_id=video_id,
+      utterance_id=utterance_id,
+    ))
+    return
+
   def getLabelPage(self, query_string):
     data = urllib.parse.parse_qs(query_string)
     # TODO check 'video' in data
     video_id = data['video'][0]
     utterance_id = int(data['utterance'][0])
+    max_duration = FloatSeconds(3.0)
+    if 'max_duration' in data:
+      max_duration = FloatSeconds(float(data['max_duration'][0]))
     utterance = None
     with open('tsvs/%s.tsv' % video_id, 'rb') as f:
       line_number = -1
@@ -114,12 +129,26 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
         if line_number != utterance_id:
           continue
         cols = [col.decode('utf-8') for col in line.rstrip(b'\n').split(b'\t')]
+        start = FloatSeconds(float(cols[0]))
+        end = FloatSeconds(float(cols[1]))
+        duration = FloatSeconds(float(cols[2]))
+        if abs(end - start - duration) > 0.0001:
+          print('Utterance %d for video %s has an incorrect duration, %f. It should be %f' % (
+            utterance_id,
+            video_id,
+            duration,
+            end - start,
+          ))
+          duration = end - start
         # TODO parameterize these limits
-        assert float(cols[2]) < 3, 'Duration too long for labeling'
+        if duration > max_duration:
+          self.redirect(video_id, utterance_id, duration + 0.01)
+          return
+        assert duration < max_duration, 'Duration, %s, too long for labeling' % cols[2]
         utterance = {
-          'start': float(cols[0]),
-          'end': float(cols[1]),
-          'duration': float(cols[2]),
+          'start': start,
+          'end': end,
+          'duration': duration,
           'content': cols[3],
         }
 
@@ -130,6 +159,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     _windows_per_sec, rate, data, times, freqs, spectro = readAndSpectro(
       utterance['start'],
       utterance['end'],
+      max_duration,
       video_id
     )
 
@@ -154,7 +184,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     if ignore_cache or not os.path.exists(audio_file):
       scipy.io.wavfile.write(audio_file, rate, data)
 
-    s = """<html>
+    webpage_s = """<html>
   <head>
     <title>Utterance Labeler</title>
     <script type="text/javascript">
@@ -162,10 +192,21 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 // Double curly braces are because this webpage is from python. It's a big
 // template string with `.format(...)` called on it.
 function redirect(n) {{
-  let video_id = '{video_id}';
-  let utterance_id = {utterance_id} + n;
-  let params = 'video=' + video_id + '&utterance=' + utterance_id.toString();
-  let dest = window.location.origin + window.location.pathname + '?' + params;
+  // .slice(1) to drop the leading '?'
+  let query_string = window.location.search.slice(1);
+  let new_params = [];
+  // TODO surely there is a better library for doing this in JS
+  query_string.split('&').forEach((param) => {{
+    let [param_name, param_value] = param.split('=');
+    if (param_name !== 'utterance') {{
+      new_params.push(param);
+      return;
+    }}
+    let utterance_id = parseInt(param_value) + n;
+    new_params.push(([param_name, utterance_id.toString()]).join('='));
+  }});
+  let new_query_string = '?' + new_params.join('&');
+  let dest = window.location.origin + window.location.pathname + new_query_string;
   window.location = dest;
 }}
 
@@ -178,6 +219,7 @@ document.addEventListener('keydown', event => {{
   let RIGHT = 39;
   let N = 78;
   let P = 80;
+  let R = 82;
   let Y = 89;
   switch (event.keyCode) {{
     case RIGHT:
@@ -187,6 +229,9 @@ document.addEventListener('keydown', event => {{
     case LEFT:
     case P:
       redirect(-1);
+      break;
+    case R:
+      redirect(0);
       break;
     case Y:
       play();
@@ -230,10 +275,9 @@ document.addEventListener('keydown', event => {{
       num_cols=spectro.shape[1],
       start=utterance['start'],
       video_id=video_id,
-      utterance_id=utterance_id,
     )
 
-    s_bytes = s.encode('utf-8')
+    s_bytes = webpage_s.encode('utf-8')
     self.send_response(http.server.HTTPStatus.OK)
     self.send_header('Content-Length', len(s_bytes))
     self.end_headers()
@@ -285,12 +329,16 @@ document.addEventListener('keydown', event => {{
     return
 
   def do_GET(self):
-    s = None
+    s, e_type, e, trace = None, None, None, None
     try:
       self.getHandler()
-    except Exception as e:
+    except Exception:
+      e_type, e, trace = sys.exc_info()
       # TODO add stack trace and exception message
-      s = b'Unexpected exception: %s' % type(e).__name__.encode('utf-8')
+      s = b'Unexpected exception, %s: %s\n' % (e_type.__name__.encode('utf-8'), str(e).encode('utf-8'))
+      s += "\n".join(traceback.format_tb(trace)).encode('utf-8')
+    finally:
+      del e_type, e, trace
     if s is None:
       return
     self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
