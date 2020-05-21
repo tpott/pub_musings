@@ -13,12 +13,7 @@ from typing import (Any, Dict, List, Optional, Tuple)
 import urllib.parse
 
 from tsv2srt import tsv2srt
-
-
-def urandom5() -> str:
-  """Reads 5 bytes from /dev/urandom and encodes them in lowercase base32"""
-  with open('/dev/urandom', 'rb') as f:
-    return base64.b32encode(f.read(5)).decode('utf-8').lower()
+from misc import urandom5
 
 
 def youtubeVideoID(url: str) -> str:
@@ -69,11 +64,15 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   # --no-cache-dir is to avoid some 403 errors
   #   see https://github.com/ytdl-org/youtube-dl/issues/6451
   # --no-playlist is in case someone tries passing in a playlist URL
+  # --merge-output-format mkv is because sometimes ffmpeg can't merge
+  #   the data correctly, https://github.com/ytdl-org/youtube-dl/issues/20515
   _resp = mysystem([
     'youtube-dl',
     '--no-cache-dir',
     '--no-playlist',
     url,
+    '--merge-output-format',
+    'mkv',
     '--output',
     'downloads/{video_id}.%(ext)s'.format(
       video_id=video_id

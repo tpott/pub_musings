@@ -2,19 +2,29 @@
 # Trevor Pottinger
 # Mon May 18 19:53:44 PDT 2020
 
+import base64
 import math
-from typing import Any, Dict, List, Tuple
+import pickle
+import random
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
+import sklearn.tree
+
+
+def urandom5() -> str:
+  """Reads 5 bytes from /dev/urandom and encodes them in lowercase base32"""
+  with open('/dev/urandom', 'rb') as f:
+    return base64.b32encode(f.read(5)).decode('utf-8').lower()
 
 
 def labelsFromUtterances(
-	utterances: List[Dict[str, Any]],
-	windows_per_second: int,
-	n_rows: int,
+  utterances: List[Dict[str, Any]],
+  windows_per_second: int,
+  n_rows: int,
 ) -> Tuple[int, np.ndarray]:
   """return: np.ndarray[ndtype=intish, shape=[n_rows]]"""
   positive_examples = 0
@@ -32,13 +42,13 @@ def labelsFromUtterances(
 # TODO use a dataclass instead of a Dict
 def readData(
   audio_file: str,
-  utt_file: str,
-  limit_seconds: int,
+  utt_file: Optional[str],
+  limit_seconds: float,
 ) -> Dict[str, Any]:
   # dtype should be np.dtype('int16')
   rate, all_data = scipy.io.wavfile.read(audio_file)
   # TODO allow for sampling strategies other than first-N and first channel
-  data = all_data[:rate * limit_seconds, 0]
+  data = all_data[:int(rate * limit_seconds), 0]
 
   # try wrapping in `int(2 ** math.ceil(math.log(.., 2)))`
   window_size = int(rate) // 100
@@ -54,34 +64,41 @@ def readData(
   )
 
   utterances = []
-  with open(utt_file, 'rb') as f:
-    for line in f:
-      cols = [s.decode('utf-8') for s in line.rstrip(b'\n').split(b'\t')]
-      utterances.append({
-        'start': float(cols[0]),
-        'end': float(cols[1]),
-        'duration': float(cols[2]),
-        'content': cols[3],
-      })
+  if utt_file is not None:
+    # TODO wrap this in a helper method
+    with open(utt_file, 'rb') as f:
+      for line in f:
+        cols = [s.decode('utf-8') for s in line.rstrip(b'\n').split(b'\t')]
+        utterances.append({
+          'start': float(cols[0]),
+          'end': float(cols[1]),
+          'duration': float(cols[2]),
+          'content': cols[3],
+        })
 
   _num_examples, is_talking = labelsFromUtterances(
     utterances, 
     windows_per_second, 
     spectro.T.shape[0]
   )
+  is_talking = is_talking[:-1]
+  was_talking = np.hstack([[0], is_talking[:-1]])
+  was_was_talking = np.hstack([[0, 0], is_talking[:-2]])
 
   # TODO understand stft input and output shapes
   # Drop the last frame because I don't know how it's derived...
   return {
     'file_name': audio_file,
-		'label_file_name': utt_file,
+    'label_file_name': utt_file,
     'signal_rate': rate,
     'window_size': window_size,
     'step_size': step_size,
     'num_utterances': len(utterances),
     'data': data, # TODO remove this line
     'freqs_vec': spectro.T[:-1, :-1],
-    'is_talking': is_talking[:-1],
+    'is_talking': is_talking,
+    'was_talking': was_talking,
+    'was_was_talking': was_was_talking,
     # TODO phoneme
   }
 
@@ -96,7 +113,7 @@ def dict2packed(data: Dict[str, Any]) -> pd.DataFrame:
     frames.append(list(data['data'][i : i + window_size]))
   return pd.DataFrame(data={
     'file_name': [data['file_name']] * num_rows,
-		'label_file_name': [data['label_file_name']] * num_rows,
+    'label_file_name': [data['label_file_name']] * num_rows,
     'signal_rate': [data['signal_rate']] * num_rows,
     'window_size': [window_size] * num_rows,
     'step_size': [step_size] * num_rows,
@@ -104,13 +121,15 @@ def dict2packed(data: Dict[str, Any]) -> pd.DataFrame:
     'raw_signal_vec': frames,
     'freqs_vec': data['freqs_vec'].tolist(),
     'is_talking': data['is_talking'],
+    'was_talking': data['was_talking'],
+    'was_was_talking': data['was_was_talking'],
     # TODO phoneme
   })
 
 
 def utterancesFromPredictions(
   min_word_width: int,
-  windows_per_second: int,
+  windows_per_second: float,
   predictions: np.ndarray,
 ) -> List[Dict[str, Any]]:
   ones = np.ones(min_word_width)
@@ -133,7 +152,7 @@ def utterancesFromPredictions(
       'start': i / windows_per_second,
       'end': j / windows_per_second,
       'duration': (j - i) / windows_per_second,
-      # content is TBD!
+      # TODO content is TBD!
     })
     i = j + 1
   return predicted_utterances
@@ -152,6 +171,93 @@ def normalizeFreqs(freqs: np.ndarray, n_buckets: int) -> np.ndarray:
   for i in range(freqs.shape[1]):
     ret[:, i] = np.searchsorted(quantiles[i], freqs[:, i])
   return ret
+
+
+# Copied from notebooks/test-training.ipynb
+# TODO take output model file name as an input
+def trainModel(
+  df: pd.DataFrame,
+  max_depth: int = 5,
+  num_frequencies: int = 60,
+  rand_int: Optional[int] = None,
+  num_normalization_buckets: int = 20,
+) -> str:
+  # Normalize the features
+  normalized = normalizeFreqs(
+    np.abs(np.asarray(df.freqs_vec.tolist()))[:, :num_frequencies],
+    num_normalization_buckets
+  )
+  combined = np.hstack([
+    df.was_was_talking.to_numpy().reshape(normalized.shape[0], 1),
+    df.was_talking.to_numpy().reshape(normalized.shape[0], 1),
+    normalized,
+  ])
+
+  # Train the model
+  if rand_int is None:
+    rand_int = random.randint(0, 2 ** 32 - 1)
+  classifier = sklearn.tree.DecisionTreeClassifier(
+    random_state=rand_int,
+    max_depth=max_depth
+  )
+  model = classifier.fit(combined, df.is_talking)
+
+  out_file_name = urandom5()
+  with open(out_file_name, 'wb') as model_file:
+    pickle.dump(model, model_file)
+  return out_file_name
+  # end def trainModel
+
+
+def evalModel(
+  model_file: str,
+  audio_files: List[str],
+  num_frequencies: int = 60,
+  limit_seconds: float = 60.0,
+  num_normalization_buckets: int = 20,
+) -> None:
+  read_func = lambda f: dict2packed(readData(f, None, limit_seconds))
+  eval_df = pd.concat([read_func(in_file) for in_file in audio_files])
+  eval_normalized = normalizeFreqs(
+    np.abs(np.asarray(eval_df.freqs_vec.tolist()))[:, :num_frequencies],
+    num_normalization_buckets
+  )
+
+  with open(model_file, 'rb') as model_f:
+    # TODO mmap read the model file to avoid the IO hit
+    # Also, note that pickle.load may run arbitrary python, so don't run
+    # models from people you don't know.
+    model = pickle.load(model_f)
+
+  predictions = np.zeros(eval_normalized.shape[0], dtype='int8')
+  for i in range(eval_normalized.shape[0]):
+    if i < 2:
+      predictions[i] = 0
+      continue
+    predictions[i] = model.predict([np.hstack([
+      predictions[i - 2],
+      predictions[i - 1],
+      eval_normalized[i],
+    ])])
+
+  # Any prediction shorter than 8 frames will be considered noise. Assuming
+  # each frame is 10 ms and step size is 5 ms, then the shortest word can
+  # be is 45 ms.
+  min_word_width = 8
+  predicted_utterances = utterancesFromPredictions(
+    min_word_width,
+    eval_df.signal_rate.iat[0] / eval_df.step_size.iat[0],
+    predictions
+  )
+  for utt in predicted_utterances:
+    print('\t'.join([str(val) for val in [
+      utt['start'],
+      utt['end'],
+      utt['duration'],
+      '',  # TODO content is TBD!
+    ]]))
+  return
+  # end def evalModel
 
 
 def corrTwoDF(data: pd.DataFrame, a: str, b: str) -> None:
