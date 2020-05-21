@@ -29,6 +29,11 @@ class TestMisc(unittest.TestCase):
     # TODO this shouldn't require a sum(), these should both be scalars
     assert counts.loc[1, 1, 1].sum() > counts.loc[1, 0, 0].sum()
 
+  # TODO test the following
+  # >>> df = pd.concat([dict2packed(readData('audios/%s.wav' % in_file, 'tsvs/%s.tsv' % in_file, 180)) for in_file in ['NrgmdOz227I']])
+  # >>> model_file = trainModel(df)
+  # >>> evalModel(model_file, ['audios/W15KUnxvZ7A.wav'])
+
 
 if __name__ == '__main__':
   unittest.main()
