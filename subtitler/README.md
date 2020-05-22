@@ -18,6 +18,8 @@
 * youtube-dl (pip)
 * [mlr]
 
+Run `sudo apt-get install ffmpeg jq miller python3-pip`
+
 # Development
 
 I would suggest installing this basket of packages (list from https://www.scipy.org/install.html#pip-install)
@@ -30,6 +32,8 @@ I would suggest installing this basket of packages (list from https://www.scipy.
 * sympy
 * nose
 * scikit-learn
+
+Run `pip3 install numpy matplotlib ipython jupyter pandas sympy nose scikit-learn youtube_dl awscli`
 
 `mlr` is also a really handy command-line tool. It can be pretty powerful when
 combined with `jq` in the modern age where everything is stored in json.

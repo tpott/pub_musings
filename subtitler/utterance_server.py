@@ -100,6 +100,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.send_response(http.server.HTTPStatus.OK)
     # Other potentially good headers: Content-type, Last-Modified
     self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
     self.end_headers()
     self.wfile.write(s)
     return
@@ -280,6 +281,7 @@ document.addEventListener('keydown', event => {{
     s_bytes = webpage_s.encode('utf-8')
     self.send_response(http.server.HTTPStatus.OK)
     self.send_header('Content-Length', len(s_bytes))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
     self.end_headers()
     self.wfile.write(s_bytes)
     return
@@ -298,8 +300,8 @@ document.addEventListener('keydown', event => {{
     with open(local_path, 'rb') as f:
       fs = os.fstat(f.fileno())
       self.send_response(http.server.HTTPStatus.OK)
-      self.send_header('Content-type', 'application/octet-stream')
       self.send_header('Content-Length', str(fs[6]))
+      self.send_header('Content-Type', 'application/octet-stream')
       self.send_header(
         'Last-Modified',
         email.utils.formatdate(time.time(), usegmt=True)
@@ -324,6 +326,7 @@ document.addEventListener('keydown', event => {{
     s = b'Unknown page'
     self.send_response(http.server.HTTPStatus.NOT_FOUND)
     self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
     self.end_headers()
     self.wfile.write(s)
     return
@@ -343,6 +346,7 @@ document.addEventListener('keydown', event => {{
       return
     self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
     self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
     self.end_headers()
     self.wfile.write(s)
     return
