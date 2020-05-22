@@ -6,6 +6,7 @@ DIRS = [
   'audios',
   'downloads',
   'final',
+  'models',
   'outputs',
   'subtitles',
   'tmp',

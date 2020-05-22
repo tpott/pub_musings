@@ -32,7 +32,7 @@ class TestMisc(unittest.TestCase):
   # TODO test the following
   # >>> df = pd.concat([dict2packed(readData('audios/%s.wav' % in_file, 'tsvs/%s.tsv' % in_file, 180)) for in_file in ['NrgmdOz227I']])
   # >>> model_file = trainModel(df)
-  # >>> evalModel(model_file, ['audios/W15KUnxvZ7A.wav'])
+  # >>> evalModel(model_file, ['audios/W15KUnxvZ7A.wav'], [None])
 
 
 if __name__ == '__main__':

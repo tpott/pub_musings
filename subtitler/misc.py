@@ -174,9 +174,9 @@ def normalizeFreqs(freqs: np.ndarray, n_buckets: int) -> np.ndarray:
 
 
 # Copied from notebooks/test-training.ipynb
-# TODO take output model file name as an input
 def trainModel(
   df: pd.DataFrame,
+  out_file_name: str,
   max_depth: int = 5,
   num_frequencies: int = 60,
   rand_int: Optional[int] = None,
@@ -202,7 +202,6 @@ def trainModel(
   )
   model = classifier.fit(combined, df.is_talking)
 
-  out_file_name = urandom5()
   with open(out_file_name, 'wb') as model_file:
     pickle.dump(model, model_file)
   return out_file_name
@@ -212,12 +211,13 @@ def trainModel(
 def evalModel(
   model_file: str,
   audio_files: List[str],
+  tsv_files: List[Optional[str]],
   num_frequencies: int = 60,
   limit_seconds: float = 60.0,
   num_normalization_buckets: int = 20,
-) -> None:
-  read_func = lambda f: dict2packed(readData(f, None, limit_seconds))
-  eval_df = pd.concat([read_func(in_file) for in_file in audio_files])
+) -> Tuple[pd.DataFrame, np.ndarray]:
+  read_func = lambda aud, tsv: dict2packed(readData(aud, tsv, limit_seconds))
+  eval_df = pd.concat([read_func(*files) for files in zip(audio_files, tsv_files)])
   eval_normalized = normalizeFreqs(
     np.abs(np.asarray(eval_df.freqs_vec.tolist()))[:, :num_frequencies],
     num_normalization_buckets
@@ -249,6 +249,7 @@ def evalModel(
     eval_df.signal_rate.iat[0] / eval_df.step_size.iat[0],
     predictions
   )
+  print('start\tend\tduration\tcontent')
   for utt in predicted_utterances:
     print('\t'.join([str(val) for val in [
       utt['start'],
@@ -256,7 +257,7 @@ def evalModel(
       utt['duration'],
       '',  # TODO content is TBD!
     ]]))
-  return
+  return eval_df, predictions
   # end def evalModel
 
 
