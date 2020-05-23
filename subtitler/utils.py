@@ -18,7 +18,7 @@ def createDirs() -> None:
   for d in DIRS:
     try:
       os.mkdir(d)
-    except os.exists:
+    except FileExistsError:
       continue
   return
 

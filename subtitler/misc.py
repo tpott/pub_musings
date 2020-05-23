@@ -13,6 +13,7 @@ import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
 import sklearn.tree
+import sklearn.ensemble
 
 
 def urandom5() -> str:
@@ -81,6 +82,8 @@ def readData(
     windows_per_second, 
     spectro.T.shape[0]
   )
+  if utt_file is None:
+    is_talking = np.repeat(np.nan, spectro.T.shape[0])
   is_talking = is_talking[:-1]
   was_talking = np.hstack([[0], is_talking[:-1]])
   was_was_talking = np.hstack([[0, 0], is_talking[:-2]])
@@ -196,6 +199,16 @@ def trainModel(
   # Train the model
   if rand_int is None:
     rand_int = random.randint(0, 2 ** 32 - 1)
+  # all: max_depth=n, max_features=s/n
+  # sklearn.ensemble.GradientBoostingClassifier(n_estimators=n, learning_rate=0-1)
+  # sklearn.ensemble.GradientBoostingRegressor(n_estimators=n, learning_rate=0-1)
+  # `from sklearn.experimental import enable_hist_gradient_boosting`
+  # sklearn.ensemble.HistGradientBoostingClassifier(max_iter=n, learning_rate=0-1)
+  # sklearn.ensemble.HistGradientBoostingRegressor(max_iter=n, learning_rate=0-1)
+  # sklearn.ensemble.RandomForestClassifier(n_estimators=n)
+  # sklearn.ensemble.RandomForestRegressor(n_estimators=n)
+  # sklearn.tree.DecisionTreeClassifier()
+  # sklearn.tree.DecisionTreeRegressor()
   classifier = sklearn.tree.DecisionTreeClassifier(
     random_state=rand_int,
     max_depth=max_depth

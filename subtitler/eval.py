@@ -25,8 +25,9 @@ def main() -> None:
     list(map(lambda vid: 'audios/%s.wav' % vid, eval_files)),
     tsv_files,
   )
+  # is_talking.astype(str) is so we include NaNs in the groupby
   comparison = pd.concat([
-    eval_df.is_talking,
+    eval_df.is_talking.astype(str),
     pd.Series(predictions, name='predicted_talking'),
   ], axis=1)
   stats = comparison.groupby([
