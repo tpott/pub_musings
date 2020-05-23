@@ -102,7 +102,7 @@ def readData(
     'is_talking': is_talking,
     'was_talking': was_talking,
     'was_was_talking': was_was_talking,
-    # TODO phoneme
+    # TODO(7d79) phoneme
   }
 
 
@@ -126,7 +126,7 @@ def dict2packed(data: Dict[str, Any]) -> pd.DataFrame:
     'is_talking': data['is_talking'],
     'was_talking': data['was_talking'],
     'was_was_talking': data['was_was_talking'],
-    # TODO phoneme
+    # TODO(7d79) phoneme
   })
 
 
@@ -185,6 +185,7 @@ def trainModel(
   rand_int: Optional[int] = None,
   num_normalization_buckets: int = 20,
 ) -> str:
+  # TODO(177c) also output the quantiles that are derived in normalization
   # Normalize the features
   normalized = normalizeFreqs(
     np.abs(np.asarray(df.freqs_vec.tolist()))[:, :num_frequencies],
@@ -231,6 +232,7 @@ def evalModel(
 ) -> Tuple[pd.DataFrame, np.ndarray]:
   read_func = lambda aud, tsv: dict2packed(readData(aud, tsv, limit_seconds))
   eval_df = pd.concat([read_func(*files) for files in zip(audio_files, tsv_files)])
+  # TODO(177c) use the quantiles that are derived in normalization
   eval_normalized = normalizeFreqs(
     np.abs(np.asarray(eval_df.freqs_vec.tolist()))[:, :num_frequencies],
     num_normalization_buckets

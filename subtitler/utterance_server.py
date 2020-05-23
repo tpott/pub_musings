@@ -142,7 +142,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
           ))
           duration = end - start
         # TODO parameterize these limits
-        if duration > max_duration:
+        if duration + 0.01 > max_duration:
           self.redirect(video_id, utterance_id, duration + 0.01)
           return
         assert duration < max_duration, 'Duration, %s, too long for labeling' % cols[2]
