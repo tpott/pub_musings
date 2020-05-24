@@ -1,13 +1,17 @@
 # subtitler
 
 * `downloads/` for the initial download
-* `audios/` the audio from the video
-* `job-start-command.json` a temporary file for submitting to AWS for transcribing
-* `outputs/` raw JSON output from AWS
+* `audios/` the audio extracted from the video
+* `outputs/` raw JSON output from AWS transcribe
 * `tsvs/` TSV parsed data derived from the JSON output. May be modified to improve classification.
 * `subtitles/` formatted SubRip subtitles files
 * `final/` final formatted video with subtitles
 * [`tmp/` only for utterance_server.py]
+* `video_ids` maps video ids to jobs and names
+* `video_names` maps video names to jobs and ids
+* `notebooks` is for jupyter notebook files
+* `models` stores sklearn serialized (pickled) model files
+* `lyrics` stores optional plain lyric files
 
 # Dependencies
 

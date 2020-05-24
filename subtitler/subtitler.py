@@ -47,7 +47,13 @@ def mysystem2(dry_run: bool, command: List[str]) -> Optional[str]:
   return stdout
 
 
-def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
+def gen_subtitles(
+  url: str,
+  file_name: str,
+  lang: str,
+  lyrics_file: Optional[str],
+  dry_run: bool,
+) -> None:
   bucket = 'subtitler1'
   region = 'us-east-2'
 
@@ -55,11 +61,15 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
 
   job_id = urandom5()
   video_id = youtubeVideoID(url)
-  job_name = 'test-{job_id}-{video_id}'.format(
-    job_id=job_id,
-    video_id=video_id
-  )
-  print('Running job_name: {job_name}'.format(job_name=job_name))
+  print('Running job_id: {job_id}'.format(job_id=job_id))
+
+  if not dry_run:
+    with open('video_ids/{video_id}.json'.format(video_id=video_id), 'wb') as f:
+      f.write(json.dumps({'job_id': job_id, 'video_name': file_name}).encode('utf-8'))
+      f.write(b'\n')
+    with open('video_names/{filename}.json'.format(filename=file_name), 'wb') as f:
+      f.write(json.dumps({'job_id': job_id, 'video_id': video_id}).encode('utf-8'))
+      f.write(b'\n')
 
   # --no-cache-dir is to avoid some 403 errors
   #   see https://github.com/ytdl-org/youtube-dl/issues/6451
@@ -71,8 +81,8 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     '--no-cache-dir',
     '--no-playlist',
     url,
-    '--merge-output-format',
-    'mkv',
+    # '--merge-output-format',
+    # 'mkv',
     '--output',
     'downloads/{video_id}.%(ext)s'.format(
       video_id=video_id
@@ -107,7 +117,7 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
   ])
 
   job_obj = {
-    'TranscriptionJobName': job_name,
+    'TranscriptionJobName': job_id,
     'LanguageCode': lang,
     'MediaFormat': 'wav',
     'Media': {
@@ -136,6 +146,8 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     'file://job-start-command.json',
   ])
 
+  # TODO add --model_file and evaluate it here on audios/{video_id}.wav
+
   for _ in range(200):
     # Note: `--status IN_PROGRESS` is optional
     res = mysystem2(dry_run, [
@@ -161,8 +173,8 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     time.sleep(3)
 
   # TODO split into two commands
-  command = 'curl -o outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_name} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
-    job_name=job_name,
+  command = 'curl -o outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_id} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
+    job_id=job_id,
     region=region,
     video_id=video_id
   )
@@ -188,6 +200,8 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     print(command)
   else:
     _resp = os.system(command)
+
+  # TODO join aws outputs/{video_id}.json, model eval output, and lyrics file
 
   tsv_file = 'tsvs/{video_id}.tsv'.format(video_id=video_id)
   srt_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
@@ -215,7 +229,7 @@ def gen_subtitles(url: str, filename: str, lang: str, dry_run: bool) -> None:
     # 'copy',
     '-c:s',
     'mov_text',
-    'final/{filename}.mp4'.format(filename=filename),
+    'final/{filename}.mp4'.format(filename=file_name),
   ])
   return
   # end def gen_subtitles
@@ -236,6 +250,7 @@ def main() -> None:
   parser.add_argument('video_url')
   parser.add_argument('temp_video_file')
   parser.add_argument('language')
+  parser.add_argument('lyrics_file', nargs='?', default=None)
   parser.add_argument('--dry-run', action='store_true', help='Only print commands ' +
                       'that would have run')
   args = parser.parse_args()
@@ -244,7 +259,13 @@ def main() -> None:
   lang = 'en-US'
   if language == 'hindi':
     lang = 'hi-IN'
-  gen_subtitles(args.video_url, args.temp_video_file, lang, args.dry_run)
+  gen_subtitles(
+    args.video_url,
+    args.temp_video_file,
+    lang,
+    args.lyrics_file,
+    args.dry_run
+  )
   return
   # end def main
 

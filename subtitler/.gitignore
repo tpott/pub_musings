@@ -1,12 +1,15 @@
 audios/
 downloads/
 final/
+lyrics/
 models/
 notebooks/.ipynb_checkpoints/
 outputs/
 subtitles/
 tmp/
 tsvs/
+video_ids/
+video_names/
 cert.pem
 job-start-command.json
 key.pem

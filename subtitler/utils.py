@@ -6,11 +6,14 @@ DIRS = [
   'audios',
   'downloads',
   'final',
+  'lyrics',
   'models',
   'outputs',
   'subtitles',
   'tmp',
   'tsvs',
+  'video_ids',
+  'video_names',
 ]
 
 
