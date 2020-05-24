@@ -14,6 +14,8 @@ def main() -> None:
   parser = argparse.ArgumentParser('Train an audio model to detect speech')
   parser.add_argument('model_file', help='The file name of the model')
   parser.add_argument('files', help='A comma separated list of audio IDs')
+  parser.add_argument('--limit', type=float, help='The number of seconds ' +
+                      'to take from the beginning of each file')
   parser.add_argument('--test', action='store_true', help='Prints perf')
   args = parser.parse_args()
   eval_files = args.files.split(',')
@@ -24,6 +26,7 @@ def main() -> None:
     args.model_file,
     list(map(lambda vid: 'audios/%s.wav' % vid, eval_files)),
     tsv_files,
+    limit_seconds=args.limit
   )
   # is_talking.astype(str) is so we include NaNs in the groupby
   comparison = pd.concat([

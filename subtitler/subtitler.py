@@ -47,30 +47,8 @@ def mysystem2(dry_run: bool, command: List[str]) -> Optional[str]:
   return stdout
 
 
-def gen_subtitles(
-  url: str,
-  file_name: str,
-  lang: str,
-  lyrics_file: Optional[str],
-  dry_run: bool,
-) -> None:
-  bucket = 'subtitler1'
-  region = 'us-east-2'
-
+def downloadVideo(url: str, video_id: str, dry_run: bool) -> str:
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
-
-  job_id = urandom5()
-  video_id = youtubeVideoID(url)
-  print('Running job_id: {job_id}'.format(job_id=job_id))
-
-  if not dry_run:
-    with open('video_ids/{video_id}.json'.format(video_id=video_id), 'wb') as f:
-      f.write(json.dumps({'job_id': job_id, 'video_name': file_name}).encode('utf-8'))
-      f.write(b'\n')
-    with open('video_names/{filename}.json'.format(filename=file_name), 'wb') as f:
-      f.write(json.dumps({'job_id': job_id, 'video_id': video_id}).encode('utf-8'))
-      f.write(b'\n')
-
   # --no-cache-dir is to avoid some 403 errors
   #   see https://github.com/ytdl-org/youtube-dl/issues/6451
   # --no-playlist is in case someone tries passing in a playlist URL
@@ -88,16 +66,15 @@ def gen_subtitles(
       video_id=video_id
     ),
   ])
-
   files = [f for f in os.listdir('downloads') if f.startswith(video_id)]
   if dry_run and len(files) == 0:
     files = ['{video_id}.dummy.mkv'.format(video_id=video_id)]
   assert len(files) > 0, 'Expected at least one video file like %s.*' % video_id
-  video_file = files[0]
-  file_parts = video_file.split('.')
-  assert len(file_parts) >= 2, 'Expected at least two parts in the video file name'
-  file_ext = file_parts[-1]
+  return files[0]
 
+
+def extractAudio(video_file: str, video_id: str, dry_run: bool) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
   # supported file types: mp3 | mp4 | wav | flac
   # from https://docs.aws.amazon.com/transcribe/latest/dg/API_TranscriptionJob.html#transcribe-Type-TranscriptionJob-MediaFormat
   _resp = mysystem([
@@ -106,7 +83,11 @@ def gen_subtitles(
     'downloads/{video_file}'.format(video_file=video_file),
     'audios/{video_id}.wav'.format(video_id=video_id),
   ])
+  return
 
+
+def uploadAudio(bucket: str, video_id: str, dry_run: bool) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
   # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
   _resp = mysystem([
     'aws',
@@ -115,7 +96,18 @@ def gen_subtitles(
     'audios/{video_id}.wav'.format(video_id=video_id),
     's3://{bucket}/'.format(bucket=bucket),
   ])
+  return
 
+
+def startTranscriptJob(
+  job_id: str,
+  lang: str,
+  bucket: str,
+  video_id: str,
+  region: str,
+  dry_run: bool,
+) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
   job_obj = {
     'TranscriptionJobName': job_id,
     'LanguageCode': lang,
@@ -135,7 +127,6 @@ def gen_subtitles(
       f.write(b'\n')
   else:
     print('echo \'{json_job_str}\' > job-start-command.json'.format(json_job_str=json_job_str))
-
   _resp = mysystem([
     'aws',
     'transcribe',
@@ -145,9 +136,11 @@ def gen_subtitles(
     '--cli-input-json',
     'file://job-start-command.json',
   ])
+  return
+  # end def startTranscriptJob
 
-  # TODO add --model_file and evaluate it here on audios/{video_id}.wav
 
+def waitForTranscriptions(region: str, dry_run: bool) -> None:
   for _ in range(200):
     # Note: `--status IN_PROGRESS` is optional
     res = mysystem2(dry_run, [
@@ -171,7 +164,15 @@ def gen_subtitles(
       print('aws list response was weird: %s: %s' % (type(e).__name__, str(e)))
       break
     time.sleep(3)
+  return
 
+
+def downloadTranscriptions(
+  job_id: str,
+  region: str,
+  video_id: str,
+  dry_run: bool,
+) -> None:
   # TODO split into two commands
   command = 'curl -o outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_id} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
     job_id=job_id,
@@ -182,7 +183,10 @@ def gen_subtitles(
     print(command)
   else:
     _resp = os.system(command)
+  return
 
+
+def output2tsv(video_id: str, dry_run: bool) -> None:
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
   # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), .alternatives[0].content] | @tsv' output.json
@@ -190,19 +194,41 @@ def gen_subtitles(
   # where transpose is an alias for:
   # `python3 -c 'from __future__ import (division, print_function); import sys; rows = [line.rstrip("\n").split("\t") for line in sys.stdin]; nrows = len(rows); assert nrows > 0, "Expected at least one row in input"; ncols = len(rows[0]); cols = [[rows[i][j] if j < len(rows[i]) else "" for i in range(nrows)] for j in range(ncols)]; print("\n".join(["\t".join(col) for col in cols]));'`
   # or pipe to `mlr --itsvlite --otsv label start,end,duration,content then filter '$duration > 0.3'`
-
+  #
   # -c is for compact output
   # -r is for "raw" output
   command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), .alternatives[0].content] | @tsv\' outputs/{video_id}.json > tsvs/{video_id}.tsv'.format(
     video_id=video_id
   )
-  if dry_run:
-    print(command)
+  if not dry_run:
+    results = []
+    with open('outputs/{video_id}.json'.format(video_id=video_id), 'rb') as in_f:
+      j_obj = json.loads(in_f.read().decode('utf-8'))
+      for item in j_obj['results']['items']:
+        if 'start_time' not in item:
+          continue
+        results.append((
+          item['start_time'],
+          item['end_time'],
+          float(item['end_time']) - float(item['start_time']),
+          item['alternatives'][0]['content']
+        ))
+    with open('tsvs/{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
+      for item in results:
+        out_f.write('{start}\t{end}\t{duration:0.3f}\t{content}\n'.format(
+          start=item[0],
+          end=item[1],
+          duration=item[2],
+          content=item[3]
+        ).encode('utf-8'))
   else:
+    print(command)
     _resp = os.system(command)
+  return
+  # end def output2tsv
 
-  # TODO join aws outputs/{video_id}.json, model eval output, and lyrics file
 
+def formatTsvAsSrt(video_id: str, dry_run: bool) -> str:
   tsv_file = 'tsvs/{video_id}.tsv'.format(video_id=video_id)
   srt_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
   if dry_run:
@@ -215,8 +241,16 @@ def gen_subtitles(
     ok = tsv2srt(tsv_file, srt_file)
   if not ok:
     print('Failed to convert tsv to srt')
-    return
+  return srt_file
 
+
+def addSrtToVideo(
+  video_file: str,
+  file_name: str,
+  srt_file: str,
+  dry_run: bool,
+) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
   _resp = mysystem([
     'ffmpeg',
     '-i',
@@ -231,6 +265,43 @@ def gen_subtitles(
     'mov_text',
     'final/{filename}.mp4'.format(filename=file_name),
   ])
+  return
+
+
+def gen_subtitles(
+  url: str,
+  file_name: str,
+  lang: str,
+  lyrics_file: Optional[str],
+  dry_run: bool,
+) -> None:
+  bucket = 'subtitler1'
+  region = 'us-east-2'
+
+  job_id = urandom5()
+  video_id = youtubeVideoID(url)
+  print('Running job_id: {job_id}'.format(job_id=job_id))
+
+  if not dry_run:
+    with open('video_ids/{video_id}.json'.format(video_id=video_id), 'wb') as f:
+      f.write(json.dumps({'job_id': job_id, 'video_name': file_name}).encode('utf-8'))
+      f.write(b'\n')
+    with open('video_names/{filename}.json'.format(filename=file_name), 'wb') as f:
+      f.write(json.dumps({'job_id': job_id, 'video_id': video_id}).encode('utf-8'))
+      f.write(b'\n')
+
+  video_file = downloadVideo(url, video_id, dry_run)
+  extractAudio(video_file, video_id, dry_run)
+  uploadAudio(bucket, video_id, dry_run)
+  startTranscriptJob(job_id, lang, bucket, video_id, region, dry_run)
+  # TODO add --model_file and evaluate it here on audios/{video_id}.wav
+  waitForTranscriptions(region, dry_run)
+  downloadTranscriptions(job_id, region, video_id, dry_run)
+  output2tsv(video_id, dry_run)
+  # TODO join aws outputs/{video_id}.json, model eval output, and lyrics file
+  srt_file = formatTsvAsSrt(video_id, dry_run)
+  addSrtToVideo(video_file, file_name, srt_file, dry_run)
+
   return
   # end def gen_subtitles
 
