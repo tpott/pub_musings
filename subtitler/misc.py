@@ -44,12 +44,15 @@ def labelsFromUtterances(
 def readData(
   audio_file: str,
   utt_file: Optional[str],
-  limit_seconds: float,
+  limit_seconds: Optional[float],
 ) -> Dict[str, Any]:
   # dtype should be np.dtype('int16')
   rate, all_data = scipy.io.wavfile.read(audio_file)
   # TODO allow for sampling strategies other than first-N and first channel
-  data = all_data[:int(rate * limit_seconds), 0]
+  if limit_seconds is not None:
+    data = all_data[:int(rate * limit_seconds), 0]
+  else:
+    data = all_data[:, 0]
 
   # try wrapping in `int(2 ** math.ceil(math.log(.., 2)))`
   window_size = int(rate) // 100
