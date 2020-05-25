@@ -34,6 +34,12 @@ class TestMisc(unittest.TestCase):
   # >>> model_file = trainModel(df, 'models/%s' % urandom5())
   # >>> evalModel(model_file, ['audios/W15KUnxvZ7A.wav'], [None])
 
+  # TODO and test the following
+  # >>> df, summs, corrs = corrOne(dict2packed(readData('audios/_zagM1Memfw.wav', 'tsvs/_zagM1Memfw.tsv', 180)), 20)
+  # >>> z = list(enumerate(corrs))
+  # >>> z.sort(key=lambda x: x[1], reverse=True)
+  # >>> print("\n".join(map(str, z[:20])))
+
 
 if __name__ == '__main__':
   unittest.main()

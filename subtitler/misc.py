@@ -292,3 +292,40 @@ def corrTwo(a: pd.Series, b: pd.Series) -> None:
   data = pd.DataFrame([a, b])
   print(data.groupby(['a', 'b']).size())
   return None
+
+
+def corrOne(
+  df: pd.DataFrame,
+  num_normalization_buckets: int = 20,
+) -> Tuple[pd.DataFrame, List[pd.Series], List[float]]:
+  normalized = normalizeFreqs(
+    np.abs(np.asarray(df.freqs_vec.tolist()))[:, :30], # TODO remove [:, :30]
+    num_normalization_buckets
+  )
+  num_rows = normalized.shape[0]
+  combined = np.hstack([
+    df.is_talking.to_numpy().reshape(num_rows, 1),
+    df.was_talking.to_numpy().reshape(num_rows, 1),
+    df.was_was_talking.to_numpy().reshape(num_rows, 1),
+    normalized,
+  ])
+  columns = ['is_talking', 'was_talking', 'was_was_talking']
+  for i in range(normalized.shape[1]):
+    columns.append('norm[{i}]'.format(i=i))
+  df = pd.DataFrame(dtype=np.int8, columns=columns, data=combined)
+  # TODO call a helper method to generalize this
+  summaries = []
+  for col in columns:
+    summaries.append(df.groupby([col]).size())
+  correlations = []
+  for i, col in enumerate(columns):
+    observed = df.groupby(['is_talking', col]).size()
+    diffs = 0.0
+    # summaries[0] is the summary for is_talking
+    for j in summaries[0].index:
+      for k in summaries[i].index:
+        obs = observed[(j, k)].item() if (j, k) in observed else 0
+        expected = summaries[0][j].item() * summaries[i][k].item() / num_rows
+        diffs += (obs - expected) * (obs - expected)
+    correlations.append(diffs)
+  return df, summaries, correlations
