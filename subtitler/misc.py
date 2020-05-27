@@ -6,6 +6,7 @@ import base64
 import math
 import pickle
 import random
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -14,6 +15,9 @@ import scipy.io.wavfile
 import scipy.signal
 import sklearn.tree
 import sklearn.ensemble
+
+
+MIN_LENGTH = 0.000001
 
 
 def urandom5() -> str:
@@ -190,19 +194,37 @@ def trainModel(
 ) -> str:
   # TODO(177c) also output the quantiles that are derived in normalization
   # Normalize the features
-  normalized = normalizeFreqs(
-    np.abs(np.asarray(df.freqs_vec.tolist()))[:, :num_frequencies],
-    num_normalization_buckets
-  )
+  normalized = np.abs(np.asarray(df.freqs_vec.tolist()))[:, :num_frequencies]
+  # normalized = normalizeFreqs(
+    # np.abs(np.asarray(df.freqs_vec.tolist()))[:, :num_frequencies],
+    # num_normalization_buckets
+  # )
+  distances = np.zeros(df.shape[0])
+  distances[1:] = np.sqrt(np.sum(
+    np.square(normalized[:-1] - normalized[1:]),
+    axis=1
+  ))
+  unit_lengths = np.sqrt(np.sum(np.square(normalized), axis=1))
+  unit_lengths[unit_lengths < MIN_LENGTH] = MIN_LENGTH
+  angles = np.zeros(df.shape[0])
+  angles[1:] = np.arccos(np.sum(
+    normalized[1:] * normalized[:-1],
+    axis=1
+  ) / (unit_lengths[1:] * unit_lengths[:-1]))
   combined = np.hstack([
     df.was_was_talking.to_numpy().reshape(normalized.shape[0], 1),
     df.was_talking.to_numpy().reshape(normalized.shape[0], 1),
+    distances.reshape(normalized.shape[0], 1),
+    angles.reshape(normalized.shape[0], 1),
+    unit_lengths.reshape(normalized.shape[0], 1),
     normalized,
   ])
 
-  # Train the model
   if rand_int is None:
     rand_int = random.randint(0, 2 ** 32 - 1)
+  print('Seeding random state with %d' % rand_int, file=sys.stderr)
+
+  # Train the model
   # all: max_depth=n, max_features=s/n
   # sklearn.ensemble.GradientBoostingClassifier(n_estimators=n, learning_rate=0-1)
   # sklearn.ensemble.GradientBoostingRegressor(n_estimators=n, learning_rate=0-1)
@@ -236,10 +258,11 @@ def evalModel(
   read_func = lambda aud, tsv: dict2packed(readData(aud, tsv, limit_seconds))
   eval_df = pd.concat([read_func(*files) for files in zip(audio_files, tsv_files)])
   # TODO(177c) use the quantiles that are derived in normalization
-  eval_normalized = normalizeFreqs(
-    np.abs(np.asarray(eval_df.freqs_vec.tolist()))[:, :num_frequencies],
-    num_normalization_buckets
-  )
+  eval_normalized = np.abs(np.asarray(eval_df.freqs_vec.tolist()))[:, :num_frequencies]
+  # eval_normalized = normalizeFreqs(
+    # np.abs(np.asarray(eval_df.freqs_vec.tolist()))[:, :num_frequencies],
+    # num_normalization_buckets
+  # )
 
   with open(model_file, 'rb') as model_f:
     # TODO mmap read the model file to avoid the IO hit
@@ -247,6 +270,18 @@ def evalModel(
     # models from people you don't know.
     model = pickle.load(model_f)
 
+  distances = np.zeros(eval_df.shape[0])
+  distances[1:] = np.sqrt(np.sum(
+    np.square(eval_normalized[:-1] - eval_normalized[1:]),
+    axis=1
+  ))
+  unit_lengths = np.sqrt(np.sum(np.square(eval_normalized), axis=1))
+  unit_lengths[unit_lengths < MIN_LENGTH] = MIN_LENGTH
+  angles = np.zeros(eval_df.shape[0])
+  angles[1:] = np.arccos(np.sum(
+    eval_normalized[1:] * eval_normalized[:-1],
+    axis=1
+  ) / (unit_lengths[1:] * unit_lengths[:-1]))
   predictions = np.zeros(eval_normalized.shape[0], dtype='int8')
   for i in range(eval_normalized.shape[0]):
     if i < 2:
@@ -255,8 +290,12 @@ def evalModel(
     predictions[i] = model.predict([np.hstack([
       predictions[i - 2],
       predictions[i - 1],
+      distances[i],
+      angles[i],
+      unit_lengths[i],
       eval_normalized[i],
     ])])
+    prev_row = eval_normalized
 
   # Any prediction shorter than 8 frames will be considered noise. Assuming
   # each frame is 10 ms and step size is 5 ms, then the shortest word can
