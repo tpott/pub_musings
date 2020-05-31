@@ -170,9 +170,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     ignore_cache = True
     if ignore_cache or not os.path.exists(image_file):
       # TODO parameterize these limits
-      max_freq = 110
+      max_freq = 210
       smaller_freqs = np.arange(freqs.shape[0])[:max_freq]
-      spectro_display = np.abs(spectro)[:, :max_freq].T
+      spectro_display = np.log2(np.maximum(np.abs(spectro)[:, :max_freq].T, 0.001))
       plt.pcolormesh(times, smaller_freqs, spectro_display)
       plt.axvline(x=utterance['start'], color='#d62728')
       plt.axvline(x=utterance['end'], color='#d62728')
