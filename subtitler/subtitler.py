@@ -8,9 +8,15 @@ import json
 import math
 import os
 import subprocess
+import sys
 import time
 from typing import (Any, Dict, List, Optional, Tuple)
 import urllib.parse
+
+try:
+  import spleeter
+except ImportError:
+  spleeter = None
 
 from tsv2srt import tsv2srt
 from misc import urandom5
@@ -86,15 +92,39 @@ def extractAudio(video_file: str, video_id: str, dry_run: bool) -> None:
   return
 
 
+# TODO call spleeter...
+def maybeSpleeter(video_id: str, dry_run: bool) -> None:
+  if spleeter is None:
+    print('spleeter is not installed', file=sys.stderr)
+  command = " ".join([
+    'python',
+    '-m',
+    'spleeter',
+    'separate',
+    '-i',
+    '../pub_musings/subtitler/audios/{video_id}.wav'.format(video_id=video_id),
+    '-p',
+    'spleeter:2stems',
+    '-o',
+    '..',
+  ])
+  print(command)
+  return
+
+
 def uploadAudio(bucket: str, video_id: str, dry_run: bool) -> None:
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
   # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
+  audio_format = 'audios/{video_id}.wav'
+  if spleeter is not None:
+    audio_format = 'audios/{video_id}/vocals.wav'
+  audio_file = audio_format.format(video_id=video_id)
   _resp = mysystem([
     'aws',
     's3',
     'cp',
-    'audios/{video_id}.wav'.format(video_id=video_id),
-    's3://{bucket}/'.format(bucket=bucket),
+    audio_file,
+    's3://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
   ])
   return
 
@@ -120,7 +150,7 @@ def startTranscriptJob(
       ),
     },
   }
-  json_job_str = json.dumps(job_obj)
+  json_job_str = json.dumps(job_obj, sort_keys=True)
   if not dry_run:
     with open('job-start-command.json', 'wb') as f:
       f.write(json_job_str.encode('utf-8'))
@@ -284,14 +314,15 @@ def gen_subtitles(
 
   if not dry_run:
     with open('video_ids/{video_id}.json'.format(video_id=video_id), 'wb') as f:
-      f.write(json.dumps({'job_id': job_id, 'video_name': file_name}).encode('utf-8'))
+      f.write(json.dumps({'job_id': job_id, 'video_name': file_name}, sort_keys=True).encode('utf-8'))
       f.write(b'\n')
     with open('video_names/{filename}.json'.format(filename=file_name), 'wb') as f:
-      f.write(json.dumps({'job_id': job_id, 'video_id': video_id}).encode('utf-8'))
+      f.write(json.dumps({'job_id': job_id, 'video_id': video_id}, sort_keys=True).encode('utf-8'))
       f.write(b'\n')
 
   video_file = downloadVideo(url, video_id, dry_run)
   extractAudio(video_file, video_id, dry_run)
+  maybeSpleeter(video_id, dry_run)
   uploadAudio(bucket, video_id, dry_run)
   startTranscriptJob(job_id, lang, bucket, video_id, region, dry_run)
   # TODO add --model_file and evaluate it here on audios/{video_id}.wav
