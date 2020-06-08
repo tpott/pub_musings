@@ -18,6 +18,7 @@ try:
 except ImportError:
   spleeter = None
 
+from align_lyrics import alignLyrics
 from tsv2srt import tsv2srt
 from misc import urandom5
 
@@ -216,10 +217,15 @@ def downloadTranscriptions(
   return
 
 
+def normalizeTextContent(text: str) -> str:
+  # TODO transliterate hindi to englosized letters when requested
+  return text.lower()
+
+
 def output2tsv(video_id: str, dry_run: bool) -> None:
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
-  # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), .alternatives[0].content] | @tsv' output.json
+  # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv' output.json
   # then pipe to `mlr --itsvlite --otsv label start,end,duration,content then stats1 -a count,sum,mean,min,p25,p50,p75,max -f duration | transpose`
   # where transpose is an alias for:
   # `python3 -c 'from __future__ import (division, print_function); import sys; rows = [line.rstrip("\n").split("\t") for line in sys.stdin]; nrows = len(rows); assert nrows > 0, "Expected at least one row in input"; ncols = len(rows[0]); cols = [[rows[i][j] if j < len(rows[i]) else "" for i in range(nrows)] for j in range(ncols)]; print("\n".join(["\t".join(col) for col in cols]));'`
@@ -227,7 +233,7 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
   #
   # -c is for compact output
   # -r is for "raw" output
-  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), .alternatives[0].content] | @tsv\' outputs/{video_id}.json > tsvs/{video_id}.tsv'.format(
+  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' outputs/{video_id}.json > tsvs/{video_id}.tsv'.format(
     video_id=video_id
   )
   if not dry_run:
@@ -241,7 +247,7 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
           item['start_time'],
           item['end_time'],
           float(item['end_time']) - float(item['start_time']),
-          item['alternatives'][0]['content']
+          item['alternatives'][0]['content'].lower()
         ))
     with open('tsvs/{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
       for item in results:
@@ -249,13 +255,40 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
           start=item[0],
           end=item[1],
           duration=item[2],
-          content=item[3]
+          content=normalizeTextContent(item[3])
         ).encode('utf-8'))
   else:
     print(command)
     _resp = os.system(command)
   return
   # end def output2tsv
+
+
+def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
+  if dry_run:
+    print('python3 align_lyrics.py tsvs/{video_id}.tsv {lyric_file}'.format(
+      lyric_file=lyric_file,
+      video_id=video_id
+    ))
+    return
+  if not os.path.isfile(lyric_file):
+    print('Lyrics for {lyric_file} don\'t exist'.format(lyric_file=lyric_file), file=sys.stderr)
+    return
+  # TODO call alignLyrics('tsvs/{video_id}.tsv'.format(video_id=video_id), lyric_file)
+  transcribed = []
+  with open('tsvs/{video_id}.tsv'.format(video_id=video_id), 'rb') as in_f:
+      for line in in_f:
+        cols = line.decode('utf-8').rstrip('\n').split('\t')
+        start = float(cols[0])
+        end = float(cols[1])
+        duration = float(cols[2])
+        text = cols[3]
+        transcribed.append((start, end, duration, text))
+  lyrics = []
+  with open(lyric_file, 'rb') as in_f:
+    for line in in_f:
+      pass
+  return
 
 
 def formatTsvAsSrt(video_id: str, dry_run: bool) -> str:
@@ -302,7 +335,7 @@ def gen_subtitles(
   url: str,
   file_name: str,
   lang: str,
-  lyrics_file: Optional[str],
+  lyric_file: Optional[str],
   dry_run: bool,
 ) -> None:
   bucket = 'subtitler1'
@@ -328,7 +361,12 @@ def gen_subtitles(
   # TODO add --model_file and evaluate it here on audios/{video_id}.wav
   waitForTranscriptions(region, dry_run)
   downloadTranscriptions(job_id, region, video_id, dry_run)
+  # `output2tsv` calls `normalizeTextContent`, which lowercases and transliterates
   output2tsv(video_id, dry_run)
+  if lyric_file is not None:
+    alignLyricFile(video_id, lyric_file, dry_run)
+  else:
+    print('No lyric file', file=sys.stderr)
   # TODO join aws outputs/{video_id}.json, model eval output, and lyrics file
   srt_file = formatTsvAsSrt(video_id, dry_run)
   addSrtToVideo(video_file, file_name, srt_file, dry_run)
