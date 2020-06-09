@@ -18,7 +18,7 @@ try:
 except ImportError:
   spleeter = None
 
-from align_lyrics import alignLyrics
+from align_lyrics import align, alignLyrics
 from tsv2srt import tsv2srt
 from misc import urandom5
 
