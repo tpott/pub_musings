@@ -18,7 +18,7 @@ try:
 except ImportError:
   spleeter = None
 
-from align_lyrics import align, alignLyrics
+from align_lyrics import align, alignLyrics, normalizeTextContent
 from tsv2srt import tsv2srt
 from misc import urandom5
 
@@ -215,11 +215,6 @@ def downloadTranscriptions(
   else:
     _resp = os.system(command)
   return
-
-
-def normalizeTextContent(text: str) -> str:
-  # TODO transliterate hindi to englosized letters when requested
-  return text.lower()
 
 
 def output2tsv(video_id: str, dry_run: bool) -> None:
