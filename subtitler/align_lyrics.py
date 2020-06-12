@@ -9,62 +9,111 @@ from typing import Any, List, Tuple
 Utterance = Tuple[float, float, float, str]
 
 
+# Generated from `python3 -c 'print("\n".join(["%d: (\"?\", False, %s)," % (i, chr(i)) for i in range(2304, 2390)]))' >> align_lyrics.py`
 CHAR_MAP = {
-  2305: ('u', True),  # TODO what is this
-  2306: ('n', True),
-  2309: ('u', True),
-  2310: ('aa', False),
-  2312: ('ee', False),
-  2313: ('o', False),
-  2314: ('oo', False),
-  2317: ('eu', False),  # TODO what was this
-  2319: ('e', False),
-  2320: ('e', False),
-  2324: ('ao', False),
-  2325: ('ka', False),
-  2326: ('kha', False),
-  2327: ('ga', False),
-  2330: ('cha', False),
-  2332: ('ja', False),
-  2333: ('jh', False),
-  2337: ('da', False),
-  2340: ('ta', False),
-  2341: ('th', False),
-  2342: ('da', False),
-  2343: ('dh', False),
-  2344: ('na', False),
-  2346: ('ta', False),  # TODO conflict with 2340
-  2347: ('pha', False),
-  2348: ('ba', False),
-  2349: ('bh', False),
-  2350: ('ma', False),
-  2351: ('ya', False),
-  2352: ('ra', False),
-  2354: ('la', False),
-  2357: ('va', False),
-  2358: ('sha', False),
-  2360: ('sa', False),
-  2361: ('ha', False),
-  2366: ('a', True),
-  2367: ('i', True),  # TODO this can't be right
-  2368: ('i', True),  # one of these must be a big "ii"
-  2369: ('u', True),
-  2370: ('u', True),  # TODO shell underneath...
-  2373: ('e', True),  # TODO raised u...
-  2375: ('e', True),
-  2376: ('ai', True),
-  2379: ('o', True),
-  2380: ('ie', True),
-  2381: ('i', True),  # TODO this looked like a comma
+  # 2304 - 2307 are modifiers that are hard to print..
+  2304: ('a', True, ''),  # Example: कऀ
+  2305: ('an', True, ''),  # Example: कँ
+  2306: ('an', True, ''),  # Example: कं
+  2307: ('ah', True, ''),  # Example: कः
+
+  # 2308 - 2361 are full chars
+  2308: ('?', False, 'ऄ'),
+  2309: ('a', False, 'अ'),
+  2310: ('aa', False, 'आ'),
+  2311: ('i', False, 'इ'),
+  2312: ('ee', False, 'ई'),
+  2313: ('u', False, 'उ'),
+  2314: ('oo', False, 'ऊ'),
+  2315: ('r', False, 'ऋ'),
+  2316: ('?', False, 'ऌ'),
+  2317: ('ai', False, 'ऍ'),
+  2318: ('ai', False, 'ऎ'),
+  2319: ('e', False, 'ए'),
+  2320: ('ai', False, 'ऐ'),
+  2321: ('o', False, 'ऑ'),
+  2322: ('o', False, 'ऒ'),
+  2323: ('o', False, 'ओ'),
+  2324: ('au', False, 'औ'),
+  2325: ('ka', False, 'क'),
+  2326: ('kha', False, 'ख'),
+  2327: ('ga', False, 'ग'),
+  2328: ('gha', False, 'घ'),
+  2329: ('na', False, 'ङ'),
+  2330: ('cha', False, 'च'),
+  2331: ('chha', False, 'छ'),
+  2332: ('ja', False, 'ज'),
+  2333: ('jha', False, 'झ'),
+  2334: ('na', False, 'ञ'),
+  2335: ('ta', False, 'ट'),
+  2336: ('tha', False, 'ठ'),
+  2337: ('da', False, 'ड'),
+  2338: ('dha', False, 'ढ'),
+  2339: ('na', False, 'ण'),
+  2340: ('ta', False, 'त'),
+  2341: ('tha', False, 'थ'),
+  2342: ('da', False, 'द'),
+  2343: ('dha', False, 'ध'),
+  2344: ('na', False, 'न'),
+  2345: ('na', False, 'ऩ'),
+  2346: ('pa', False, 'प'),
+  2347: ('pha', False, 'फ'),
+  2348: ('ba', False, 'ब'),
+  2349: ('bha', False, 'भ'),
+  2350: ('ma', False, 'म'),
+  2351: ('ya', False, 'य'),
+  2352: ('ra', False, 'र'),
+  2353: ('ra', False, 'ऱ'),
+  2354: ('la', False, 'ल'),
+  2355: ('la', False, 'ळ'),
+  2356: ('la', False, 'ऴ'),
+  2357: ('va', False, 'व'),
+  2358: ('sha', False, 'श'),
+  2359: ('sha', False, 'ष'),
+  2360: ('sa', False, 'स'),
+  2361: ('ha', False, 'ह'),
+
+  # 2362 - 2389 are modifiers that don't render nicely
+  2362: ('?', True, ''),
+  2363: ('?', True, ''),
+  2364: ('?', True, ''),
+  2365: ('?', True, 'ऽ'),
+  2366: ('a', True, ''),
+  2367: ('i', True, ''),
+  2368: ('?', True, ''),
+  2369: ('u', True, ''),
+  2370: ('u', True, ''),
+  2371: ('?', True, ''),
+  2372: ('?', True, ''),
+  2373: ('e', True, ''),
+  2374: ('?', True, ''),
+  2375: ('e', True, ''),
+  2376: ('ai', True, ''),
+  2377: ('?', True, ''),
+  2378: ('?', True, ''),
+  2379: ('o', True, ''),
+  2380: ('ie', True, ''),
+  2381: ('i', True, ''),
+  2382: ('?', True, ''),
+  2383: ('?', True, ''),
+  2384: ('?', True, 'ॐ'),
+  2385: ('?', True, ''),
+  2386: ('?', True, ''),
+  2387: ('?', True, ''),
+  2388: ('?', True, ''),
+  2389: ('?', True, ''),
 }
 
+# mila mailaa
+# 2350, 2367, 2354, 2366
 def normalizeTextContent(s: str) -> str:
   s = s.lower()
   lang = None
+  # Check that all chars are from the same language
   for c in s:
     o = ord(c)
     c_lang = None
-    if 2305 <= o and o <= 2381:
+    if 2304 <= o and o <= 2389:
       c_lang = 'hindi'
     if lang is None:
       lang = c_lang
@@ -72,12 +121,13 @@ def normalizeTextContent(s: str) -> str:
     if lang == c_lang:
       continue
     raise ValueError('Multiple languages detected! Got %s, expected %s' % (c_lang, lang))
-  # now we know the lang
+  # Now we know the lang
   if lang is None:
     return s
   new_s = ''
+  # Construct a transliterated string
   for c in s:
-    en_c, modifier = CHAR_MAP[ord(c)]
+    en_c, modifier, _ = CHAR_MAP[ord(c)]
     if modifier and len(new_s) > 0:
       new_s = new_s[:-1]
     new_s += en_c

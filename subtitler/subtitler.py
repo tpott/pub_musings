@@ -390,10 +390,12 @@ def main() -> None:
                       'that would have run')
   args = parser.parse_args()
   language = args.language.lower()
-  assert language in ['english', 'hindi']
+  assert language in ['english', 'hindi', 'hindi-en']
   lang = 'en-US'
   if language == 'hindi':
     lang = 'hi-IN'
+  elif language == 'hindi-en':
+    lang = 'en-IN'
   gen_subtitles(
     args.video_url,
     args.temp_video_file,
