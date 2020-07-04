@@ -103,11 +103,11 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     'spleeter',
     'separate',
     '-i',
-    '../pub_musings/subtitler/audios/{video_id}.wav'.format(video_id=video_id),
+    'audios/{video_id}.wav'.format(video_id=video_id),
     '-p',
     'spleeter:2stems',
     '-o',
-    '..',
+    'audios/',
   ])
   print(command)
   return
@@ -389,6 +389,7 @@ def main() -> None:
   parser.add_argument('--dry-run', action='store_true', help='Only print commands ' +
                       'that would have run')
   args = parser.parse_args()
+
   language = args.language.lower()
   assert language in ['english', 'hindi', 'hindi-en']
   lang = 'en-US'
@@ -396,6 +397,7 @@ def main() -> None:
     lang = 'hi-IN'
   elif language == 'hindi-en':
     lang = 'en-IN'
+
   gen_subtitles(
     args.video_url,
     args.temp_video_file,
