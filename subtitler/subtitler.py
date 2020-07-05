@@ -93,11 +93,11 @@ def extractAudio(video_file: str, video_id: str, dry_run: bool) -> None:
   return
 
 
-# TODO call spleeter...
 def maybeSpleeter(video_id: str, dry_run: bool) -> None:
   if spleeter is None:
     print('spleeter is not installed', file=sys.stderr)
-  command = " ".join([
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
+  _resp = mysystem([
     'python',
     '-m',
     'spleeter',
@@ -109,7 +109,6 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     '-o',
     'audios/',
   ])
-  print(command)
   return
 
 
