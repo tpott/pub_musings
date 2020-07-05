@@ -109,10 +109,21 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     '-o',
     'audios/',
   ])
+  _resp = mysystem([
+    'ffmpeg',
+    '-i',
+    'audios/{video_id}/vocals.wav'.format(video_id=video_id),
+    '-map_channel',
+    '0.0.0',
+    'audios/{video_id}/vocals_left.wav'.format(video_id=video_id),
+    '-map_channel',
+    '0.0.1',
+    'audios/{video_id}/vocals_right.wav'.format(video_id=video_id),
+  ])
   return
 
 
-def uploadAudio(bucket: str, video_id: str, dry_run: bool) -> None:
+def uploadAudioToAws(bucket: str, video_id: str, dry_run: bool) -> None:
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
   # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
   audio_format = 'audios/{video_id}.wav'
@@ -129,7 +140,7 @@ def uploadAudio(bucket: str, video_id: str, dry_run: bool) -> None:
   return
 
 
-def startTranscriptJob(
+def startAwsTranscriptJob(
   job_id: str,
   lang: str,
   bucket: str,
@@ -167,10 +178,10 @@ def startTranscriptJob(
     'file://job-start-command.json',
   ])
   return
-  # end def startTranscriptJob
+  # end def startAwsTranscriptJob
 
 
-def waitForTranscriptions(region: str, dry_run: bool) -> None:
+def waitForAwsTranscriptions(region: str, dry_run: bool) -> None:
   for _ in range(200):
     # Note: `--status IN_PROGRESS` is optional
     res = mysystem2(dry_run, [
@@ -197,7 +208,7 @@ def waitForTranscriptions(region: str, dry_run: bool) -> None:
   return
 
 
-def downloadTranscriptions(
+def downloadAwsTranscriptions(
   job_id: str,
   region: str,
   video_id: str,
@@ -214,6 +225,46 @@ def downloadTranscriptions(
   else:
     _resp = os.system(command)
   return
+
+
+def uploadAudioToGcp(bucket: str, video_id: str, dry_run: bool) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
+  # Result should be https://console.cloud.google.com/storage/browser/subtitler2?forceOnBucketsSortingFiltering=false&authuser=1&project=emerald-cacao-282303
+  audio_format = 'audios/{video_id}.wav'
+  if spleeter is not None:
+    # TODO figure out how to pass multi channel to GCP
+    audio_format = 'audios/{video_id}/vocals_left.wav'
+  audio_file = audio_format.format(video_id=video_id)
+  _resp = mysystem([
+    'gsutil',
+    'cp',
+    audio_file,
+    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
+  ])
+  return
+
+
+def startGcpTranscriptJob(
+  lang: str,
+  bucket: str,
+  video_id: str,
+  dry_run: bool,
+) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
+  _resp = mysystem([
+    'gcloud',
+    'ml',
+    'speech'
+    'recognize-long-running',
+    'gs://{bucket}/{video_id}.wav'.format(video_id=video_id),
+    '--language-code=\'{lang}\''.format(lang=lang),
+    '--async',
+    '--include-word-time-offsets',
+  ])
+  print('gcloud response!')
+  print(_resp)
+  return
+  # end def startGcpTranscriptJob
 
 
 def output2tsv(video_id: str, dry_run: bool) -> None:
@@ -332,8 +383,9 @@ def gen_subtitles(
   lyric_file: Optional[str],
   dry_run: bool,
 ) -> None:
-  bucket = 'subtitler1'
-  region = 'us-east-2'
+  aws_bucket = 'subtitler1'
+  gcp_bucket = 'subtitler2'
+  aws_region = 'us-east-2'
 
   job_id = urandom5()
   video_id = youtubeVideoID(url)
@@ -350,11 +402,13 @@ def gen_subtitles(
   video_file = downloadVideo(url, video_id, dry_run)
   extractAudio(video_file, video_id, dry_run)
   maybeSpleeter(video_id, dry_run)
-  uploadAudio(bucket, video_id, dry_run)
-  startTranscriptJob(job_id, lang, bucket, video_id, region, dry_run)
+  uploadAudioToAws(aws_bucket, video_id, dry_run)
+  startAwsTranscriptJob(job_id, lang, aws_bucket, video_id, aws_region, dry_run)
+  uploadAudioToGcp(gcp_bucket, video_id, dry_run)
+  startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
   # TODO add --model_file and evaluate it here on audios/{video_id}.wav
-  waitForTranscriptions(region, dry_run)
-  downloadTranscriptions(job_id, region, video_id, dry_run)
+  waitForAwsTranscriptions(aws_region, dry_run)
+  downloadAwsTranscriptions(job_id, aws_region, video_id, dry_run)
   # `output2tsv` calls `normalizeTextContent`, which lowercases and transliterates
   output2tsv(video_id, dry_run)
   if lyric_file is not None:
