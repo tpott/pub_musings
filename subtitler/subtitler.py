@@ -244,26 +244,52 @@ def uploadAudioToGcp(bucket: str, video_id: str, dry_run: bool) -> None:
   return
 
 
+def waitForGcpTranscriptions(
+  job_id: str,
+  dry_run: bool,
+) -> None[str]:
+  mysystem = lambda command: mysystem2(dry_run, command)
+  command = [
+    'gcloud',
+	'ml',
+	'speech',
+	'operations',
+	'wait',
+	job_id,
+  ]
+  print(" ".join(command))
+  resp = mysystem(command)
+  print('gcloud response!')
+  print(resp)
+  return None
+  # end def waitForGcpTranscriptions
+
+
 def startGcpTranscriptJob(
   lang: str,
   bucket: str,
   video_id: str,
   dry_run: bool,
-) -> None:
-  mysystem = lambda command: mysystem_wrapper(dry_run, command)
-  _resp = mysystem([
+) -> Optional[str]:
+  mysystem = lambda command: mysystem2(dry_run, command)
+  command = [
     'gcloud',
     'ml',
-    'speech'
+    'speech',
     'recognize-long-running',
-    'gs://{bucket}/{video_id}.wav'.format(video_id=video_id),
-    '--language-code=\'{lang}\''.format(lang=lang),
+    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
+    '--language-code={lang}'.format(lang=lang),
     '--async',
     '--include-word-time-offsets',
-  ])
+  ]
+  print(" ".join(command))
+  resp = mysystem(command)
+  if resp is None:
+    print('empty gcloud response!', file=sys.stderr)
+    return None
   print('gcloud response!')
-  print(_resp)
-  return
+  print(resp)
+  return json.loads(resp)['name']
   # end def startGcpTranscriptJob
 
 
@@ -405,7 +431,9 @@ def gen_subtitles(
   uploadAudioToAws(aws_bucket, video_id, dry_run)
   startAwsTranscriptJob(job_id, lang, aws_bucket, video_id, aws_region, dry_run)
   uploadAudioToGcp(gcp_bucket, video_id, dry_run)
-  startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
+  gcp_job_id = startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
+  if gcp_job_id is not None:
+    waitForGcpTranscriptions(gcp_job_id, dry_run)
   # TODO add --model_file and evaluate it here on audios/{video_id}.wav
   waitForAwsTranscriptions(aws_region, dry_run)
   downloadAwsTranscriptions(job_id, aws_region, video_id, dry_run)
