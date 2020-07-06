@@ -227,72 +227,6 @@ def downloadAwsTranscriptions(
   return
 
 
-def uploadAudioToGcp(bucket: str, video_id: str, dry_run: bool) -> None:
-  mysystem = lambda command: mysystem_wrapper(dry_run, command)
-  # Result should be https://console.cloud.google.com/storage/browser/subtitler2?forceOnBucketsSortingFiltering=false&authuser=1&project=emerald-cacao-282303
-  audio_format = 'audios/{video_id}.wav'
-  if spleeter is not None:
-    # TODO figure out how to pass multi channel to GCP
-    audio_format = 'audios/{video_id}/vocals_left.wav'
-  audio_file = audio_format.format(video_id=video_id)
-  _resp = mysystem([
-    'gsutil',
-    'cp',
-    audio_file,
-    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
-  ])
-  return
-
-
-def waitForGcpTranscriptions(
-  job_id: str,
-  dry_run: bool,
-) -> None[str]:
-  mysystem = lambda command: mysystem2(dry_run, command)
-  command = [
-    'gcloud',
-	'ml',
-	'speech',
-	'operations',
-	'wait',
-	job_id,
-  ]
-  print(" ".join(command))
-  resp = mysystem(command)
-  print('gcloud response!')
-  print(resp)
-  return None
-  # end def waitForGcpTranscriptions
-
-
-def startGcpTranscriptJob(
-  lang: str,
-  bucket: str,
-  video_id: str,
-  dry_run: bool,
-) -> Optional[str]:
-  mysystem = lambda command: mysystem2(dry_run, command)
-  command = [
-    'gcloud',
-    'ml',
-    'speech',
-    'recognize-long-running',
-    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
-    '--language-code={lang}'.format(lang=lang),
-    '--async',
-    '--include-word-time-offsets',
-  ]
-  print(" ".join(command))
-  resp = mysystem(command)
-  if resp is None:
-    print('empty gcloud response!', file=sys.stderr)
-    return None
-  print('gcloud response!')
-  print(resp)
-  return json.loads(resp)['name']
-  # end def startGcpTranscriptJob
-
-
 def output2tsv(video_id: str, dry_run: bool) -> None:
   # jq -Cc '.results.items[]' output.json | head
   # jq -cr '.results.items[] | select(.start_time != null) | [.start_time, .end_time, .alternatives[0].content] | @tsv' output.json | head
@@ -333,6 +267,92 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
     _resp = os.system(command)
   return
   # end def output2tsv
+
+
+def uploadAudioToGcp(bucket: str, video_id: str, dry_run: bool) -> None:
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
+  # Result should be https://console.cloud.google.com/storage/browser/subtitler2?forceOnBucketsSortingFiltering=false&authuser=1&project=emerald-cacao-282303
+  audio_format = 'audios/{video_id}.wav'
+  if spleeter is not None:
+    # TODO figure out how to pass multi channel to GCP
+    audio_format = 'audios/{video_id}/vocals_left.wav'
+  audio_file = audio_format.format(video_id=video_id)
+  _resp = mysystem([
+    'gsutil',
+    'cp',
+    audio_file,
+    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
+  ])
+  return
+
+
+def startGcpTranscriptJob(
+  lang: str,
+  bucket: str,
+  video_id: str,
+  dry_run: bool,
+) -> Optional[str]:
+  mysystem = lambda command: mysystem2(dry_run, command)
+  command = [
+    'gcloud',
+    'ml',
+    'speech',
+    'recognize-long-running',
+    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
+    '--language-code={lang}'.format(lang=lang),
+    '--async',
+    '--include-word-time-offsets',
+  ]
+  print(" ".join(command))
+  resp = mysystem(command)
+  if resp is None:
+    print('empty gcloud response!', file=sys.stderr)
+    return None
+  print('gcloud response!')
+  print(resp)
+  return json.loads(resp)['name']
+  # end def startGcpTranscriptJob
+
+
+def waitForGcpTranscriptions(
+  video_id: str,
+  job_id: Optional[str],
+  dry_run: bool,
+) -> Optional[str]:
+  if job_id is None:
+    dry_run = True
+  mysystem = lambda command: mysystem2(dry_run, command)
+  command = [
+    'gcloud',
+    'ml',
+    'speech',
+    'operations',
+    'wait',
+    job_id,
+  ]
+  print(" ".join(command))
+  resp = mysystem(command)
+  if resp is None:
+    print('No transcription from google!', file=sys.stderr)
+    return None
+  print('gcloud response!')
+  print(resp)
+  # similar to output2tsv
+  with open('outputs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+    f.write(resp.encode('utf-8'))
+  obj = json.loads(resp)
+  with open('tsvs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+    for thing in obj['results']:
+      for other in thing['alternatives']:
+        for word in other['words']:
+          # [:-1] cause google appends an "s" to all their times
+          print("\t".join([
+            word['startTime'][:-1],
+            word['endTime'][:-1],
+            str(float(word['endTime'][:-1]) - float(word['startTime'][:-1])),
+          ]))
+  return None
+  # end def waitForGcpTranscriptions
 
 
 def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
@@ -432,13 +452,14 @@ def gen_subtitles(
   startAwsTranscriptJob(job_id, lang, aws_bucket, video_id, aws_region, dry_run)
   uploadAudioToGcp(gcp_bucket, video_id, dry_run)
   gcp_job_id = startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
-  if gcp_job_id is not None:
-    waitForGcpTranscriptions(gcp_job_id, dry_run)
+
   # TODO add --model_file and evaluate it here on audios/{video_id}.wav
   waitForAwsTranscriptions(aws_region, dry_run)
   downloadAwsTranscriptions(job_id, aws_region, video_id, dry_run)
   # `output2tsv` calls `normalizeTextContent`, which lowercases and transliterates
   output2tsv(video_id, dry_run)
+  waitForGcpTranscriptions(video_id, gcp_job_id, dry_run)
+
   if lyric_file is not None:
     alignLyricFile(video_id, lyric_file, dry_run)
   else:
