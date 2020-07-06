@@ -342,15 +342,18 @@ def waitForGcpTranscriptions(
     f.write(resp.encode('utf-8'))
   obj = json.loads(resp)
   with open('tsvs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+    # Kinda like `jq '.results[] | .alternatives[] | .words'`
     for thing in obj['results']:
       for other in thing['alternatives']:
         for word in other['words']:
           # [:-1] cause google appends an "s" to all their times
-          print("\t".join([
+          f.write(("\t".join([
             word['startTime'][:-1],
             word['endTime'][:-1],
-            str(float(word['endTime'][:-1]) - float(word['startTime'][:-1])),
-          ]))
+            '%.3f' % (float(word['endTime'][:-1]) - float(word['startTime'][:-1])),
+            word['word'],
+          ])).encode('utf-8'))
+          f.write(b'\n')
   return None
   # end def waitForGcpTranscriptions
 
