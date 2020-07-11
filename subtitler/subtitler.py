@@ -97,7 +97,7 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
   if spleeter is None:
     print('spleeter is not installed', file=sys.stderr)
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
-  _resp = mysystem([
+  resp = mysystem([
     'python',
     '-m',
     'spleeter',
@@ -109,6 +109,10 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     '-o',
     'audios/',
   ])
+  if resp != 0:
+    print('spleeter failed to run. Return code = %d' % resp, file=sys.stderr)
+	spleeter = None
+	return
   _resp = mysystem([
     'ffmpeg',
     '-i',
@@ -128,7 +132,8 @@ def uploadAudioToAws(bucket: str, video_id: str, dry_run: bool) -> None:
   # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
   audio_format = 'audios/{video_id}.wav'
   if spleeter is not None:
-    audio_format = 'audios/{video_id}/vocals.wav'
+    # TODO figure out how to pass multi channel to GCP
+    audio_format = 'audios/{video_id}/vocals_left.wav'
   audio_file = audio_format.format(video_id=video_id)
   _resp = mysystem([
     'aws',
@@ -328,7 +333,7 @@ def waitForGcpTranscriptions(
     'speech',
     'operations',
     'wait',
-    job_id,
+    job_id if job_id is not None else 'null_job_id',
   ]
   print(" ".join(command))
   resp = mysystem(command)
