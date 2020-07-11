@@ -111,8 +111,8 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
   ])
   if resp != 0:
     print('spleeter failed to run. Return code = %d' % resp, file=sys.stderr)
-	spleeter = None
-	return
+    spleeter = None
+    return
   _resp = mysystem([
     'ffmpeg',
     '-i',
