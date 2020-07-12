@@ -24,7 +24,7 @@ def main() -> None:
     tsv_files = list(map(lambda vid: 'tsvs/%s.tsv' % vid, eval_files))
   eval_df, predictions = evalModel(
     args.model_file,
-    list(map(lambda vid: 'audios/%s.wav' % vid, eval_files)),
+    list(map(lambda vid: 'audios/%s/vocals_left.wav' % vid, eval_files)),
     tsv_files,
     limit_seconds=args.limit
   )

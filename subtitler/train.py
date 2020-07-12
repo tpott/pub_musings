@@ -18,7 +18,7 @@ def main() -> None:
   train_files = args.files.split(',')
   def _readWrapper(in_file: str) -> pd.DataFrame:
     return dict2packed(readData(
-      'audios/%s.wav' % in_file,
+      'audios/%s/vocals_left.wav' % in_file,
       'tsvs/%s.tsv' % in_file,
       limit_seconds=args.limit
     ))

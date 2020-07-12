@@ -13,8 +13,9 @@ import numpy as np
 import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
-import sklearn.tree
+from sklearn.experimental import enable_hist_gradient_boosting
 import sklearn.ensemble
+import sklearn.tree
 
 
 MIN_LENGTH = 0.000001
@@ -52,17 +53,23 @@ def readData(
 ) -> Dict[str, Any]:
   # dtype should be np.dtype('int16')
   rate, all_data = scipy.io.wavfile.read(audio_file)
+
   # TODO allow for sampling strategies other than first-N and first channel
   if limit_seconds is not None:
-    data = all_data[:int(rate * limit_seconds), 0]
+    data = all_data[:int(rate * limit_seconds)]
   else:
-    data = all_data[:, 0]
+    data = all_data[:]
+
+  if len(data.shape) > 1 and data.shape[1] > 1:
+    data = data[:, 0]
 
   # try wrapping in `int(2 ** math.ceil(math.log(.., 2)))`
   window_size = int(rate) // 100
   step_size = window_size // 2
   # we want windows_per_second to be 200
   windows_per_second = int(rate) // step_size
+  expected_num_frames = data.shape[0] // step_size
+
   _freqs, _times, spectro = scipy.signal.stft(
     data,
     rate,
@@ -70,6 +77,14 @@ def readData(
     nperseg=window_size,
     noverlap=window_size // 2
   )
+
+  # TODO why is this step_size and not window_size? stft's output shape is weird
+  if spectro.shape[0] > step_size:
+    spectro = spectro[:step_size]
+  if spectro.shape[1] > expected_num_frames:
+    spectro = spectro[:, :expected_num_frames]
+  if spectro.shape[1] < expected_num_frames:
+    data = data[:spectro.shape[1] * step_size]
 
   utterances = []
   if utt_file is not None:
@@ -91,7 +106,6 @@ def readData(
   )
   if utt_file is None:
     is_talking = np.repeat(np.nan, spectro.T.shape[0])
-  is_talking = is_talking[:-1]
   was_talking = np.hstack([[0], is_talking[:-1]])
   was_was_talking = np.hstack([[0, 0], is_talking[:-2]])
 
@@ -105,7 +119,7 @@ def readData(
     'step_size': step_size,
     'num_utterances': len(utterances),
     'data': data, # TODO remove this line
-    'freqs_vec': spectro.T[:-1, :-1],
+    'freqs_vec': spectro.T,
     'is_talking': is_talking,
     'was_talking': was_talking,
     'was_was_talking': was_was_talking,
@@ -211,9 +225,11 @@ def trainModel(
     normalized[1:] * normalized[:-1],
     axis=1
   ) / (unit_lengths[1:] * unit_lengths[:-1]))
+
+  # Adding was_talking, and was_was_talking, is too hard to get right. We would need
+  # a RNN or LSTM model that can train with several qualities of was_talking. Otherwise,
+  # we train with a high quality signal but eval with a less idea, production signal.
   combined = np.hstack([
-    df.was_was_talking.to_numpy().reshape(normalized.shape[0], 1),
-    df.was_talking.to_numpy().reshape(normalized.shape[0], 1),
     distances.reshape(normalized.shape[0], 1),
     angles.reshape(normalized.shape[0], 1),
     unit_lengths.reshape(normalized.shape[0], 1),
@@ -235,7 +251,9 @@ def trainModel(
   # sklearn.ensemble.RandomForestRegressor(n_estimators=n)
   # sklearn.tree.DecisionTreeClassifier()
   # sklearn.tree.DecisionTreeRegressor()
-  classifier = sklearn.tree.DecisionTreeClassifier(
+  classifier = sklearn.ensemble.HistGradientBoostingRegressor(
+    max_iter=100,
+    learning_rate=0.1,
     random_state=rand_int,
     max_depth=max_depth
   )
@@ -282,20 +300,15 @@ def evalModel(
     eval_normalized[1:] * eval_normalized[:-1],
     axis=1
   ) / (unit_lengths[1:] * unit_lengths[:-1]))
-  predictions = np.zeros(eval_normalized.shape[0], dtype='int8')
-  for i in range(eval_normalized.shape[0]):
-    if i < 2:
-      predictions[i] = 0
-      continue
-    predictions[i] = model.predict([np.hstack([
-      predictions[i - 2],
-      predictions[i - 1],
-      distances[i],
-      angles[i],
-      unit_lengths[i],
-      eval_normalized[i],
-    ])])
-    prev_row = eval_normalized
+
+  # If training included was_talking, then we would need to include previous
+  # predictions here.
+  predictions = model.predict(np.hstack([
+    distances.reshape(eval_df.shape[0], 1),
+    angles.reshape(eval_df.shape[0], 1),
+    unit_lengths.reshape(eval_df.shape[0], 1),
+    eval_normalized,
+  ]))
 
   # Any prediction shorter than 8 frames will be considered noise. Assuming
   # each frame is 10 ms and step size is 5 ms, then the shortest word can
