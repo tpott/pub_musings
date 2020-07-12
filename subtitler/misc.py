@@ -322,9 +322,9 @@ def evalModel(
   print('start\tend\tduration\tcontent')
   for utt in predicted_utterances:
     print('\t'.join([str(val) for val in [
-      utt['start'],
-      utt['end'],
-      utt['duration'],
+      round(utt['start'], 3),
+      round(utt['end'], 3),
+      round(utt['duration'], 3),
       '',  # TODO content is TBD!
     ]]))
   return eval_df, predictions
