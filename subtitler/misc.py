@@ -251,7 +251,7 @@ def trainModel(
   # sklearn.ensemble.RandomForestRegressor(n_estimators=n)
   # sklearn.tree.DecisionTreeClassifier()
   # sklearn.tree.DecisionTreeRegressor()
-  classifier = sklearn.ensemble.HistGradientBoostingRegressor(
+  classifier = sklearn.ensemble.HistGradientBoostingClassifier(
     max_iter=100,
     learning_rate=0.1,
     random_state=rand_int,
