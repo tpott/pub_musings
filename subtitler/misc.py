@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
+import scipy.stats
 from sklearn.experimental import enable_hist_gradient_boosting
 import sklearn.ensemble
 import sklearn.tree
@@ -201,7 +202,7 @@ def normalizeFreqs(freqs: np.ndarray, n_buckets: int) -> np.ndarray:
 def trainModel(
   df: pd.DataFrame,
   out_file_name: str,
-  max_depth: int = 5,
+  n_iter: int = 10,
   num_frequencies: int = 60,
   rand_int: Optional[int] = None,
   num_normalization_buckets: int = 20,
@@ -251,16 +252,23 @@ def trainModel(
   # sklearn.ensemble.RandomForestRegressor(n_estimators=n)
   # sklearn.tree.DecisionTreeClassifier()
   # sklearn.tree.DecisionTreeRegressor()
-  classifier = sklearn.ensemble.HistGradientBoostingClassifier(
-    max_iter=100,
-    learning_rate=0.1,
+
+  search = sklearn.model_selection.RandomizedSearchCV(
+    sklearn.ensemble.HistGradientBoostingClassifier(),
+    {
+      'max_iter': scipy.stats.randint(low=50, high=150),
+      'learning_rate': scipy.stats.uniform(loc=1e-4, scale=1.0 - 2e-4),
+      'max_depth': scipy.stats.randint(low=4, high=8),
+    },
+    n_iter=n_iter,
     random_state=rand_int,
-    max_depth=max_depth
   )
-  model = classifier.fit(combined, df.is_talking)
+  results = search.fit(combined, df.is_talking)
+  print('best_score_ =', results.best_score_)
+  print('best_params_ =', results.best_params_)
 
   with open(out_file_name, 'wb') as model_file:
-    pickle.dump(model, model_file)
+    pickle.dump(results.best_estimator_, model_file)
   return out_file_name
   # end def trainModel
 

@@ -14,6 +14,8 @@ def main() -> None:
   parser.add_argument('files', help='A comma separated list of audio IDs')
   parser.add_argument('--limit', type=float, help='The number of seconds ' +
                       'to take from the beginning of each file')
+  parser.add_argument('--n_iter', type=int, default=10, help='The number of ' +
+                      'iterations that RandomizedSearchCV should use')
   args = parser.parse_args()
   train_files = args.files.split(',')
   def _readWrapper(in_file: str) -> pd.DataFrame:
@@ -23,7 +25,7 @@ def main() -> None:
       limit_seconds=args.limit
     ))
   df = pd.concat(list(map(_readWrapper, train_files)))
-  model_file = trainModel(df, 'models/%s' % urandom5())
+  model_file = trainModel(df, 'models/%s' % urandom5(), n_iter=args.n_iter)
   print('Saving model file to %s' % model_file)
   return
 
