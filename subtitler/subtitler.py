@@ -431,11 +431,29 @@ def addSrtToVideo(
   return
 
 
+def evalModel(video_id: str, model_file: str, dry_run: bool) -> None:
+  # TODO add --model_file and evaluate it here on audios/{video_id}.wav
+  mysystem = lambda command: mysystem_wrapper(dry_run, command)
+  audio_format = 'audios/{video_id}.wav'
+  if spleeter is not None:
+    # TODO figure out how to pass multi channel to GCP
+    audio_format = 'audios/{video_id}/vocals_left.wav'
+  _resp = mysystem([
+    'python',
+    'eval.py',
+    model_file,
+    audio_format.format(video_id=video_id),
+    # 'tsvs/predicted_{video_id}.tsv'.format(video_id=video_id),
+  ])
+  return
+
+
 def gen_subtitles(
   url: str,
   file_name: str,
   lang: str,
   lyric_file: Optional[str],
+  model_file: Optional[str],
   dry_run: bool,
 ) -> None:
   aws_bucket = 'subtitler1'
@@ -462,7 +480,8 @@ def gen_subtitles(
   uploadAudioToGcp(gcp_bucket, video_id, dry_run)
   gcp_job_id = startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
 
-  # TODO add --model_file and evaluate it here on audios/{video_id}.wav
+  if model_file is not None:
+    evalModel(video_id, model_file, dry_run)
   waitForAwsTranscriptions(aws_region, dry_run)
   downloadAwsTranscriptions(job_id, aws_region, video_id, dry_run)
   # `output2tsv` calls `normalizeTextContent`, which lowercases and transliterates
@@ -473,6 +492,7 @@ def gen_subtitles(
     alignLyricFile(video_id, lyric_file, dry_run)
   else:
     print('No lyric file', file=sys.stderr)
+
   # TODO join aws outputs/{video_id}.json, model eval output, and lyrics file
   srt_file = formatTsvAsSrt(video_id, dry_run)
   addSrtToVideo(video_file, file_name, srt_file, dry_run)
@@ -497,6 +517,7 @@ def main() -> None:
   parser.add_argument('temp_video_file')
   parser.add_argument('language')
   parser.add_argument('lyrics_file', nargs='?', default=None)
+  parser.add_argument('--model', help='The model file to pass to eval.py')
   parser.add_argument('--dry-run', action='store_true', help='Only print commands ' +
                       'that would have run')
   args = parser.parse_args()
@@ -514,6 +535,7 @@ def main() -> None:
     args.temp_video_file,
     lang,
     args.lyrics_file,
+    args.model_file,
     args.dry_run
   )
   return
