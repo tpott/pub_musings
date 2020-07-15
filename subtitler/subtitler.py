@@ -432,7 +432,7 @@ def addSrtToVideo(
 
 
 def evalModel(video_id: str, model_file: str, dry_run: bool) -> None:
-  # TODO add --model_file and evaluate it here on audios/{video_id}.wav
+  # TODO add optional output file param to mysystem_wrapper
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
   audio_format = 'audios/{video_id}.wav'
   if spleeter is not None:
@@ -442,8 +442,8 @@ def evalModel(video_id: str, model_file: str, dry_run: bool) -> None:
     'python',
     'eval.py',
     model_file,
-    audio_format.format(video_id=video_id),
-    # 'tsvs/predicted_{video_id}.tsv'.format(video_id=video_id),
+    video_id,
+    # > 'tsvs/predicted_{video_id}.tsv'.format(video_id=video_id),
   ])
   return
 
