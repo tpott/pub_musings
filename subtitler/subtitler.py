@@ -535,7 +535,7 @@ def main() -> None:
     args.temp_video_file,
     lang,
     args.lyrics_file,
-    args.model_file,
+    args.model,
     args.dry_run
   )
   return
