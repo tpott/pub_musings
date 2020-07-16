@@ -204,9 +204,10 @@ def align(utts: List[Utterance], lyrics: List[str]) -> List[Utterance]:
     ))
 
   return list(reversed(ret))
+  # end align
 
 
-def parseRow(bytestr: bytes) -> Tuple[float, float, float, str]:
+def parseRow(bytestr: bytes) -> Utterance:
   cols = bytestr.decode('utf-8').rstrip('\n').split('\t')
   start = float(cols[0])
   end = float(cols[1])
@@ -216,7 +217,7 @@ def parseRow(bytestr: bytes) -> Tuple[float, float, float, str]:
   return (start, end, duration, text)
 
 
-def readTsv(file_name: str) -> List[Tuple[float, float, float, str]]:
+def readTsv(file_name: str) -> List[Utterance]:
   transcribed = []
   with open(file_name, 'rb') as in_f:
     for line in in_f:
@@ -243,8 +244,9 @@ def alignLyrics(tsv_file: str, lyric_file: str, pred_tsv: Optional[str]) -> None
         lyrics.append(word.translate(remove_table).lower())
 
   aligned = align(transcribed, lyrics)
-  for item in aligned:
-    print('{start}\t{end}\t{duration:0.3f}\t{content}'.format(
+  combined = sorted(aligned + predicted, key=lambda utt: utt[0])
+  for item in combined:
+    print('{start:0.3f}\t{end:0.3f}\t{duration:0.3f}\t{content}'.format(
       start=item[0],
       end=item[1],
       duration=item[2],
