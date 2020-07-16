@@ -10,7 +10,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import (Any, Dict, List, Optional, Tuple)
+from typing import (Any, Dict, IO, List, Optional, Tuple)
 import urllib.parse
 
 try:
@@ -34,11 +34,15 @@ def youtubeVideoID(url: str) -> str:
   return data['v'][0]
 
 
-def mysystem_wrapper(dry_run: bool, command: List[str]) -> int:
+def mysystem_wrapper(
+  dry_run: bool,
+  command: List[str],
+  output: Optional[IO] = None,
+) -> int:
   if dry_run:
     print(" ".join(command))
     return 0
-  res = subprocess.run(command)
+  res = subprocess.run(command, stdout=output)
   return res.returncode
 
 
@@ -432,19 +436,22 @@ def addSrtToVideo(
 
 
 def evalModel(video_id: str, model_file: str, dry_run: bool) -> None:
-  # TODO add optional output file param to mysystem_wrapper
-  mysystem = lambda command: mysystem_wrapper(dry_run, command)
   audio_format = 'audios/{video_id}.wav'
   if spleeter is not None:
     # TODO figure out how to pass multi channel to GCP
     audio_format = 'audios/{video_id}/vocals_left.wav'
-  _resp = mysystem([
-    'python',
-    'eval.py',
-    model_file,
-    video_id,
-    # > 'tsvs/predicted_{video_id}.tsv'.format(video_id=video_id),
-  ])
+  out_file = 'tsvs/predicted_{video_id}.tsv'.format(video_id=video_id)
+  with open(out_file, 'wb') as f:
+    _resp = mysystem_wrapper(
+      dry_run,
+      [
+        'python',
+        'eval.py',
+        model_file,
+        video_id,
+      ],
+      f
+    )
   return
 
 
