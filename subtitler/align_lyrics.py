@@ -206,17 +206,25 @@ def align(utts: List[Utterance], lyrics: List[str]) -> List[Utterance]:
   return list(reversed(ret))
 
 
+def parseRow(bytestr: bytes) -> Tuple[float, float, float, str]:
+  cols = bytestr.decode('utf-8').rstrip('\n').split('\t')
+  start = float(cols[0])
+  end = float(cols[1])
+  duration = float(cols[2])
+  # TODO maybe normalize (transliterate) this?
+  text = cols[3].lower()
+  return (start, end, duration, text)
+
+
 def readTsv(file_name: str) -> List[Tuple[float, float, float, str]]:
   transcribed = []
   with open(file_name, 'rb') as in_f:
-      for line in in_f:
-        cols = line.decode('utf-8').rstrip('\n').split('\t')
-        start = float(cols[0])
-        end = float(cols[1])
-        duration = float(cols[2])
-        # TODO maybe normalize (transliterate) this?
-        text = cols[3].lower()
-        transcribed.append((start, end, duration, text))
+    for line in in_f:
+      try:
+        transcribed.append(parseRow(line))
+      except ValueError:
+        # this is probably just the header row
+        continue
   return transcribed
 
 
