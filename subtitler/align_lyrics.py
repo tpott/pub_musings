@@ -244,8 +244,8 @@ def alignLyrics(tsv_file: str, lyric_file: str, pred_tsv: Optional[str]) -> None
         lyrics.append(word.translate(remove_table).lower())
 
   aligned = align(transcribed, lyrics)
-  combined = sorted(aligned + predicted, key=lambda utt: utt[0])
-  for item in combined:
+  # combined = sorted(aligned + predicted, key=lambda utt: utt[0])
+  for item in aligned:
     print('{start:0.3f}\t{end:0.3f}\t{duration:0.3f}\t{content}'.format(
       start=item[0],
       end=item[1],
