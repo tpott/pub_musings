@@ -212,6 +212,7 @@ def parseRow(bytestr: bytes) -> Utterance:
   cols = bytestr.decode('utf-8').rstrip('\n').split('\t')
   start = float(cols[0])
   end = float(cols[1])
+  # TODO assert duration == end - start
   duration = float(cols[2])
   # TODO maybe normalize (transliterate) this?
   text = cols[3].lower()
@@ -247,7 +248,7 @@ def alignLyrics(
   for utt in combined:
     if not print_utts:
       break
-    if utt[1] > start or (end is not None and utt[0] < end):
+    if utt[1] > start and (end is None or utt[0] < end):
       print(utt, file=sys.stderr)
 
   # As suggested by https://stackoverflow.com/questions/3939361/remove-specific-characters-from-a-string-in-python
