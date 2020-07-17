@@ -3,6 +3,7 @@
 # Sun Jun  7 23:06:18 PDT 2020
 
 import argparse
+import sys
 from typing import Any, List, Optional, Tuple
 
 
@@ -229,13 +230,27 @@ def readTsv(file_name: str) -> List[Utterance]:
   return transcribed
 
 
-def alignLyrics(tsv_file: str, lyric_file: str, pred_tsv: Optional[str]) -> None:
-  # As suggested by https://stackoverflow.com/questions/3939361/remove-specific-characters-from-a-string-in-python
+def alignLyrics(
+  tsv_file: str,
+  lyric_file: str,
+  pred_tsv: Optional[str],
+  start: float,
+  end: Optional[float],
+) -> None:
   transcribed = readTsv(tsv_file)
   predicted = []
   if pred_tsv is not None:
     predicted = readTsv(pred_tsv)
 
+  print_utts = start > 0.0 or end is not None
+  combined = sorted(transcribed + predicted, key=lambda utt: utt[0])
+  for utt in combined:
+    if not print_utts:
+      break
+    if utt[1] > start or (end is not None and utt[0] < end):
+      print(utt, file=sys.stderr)
+
+  # As suggested by https://stackoverflow.com/questions/3939361/remove-specific-characters-from-a-string-in-python
   remove_table = dict.fromkeys(map(ord, '?!-.,'), None)
   lyrics = []
   with open(lyric_file, 'rb') as in_f:
@@ -244,7 +259,6 @@ def alignLyrics(tsv_file: str, lyric_file: str, pred_tsv: Optional[str]) -> None
         lyrics.append(word.translate(remove_table).lower())
 
   aligned = align(transcribed, lyrics)
-  # combined = sorted(aligned + predicted, key=lambda utt: utt[0])
   for item in aligned:
     print('{start:0.3f}\t{end:0.3f}\t{duration:0.3f}\t{content}'.format(
       start=item[0],
@@ -255,20 +269,28 @@ def alignLyrics(tsv_file: str, lyric_file: str, pred_tsv: Optional[str]) -> None
   return
 
 
+# Problems:
+# 1) Misses jump to the end, or way off, because of max_by. ffmpeg just drops
+#    these because they're considered "duplicates".
+# 2) Streaks/high precision matches should be treated more like anchors
+# 3) We need to call `normalizeTextContent` from subtitler... And implement
+#    it's transliteration.
+# 4) Imprecise utterances that are several seconds long should be split.
+
 def main() -> None:
   parser = argparse.ArgumentParser('Try to align timestamps with text')
   parser.add_argument('tsv', help='The TSV file with labeled (guessed) lyrics')
   parser.add_argument('lyrics', help='The un-timestamped lyrics')
   parser.add_argument('pred_tsv', nargs='?', help='The TSV model eval.py')
+  parser.add_argument('--start', type=float, default=0.0, help='The earliest end time')
+  parser.add_argument('--end', type=float, default=None, help='The latest start time')
   args = parser.parse_args()
-  alignLyrics(args.tsv, args.lyrics, args.pred_tsv)
-  # Problems:
-  # 1) Misses jump to the end, or way off, because of max_by. ffmpeg just drops
-  #    these because they're considered "duplicates".
-  # 2) Streaks/high precision matches should be treated more like anchors
-  # 3) We need to call `normalizeTextContent` from subtitler... And implement
-  #    it's transliteration.
-  # 4) Imprecise utterances that are several seconds long should be split.
+  alignLyrics(
+    args.tsv,
+    args.lyrics,
+    args.pred_tsv,
+    args.start,
+    args.end)
   return
 
 
