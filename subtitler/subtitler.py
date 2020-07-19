@@ -248,7 +248,7 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
   #
   # -c is for compact output
   # -r is for "raw" output
-  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' outputs/{video_id}.json > tsvs/{video_id}.tsv'.format(
+  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' outputs/{video_id}.json > tsvs/aws_{video_id}.tsv'.format(
     video_id=video_id
   )
   if not dry_run:
@@ -264,7 +264,7 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
           float(item['end_time']) - float(item['start_time']),
           item['alternatives'][0]['content'].lower()
         ))
-    with open('tsvs/{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
+    with open('tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
       for item in results:
         out_f.write('{start}\t{end}\t{duration:0.3f}\t{content}\n'.format(
           start=item[0],
@@ -370,7 +370,7 @@ def waitForGcpTranscriptions(
 
 def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
   if dry_run:
-    print('python3 align_lyrics.py tsvs/{video_id}.tsv {lyric_file}'.format(
+    print('python3 align_lyrics.py tsvs/aws_{video_id}.tsv {lyric_file}'.format(
       lyric_file=lyric_file,
       video_id=video_id
     ))
@@ -378,9 +378,9 @@ def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
   if not os.path.isfile(lyric_file):
     print('Lyrics for {lyric_file} don\'t exist'.format(lyric_file=lyric_file), file=sys.stderr)
     return
-  # TODO call alignLyrics('tsvs/{video_id}.tsv'.format(video_id=video_id), lyric_file)
+  # TODO call alignLyrics('tsvs/aws_{video_id}.tsv'.format(video_id=video_id), lyric_file)
   transcribed = []
-  with open('tsvs/{video_id}.tsv'.format(video_id=video_id), 'rb') as in_f:
+  with open('tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'rb') as in_f:
       for line in in_f:
         cols = line.decode('utf-8').rstrip('\n').split('\t')
         start = float(cols[0])
@@ -396,7 +396,7 @@ def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
 
 
 def formatTsvAsSrt(video_id: str, dry_run: bool) -> str:
-  tsv_file = 'tsvs/{video_id}.tsv'.format(video_id=video_id)
+  tsv_file = 'tsvs/aws_{video_id}.tsv'.format(video_id=video_id)
   srt_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
   if dry_run:
     ok = True

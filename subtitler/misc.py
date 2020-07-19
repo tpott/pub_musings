@@ -214,18 +214,24 @@ def trainModel(
     # np.abs(np.asarray(df.freqs_vec.tolist()))[:, :num_frequencies],
     # num_normalization_buckets
   # )
+
   distances = np.zeros(df.shape[0])
   distances[1:] = np.sqrt(np.sum(
     np.square(normalized[:-1] - normalized[1:]),
     axis=1
   ))
+
+  # This computation of angles has the potential to to have a floating point
+  # error. As in, `np.sum(norm[1:] * norm[:-1]) / (lens[1:] * lens[:-1])` can
+  # ever so slightly exceed 1.0.
   unit_lengths = np.sqrt(np.sum(np.square(normalized), axis=1))
   unit_lengths[unit_lengths < MIN_LENGTH] = MIN_LENGTH
   angles = np.zeros(df.shape[0])
-  angles[1:] = np.arccos(np.sum(
-    normalized[1:] * normalized[:-1],
-    axis=1
-  ) / (unit_lengths[1:] * unit_lengths[:-1]))
+  numerators = np.sum(normalized[1:] * normalized[:-1], axis=1)
+  denominators = unit_lengths[1:] * unit_lengths[:-1]
+  # This avoids np.arccos resulting in np.nan
+  numerators[numerators > denominators] = denominators[numerators > denominators]
+  angles[1:] = np.arccos(numerators / denominators)
 
   # Adding was_talking, and was_was_talking, is too hard to get right. We would need
   # a RNN or LSTM model that can train with several qualities of was_talking. Otherwise,
@@ -256,9 +262,14 @@ def trainModel(
   search = sklearn.model_selection.RandomizedSearchCV(
     sklearn.ensemble.HistGradientBoostingClassifier(),
     {
-      'max_iter': scipy.stats.randint(low=50, high=150),
+      # 'l2_regularization': [0.0, 0.5, 1.0, 1.5],
       'learning_rate': scipy.stats.uniform(loc=1e-4, scale=1.0 - 2e-4),
-      'max_depth': scipy.stats.randint(low=4, high=8),
+      'max_bins': scipy.stats.randint(low=4, high=128),
+      'max_depth': scipy.stats.randint(low=4, high=12),
+      # 'max_features': scipy.stats.randint(low=10, high=20),
+      # 'n_estimators': scipy.stats.randint(low=10, high=100),
+      'max_iter': scipy.stats.randint(low=50, high=150),
+      # 'n_jobs': [-1],
     },
     n_iter=n_iter,
     random_state=rand_int,

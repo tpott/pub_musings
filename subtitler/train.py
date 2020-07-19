@@ -3,6 +3,7 @@
 # Thu May 21 22:22:07 PDT 2020
 
 import argparse
+import os
 
 import pandas as pd
 
@@ -19,9 +20,12 @@ def main() -> None:
   args = parser.parse_args()
   train_files = args.files.split(',')
   def _readWrapper(in_file: str) -> pd.DataFrame:
+    tsv_file = 'tsvs/labeled_%s.tsv' % in_file
+    if not os.path.isfile(tsv):
+      tsv_file = 'tsvs/aws_%s.tsv' % in_file
     return dict2packed(readData(
       'audios/%s/vocals_left.wav' % in_file,
-      'tsvs/%s.tsv' % in_file,
+      tsv_file,
       limit_seconds=args.limit
     ))
   df = pd.concat(list(map(_readWrapper, train_files)))

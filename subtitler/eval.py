@@ -18,16 +18,19 @@ def main() -> None:
                       'to take from the beginning of each file')
   parser.add_argument('--test', action='store_true', help='Prints perf')
   args = parser.parse_args()
+
   eval_files = args.files.split(',')
   tsv_files = [None] * len(eval_files)
   if args.test:
-    tsv_files = list(map(lambda vid: 'tsvs/%s.tsv' % vid, eval_files))
+    tsv_files = list(map(lambda vid: 'tsvs/aws_%s.tsv' % vid, eval_files))
+
   eval_df, predictions = evalModel(
     args.model_file,
     list(map(lambda vid: 'audios/%s/vocals_left.wav' % vid, eval_files)),
     tsv_files,
     limit_seconds=args.limit
   )
+
   # is_talking.astype(str) is so we include NaNs in the groupby
   comparison = pd.concat([
     eval_df.is_talking.astype(str),
@@ -38,6 +41,7 @@ def main() -> None:
     'predicted_talking',
   ]).size().to_frame('num_windows')
   stats.to_csv(sys.stderr, sep='\t')
+
   return
 
 
