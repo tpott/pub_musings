@@ -312,13 +312,18 @@ def evalModel(
     np.square(eval_normalized[:-1] - eval_normalized[1:]),
     axis=1
   ))
+
+  # This computation of angles has the potential to to have a floating point
+  # error. As in, `np.sum(norm[1:] * norm[:-1]) / (lens[1:] * lens[:-1])` can
+  # ever so slightly exceed 1.0.
   unit_lengths = np.sqrt(np.sum(np.square(eval_normalized), axis=1))
   unit_lengths[unit_lengths < MIN_LENGTH] = MIN_LENGTH
   angles = np.zeros(eval_df.shape[0])
-  angles[1:] = np.arccos(np.sum(
-    eval_normalized[1:] * eval_normalized[:-1],
-    axis=1
-  ) / (unit_lengths[1:] * unit_lengths[:-1]))
+  numerators = np.sum(eval_normalized[1:] * eval_normalized[:-1], axis=1)
+  denominators = unit_lengths[1:] * unit_lengths[:-1]
+  # This avoids np.arccos resulting in np.nan
+  numerators[numerators > denominators] = denominators[numerators > denominators]
+  angles[1:] = np.arccos(numerators / denominators)
 
   # If training included was_talking, then we would need to include previous
   # predictions here.
