@@ -4,6 +4,7 @@
 
 import argparse
 import sys
+from typing import List, Optional
 
 import pandas as pd
 
@@ -20,7 +21,7 @@ def main() -> None:
   args = parser.parse_args()
 
   eval_files = args.files.split(',')
-  tsv_files = [None] * len(eval_files)
+  tsv_files = [None] * len(eval_files)  # type: List[Optional[str]]
   if args.test:
     tsv_files = list(map(lambda vid: 'tsvs/aws_%s.tsv' % vid, eval_files))
 

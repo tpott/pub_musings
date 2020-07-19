@@ -21,7 +21,7 @@ def main() -> None:
   train_files = args.files.split(',')
   def _readWrapper(in_file: str) -> pd.DataFrame:
     tsv_file = 'tsvs/labeled_%s.tsv' % in_file
-    if not os.path.isfile(tsv):
+    if not os.path.isfile(tsv_file):
       tsv_file = 'tsvs/aws_%s.tsv' % in_file
     return dict2packed(readData(
       'audios/%s/vocals_left.wav' % in_file,
