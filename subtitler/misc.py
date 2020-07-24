@@ -7,7 +7,7 @@ import math
 import pickle
 import random
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -199,7 +199,7 @@ def normalizeFreqs(freqs: np.ndarray, n_buckets: int) -> np.ndarray:
 
 
 # Copied from notebooks/test-training.ipynb
-def trainModel(
+def trainScorer(
   df: pd.DataFrame,
   out_file_name: str,
   n_iter: int = 10,
@@ -281,13 +281,13 @@ def trainModel(
   with open(out_file_name, 'wb') as model_file:
     pickle.dump(results.best_estimator_, model_file)
   return out_file_name
-  # end def trainModel
+  # end def trainScorer
 
 
-def evalModel(
+def evalScorer(
   model_file: str,
   audio_files: List[str],
-  tsv_files: List[Optional[str]],
+  tsv_files: Sequence[Optional[str]],
   num_frequencies: int = 60,
   limit_seconds: float = 60.0,
   num_normalization_buckets: int = 20,
@@ -327,11 +327,145 @@ def evalModel(
 
   # If training included was_talking, then we would need to include previous
   # predictions here.
-  predictions = model.predict(np.hstack([
+  scores = model.predict_proba(np.hstack([
     distances.reshape(eval_df.shape[0], 1),
     angles.reshape(eval_df.shape[0], 1),
     unit_lengths.reshape(eval_df.shape[0], 1),
     eval_normalized,
+  ]))[:, 1]  # always take the probability of the second class
+
+  return eval_df, scores
+  # end def evalScorer
+
+
+def trainModel(
+  df: pd.DataFrame,
+  out_file_name: str,
+  out_file_name2: str,
+  audio_files: List[str],
+  label_files: List[str],
+  n_iter: int = 10,
+  num_frequencies: int = 60,
+  limit_seconds: float = 60.0,
+  rand_int: Optional[int] = None,
+  num_normalization_buckets: int = 20,
+) -> Tuple[str, str]:
+  scorer_file = trainScorer(
+    df,
+    out_file_name,
+    n_iter,
+    num_frequencies,
+    rand_int,
+    num_normalization_buckets,
+  )
+
+  # TODO don't read the audio files twice
+  eval_df, scores = evalScorer(
+    scorer_file,
+    audio_files,
+    label_files,
+    num_frequencies,
+    limit_seconds,
+    num_normalization_buckets
+  )
+
+  utterances = []
+  for utt_file in label_files:
+    # TODO wrap this in a helper method
+    with open(utt_file, 'rb') as f:
+      for line in f:
+        cols = [s.decode('utf-8') for s in line.rstrip(b'\n').split(b'\t')]
+        utterances.append({
+          'start': float(cols[0]),
+          'end': float(cols[1]),
+          'duration': float(cols[2]),
+          'content': cols[3],
+        })
+  # TODO transform utterances to aws predictions
+
+  prev_scores = np.zeros(scores.shape[0])
+  prev_prev_scores = np.zeros(scores.shape[0])
+  prev_scores[1:] = scores[:-1]
+  prev_prev_scores[2:] = scores[:-2]
+  combined = np.hstack([
+    scores,
+    prev_scores,
+    prev_prev_scores,
+  ])
+
+  search = sklearn.model_selection.RandomizedSearchCV(
+    sklearn.ensemble.HistGradientBoostingClassifier(),
+    {
+      # 'l2_regularization': [0.0, 0.5, 1.0, 1.5],
+      'learning_rate': scipy.stats.uniform(loc=1e-4, scale=1.0 - 2e-4),
+      'max_bins': scipy.stats.randint(low=4, high=128),
+      'max_depth': scipy.stats.randint(low=4, high=12),
+      # 'max_features': scipy.stats.randint(low=10, high=20),
+      # 'n_estimators': scipy.stats.randint(low=10, high=100),
+      'max_iter': scipy.stats.randint(low=50, high=150),
+      # 'n_jobs': [-1],
+    },
+    n_iter=n_iter,
+    random_state=rand_int,
+  )
+  results = search.fit(combined, df.is_talking)
+  print('best_score_ =', results.best_score_)
+  print('best_params_ =', results.best_params_)
+
+  with open(out_file_name2, 'wb') as model_file:
+    pickle.dump(results.best_estimator_, model_file)
+  return out_file_name, out_file_name2
+  # end def trainModel
+
+
+def evalModel(
+  scorer_file: str,
+  model_file: str,
+  audio_files: List[str],
+  aws_files: List[str],
+  label_files: Sequence[Optional[str]],
+  num_frequencies: int = 60,
+  limit_seconds: float = 60.0,
+  num_normalization_buckets: int = 20,
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+  with open(model_file, 'rb') as model_f:
+    # TODO mmap read the model file to avoid the IO hit
+    # Also, note that pickle.load may run arbitrary python, so don't run
+    # models from people you don't know.
+    model = pickle.load(model_f)
+
+  eval_df, scores = evalScorer(
+    scorer_file,
+    audio_files,
+    aws_files,
+    num_frequencies,
+    limit_seconds,
+    num_normalization_buckets
+  )
+
+  utterances = []
+  for utt_file in aws_files:
+    # TODO wrap this in a helper method
+    with open(utt_file, 'rb') as f:
+      for line in f:
+        cols = [s.decode('utf-8') for s in line.rstrip(b'\n').split(b'\t')]
+        utterances.append({
+          'start': float(cols[0]),
+          'end': float(cols[1]),
+          'duration': float(cols[2]),
+          'content': cols[3],
+        })
+  # TODO transform utterances to aws predictions
+
+  prev_scores = np.zeros(scores.shape[0])
+  prev_prev_scores = np.zeros(scores.shape[0])
+  prev_scores[1:] = scores[:-1]
+  prev_prev_scores[2:] = scores[:-2]
+
+  predictions = model.predict(np.hstack([
+    scores,
+    prev_scores,
+    prev_prev_scores,
   ]))
 
   # Any prediction shorter than 8 frames will be considered noise. Assuming
@@ -351,7 +485,8 @@ def evalModel(
       round(utt['duration'], 3),
       '',  # TODO content is TBD!
     ]]))
-  return eval_df, predictions
+
+  return eval_df, scores, predictions
   # end def evalModel
 
 

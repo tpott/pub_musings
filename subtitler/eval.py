@@ -13,6 +13,7 @@ from misc import evalModel
 
 def main() -> None:
   parser = argparse.ArgumentParser('Train an audio model to detect speech')
+  parser.add_argument('scorer_file', help='The file name of the scoring model')
   parser.add_argument('model_file', help='The file name of the model')
   parser.add_argument('files', help='A comma separated list of audio IDs')
   parser.add_argument('--limit', type=float, help='The number of seconds ' +
@@ -21,14 +22,15 @@ def main() -> None:
   args = parser.parse_args()
 
   eval_files = args.files.split(',')
-  tsv_files = [None] * len(eval_files)  # type: List[Optional[str]]
-  if args.test:
-    tsv_files = list(map(lambda vid: 'tsvs/aws_%s.tsv' % vid, eval_files))
+  aws_files = list(map(lambda vid: 'tsvs/aws_%s.tsv' % vid, eval_files))
+  label_files = list(map(lambda vid: 'tsvs/label_%s.tsv' % vid, eval_files))
 
-  eval_df, predictions = evalModel(
+  eval_df, scores, predictions = evalModel(
+    args.scorer_file,
     args.model_file,
     list(map(lambda vid: 'audios/%s/vocals_left.wav' % vid, eval_files)),
-    tsv_files,
+    aws_files,
+    label_files,
     limit_seconds=args.limit
   )
 

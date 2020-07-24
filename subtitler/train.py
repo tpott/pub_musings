@@ -18,18 +18,34 @@ def main() -> None:
   parser.add_argument('--n_iter', type=int, default=10, help='The number of ' +
                       'iterations that RandomizedSearchCV should use')
   args = parser.parse_args()
-  train_files = args.files.split(',')
-  def _readWrapper(in_file: str) -> pd.DataFrame:
+
+  def _labelSelector(in_file: str) -> str:
     tsv_file = 'tsvs/labeled_%s.tsv' % in_file
     if not os.path.isfile(tsv_file):
       tsv_file = 'tsvs/aws_%s.tsv' % in_file
+    return tsv_file
+  def _readWrapper(in_file: str) -> pd.DataFrame:
     return dict2packed(readData(
       'audios/%s/vocals_left.wav' % in_file,
-      tsv_file,
+      _labelSelector(in_file),
       limit_seconds=args.limit
     ))
+
+  train_files = args.files.split(',')
   df = pd.concat(list(map(_readWrapper, train_files)))
-  model_file = trainModel(df, 'models/%s' % urandom5(), n_iter=args.n_iter)
+  label_files = list(map(_labelSelector, train_files))
+  audio_files = list(map(lambda f: 'audios/%s/vocals_left.wav' % f, train_files))
+
+  # TODO seed rand_int
+  scorer_file, model_file = trainModel(
+    df,
+    'models/%s' % urandom5(),
+    'models/%s' % urandom5(),
+    audio_files,
+    label_files,
+    n_iter=args.n_iter
+  )
+  print('Saving scorer file to %s' % scorer_file)
   print('Saving model file to %s' % model_file)
   return
 
