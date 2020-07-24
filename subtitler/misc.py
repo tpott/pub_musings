@@ -237,9 +237,9 @@ def trainScorer(
   # a RNN or LSTM model that can train with several qualities of was_talking. Otherwise,
   # we train with a high quality signal but eval with a less idea, production signal.
   combined = np.hstack([
-    distances.reshape(normalized.shape[0], 1),
-    angles.reshape(normalized.shape[0], 1),
-    unit_lengths.reshape(normalized.shape[0], 1),
+    distances.reshape(-1, 1),
+    angles.reshape(-1, 1),
+    unit_lengths.reshape(-1, 1),
     normalized,
   ])
 
@@ -289,7 +289,7 @@ def evalScorer(
   audio_files: List[str],
   tsv_files: Sequence[Optional[str]],
   num_frequencies: int = 60,
-  limit_seconds: float = 60.0,
+  limit_seconds: float = 600.0,
   num_normalization_buckets: int = 20,
 ) -> Tuple[pd.DataFrame, np.ndarray]:
   read_func = lambda aud, tsv: dict2packed(readData(aud, tsv, limit_seconds))
@@ -328,9 +328,9 @@ def evalScorer(
   # If training included was_talking, then we would need to include previous
   # predictions here.
   scores = model.predict_proba(np.hstack([
-    distances.reshape(eval_df.shape[0], 1),
-    angles.reshape(eval_df.shape[0], 1),
-    unit_lengths.reshape(eval_df.shape[0], 1),
+    distances.reshape(-1, 1),
+    angles.reshape(-1, 1),
+    unit_lengths.reshape(-1, 1),
     eval_normalized,
   ]))[:, 1]  # always take the probability of the second class
 
@@ -346,7 +346,7 @@ def trainModel(
   label_files: List[str],
   n_iter: int = 10,
   num_frequencies: int = 60,
-  limit_seconds: float = 60.0,
+  limit_seconds: float = 600.0,
   rand_int: Optional[int] = None,
   num_normalization_buckets: int = 20,
 ) -> Tuple[str, str]:
@@ -388,9 +388,9 @@ def trainModel(
   prev_scores[1:] = scores[:-1]
   prev_prev_scores[2:] = scores[:-2]
   combined = np.hstack([
-    scores,
-    prev_scores,
-    prev_prev_scores,
+    scores.reshape(-1, 1),
+    prev_scores.reshape(-1, 1),
+    prev_prev_scores.reshape(-1, 1),
   ])
 
   search = sklearn.model_selection.RandomizedSearchCV(
@@ -425,7 +425,7 @@ def evalModel(
   aws_files: List[str],
   label_files: Sequence[Optional[str]],
   num_frequencies: int = 60,
-  limit_seconds: float = 60.0,
+  limit_seconds: float = 600.0,
   num_normalization_buckets: int = 20,
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
   with open(model_file, 'rb') as model_f:
@@ -463,9 +463,9 @@ def evalModel(
   prev_prev_scores[2:] = scores[:-2]
 
   predictions = model.predict(np.hstack([
-    scores,
-    prev_scores,
-    prev_prev_scores,
+    scores.reshape(-1, 1),
+    prev_scores.reshape(-1, 1),
+    prev_prev_scores.reshape(-1, 1),
   ]))
 
   # Any prediction shorter than 8 frames will be considered noise. Assuming
@@ -515,9 +515,9 @@ def corrOne(
   )
   num_rows = normalized.shape[0]
   combined = np.hstack([
-    df.is_talking.to_numpy().reshape(num_rows, 1),
-    df.was_talking.to_numpy().reshape(num_rows, 1),
-    df.was_was_talking.to_numpy().reshape(num_rows, 1),
+    df.is_talking.to_numpy().reshape(-1, 1),
+    df.was_talking.to_numpy().reshape(-1, 1),
+    df.was_was_talking.to_numpy().reshape(-1, 1),
     normalized,
   ])
   columns = ['is_talking', 'was_talking', 'was_was_talking']
