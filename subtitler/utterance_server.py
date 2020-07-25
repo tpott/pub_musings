@@ -123,6 +123,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     if 'max_duration' in data:
       max_duration = FloatSeconds(float(data['max_duration'][0]))
     utterance = None
+    tsv_file = 'tsvs/labeled_%s.tsv' % video_id
+    if not os.path.exists(tsv_file):
+      tsv_file = 'tsvs/%s.tsv' % video_id
     with open('tsvs/%s.tsv' % video_id, 'rb') as f:
       line_number = -1
       for line in f:
