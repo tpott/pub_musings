@@ -126,13 +126,16 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     tsv_file = 'tsvs/labeled_%s.tsv' % video_id
     if not os.path.exists(tsv_file):
       tsv_file = 'tsvs/%s.tsv' % video_id
-    with open('tsvs/%s.tsv' % video_id, 'rb') as f:
+
+    with open(tsv_file, 'rb') as f:
       line_number = -1
       for line in f:
+        cols = line.decode('utf-8').rstrip(b'\n').split(b'\t')
+        if len(cols) == 0 or cols[0] == '':
+          continue
         line_number += 1
         if line_number != utterance_id:
           continue
-        cols = [col.decode('utf-8') for col in line.rstrip(b'\n').split(b'\t')]
         start = FloatSeconds(float(cols[0]))
         end = FloatSeconds(float(cols[1]))
         duration = FloatSeconds(float(cols[2]))
