@@ -248,8 +248,6 @@ def trainScorer(
 
   if rand_int is None:
     rand_int = random.randint(0, 2 ** 32 - 1)
-  start = time.time()
-  print('Starting training at %f' % start, file=sys.stderr)
   print('Seeding random state with %d' % rand_int, file=sys.stderr)
 
   # Train the model
@@ -286,8 +284,6 @@ def trainScorer(
 
   with open(out_file_name, 'wb') as model_file:
     pickle.dump(results.best_estimator_, model_file)
-  now = time.time()
-  print('Ending training at %f, elapsed %f' % (now, now - start), file=sys.stderr)
   return out_file_name
   # end def trainScorer
 
@@ -358,6 +354,8 @@ def trainModel(
   rand_int: Optional[int] = None,
   num_normalization_buckets: int = 20,
 ) -> Tuple[str, str]:
+  start = time.time()
+  print('Starting training at %f' % start, file=sys.stderr)
   scorer_file = trainScorer(
     df,
     out_file_name,
@@ -421,6 +419,8 @@ def trainModel(
   print('best_score_ =', results.best_score_)
   print('best_params_ =', results.best_params_)
 
+  now = time.time()
+  print('Ending training at %f, elapsed %f' % (now, now - start), file=sys.stderr)
   with open(out_file_name2, 'wb') as model_file:
     pickle.dump(results.best_estimator_, model_file)
   return out_file_name, out_file_name2
