@@ -16,6 +16,7 @@ import scipy.signal
 import scipy.stats
 from sklearn.experimental import enable_hist_gradient_boosting
 import sklearn.ensemble
+import sklearn.metrics
 import sklearn.tree
 
 
@@ -136,6 +137,7 @@ def dict2packed(data: Dict[str, Any]) -> pd.DataFrame:
   for i in range(0, data['data'].shape[0], step_size):
     # Cast to lists because pandas doesn't allow numpy.ndarray in cells
     frames.append(list(data['data'][i : i + window_size]))
+  # TODO distances, unit_lengths, angles
   return pd.DataFrame(data={
     'file_name': [data['file_name']] * num_rows,
     'label_file_name': [data['label_file_name']] * num_rows,
@@ -273,6 +275,7 @@ def trainScorer(
     },
     n_iter=n_iter,
     random_state=rand_int,
+    scoring=sklearn.metrics.make_scorer(sklearn.metrics.matthews_corrcoef),
   )
   results = search.fit(combined, df.is_talking)
   print('best_score_ =', results.best_score_)
@@ -407,6 +410,7 @@ def trainModel(
     },
     n_iter=n_iter,
     random_state=rand_int,
+    scoring=sklearn.metrics.make_scorer(sklearn.metrics.matthews_corrcoef),
   )
   results = search.fit(combined, df.is_talking)
   print('best_score_ =', results.best_score_)
