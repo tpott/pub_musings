@@ -7,6 +7,7 @@ import math
 import pickle
 import random
 import sys
+import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -247,6 +248,8 @@ def trainScorer(
 
   if rand_int is None:
     rand_int = random.randint(0, 2 ** 32 - 1)
+  start = time.time()
+  print('Starting training at %f' % start, file=sys.stderr)
   print('Seeding random state with %d' % rand_int, file=sys.stderr)
 
   # Train the model
@@ -283,6 +286,8 @@ def trainScorer(
 
   with open(out_file_name, 'wb') as model_file:
     pickle.dump(results.best_estimator_, model_file)
+  now = time.time()
+  print('Ending training at %f, elapsed %f' % (now, now - start), file=sys.stderr)
   return out_file_name
   # end def trainScorer
 
