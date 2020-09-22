@@ -11,7 +11,7 @@ def main() -> None:
 			start=float(start_str),
 			end=float(end_str),
 			duration=float(len_str),
-			content=word
+			content=word.lower()
 		))
 	return
 
