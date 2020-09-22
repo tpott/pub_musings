@@ -16,7 +16,8 @@ def main() -> None:
   parser.add_argument('--limit', type=float, help='The number of seconds ' +
                       'to take from the beginning of each file')
   parser.add_argument('--n_iter', type=int, default=10, help='The number of ' +
-                      'iterations that RandomizedSearchCV should use')
+                      'iterations that RandomizedSearchCV should use. ' +
+                      'Default is 10')
   args = parser.parse_args()
 
   def _labelSelector(in_file: str) -> str:
