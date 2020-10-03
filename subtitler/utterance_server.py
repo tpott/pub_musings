@@ -130,7 +130,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     with open(tsv_file, 'rb') as f:
       line_number = -1
       for line in f:
-        cols = line.decode('utf-8').rstrip(b'\n').split(b'\t')
+        cols = line.decode('utf-8').rstrip('\n').split('\t')
         if len(cols) == 0 or cols[0] == '':
           continue
         line_number += 1
