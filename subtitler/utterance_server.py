@@ -291,8 +291,126 @@ document.addEventListener('keydown', event => {{
     self.end_headers()
     self.wfile.write(s_bytes)
     return
+    # end getLabelPage
 
-  def getImage(self, path):
+  def getAlignPage(self, query_string):
+    data = urllib.parse.parse_qs(query_string)
+    # TODO check 'video' in data
+    video_id = data['video'][0]
+
+    # TODO read tsvs/labeled_{video_id}
+    # TODO read lyrics/{video_id}
+    # TODO call alignLyrics from align_lyrics
+    webpage_s = """<html>
+  <head>
+    <title>Utterance Aligner</title>
+    <script type="text/javascript">
+    </script>
+  </head>
+  <body>
+    <p>Video = {video_id}</p>
+  </body>
+</html>
+""".format(video_id=video_id)
+
+    s_bytes = webpage_s.encode('utf-8')
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(s_bytes))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s_bytes)
+    return
+    # end getAlignPage
+
+  def getAnchorPage(self, query_string):
+    data = urllib.parse.parse_qs(query_string)
+    # TODO check 'video' in data
+    video_id = data['video'][0]
+    audio_file = 'tmp/%s.wav' % video_id
+
+    if not os.path.exists(audio_file):
+      # TODO make this configurable
+      shutil.copyfile('audios/%s/vocals_left.wav' % video_id, audio_file)
+
+    i = 0
+    utts = []
+    with open('tsvs/labeled_{video_id}.tsv'.format(video_id=video_id), 'r') as f:
+      for line in f:
+        start_s, end_s, duration_s, content = line.rstrip('\n').split('\t')
+        utts.append((
+          i,
+          float(start_s),
+          float(end_s),
+          float(duration_s),
+          content
+        ))
+        i += 1
+
+    def _rowFormat(utt):
+      label_url = '/label?video={video_id}&utterance={i}'.format(
+        video_id=video_id,
+        i=utt[0]
+      )
+      return """<tr>
+  <td><a href="{label_url}">{i}</a></td>
+  <td>{start:0.3f}</td>
+  <td>{end:0.3f}</td>
+  <td>{duration:0.3f}</td>
+  <td><a href="{label_url}">{content}</a></td>
+</tr>""".format(
+        i=utt[0],
+        label_url=label_url,
+        start=utt[1],
+        end=utt[2],
+        duration=utt[3],
+        content=utt[4]
+      )
+    utt_rows = "\n".join(map(_rowFormat, utts))
+
+    # TODO static link to full wav audio
+    # TODO javascript to auto pause every N seconds
+    # TODO select last uttered word
+    # TODO javascript to redistribute
+    webpage_s = """<html>
+  <head>
+    <title>Utterance Anchorizer</title>
+    <script type="text/javascript">
+    </script>
+  </head>
+  <body>
+    <p>Video = {video_id}</p>
+    <audio controls src="{audio_file}">
+      Your browser doesn't support audio
+    </audio>
+    <table>
+      <tr>
+        <th>utt_id</th>
+        <th>start</th>
+        <th>end</th>
+        <th>duration</th>
+        <th>content</th>
+      </tr>
+{utt_rows}
+    </table>
+  </body>
+</html>
+""".format(
+        audio_file=audio_file,
+        video_id=video_id,
+        utt_rows=utt_rows
+    )
+
+    s_bytes = webpage_s.encode('utf-8')
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(s_bytes))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s_bytes)
+    return
+    # end getAnchorPage
+
+
+  def getStatic(self, path):
     # Copied from https://github.com/python/cpython/blob/3.8/Lib/http/server.py
     parts = path.split('/')
     assert len(parts) == 3, 'Got a longer image filename than expected'
@@ -308,6 +426,7 @@ document.addEventListener('keydown', event => {{
       self.send_response(http.server.HTTPStatus.OK)
       self.send_header('Content-Length', str(fs[6]))
       self.send_header('Content-Type', 'application/octet-stream')
+      # TODO check file stats last modified
       self.send_header(
         'Last-Modified',
         email.utils.formatdate(time.time(), usegmt=True)
@@ -323,11 +442,17 @@ document.addEventListener('keydown', event => {{
     if request.path == '/status':
       self.getStatusPage()
       return
+    if request.path == '/align':
+      self.getAlignPage(request.query)
+      return
+    if request.path == '/anchor':
+      self.getAnchorPage(request.query)
+      return
     if request.path == '/label':
       self.getLabelPage(request.query)
       return
     if request.path.startswith('/tmp/'):
-      self.getImage(request.path)
+      self.getStatic(request.path)
       return
     s = b'Unknown page'
     self.send_response(http.server.HTTPStatus.NOT_FOUND)
