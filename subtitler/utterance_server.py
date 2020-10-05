@@ -353,6 +353,8 @@ document.addEventListener('keydown', event => {{
       )
       return """<tr>
   <td><a href="{label_url}">{i}</a></td>
+  <td><input type="radio" name="select_start" value="{i}" /><!-- onClick=disableRadios --></td>
+  <td><input type="radio" name="select_end" value="{i}" /><!-- onClick=disableRadios --></td>
   <td>{start:0.3f}</td>
   <td>{end:0.3f}</td>
   <td>{duration:0.3f}</td>
@@ -375,6 +377,57 @@ document.addEventListener('keydown', event => {{
   <head>
     <title>Utterance Anchorizer</title>
     <script type="text/javascript">
+
+function toggleAudio() {{
+  let audio_elem = document.getElementsByTagName('audio')[0];
+  if (audio_elem.paused) {{
+    audio_elem.play();
+  }} else {{
+    audio_elem.pause();
+  }}
+}}
+
+// This function will disable radio buttons based on which ones are
+// currently selected. It gets called whenever one is clicked
+function disableRadios(evt) {{
+  let target_name = evt.target.name;
+  let radio_name = null;
+  if (target_name === 'select_start') {{
+    radio_name = 'select_end';
+  }} else if (target_name === 'select_end') {{
+    radio_name = 'select_start';
+  }} else {{
+    throw 'Expected radio name to be select_start or select_end';
+  }}
+  let radio_value = parseInt(evt.target.value);
+  let inputs = Array.from(document.getElementsByTagName('input'));
+  inputs.forEach((elem) => {{
+    if (elem.type !== 'radio') {{
+      return;
+    }}
+    if (elem.name !== radio_name) {{
+      return;
+    }}
+    if ((radio_name === 'select_start' && radio_value < parseInt(elem.value))
+        || (radio_name === 'select_end' && radio_value > parseInt(elem.value))) {{
+      elem.disabled = true;
+    }} else {{
+      elem.disabled = false;
+    }}
+    // TODO <input type="text" placeholder="start/end" />
+    // TODO ajax submit button that writes to tsvs/labeled_video_id.tsv
+  }});
+}}
+
+document.addEventListener('keydown', event => {{
+  let Y = 89;
+  switch (event.keyCode) {{
+    case Y:
+      toggleAudio();
+      break;
+  }}
+}});
+
     </script>
   </head>
   <body>
@@ -382,16 +435,29 @@ document.addEventListener('keydown', event => {{
     <audio controls src="{audio_file}">
       Your browser doesn't support audio
     </audio>
-    <table>
-      <tr>
+    <form>
+      <table>
+        <tr>
         <th>utt_id</th>
+		<th><!-- radio select_start --></th>
+		<th><!-- radio select_end --></th>
         <th>start</th>
         <th>end</th>
         <th>duration</th>
         <th>content</th>
-      </tr>
+        </tr>
 {utt_rows}
-    </table>
+      </table>
+	</form>
+    <script type="text/javascript">
+let inputs = Array.from(document.getElementsByTagName('input'));
+inputs.forEach((elem) => {{
+  if (elem.type !== 'radio') {{
+    return;
+  }}
+  elem.addEventListener('click', disableRadios);
+}});
+	</script>
   </body>
 </html>
 """.format(
@@ -426,6 +492,8 @@ document.addEventListener('keydown', event => {{
       self.send_response(http.server.HTTPStatus.OK)
       self.send_header('Content-Length', str(fs[6]))
       self.send_header('Content-Type', 'application/octet-stream')
+	  # TODO check `Range: bytes={start}-{end?}`
+	  # and/or check X-Content-Duration and sync with audio.currentTime
       # TODO check file stats last modified
       self.send_header(
         'Last-Modified',
@@ -469,8 +537,8 @@ document.addEventListener('keydown', event => {{
     except Exception:
       e_type, e, trace = sys.exc_info()
       # TODO add stack trace and exception message
-      s = b'Unexpected exception, %s: %s\n' % (e_type.__name__.encode('utf-8'), str(e).encode('utf-8'))
-      s += "\n".join(traceback.format_tb(trace)).encode('utf-8')
+      s = b'<div>Unexpected exception, %s: %s</div>\n' % (e_type.__name__.encode('utf-8'), str(e).encode('utf-8'))
+      s += "\n".join(map(lambda s: '<div>%s</div>' % s, traceback.format_tb(trace))).encode('utf-8')
     finally:
       del e_type, e, trace
     if s is None:
