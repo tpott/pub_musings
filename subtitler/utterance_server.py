@@ -12,7 +12,7 @@ import ssl
 import sys
 import time
 import traceback
-from typing import NewType, Tuple
+from typing import NewType, Optional, Tuple
 import urllib
 
 import matplotlib
@@ -25,6 +25,9 @@ import scipy.signal
 # Run as `python3 utterance_server.py`
 
 FloatSeconds = NewType('FloatSeconds', float)
+
+# https://docs.python.org/3/tutorial/inputoutput.html#methods-of-file-objects
+OFFSET_FROM_START = 0
 
 
 def readAndSpectro(start: FloatSeconds, end: FloatSeconds, max_duration: FloatSeconds, video) -> Tuple[int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -57,6 +60,21 @@ def readAndSpectro(start: FloatSeconds, end: FloatSeconds, max_duration: FloatSe
   return windows_per_second, rate, data, times + min_time, freqs, np.abs(spectro).T
 
 
+def parseRangeHeader(range_header: str) -> Optional[Tuple[int, Optional[int]]]:
+  unit, range_str = range_header.split('=', 1)
+  if unit != 'bytes':
+    return None
+  start_str, end_str = range_str.split('-', 2)
+  if start_str == '0' and end_str == '':
+    return None
+  start = int(start_str)
+  if end_str == '':
+    return (start, None)
+  end = int(end_str)
+  assert end >= start, 'got an invalid byte range, end (%d) < start (%d)' % (end, start)
+  return (start, end)
+
+
 # This class is necessary to use the below syntax of `with Server(..) as ..`
 class TCPServer(socketserver.TCPServer):
   def __enter__(self):
@@ -76,6 +94,7 @@ def urandom(n: int) -> bytes:
   return open('/dev/urandom', 'rb').read(n)
 
 
+# primary entry point is through do_GET
 class MyHandler(http.server.SimpleHTTPRequestHandler):
 
   def __init__(self, *args, **kwargs):
@@ -439,8 +458,8 @@ document.addEventListener('keydown', event => {{
       <table>
         <tr>
         <th>utt_id</th>
-		<th><!-- radio select_start --></th>
-		<th><!-- radio select_end --></th>
+        <th><!-- radio select_start --></th>
+        <th><!-- radio select_end --></th>
         <th>start</th>
         <th>end</th>
         <th>duration</th>
@@ -448,7 +467,7 @@ document.addEventListener('keydown', event => {{
         </tr>
 {utt_rows}
       </table>
-	</form>
+    </form>
     <script type="text/javascript">
 let inputs = Array.from(document.getElementsByTagName('input'));
 inputs.forEach((elem) => {{
@@ -457,7 +476,7 @@ inputs.forEach((elem) => {{
   }}
   elem.addEventListener('click', disableRadios);
 }});
-	</script>
+    </script>
   </body>
 </html>
 """.format(
@@ -486,14 +505,40 @@ inputs.forEach((elem) => {{
     parts = filename.split('.')
     assert len(parts) == 2
     assert parts[1] in set(['png', 'wav'])
+    byte_range = None
+    range_header = self.headers.get('Range')
+    if range_header is not None:
+      byte_range = parseRangeHeader(range_header)
     local_path = 'tmp/%s.%s' % (parts[0], parts[1])
     with open(local_path, 'rb') as f:
+	  # TODO fix this byte range servicing
+      if False and byte_range is not None:
+        f.seek(byte_range[0], OFFSET_FROM_START)
+        if byte_range[1] is not None:
+          f_bytes = f.read(byte_range[1] - byte_range[0] + 1)
+        else:
+          f_bytes = f.read()
+        self.send_header('Accept-Ranges', 'bytes')
+        self.send_header('Content-Length', str(len(f_bytes)))
+        self.send_header('Content-Type', 'application/octet-stream')
+        # TODO check file stats last modified
+        self.send_header(
+          'Last-Modified',
+          email.utils.formatdate(time.time(), usegmt=True)
+        )
+        self.end_headers()
+        try:
+          self.wfile.write(f_bytes)
+        except Exception as e:
+          print('got an exception!')
+          print(e)
+        return
       fs = os.fstat(f.fileno())
       self.send_response(http.server.HTTPStatus.OK)
+      # self.send_header('Accept-Ranges', 'bytes')
       self.send_header('Content-Length', str(fs[6]))
       self.send_header('Content-Type', 'application/octet-stream')
-	  # TODO check `Range: bytes={start}-{end?}`
-	  # and/or check X-Content-Duration and sync with audio.currentTime
+      # and/or check X-Content-Duration and sync with audio.currentTime
       # TODO check file stats last modified
       self.send_header(
         'Last-Modified',
@@ -502,6 +547,7 @@ inputs.forEach((elem) => {{
       self.end_headers()
       shutil.copyfileobj(f, self.wfile)
     return
+
 
   def getHandler(self):
     request = urllib.parse.urlparse(self.path)
@@ -530,7 +576,10 @@ inputs.forEach((elem) => {{
     self.wfile.write(s)
     return
 
+
   def do_GET(self):
+    # This gets called because this is a http.server.SimpleHTTPRequestHandler
+    # parse_request calls http.client.parse_headers and sets self.headers
     s, e_type, e, trace = None, None, None, None
     try:
       self.getHandler()
