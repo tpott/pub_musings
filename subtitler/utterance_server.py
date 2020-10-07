@@ -395,6 +395,11 @@ document.addEventListener('keydown', event => {{
     webpage_s = """<html>
   <head>
     <title>Utterance Anchorizer</title>
+    <style>
+.time_text_input {{
+  width: 60px;
+}}
+    </style>
     <script type="text/javascript">
 
 function toggleAudio() {{
@@ -406,19 +411,27 @@ function toggleAudio() {{
   }}
 }}
 
+// Globals to track if either column has had any boxes checked
+let start_selected = null;
+let end_selected = null;
+
 // This function will disable radio buttons based on which ones are
 // currently selected. It gets called whenever one is clicked
 function disableRadios(evt) {{
   let target_name = evt.target.name;
   let radio_name = null;
+  let radio_value = parseInt(evt.target.value);
+
   if (target_name === 'select_start') {{
     radio_name = 'select_end';
+    start_selected = radio_value;
   }} else if (target_name === 'select_end') {{
     radio_name = 'select_start';
+    end_selected = radio_value;
   }} else {{
     throw 'Expected radio name to be select_start or select_end';
   }}
-  let radio_value = parseInt(evt.target.value);
+
   let inputs = Array.from(document.getElementsByTagName('input'));
   inputs.forEach((elem) => {{
     if (elem.type !== 'radio') {{
@@ -435,6 +448,40 @@ function disableRadios(evt) {{
     }}
     // TODO <input type="text" placeholder="start/end" />
     // TODO ajax submit button that writes to tsvs/labeled_video_id.tsv
+  }});
+
+  // TODO get the data into a const JS array
+  if (start_selected === null || end_selected === null) {{
+    return;
+  }}
+  let rows = Array.from(document.getElementsByTagName('tr'));
+  // slice(1) skips over the header row
+  rows.slice(1).forEach((row, i) => {{
+    if (i < start_selected || i > end_selected) {{
+      // TODO make sure this row does not have editable text
+      return;
+    }}
+    // This would be a lot easier if we were using React..
+    let start_input = document.createElement('input');
+    let end_input = document.createElement('input');
+    let duration_input = document.createElement('input');
+    start_input.type = 'text';
+    end_input.type = 'text';
+    duration_input.type = 'text';
+    start_input.className = 'time_text_input';
+    end_input.className = 'time_text_input';
+    duration_input.className = 'time_text_input';
+    start_input.placeholder = row.children[3].textContent;
+    end_input.placeholder = row.children[4].textContent;
+    duration_input.placeholder = row.children[5].textContent;
+    // Clear out the text before inserting the new dom nodes
+    row.children[3].textContent = '';
+    row.children[4].textContent = '';
+    row.children[5].textContent = '';
+    // Alternatively, try using `old_node.replaceWith(new_node)`
+    row.children[3].appendChild(start_input);
+    row.children[4].appendChild(end_input);
+    row.children[5].appendChild(duration_input);
   }});
 }}
 
@@ -511,7 +558,7 @@ inputs.forEach((elem) => {{
       byte_range = parseRangeHeader(range_header)
     local_path = 'tmp/%s.%s' % (parts[0], parts[1])
     with open(local_path, 'rb') as f:
-	  # TODO fix this byte range servicing
+      # TODO fix this byte range servicing
       if False and byte_range is not None:
         f.seek(byte_range[0], OFFSET_FROM_START)
         if byte_range[1] is not None:
