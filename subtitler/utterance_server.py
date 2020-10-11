@@ -461,6 +461,10 @@ function disableRadios(evt) {{
       // TODO make sure this row does not have editable text
       return;
     }}
+    // Skip rows where it already has <input> elements
+    if (row.children[3].children.length > 0) {{
+      return;
+    }}
     // This would be a lot easier if we were using React..
     let start_input = document.createElement('input');
     let end_input = document.createElement('input');
