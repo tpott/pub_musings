@@ -349,7 +349,8 @@ document.addEventListener('keydown', event => {{
 
     if not os.path.exists(audio_file):
       # TODO make this configurable
-      shutil.copyfile('audios/%s/vocals_left.wav' % video_id, audio_file)
+      shutil.copyfile('audios/%s.wav' % video_id, audio_file)
+      # shutil.copyfile('audios/%s/vocals_left.wav' % video_id, audio_file)
 
     i = 0
     utts = []
@@ -411,6 +412,51 @@ function toggleAudio() {{
   }}
 }}
 
+function removeAllChildren(elem) {{
+  for (let child = elem.firstElementChild;
+	   child !== null;
+	   child = elem.firstElementChild) {{
+    elem.removeChild(child);
+  }}
+}}
+
+function makeInputRow(row) {{
+  // This would be a lot easier if we were using React..
+  let start_input = document.createElement('input');
+  let end_input = document.createElement('input');
+  let duration_input = document.createElement('input');
+  start_input.type = 'text';
+  end_input.type = 'text';
+  duration_input.type = 'text';
+  start_input.className = 'time_text_input';
+  end_input.className = 'time_text_input';
+  duration_input.className = 'time_text_input';
+  start_input.placeholder = row.children[3].textContent;
+  end_input.placeholder = row.children[4].textContent;
+  duration_input.placeholder = row.children[5].textContent;
+  // Clear out the text before inserting the new dom nodes
+  row.children[3].textContent = '';
+  row.children[4].textContent = '';
+  row.children[5].textContent = '';
+  // Alternatively, try using `old_node.replaceWith(new_node)`
+  row.children[3].appendChild(start_input);
+  row.children[4].appendChild(end_input);
+  row.children[5].appendChild(duration_input);
+}}
+
+function makeTextRow(row) {{
+  // TODO make sure this row does not have editable text
+  let start = row.children[3].firstElementChild.placeholder;
+  let end = row.children[4].firstElementChild.placeholder;
+  let duration = row.children[5].firstElementChild.placeholder;
+  removeAllChildren(row.children[3]);
+  removeAllChildren(row.children[4]);
+  removeAllChildren(row.children[5]);
+  row.children[3].textContent = start;
+  row.children[4].textContent = end;
+  row.children[5].textContent = duration;
+}}
+
 // Globals to track if either column has had any boxes checked
 let start_selected = null;
 let end_selected = null;
@@ -455,37 +501,17 @@ function disableRadios(evt) {{
     return;
   }}
   let rows = Array.from(document.getElementsByTagName('tr'));
+
   // slice(1) skips over the header row
   rows.slice(1).forEach((row, i) => {{
-    if (i < start_selected || i > end_selected) {{
-      // TODO make sure this row does not have editable text
-      return;
-    }}
     // Skip rows where it already has <input> elements
-    if (row.children[3].children.length > 0) {{
-      return;
+    let has_input_elements = row.children[3].children.length > 0;
+    let selected_rows = start_selected <= i && i <= end_selected;
+    if (!has_input_elements && selected_rows) {{
+      makeInputRow(row);
+    }} else if (has_input_elements && !selected_rows) {{
+      makeTextRow(row);
     }}
-    // This would be a lot easier if we were using React..
-    let start_input = document.createElement('input');
-    let end_input = document.createElement('input');
-    let duration_input = document.createElement('input');
-    start_input.type = 'text';
-    end_input.type = 'text';
-    duration_input.type = 'text';
-    start_input.className = 'time_text_input';
-    end_input.className = 'time_text_input';
-    duration_input.className = 'time_text_input';
-    start_input.placeholder = row.children[3].textContent;
-    end_input.placeholder = row.children[4].textContent;
-    duration_input.placeholder = row.children[5].textContent;
-    // Clear out the text before inserting the new dom nodes
-    row.children[3].textContent = '';
-    row.children[4].textContent = '';
-    row.children[5].textContent = '';
-    // Alternatively, try using `old_node.replaceWith(new_node)`
-    row.children[3].appendChild(start_input);
-    row.children[4].appendChild(end_input);
-    row.children[5].appendChild(duration_input);
   }});
 }}
 
