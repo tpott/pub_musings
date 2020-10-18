@@ -213,6 +213,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     webpage_s = """<html>
   <head>
     <title>Utterance Labeler</title>
+    <link rel="icon" href="/tmp/favicon.png" />
     <script type="text/javascript">
 
 // Double curly braces are because this webpage is from python. It's a big
@@ -323,6 +324,7 @@ document.addEventListener('keydown', event => {{
     webpage_s = """<html>
   <head>
     <title>Utterance Aligner</title>
+    <link rel="icon" href="/tmp/favicon.png" />
     <script type="text/javascript">
     </script>
   </head>
@@ -396,6 +398,7 @@ document.addEventListener('keydown', event => {{
     webpage_s = """<html>
   <head>
     <title>Utterance Anchorizer</title>
+    <link rel="icon" href="/tmp/favicon.png" />
     <style>
 .time_text_input {{
   width: 60px;
@@ -515,20 +518,45 @@ function disableRadios(evt) {{
   }});
 }}
 
+function submitAsync(evt) {{
+  let xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = () => {{
+    console.log('hi!');
+    console.log(this.readyState);
+    console.log(this.status);
+    console.log(this.responseText);
+  }};
+  xhttp.open('POST', '/post_anchors', true);
+  xhttp.send();
+}}
+
 document.addEventListener('keydown', event => {{
-  let Y = 89;
+  let enter = 13; // enter key
+  let space = 32; // space bar
+  let Y = 89; // 'y'
   switch (event.keyCode) {{
+    case space:
+      toggleAudio();
+      if (event.target === document.body) {{
+        event.preventDefault();
+      }}
+      break;
     case Y:
       toggleAudio();
       break;
+    case enter:
+      submitAsync(event);
+      break;
   }}
 }});
+
+// TODO setInterval and set background-color: #dedede
 
     </script>
   </head>
   <body>
     <p>Video = {video_id}</p>
-    <audio controls src="{audio_file}">
+    <audio controls src="{audio_file}" style="width: 600px">
       Your browser doesn't support audio
     </audio>
     <form>
@@ -676,7 +704,44 @@ inputs.forEach((elem) => {{
     self.wfile.write(s)
     return
 
-  # there's also a do_POST
+
+  def postHandler(self):
+    request = urllib.parse.urlparse(self.path)
+    # path in {'/' => 'start button', '/label' => 'image + audio'}
+    # TODO move this check after the status check
+    if request.path == '/post_anchor':
+      print(request)
+      s = b'1-AM-ALIVE'
+      self.send_response(http.server.HTTPStatus.OK)
+      # Other potentially good headers: Content-type, Last-Modified
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/html; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+    return
+
+
+  def do_POST(self):
+    s, e_type, e, trace = None, None, None, None
+    try:
+      self.postHandler()
+    except Exception:
+      e_type, e, trace = sys.exc_info()
+      # TODO add stack trace and exception message
+      s = b'<div>Unexpected exception, %s: %s</div>\n' % (e_type.__name__.encode('utf-8'), str(e).encode('utf-8'))
+      s += "\n".join(map(lambda s: '<div>%s</div>' % s, traceback.format_tb(trace))).encode('utf-8')
+    finally:
+      del e_type, e, trace
+    if s is None:
+      return
+    self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
+    self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s)
+    return
+
+
   # handlers: [start, stop, label result, next (utterance), random (utterance)]
   # length = self.headers.get('content-length')
   # data = self.rfile.read(int(length))
@@ -686,6 +751,7 @@ inputs.forEach((elem) => {{
 
 def main():
   seed = urandom(7)
+  shutil.copyfile('favicon.png', 'tmp/favicon.png')
   print('Seeded with:', int(seed.hex(), 16))
   random.seed(int(seed.hex(), 16))
 
