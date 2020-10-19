@@ -10,13 +10,15 @@ import math
 import sys
 
 if sys.version_info >= (3, 3):
-    from typing import (Callable, Dict, List, Optional, Tuple)
+    from typing import (Callable, Dict, List, Optional, Tuple, TypeVar)
     greater_than_one = int
     greater_than_zero = int
     matrix = List[List[int]]
     maybe_prime = int
     nonnegative = int
     prime = int
+    K = TypeVar('K')
+    V = TypeVar('V')
 
 
 def gcd(a, b):
@@ -142,7 +144,7 @@ def vectorize(rows, default=None):
             if k not in key_to_col:
                 key_to_col[k] = num_keys
                 num_keys += 1
-    ret = []
+    ret = []  # type: List[List[V]]
     # second pass for constructing vectors
     for row in rows:
         vector = [default for _ in range(num_keys)]
@@ -383,7 +385,7 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
         print('Found %d solutions to the mod-2 matrix' % (len(products)))
 
     for i, product in enumerate(products):
-        used_ints = None
+        used_ints = None  # type: Optional[List[nonnegative]]
         if verbosity > 1:
             used_ints = []
             print('Checking gcd of %d' % (product))
@@ -426,7 +428,7 @@ def main():
     parser.add_argument('--max_prime', type=int, default=229, help='The ' +
         'max prime number to use for deriving B-smoothness. 229 is the ' +
         '50th prime, and 541 is the 100th.')
-    parser.add_argument('-v', '--verbose', action='count')
+    parser.add_argument('-v', '--verbose', default=0, action='count')
     args = parser.parse_args()
 
     assert args.n > 3, 'expected n > 3'
