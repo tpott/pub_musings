@@ -51,18 +51,18 @@ def pollardsRho(n, g):
 # Translated from https://rosettacode.org/wiki/Integer_roots#C
 def intSqrt(n):
     # type: (nonnegative) -> nonnegative
-		"""Returns the square root of n, rounded down"""
-		assert n >= 0, 'type violation, expected n >= 0'
-		c = 1
-		d = (1 + n) // 2
-		e = (d + n // d) // 2
-		while c != d and c != e:
-				c = d
-				d = e
-				e = (e + n // e) // 2
-		if d < e:
-				return d
-		return e
+    """Returns the square root of n, rounded down"""
+    assert n >= 0, 'type violation, expected n >= 0'
+    c = 1
+    d = (1 + n) // 2
+    e = (d + n // d) // 2
+    while c != d and c != e:
+        c = d
+        d = e
+        e = (e + n // e) // 2
+    if d < e:
+        return d
+    return e
 
 
 def isSquare(n):
