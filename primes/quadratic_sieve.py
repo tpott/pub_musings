@@ -10,22 +10,23 @@ import math
 import sys
 
 if sys.version_info >= (3, 3):
-    from typing import (Callable, Dict, List, Optional, Tuple, TypeVar)
+    from typing import Callable, Dict, List, Optional, Tuple, TypeVar
+
     greater_than_one = int
     greater_than_zero = int
     matrix = List[List[int]]
     maybe_prime = int
     nonnegative = int
     prime = int
-    K = TypeVar('K')
-    V = TypeVar('V')
+    K = TypeVar("K")
+    V = TypeVar("V")
 
 
 def gcd(a, b):
     # type: (nonnegative, nonnegative) -> nonnegative
     """Based on https://en.wikipedia.org/wiki/Euclidean_algorithm#Procedure"""
-    assert a >= 0, 'type violation, expected a >= 0'
-    assert b >= 0, 'type violation, expected b >= 0'
+    assert a >= 0, "type violation, expected a >= 0"
+    assert b >= 0, "type violation, expected b >= 0"
     if b == 0:
         return a
     if a < b:
@@ -54,7 +55,7 @@ def pollardsRho(n, g):
 def intSqrt(n):
     # type: (nonnegative) -> nonnegative
     """Returns the square root of n, rounded down"""
-    assert n >= 0, 'type violation, expected n >= 0'
+    assert n >= 0, "type violation, expected n >= 0"
     c = 1
     d = (1 + n) // 2
     e = (d + n // d) // 2
@@ -79,7 +80,7 @@ def fermatsMethod(n):
     """Implements Fermat's method for factoring numbers. The idea is to find
     two numbers, a, and b, such that a ** 2 - b ** 2 == n. This form can be
     represented as (a - b) * (a + b), which therefore are two factors of n."""
-    assert n >= 0, 'type violation, expected n >= 0'
+    assert n >= 0, "type violation, expected n >= 0"
     s = int(math.ceil(math.sqrt(n)))
     while True:
         d = s ** 2 - n
@@ -93,7 +94,7 @@ def fermatsMethod(n):
 def slowPrimes(n):
     # type: (greater_than_one) -> List[prime]
     """Returns all primes less than or equal to n"""
-    assert n > 1, 'type violation, expected n > 1'
+    assert n > 1, "type violation, expected n > 1"
     if n == 2:
         return [2]
     primes = [2]
@@ -110,7 +111,7 @@ def slowPrimes(n):
 
 def slowFactors(n, primes=None):
     # type: (greater_than_one, Optional[List[prime]]) -> Tuple[bool, Dict[prime, greater_than_zero]]
-    assert n > 1, 'type violation, expected n > 1'
+    assert n > 1, "type violation, expected n > 1"
     if primes is None:
         # generate all primes up to n, instead of up to ceil(sqrt(n)) b/c
         # we don't have logic to treat the remainder as a prime
@@ -157,11 +158,11 @@ def vectorize(rows, default=None):
 def modularRowReduction(matrix, mod):
     # type: (matrix, Optional[greater_than_one]) -> matrix
     # Based on https://rosettacode.org/wiki/Reduced_row_echelon_form#Python
-    assert mod is None or mod > 1, 'type violation, expected mod > 1'
+    assert mod is None or mod > 1, "type violation, expected mod > 1"
     nrows = len(matrix)
-    assert nrows > 0, 'matrix must have at least one row'
+    assert nrows > 0, "matrix must have at least one row"
     ncols = len(matrix[0])
-    assert ncols > 0, 'matrix must have at least one column'
+    assert ncols > 0, "matrix must have at least one column"
 
     lead = 0
     for i in range(nrows):
@@ -205,16 +206,16 @@ def modularRowReduction(matrix, mod):
 
 def matstr(mat):
     # type: (matrix) -> str
-    return  "[" + ",\n ".join(map(str, mat)) + "]"
+    return "[" + ",\n ".join(map(str, mat)) + "]"
 
 
 def matExtend(mat_a, mat_b):
     # type: (matrix, matrix) -> matrix
     nrows = len(mat_a)
-    assert nrows > 0, 'mat_a must have at least one row'
-    assert nrows == len(mat_b), 'mat_b must have the same nrows as mat_a'
+    assert nrows > 0, "mat_a must have at least one row"
+    assert nrows == len(mat_b), "mat_b must have the same nrows as mat_a"
     ncols = len(mat_a[0]) + len(mat_b[0])
-    assert ncols > 0, 'mat_a + mat_b must have at least one column'
+    assert ncols > 0, "mat_a + mat_b must have at least one column"
     ret = []
     for i in range(nrows):
         ret.append(mat_a[i] + mat_b[i])
@@ -223,8 +224,8 @@ def matExtend(mat_a, mat_b):
 
 def identity(nrows, ncols=None):
     # type: (greater_than_zero, Optional[greater_than_zero]) -> matrix
-    assert nrows > 0, 'type violation, expected nrows > 0'
-    assert ncols is None or ncols > 0, 'type violation, expected ncols > 0'
+    assert nrows > 0, "type violation, expected nrows > 0"
+    assert ncols is None or ncols > 0, "type violation, expected ncols > 0"
     if ncols is None:
         ncols = nrows
     ret = []
@@ -357,8 +358,8 @@ def isQuadraticResidue(p, n):
 
 def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
     # type: (greater_than_one, nonnegative, greater_than_one, nonnegative) -> Dict[maybe_prime, greater_than_zero]
-    assert n > 1, 'type violation, expected n > 1'
-    assert interval_mult > 0, 'type violation, expected interval_mult > 0'
+    assert n > 1, "type violation, expected n > 1"
+    assert interval_mult > 0, "type violation, expected interval_mult > 0"
     # 1. choose smoothness bound B
     # TODO how do we pick B?
     B = max_prime
@@ -366,29 +367,36 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
     # implementations of the quadratic sieve
     primes = [p for p in slowPrimes(B) if isQuadraticResidue(p, n)]
     if verbosity > 0:
-        print('Found %d primes less than or equal to %d, max is %d' % (len(primes), max_prime, primes[-1]))
-    if verbosity > 2:
-        print('Primes: %s' % (str(primes)))
+        print(
+            "Found %d primes that are quadratic residues and less than or equal to %d, max"
+            " is %d" % (len(primes), max_prime, primes[-1])
+        )
+    if verbosity > 1:
+        print("Primes: %s" % (str(primes)))
 
     # 2. find numbers that are B smooth
     # TODO how do we pick the threshold for bSmoothSieve?
     ints, squares = bSmoothList(primes, n, interval_mult * len(primes))
     if verbosity > 0:
-        print('Found %d b-smooth squares out of %d ints' % (len(squares), interval_mult * len(primes)))
-    if verbosity > 2:
-        print('Ints: %s' % (str(ints)))
+        n_root = intSqrt(n)
+        print(
+            "Found %d b-smooth squares out of %d ints, starting at %d"
+            % (len(squares), interval_mult * len(primes), n_root)
+        )
+    if verbosity > 1:
+        print("Ints: %s" % (str(ints)))
 
     # 3. factor numbers and generate exponent vectors
     # 4. apply some linear algebra
     indices, products = findSquareProduct(primes, squares)
     if verbosity > 0:
-        print('Found %d solutions to the mod-2 matrix' % (len(products)))
+        print("Found %d solutions to the mod-2 matrix" % (len(products)))
 
     for i, product in enumerate(products):
         used_ints = None  # type: Optional[List[nonnegative]]
-        if verbosity > 1:
+        if verbosity > 2:
             used_ints = []
-            print('Checking gcd of %d' % (product))
+            print("Checking gcd of %d" % (product))
         # TODO move this computation to findSquareProduct
         a = 1
         for j, bit in enumerate(indices[i]):
@@ -398,7 +406,7 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
             if used_ints is not None:
                 used_ints.append(ints[j])
         if used_ints is not None:
-            print('Used ints: %s' % (str(used_ints)))
+            print("Used ints: %s" % (str(used_ints)))
         product_root = intSqrt(product)
         # 5. now we have a ** 2 mod n == b ** 2 mod n
         # TODO should this be max(..) - min(..)?
@@ -408,10 +416,12 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
         # equivalent to `other_divisor = n // divisor`
         other_divisor = gcd(a + product_root, n)
         # 6. now we have (x - y) * (x + y) mod n == 0
-        if verbosity > 1:
+        if verbosity > 2:
             x = (divisor + other_divisor) / 2
             y = (divisor - other_divisor) / 2
-            print('%d = x ** 2 - y ** 2 = (x - y) * (x + y), x = %d, y = %d' % (n, x, y))
+            print(
+                "%d = x ** 2 - y ** 2 = (x - y) * (x + y), x = %d, y = %d" % (n, x, y)
+            )
         return {divisor: 1, other_divisor: 1}
 
     # No solution found!
@@ -420,23 +430,29 @@ def quadraticSieve(n, interval_mult=2, max_prime=229, verbosity=0):
 
 def main():
     # type: () -> None
-    parser = argparse.ArgumentParser(description='Factors a number using ' +
-        'a quadratic sieve (kinda)')
-    parser.add_argument('n', type=int, help='The number to factor')
+    parser = argparse.ArgumentParser(
+        description="Factors a number using " + "a quadratic sieve (kinda)"
+    )
+    parser.add_argument("n", type=int, help="The number to factor")
     # TODO add help for mult (aka interval_mult)
-    parser.add_argument('--mult', type=int, default=1)
-    parser.add_argument('--max_prime', type=int, default=229, help='The ' +
-        'max prime number to use for deriving B-smoothness. 229 is the ' +
-        '50th prime, and 541 is the 100th.')
-    parser.add_argument('-v', '--verbose', default=0, action='count')
+    parser.add_argument("--mult", type=int, default=1)
+    parser.add_argument(
+        "--max_prime",
+        type=int,
+        default=229,
+        help="The "
+        + "max prime number to use for deriving B-smoothness. 229 is the "
+        + "50th prime, and 541 is the 100th.",
+    )
+    parser.add_argument("-v", "--verbose", default=0, action="count")
     args = parser.parse_args()
 
-    assert args.n > 3, 'expected n > 3'
-    assert args.mult >= 1, 'expected mult >= 1'
-    assert args.max_prime >= 2, 'expected max_prime >= 2'
+    assert args.n > 3, "expected n > 3"
+    assert args.mult >= 1, "expected mult >= 1"
+    assert args.max_prime >= 2, "expected max_prime >= 2"
 
     print(quadraticSieve(args.n, args.mult, args.max_prime, args.verbose))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
