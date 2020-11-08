@@ -292,25 +292,19 @@ bool isQuadraticResidue(i64 p, i64 n) {
 bool quadraticSieve(
   greater_than_one n,
   positive mult,
-  i64 all_num_primes_untyped,
+  greater_than_one all_num_primes,
   i64 *results
 ) {
-  if (all_num_primes_untyped <= 1) {
-    printf("min all_num_primes is 2, got %lld\n", all_num_primes_untyped);
-    return false;
-  }
-  greater_than_one all_num_primes = make_greater_than_one(all_num_primes_untyped);
-
-  prime all_primes[all_num_primes_untyped];
+  prime all_primes[greater_than_one_val(all_num_primes)];
   bool success = slowFillPrimes(all_num_primes, all_primes);
   if (!success) {
     printf("Failed to find some small primes\n");
     return false;
   }
 
-  prime primes[all_num_primes_untyped];
+  prime primes[greater_than_one_val(all_num_primes)];
   i64 num_primes_found = 0;
-  for (i64 i = 0; i < all_num_primes_untyped; ++i) {
+  for (i64 i = 0; i < greater_than_one_val(all_num_primes); ++i) {
     if (!isQuadraticResidue(prime_val(all_primes[i]), greater_than_one_val(n))) {
       continue;
     }
@@ -326,7 +320,7 @@ bool quadraticSieve(
     "Successfully found %lld primes, max = %lld, out of all %lld primes considered\n",
     num_primes_found,
     prime_val(primes[num_primes_found - 1]),
-    all_num_primes_untyped
+    greater_than_one_val(all_num_primes)
   );
   positive num_primes = make_positive(num_primes_found);
 
@@ -355,7 +349,13 @@ bool quadraticSieve(
     printf("Failed to find a list of b-smooth squares\n");
     return false;
   }
-  printf("Successfully found %lld b-smooth squares out of %lld\n", num_ints_found, num_search_ints);
+  printf(
+    "Found %lld b-smooth squares out of %lld ints, starting at %lld\n",
+    num_ints_found,
+    num_search_ints,
+    ints[0]
+  );
+
   if (num_ints_found == max_num_ints) {
     printf("Found the maximum number of b-smooth squares, rather than searching all ints\n");
   }

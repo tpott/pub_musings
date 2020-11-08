@@ -58,10 +58,11 @@ int main(int argc, char** argv) {
   }
 
   i64 factors[2];
+  // All these type casts are based on the above bounds checking
   bool success = quadraticSieve(
     make_greater_than_one(n),
     make_positive(mult),
-    num_primes,
+    make_greater_than_one(num_primes),
     factors
   );
   if (!success) {
