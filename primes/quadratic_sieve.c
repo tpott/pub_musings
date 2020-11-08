@@ -58,9 +58,14 @@ int main(int argc, char** argv) {
   }
 
   i64 factors[2];
-  bool success = quadraticSieve(n, mult, num_primes, factors);
+  bool success = quadraticSieve(
+    make_greater_than_one(n),
+    make_positive(mult),
+    num_primes,
+    factors
+  );
   if (!success) {
-    printf("Failed to factor %ld\n", n);
+    printf("Failed to factor %lld\n", n);
     return FAILED_TO_FACTOR;
   }
 
