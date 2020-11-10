@@ -275,6 +275,7 @@ def main():
     parser.add_argument('-s', action='store_true', help='With skips')
     parser.add_argument('-v', '--verbose', action='count', default=0,
         help='Makes the output more verbose')
+    # TODO add --count to get a precise number of primes...
 
     args = parser.parse_args()
 
