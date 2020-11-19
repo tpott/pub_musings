@@ -7,6 +7,7 @@ from __future__ import print_function
 
 import argparse
 import math
+import multiprocessing
 import sys
 
 if sys.version_info >= (3, 3):
@@ -17,6 +18,7 @@ if sys.version_info >= (3, 3):
     matrix = List[List[int]]
     maybe_prime = int
     nonnegative = int
+    positive = int
     prime = int
     K = TypeVar("K")
     V = TypeVar("V")
@@ -287,7 +289,7 @@ def isBSmooth(primes, i):
     return False
 
 
-def bSmoothList(primes, n, count):
+def bSmoothListSimple(primes, n, count):
     # type: (List[prime], greater_than_one, greater_than_one) -> Tuple[List[greater_than_one], List[greater_than_one]]
     """This isn't a real sieve. It's just really simple. Given an int, n,
     and the number of smooth numbers to try getting, count, derive the list
@@ -306,6 +308,54 @@ def bSmoothList(primes, n, count):
             continue
         ints.append(i)
         squares.append(square_mod_n)
+    return (ints, squares)
+
+
+def bSmoothChunk(tup):
+    # type: (Tuple[List[prime], greater_than_one, greater_than_one, greater_than_one]) -> Tuple[List[greater_than_one], List[greater_than_one]]
+    # TODO pass args via starmap instead of map
+    primes, n, i, count = tup
+    ints = []
+    squares = []
+    for j in range(i, i + count):
+        # `j ** 2 - n` should be equivalent to `j ** 2 % n` because of the
+        # range that j is in, and therefore what `j ** 2` is in.
+        square_mod_n = j ** 2 - n
+        if not isBSmooth(primes, square_mod_n):
+            continue
+        ints.append(j)
+        squares.append(square_mod_n)
+    return (ints, squares)
+
+
+def bSmoothList(primes, n, count, num_cores=None):
+    # type: (List[prime], greater_than_one, greater_than_one, Optional[positive]) -> Tuple[List[greater_than_one], List[greater_than_one]]
+    """This isn't a real sieve. It's just really simple. Given an int, n,
+    and the number of smooth numbers to try getting, count, derive the list
+    of smooth ints."""
+    n_root = intSqrt(n)
+    # This ensures we take the ceiling of the sqrt
+    if n_root * n_root < n:
+        n_root += 1
+    if num_cores is None:
+        num_cores = multiprocessing.cpu_count()
+
+    pool = multiprocessing.Pool()
+    chunk_count = count // num_cores
+    # This isn't a perfect chunking, but meh
+    # TODO make sure this doesn't create overlapping chunks with bSmoothChunk
+    i_list = list(map(
+        lambda i: (primes, n, i, chunk_count),
+        range(n_root, n_root + count + 1, chunk_count)
+    ))
+    results = pool.map(bSmoothChunk, i_list)
+
+    ints = []
+    squares = []
+    for int_chunk, square_chunk in results:
+        ints.extend(int_chunk)
+        squares.extend(square_chunk)
+
     return (ints, squares)
 
 
