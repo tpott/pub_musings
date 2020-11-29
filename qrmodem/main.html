@@ -1,0 +1,92 @@
+<html>
+	<head>
+		<title>qrmodem</title>
+		<script src="./qrious.js"></script>
+		<script src="./qr-scanner.umd.min.js"></script>
+	</head>
+	<body>
+		<div>Simple qr code experiment</div>
+
+		<!-- <canvas id="raw_video"></canvas> -->
+		<video id="raw_video" autoplay></video>
+		<canvas id="received_qr"></canvas>
+		<div id="event_log">
+		</div>
+		<canvas id="transmit_qr"></canvas>
+		<script>
+
+let canvasElem = document.getElementById('transmit_qr');
+(function() {
+	let qrCode = new QRious({
+		element: canvasElem,
+		size: 500, // arbitrary value
+		value: 'just testing',
+	});
+})()
+
+let logs = document.getElementById('event_log');
+let newLog = document.createElement('p');
+newLog.innerText = 'Starting up';
+logs.appendChild(newLog);
+
+// Some helpful code pointers:
+// https://github.com/tpott/labyrinth/blob/master/server.py
+// https://github.com/tpott/pub_musings/blob/master/subtitler/utterance_server.py
+// https://www.html5rocks.com/en/tutorials/getusermedia/intro/
+// https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+
+navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: 'user'}})
+	.then(function(stream) {
+		newLog = document.createElement('p');
+		newLog.innerText = 'Successfully got a stream from getUserMedia';
+		logs.appendChild(newLog);
+		let rawVideo = document.getElementById('raw_video');
+		rawVideo.srcObject = stream;
+	})
+	.catch(function(err) {
+		newLog = document.createElement('p');
+		newLog.innerText = 'Failed to get a stream from getUserMedia: ' + err;
+		logs.appendChild(newLog);
+	});
+
+let numDetections = 0;
+let numNoDetections = 0;
+
+let rawVideo = document.getElementById('raw_video');
+let qrScanner = new QrScanner(
+	rawVideo,
+	(result) => {
+		numDetections++;
+
+		if (numDetections <= 5) {
+			newLog = document.createElement('p');
+			newLog.innerText = 'decoded qr code: ' + result;
+			logs.appendChild(newLog);
+		}
+
+		console.log('decoded qr code:', result);
+
+		let canvasElem = document.getElementById('received_qr');
+		(function() {
+			let qrCode = new QRious({
+				element: canvasElem,
+				size: 500, // arbitrary value
+				value: result,
+			});
+		})();
+	},
+	(err) => {
+		numNoDetections++;
+		console.log('decoding error', err);
+	},
+);
+qrScanner.start();
+// We can call `qrScanner.stop();`, but idk when we should do that
+
+newLog = document.createElement('p');
+newLog.innerText = 'Created the scanner';
+logs.appendChild(newLog);
+
+		</script>
+	</body>
+</html>

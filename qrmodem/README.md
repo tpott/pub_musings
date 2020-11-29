@@ -13,3 +13,8 @@ or maybe even as high as 120 Hz. But assuming a slow rate of 5 Hz, we should be 
 to transfer ~118 kb/s. 50 Hz gets more useful, i.e. around ~1.1 Mb/s. And if we we're
 to encode one frame in red, one in green, and one in blue, then we should be able to
 increase that rate further. Alternatively, also increasing the grid size.
+
+# Dependencies
+
+* https://github.com/neocotic/qrious but note that it depends on https://github.com/neocotic/qrious-core
+* https://github.com/nimiq/qr-scanner
