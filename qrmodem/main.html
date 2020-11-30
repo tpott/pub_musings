@@ -18,14 +18,41 @@
 		<div id="event_log"></div>
 		<script>
 
+// Lets pretend we translate packets into frames and frames into packets.
+// https://en.wikipedia.org/wiki/Ethernet_frame#Structure
+// Preamble
+// Dest MAC
+// Source MAC
+// Length
+// Data
+// Checksum
+
+// Arbitrarily use a circle buffer
+let rxi = 0;
+let txi = 0;
+let bufSize = 65536; // 2 ^ 16
+let rxBuf = new Uint8Array(bufSize);
+let txBuf = new Uint8Array(bufSize);
+const emptyMessage = new Uint8Array(0);
+window.crypto.getRandomValues(txBuf);
+
 let canvasElem = document.getElementById('transmit_qr');
 (function() {
 	let qrCode = new QRious({
 		element: canvasElem,
 		size: 500, // arbitrary value
-		value: 'just testing',
+		value: emptyMessage,
 	});
 })()
+
+canvasElem = document.getElementById('received_qr');
+(function() {
+	let qrCode = new QRious({
+		element: canvasElem,
+		size: 500, // arbitrary value
+		value: emptyMessage,
+	});
+})();
 
 let logs = document.getElementById('event_log');
 let newLog = document.createElement('p');
@@ -37,6 +64,28 @@ logs.appendChild(newLog);
 // https://github.com/tpott/pub_musings/blob/master/subtitler/utterance_server.py
 // https://www.html5rocks.com/en/tutorials/getusermedia/intro/
 // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+
+// TODO take a hash and use as the source ethernet MAC address
+let deviceId = null;
+navigator.mediaDevices.enumerateDevices()
+	.then(function(devices) {
+		devices.forEach(function(device) {
+			if (device.kind !== "videoinput") {
+				return;
+			}
+			if (device.label === "") {
+				return;
+			}
+			// Pick the last deviceId
+			deviceId = device.deviceId;
+			newLog = document.createElement('p');
+			newLog.innerText = 'Got a deviceId: ' + deviceId;
+			logs.appendChild(newLog);
+		});
+	})
+	.catch(function(err) {
+		console.log(err.name + ": " + err.message);
+	});
 
 navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: 'user'}})
 	.then(function(stream) {
