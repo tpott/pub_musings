@@ -12,11 +12,24 @@
 		<video id="raw_video" autoplay></video>
 		<div>Received QR</div>
 		<canvas id="received_qr"></canvas>
+		<form id="tx_mode_form">
+			<input type="radio" name="tx_mode" id="none" value="none" checked="checked">None</input>
+			<input type="radio" name="tx_mode" id="echo" value="echo">Echo</input>
+			<input type="radio" name="tx_mode" id="random" value="random">Random</input>
+		</form>
 		<div>Transmit QR</div>
 		<canvas id="transmit_qr"></canvas>
 		<div>Event Log</div>
 		<div id="event_log"></div>
 		<script>
+
+function ArrayStrThing(uints) {
+	this.uints = uints;
+}
+
+ArrayStrThing.prototype.charCodeAt = function(i) {
+	return this.uints[i];
+};
 
 // Lets pretend we translate packets into frames and frames into packets.
 // https://en.wikipedia.org/wiki/Ethernet_frame#Structure
@@ -30,29 +43,26 @@
 // Arbitrarily use a circle buffer
 let rxi = 0;
 let txi = 0;
-let bufSize = 65536; // 2 ^ 16
+let txMode = 'none';
+let bufSize = 2000; // 65536; // 2 ^ 16
 let rxBuf = new Uint8Array(bufSize);
 let txBuf = new Uint8Array(bufSize);
 const emptyMessage = new Uint8Array(0);
 window.crypto.getRandomValues(txBuf);
 
 let canvasElem = document.getElementById('transmit_qr');
-(function() {
-	let qrCode = new QRious({
-		element: canvasElem,
-		size: 500, // arbitrary value
-		value: emptyMessage,
-	});
-})()
+let qrCode = new QRious({
+	element: canvasElem,
+	size: 500, // arbitrary value
+	value: emptyMessage,
+});
 
 canvasElem = document.getElementById('received_qr');
-(function() {
-	let qrCode = new QRious({
-		element: canvasElem,
-		size: 500, // arbitrary value
-		value: emptyMessage,
-	});
-})();
+qrCode = new QRious({
+	element: canvasElem,
+	size: 500, // arbitrary value
+	value: emptyMessage,
+});
 
 let logs = document.getElementById('event_log');
 let newLog = document.createElement('p');
@@ -110,6 +120,10 @@ let qrScanner = new QrScanner(
 	(result) => {
 		numDetections++;
 
+		if (txMode !== 'echo') {
+			return;
+		}
+
 		if (numDetections <= 5) {
 			newLog = document.createElement('p');
 			newLog.innerText = 'decoded qr code: ' + result;
@@ -119,13 +133,11 @@ let qrScanner = new QrScanner(
 		console.log('decoded qr code:', result);
 
 		let canvasElem = document.getElementById('received_qr');
-		(function() {
-			let qrCode = new QRious({
-				element: canvasElem,
-				size: 500, // arbitrary value
-				value: result,
-			});
-		})();
+		let qrCode = new QRious({
+			element: canvasElem,
+			size: 500, // arbitrary value
+			value: result,
+		});
 	},
 	(err) => {
 		numNoDetections++;
@@ -138,6 +150,37 @@ qrScanner.start();
 newLog = document.createElement('p');
 newLog.innerText = 'Created the scanner';
 logs.appendChild(newLog);
+
+function txModeChange() {
+	txMode = this.value;
+	if (txMode === 'none') {
+		let canvasElem = document.getElementById('transmit_qr');
+		let qrCode = new QRious({
+			element: canvasElem,
+			size: 500, // arbitrary value
+			value: emptyMessage,
+		});
+	} else if (txMode === 'echo') {
+	} else if (txMode === 'random') {
+
+		let txBuf = new Uint8Array(bufSize);
+		window.crypto.getRandomValues(txBuf);
+
+		let canvasElem = document.getElementById('transmit_qr');
+		qrCode = new QRious({
+			element: canvasElem,
+			size: 500, // arbitrary value
+			value: new ArrayStrThing(txBuf),
+		});
+
+	} else {
+		alert('Unhandled radio txMode: ' + txMode);
+	}
+}
+
+Array.from(document.getElementsByName('tx_mode')).forEach((elem) => {
+	elem.addEventListener('change', txModeChange);
+});
 
 		</script>
 	</body>
