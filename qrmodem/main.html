@@ -3,6 +3,7 @@
 		<title>qrmodem</title>
 		<script src="./qrious.js"></script>
 		<script src="./qr-scanner.umd.min.js"></script>
+		<script src="./stats.min.js"></script>
 	</head>
 	<body>
 		<div>Simple qr code experiment</div>
@@ -49,7 +50,7 @@ function txRandomBytes() {
 
 	txQrCode.set({
 		size: 500, // arbitrary value
-		value: Lazy(txBuf.slice(0, 40)),
+		value: Lazy(txBuf.slice(0, 50)),
 	});
 
 	if (txMode === 'random') {
@@ -73,7 +74,7 @@ let txMode = 'none';
 let bufSize = 2000; // 65536; // 2 ^ 16
 let rxBuf = new Uint8Array(bufSize);
 let txBuf = new Uint8Array(bufSize);
-let txRate = 100; // ms
+let txRate = 50; // ms
 const emptyMessage = new Uint8Array(0);
 window.crypto.getRandomValues(txBuf);
 
@@ -198,6 +199,19 @@ function txModeChange() {
 Array.from(document.getElementsByName('tx_mode')).forEach((elem) => {
 	elem.addEventListener('change', txModeChange);
 });
+
+// From https://github.com/mrdoob/stats.js
+
+let stats = new Stats();
+stats.showPanel( 1 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild( stats.dom );
+
+function animate() {
+	stats.begin();
+	stats.end();
+	requestAnimationFrame( animate );
+}
+requestAnimationFrame( animate );
 
 		</script>
 	</body>

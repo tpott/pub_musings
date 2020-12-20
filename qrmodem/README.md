@@ -18,3 +18,4 @@ increase that rate further. Alternatively, also increasing the grid size.
 
 * https://github.com/neocotic/qrious but note that it depends on https://github.com/neocotic/qrious-core
 * https://github.com/nimiq/qr-scanner
+* https://github.com/mrdoob/stats.js
