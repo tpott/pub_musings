@@ -31,6 +31,32 @@ ArrayStrThing.prototype.charCodeAt = function(i) {
 	return this.uints[i];
 };
 
+function Lazy(uints) {
+	// I can't figure out how to cleanly pass a uint8 array to qrious. So the lazy
+	// thing to do is just hex encode the data... base64 would be more bit efficient
+	if (false) {
+		return new ArrayStrThing(units);
+	} else {
+		return buf2hex(uints);
+	}
+}
+
+function txRandomBytes() {
+	// let txBuf = new Uint8Array(bufSize);
+	window.crypto.getRandomValues(txBuf);
+
+	// console.log('txModeChange --> random', buf2hex(txBuf.slice(0, 100)), Lazy(txBuf.slice(0, 200)));
+
+	txQrCode.set({
+		size: 500, // arbitrary value
+		value: Lazy(txBuf.slice(0, 40)),
+	});
+
+	if (txMode === 'random') {
+		setTimeout(txRandomBytes, txRate);
+	}
+}
+
 // Lets pretend we translate packets into frames and frames into packets.
 // https://en.wikipedia.org/wiki/Ethernet_frame#Structure
 // Preamble
@@ -47,18 +73,19 @@ let txMode = 'none';
 let bufSize = 2000; // 65536; // 2 ^ 16
 let rxBuf = new Uint8Array(bufSize);
 let txBuf = new Uint8Array(bufSize);
+let txRate = 100; // ms
 const emptyMessage = new Uint8Array(0);
 window.crypto.getRandomValues(txBuf);
 
 let canvasElem = document.getElementById('transmit_qr');
-let qrCode = new QRious({
+let txQrCode = new QRious({
 	element: canvasElem,
 	size: 500, // arbitrary value
 	value: emptyMessage,
 });
 
 canvasElem = document.getElementById('received_qr');
-qrCode = new QRious({
+let rxQrCode = new QRious({
 	element: canvasElem,
 	size: 500, // arbitrary value
 	value: emptyMessage,
@@ -120,21 +147,18 @@ let qrScanner = new QrScanner(
 	(result) => {
 		numDetections++;
 
-		if (txMode !== 'echo') {
-			return;
-		}
+		// if (txMode !== 'echo') { return; }
 
-		if (numDetections <= 5) {
+		if (numDetections <= 50) {
 			newLog = document.createElement('p');
 			newLog.innerText = 'decoded qr code: ' + result;
 			logs.appendChild(newLog);
 		}
 
-		console.log('decoded qr code:', result);
+		// console.log('decoded qr code:', result);
+		console.log('decoded qr code');
 
-		let canvasElem = document.getElementById('received_qr');
-		let qrCode = new QRious({
-			element: canvasElem,
+		rxQrCode.set({
 			size: 500, // arbitrary value
 			value: result,
 		});
@@ -151,28 +175,21 @@ newLog = document.createElement('p');
 newLog.innerText = 'Created the scanner';
 logs.appendChild(newLog);
 
+// From https://stackoverflow.com/questions/40031688/javascript-arraybuffer-to-hex
+function buf2hex(buffer) { // buffer is an ArrayBuffer
+  return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+}
+
 function txModeChange() {
 	txMode = this.value;
 	if (txMode === 'none') {
-		let canvasElem = document.getElementById('transmit_qr');
-		let qrCode = new QRious({
-			element: canvasElem,
+		txQrCode.set({
 			size: 500, // arbitrary value
 			value: emptyMessage,
 		});
 	} else if (txMode === 'echo') {
 	} else if (txMode === 'random') {
-
-		let txBuf = new Uint8Array(bufSize);
-		window.crypto.getRandomValues(txBuf);
-
-		let canvasElem = document.getElementById('transmit_qr');
-		qrCode = new QRious({
-			element: canvasElem,
-			size: 500, // arbitrary value
-			value: new ArrayStrThing(txBuf),
-		});
-
+		setTimeout(txRandomBytes, txRate);
 	} else {
 		alert('Unhandled radio txMode: ' + txMode);
 	}
