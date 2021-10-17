@@ -1,0 +1,28 @@
+{
+  "name": "qrmodem",
+  "version": "0.0.2",
+  "description": "Virtual network interface via qr codes",
+  "main": "main.js",
+  "scripts": {
+    "test": "jest test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tpott/pub_musings.git#master"
+  },
+  "keywords": [
+    "qrmodem"
+  ],
+  "author": "Trevor Pottinger",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tpott/pub_musings/issues"
+  },
+  "homepage": "https://github.com/tpott/pub_musings/tree/master/qrmodem",
+  "dependencies": {
+    "electron": "^8.3.0"
+  },
+  "scripts": {
+    "start": "electron ."
+  }
+}

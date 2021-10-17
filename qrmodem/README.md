@@ -19,3 +19,16 @@ increase that rate further. Alternatively, also increasing the grid size.
 * https://github.com/neocotic/qrious but note that it depends on https://github.com/neocotic/qrious-core
 * https://github.com/nimiq/qr-scanner
 * https://github.com/mrdoob/stats.js
+
+# Notes
+
+To run the electron app, run `npm start`. For now, this is basically just following
+https://www.electronjs.org/docs/latest/tutorial/quick-start with main.html . Next steps
+is to add a tun interface (ideally we would use a tap interface, but Mac OS X only
+supports tun; https://tunnelblick.net/cTunTapConnections.html ).
+https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules might be
+needed in order to create the tun interface in c. More info:
+
+* https://en.wikipedia.org/wiki/TUN/TAP
+* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+* https://github.com/secdev/scapy/blob/master/scapy/layers/tuntap.py has some example python code!
