@@ -20,7 +20,7 @@
   },
   "homepage": "https://github.com/tpott/pub_musings/tree/master/qrmodem",
   "dependencies": {
-    "electron": "^8.3.0"
+    "electron": "^11.5.0"
   },
   "scripts": {
     "qrmodem": "electron main.js",
