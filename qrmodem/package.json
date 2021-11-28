@@ -23,6 +23,7 @@
     "electron": "^8.3.0"
   },
   "scripts": {
-    "start": "electron ."
+    "qrmodem": "electron main.js",
+    "wifi": "electron wifi_gen.js"
   }
 }

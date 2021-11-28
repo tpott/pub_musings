@@ -1,0 +1,209 @@
+<html>
+	<head>
+		<title>qrmodem wifi</title>
+		<script src="./qrious.js"></script>
+		<script src="./qr-scanner.umd.min.js"></script>
+		<!-- <script src="./stats.min.js"></script> -->
+	</head>
+	<body>
+		<div>Simple qr codes for wifi</div>
+
+		<!-- <canvas id="raw_video"></canvas> -->
+		<div>Raw Input</div>
+		<video id="raw_video" autoplay></video>
+		<div>Received QR</div>
+		<canvas id="received_qr"></canvas>
+		<form id="tx_mode_form">
+			<input type="radio" name="tx_mode" id="none" value="none" checked="checked">None</input>
+			<input type="radio" name="tx_mode" id="echo" value="echo">Echo</input>
+			<input type="radio" name="tx_mode" id="random" value="random">Random</input>
+		</form>
+		<div>Transmit QR</div>
+		<canvas id="transmit_qr"></canvas>
+		<div>Event Log</div>
+		<div id="event_log"></div>
+		<script>
+
+function ArrayStrThing(uints) {
+	this.uints = uints;
+}
+
+ArrayStrThing.prototype.charCodeAt = function(i) {
+	return this.uints[i];
+};
+
+function Lazy(uints) {
+	// I can't figure out how to cleanly pass a uint8 array to qrious. So the lazy
+	// thing to do is just hex encode the data... base64 would be more bit efficient
+	if (false) {
+		return new ArrayStrThing(units);
+	} else {
+		return buf2hex(uints);
+	}
+}
+
+function txRandomBytes() {
+	// let txBuf = new Uint8Array(bufSize);
+	window.crypto.getRandomValues(txBuf);
+
+	// console.log('txModeChange --> random', buf2hex(txBuf.slice(0, 100)), Lazy(txBuf.slice(0, 200)));
+
+	txQrCode.set({
+		size: 500, // arbitrary value
+		value: Lazy(txBuf.slice(0, 50)),
+	});
+
+	if (txMode === 'random') {
+		setTimeout(txRandomBytes, txRate);
+	}
+}
+
+// Arbitrarily use a circle buffer
+let rxi = 0;
+let txi = 0;
+let txMode = 'none';
+let bufSize = 2000; // 65536; // 2 ^ 16
+let rxBuf = new Uint8Array(bufSize);
+let txBuf = new Uint8Array(bufSize);
+let txRate = 50; // ms
+const emptyMessage = new Uint8Array(0);
+window.crypto.getRandomValues(txBuf);
+
+let canvasElem = document.getElementById('transmit_qr');
+let txQrCode = new QRious({
+	element: canvasElem,
+	size: 500, // arbitrary value
+	value: emptyMessage,
+});
+
+canvasElem = document.getElementById('received_qr');
+let rxQrCode = new QRious({
+	element: canvasElem,
+	size: 500, // arbitrary value
+	value: emptyMessage,
+});
+
+let logs = document.getElementById('event_log');
+let newLog = document.createElement('p');
+newLog.innerText = 'Starting up';
+logs.appendChild(newLog);
+
+// Some helpful code pointers:
+// https://github.com/tpott/labyrinth/blob/master/server.py
+// https://github.com/tpott/pub_musings/blob/master/subtitler/utterance_server.py
+// https://www.html5rocks.com/en/tutorials/getusermedia/intro/
+// https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+
+// TODO take a hash and use as the source ethernet MAC address
+let deviceId = null;
+navigator.mediaDevices.enumerateDevices()
+	.then(function(devices) {
+		devices.forEach(function(device) {
+			if (device.kind !== "videoinput") {
+				return;
+			}
+			if (device.label === "") {
+				return;
+			}
+			// Pick the last deviceId
+			deviceId = device.deviceId;
+			newLog = document.createElement('p');
+			newLog.innerText = 'Got a deviceId: ' + deviceId;
+			logs.appendChild(newLog);
+		});
+	})
+	.catch(function(err) {
+		console.log(err.name + ": " + err.message);
+	});
+
+navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: 'user'}})
+	.then(function(stream) {
+		newLog = document.createElement('p');
+		newLog.innerText = 'Successfully got a stream from getUserMedia';
+		logs.appendChild(newLog);
+		let rawVideo = document.getElementById('raw_video');
+		rawVideo.srcObject = stream;
+	})
+	.catch(function(err) {
+		newLog = document.createElement('p');
+		newLog.innerText = 'Failed to get a stream from getUserMedia: ' + err;
+		logs.appendChild(newLog);
+	});
+
+let numDetections = 0;
+let numNoDetections = 0;
+
+let rawVideo = document.getElementById('raw_video');
+let qrScanner = new QrScanner(
+	rawVideo,
+	(result) => {
+		numDetections++;
+
+		// if (txMode !== 'echo') { return; }
+
+		if (numDetections <= 50) {
+			newLog = document.createElement('p');
+			newLog.innerText = 'decoded qr code: ' + result;
+			logs.appendChild(newLog);
+		}
+
+		// console.log('decoded qr code:', result);
+		console.log('decoded qr code');
+
+		rxQrCode.set({
+			size: 500, // arbitrary value
+			value: result,
+		});
+	},
+	(err) => {
+		numNoDetections++;
+		console.log('decoding error', err);
+	},
+);
+qrScanner.start();
+// We can call `qrScanner.stop();`, but idk when we should do that
+
+newLog = document.createElement('p');
+newLog.innerText = 'Created the scanner';
+logs.appendChild(newLog);
+
+// From https://stackoverflow.com/questions/40031688/javascript-arraybuffer-to-hex
+function buf2hex(buffer) { // buffer is an ArrayBuffer
+  return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+}
+
+function txModeChange() {
+	txMode = this.value;
+	if (txMode === 'none') {
+		txQrCode.set({
+			size: 500, // arbitrary value
+			value: emptyMessage,
+		});
+	} else if (txMode === 'echo') {
+	} else if (txMode === 'random') {
+		setTimeout(txRandomBytes, txRate);
+	} else {
+		alert('Unhandled radio txMode: ' + txMode);
+	}
+}
+
+Array.from(document.getElementsByName('tx_mode')).forEach((elem) => {
+	elem.addEventListener('change', txModeChange);
+});
+
+// From https://github.com/mrdoob/stats.js
+
+let stats = new Stats();
+stats.showPanel( 1 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild( stats.dom );
+
+function animate() {
+	stats.begin();
+	stats.end();
+	requestAnimationFrame( animate );
+}
+requestAnimationFrame( animate );
+
+		</script>
+	</body>
+</html>

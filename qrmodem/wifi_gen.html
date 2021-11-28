@@ -1,0 +1,152 @@
+<html>
+	<head>
+		<title>qrmodem wifi</title>
+		<script src="./qrious.js"></script>
+	</head>
+	<body>
+		<div>Simple qr codes for wifi</div>
+
+		<form id="wifi_info">
+			<div>SSID:</div>
+			<input type="text" id="ssid" oninput="RenderEncodedData()"></input>
+			<div>Password:</div>
+			<input type="text" id="pass" oninput="RenderEncodedData()"></input>
+		</form>
+
+		<div id="encoded_data">WIFI:T:WPA;S:;P:;H:false;;</div>
+
+		<div>Transmit QR</div>
+		<canvas id="transmit_qr"></canvas>
+		<div>Event Log</div>
+		<div id="event_log"></div>
+		<script>
+
+function ParseWifiStr(wifiString) {
+  if (wifiString.slice(0, 4) !== 'WIFI') {
+	return null;
+  }
+  let ssid = null;
+  let password = null;
+  let semiInd = wifiString.indexOf(';', 5);
+  return {
+	ssid: ssid,
+	password: password,
+  };
+}
+
+function CompileWifiStr(wifiParams) {
+  // This assumes "hidden" = false, "auth" = WPA, and none of the other params in
+  // https://github.com/zxing/zxing/wiki/Barcode-Contents#wi-fi-network-config-android-ios-11
+  // are needed
+  return `WIFI:T:WPA;S:${wifiParams.ssid};P:${wifiParams.password};H:false;;`;
+}
+
+function RenderEncodedData() {
+  let ssid = document.getElementById('ssid').value;
+  let password = document.getElementById('pass').value;
+  let wifi_str = CompileWifiStr({
+	ssid: ssid,
+	password: password,
+  });
+  document.getElementById('encoded_data').innerText = wifi_str;
+  if (txQrCode == null) {
+	return;
+  }
+  txQrCode.set({
+	size: 500, // arbitrary value
+	value: wifi_str,
+  });
+}
+
+function ArrayStrThing(uints) {
+	this.uints = uints;
+}
+
+ArrayStrThing.prototype.charCodeAt = function(i) {
+	return this.uints[i];
+};
+
+// From https://stackoverflow.com/questions/40031688/javascript-arraybuffer-to-hex
+function buf2hex(buffer) { // buffer is an ArrayBuffer
+  return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+}
+
+function Lazy(uints) {
+	// I can't figure out how to cleanly pass a uint8 array to qrious. So the lazy
+	// thing to do is just hex encode the data... base64 would be more bit efficient
+	if (false) {
+		return new ArrayStrThing(units);
+	} else {
+		return buf2hex(uints);
+	}
+}
+
+// Arbitrarily use a circle buffer
+let txi = 0;
+let txMode = 'none';
+let bufSize = 2000; // 65536; // 2 ^ 16
+let txBuf = new Uint8Array(bufSize);
+let txRate = 50; // ms
+const emptyMessage = new Uint8Array(0);
+window.crypto.getRandomValues(txBuf);
+
+let canvasElem = document.getElementById('transmit_qr');
+let txQrCode = new QRious({
+	element: canvasElem,
+	size: 500, // arbitrary value
+	value: emptyMessage,
+});
+
+let logs = document.getElementById('event_log');
+let newLog = document.createElement('p');
+newLog.innerText = 'Starting up';
+logs.appendChild(newLog);
+
+// Some helpful code pointers:
+// https://github.com/tpott/labyrinth/blob/master/server.py
+// https://github.com/tpott/pub_musings/blob/master/subtitler/utterance_server.py
+// https://www.html5rocks.com/en/tutorials/getusermedia/intro/
+// https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+
+// TODO take a hash and use as the source ethernet MAC address
+let deviceId = null;
+navigator.mediaDevices.enumerateDevices()
+	.then(function(devices) {
+		devices.forEach(function(device) {
+			if (device.kind !== "videoinput") {
+				return;
+			}
+			if (device.label === "") {
+				return;
+			}
+			// Pick the last deviceId
+			deviceId = device.deviceId;
+			newLog = document.createElement('p');
+			newLog.innerText = 'Got a deviceId: ' + deviceId;
+			logs.appendChild(newLog);
+		});
+	})
+	.catch(function(err) {
+		console.log(err.name + ": " + err.message);
+	});
+
+let numDetections = 0;
+let numNoDetections = 0;
+
+newLog = document.createElement('p');
+newLog.innerText = 'Created the scanner';
+logs.appendChild(newLog);
+
+txQrCode.set({
+	size: 500, // arbitrary value
+	value: Lazy(txBuf.slice(0, 50)),
+});
+
+function animate() {
+	requestAnimationFrame( animate );
+}
+requestAnimationFrame( animate );
+
+		</script>
+	</body>
+</html>
