@@ -5,9 +5,13 @@
 import argparse
 import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.fftpack
+
+# Default figsize is [6.4, 4.8]
+EXTRA_WIDE = [12.8, 4.8]
 
 # Note: idct of type 2 == dct of type 3
 # np.flip reverses the order of the np array
@@ -33,7 +37,7 @@ def deseasonalize(n: int, arr: np.array) -> np.array:
   for row_i in range(arr.shape[0]):
     for i in range(1, n + 1):
       freqs[row_i][top_freqs[row_i][i]] = 0
-  normalized = 1.0 / (2 * arr.shape[1]) * scipy.fftpack.idct(freqs, type=2, norm=None)
+  normalized = 1.0 / (2 * arr.shape[1]) * scipy.fftpack.idct(freqs, type=2, norm=None, axis=1)
   # return np.roll(normalized, max_i)
   unrotated = np.copy(normalized)
   for row_i in range(arr.shape[0]):
@@ -45,21 +49,41 @@ def deseasonalize(n: int, arr: np.array) -> np.array:
 
 
 def main() -> None:
+  plt.close("all")
+
   parser = argparse.ArgumentParser(description="Basic deseasonalizer")
   parser.add_argument("input_file", help="The input CSV file. Use \"-\" for stdin")
   parser.add_argument("n", type=int, help="The number of frequencies to deseasonalize")
+  parser.add_argument("-m", "--metric", default="Volume", help="Which metric to analyze")
+  parser.add_argument("-t", "--ticker", default="MMM", help="Example ticker to test")
+  parser.add_argument("-s", "--since", help="Starting time, inclusive")
+  parser.add_argument("-u", "--until", help="Ending time, exclusive")
   args = parser.parse_args()
 
+  assert args.metric in ["Volume", "Open", "High", "Low", "Close"]
+
   df = pd.read_csv(args.input_file)
+  if args.since is not None:
+    df = df[df.Date >= args.since]
+  if args.until is not None:
+    df = df[df.Date < args.until]
+
   print("summary stats")
   print(df.describe(include="all"))
   print(df.head())
-  print(df[["Date", "Volume", "Name"]])
+  print(df[["Date", args.metric, "Name"]])
+
+  names = df.Name.value_counts().index.tolist()
+  if args.ticker not in names:
+    print(f"Expected ticker, {args.ticker}, to be in list of Name's, {str(names)}")
+    sys.exit(1)
+
+  print(f"Names: {sorted(names)}")
   print()
 
   # TODO figure out why NaN values are showing up
-  series = df[df.Name == "MMM"].Volume.dropna().to_numpy()
-  print("MMM example")
+  series = df[df.Name == args.ticker][args.metric].dropna().to_numpy()
+  print(f"{args.ticker} example")
   print(series)
   print(deseasonalize(args.n, series))
   print()
@@ -70,7 +94,7 @@ def main() -> None:
   # print(hist_df)
 
   # Values per Date aggregation
-  date_lambda = lambda x: pd.Series({"Values": dict(zip(x.Name, x.Volume))})
+  date_lambda = lambda x: pd.Series({"Values": dict(zip(x.Name, x[args.metric]))})
   date_df = df.groupby("Date").apply(date_lambda)
   big_df = pd.DataFrame(date_df.Values.values.tolist(), index=date_df.index)
   big_df = big_df.dropna(axis=0, how="any")
@@ -81,9 +105,15 @@ def main() -> None:
   print()
 
   print("big result")
-  result_arr = deseasonalize(args.n, big_df.transpose().values)
-  print(result_arr)
-  print(pd.DataFrame(np.transpose(result_arr), index=big_df.index, columns=big_df.columns))
+  norm_arr = deseasonalize(args.n, big_df.transpose().values)
+  norm_df = pd.DataFrame(np.transpose(norm_arr), index=big_df.index, columns=big_df.columns)
+  print(norm_arr)
+  print(norm_df)
+
+  axes = big_df[[args.ticker]].plot(figsize=EXTRA_WIDE)
+  norm_df[[args.ticker]].plot(ax=axes)
+  plt.legend(["big_df", "norm_df"])
+  plt.show()
 
   # Is `x` a row, a column, or something else?
   # hist_lambda = lambda x: pd.Series({"History": list(zip(x.Date, x.Volume))})
