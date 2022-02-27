@@ -60,7 +60,10 @@ def main() -> None:
   parser.add_argument("-u", "--until", help="Ending time, exclusive")
   args = parser.parse_args()
 
-  assert args.metric in ["Volume", "Open", "High", "Low", "Close"]
+  metrics = ["Volume", "Open", "High", "Low", "Close"]
+  if args.metric not in metrics:
+    print(f"Expected metric, {args.metric}, to be in one of {metrics}")
+    sys.exit(1)
 
   df = pd.read_csv(args.input_file)
   if args.since is not None:
