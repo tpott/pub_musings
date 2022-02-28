@@ -3,6 +3,7 @@
 Fun temporal analysis
 
 * From https://www.kaggle.com/szrlee/stock-time-series-20050101-to-20171231
+* From `curl -o {ticker}.csv https://query1.finance.yahoo.com/v7/finance/download/{ticker}?period1={start}&period2={end}&interval=1d&events=history&includeAdjustedClose=true`
 
 # Timing
 

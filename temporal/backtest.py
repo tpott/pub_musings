@@ -61,7 +61,10 @@ def main() -> None:
     print(f"Expected metric, {args.metric}, to be in one of {metrics}", file=sys.stderr)
     sys.exit(1)
 
-  df = pd.read_csv(args.input_file)
+  if args.input_file != "-":
+    df = pd.read_csv(args.input_file)
+  else:
+    df = pd.read_csv(sys.stdin)
 
   if args.since is not None:
     df = df[df.Date >= args.since]
