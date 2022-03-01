@@ -21,3 +21,11 @@ from pstats import SortKey
 p = pstats.Stats("profile")
 p.sort_stats(SortKey.CUMULATIVE).print_stats(20)
 ```
+
+# Running
+
+```
+python3 download_yahoo.py tickers.csv
+python3 backtest.py combined_9d6c044089bbee84.csv 4 --since 2012-01-01 --until 2020-01-01 > /tmp/trades
+python3 deseasonalize.py combined_a392a33ee14c7203.csv 4 --metric Open --since 2014-01-01 --until 2022-01-01 --ticker GE
+```

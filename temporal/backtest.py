@@ -74,7 +74,8 @@ def main() -> None:
   date_lambda = lambda x: pd.Series({"Values": dict(zip(x.Name, x[args.metric]))})
   date_df = df.groupby("Date").apply(date_lambda)
   big_df = pd.DataFrame(date_df.Values.values.tolist(), index=date_df.index)
-  big_df = big_df.dropna(axis=0, how="any")
+  # Drops rows where any ticker had a NaN metric value
+  # big_df = big_df.dropna(axis=0, how="any")
 
   df.set_index(["Date", "Name"], inplace=True)
 
@@ -87,14 +88,16 @@ def main() -> None:
       continue
     window_start = (today - timedelta(days=730)).strftime(YMD_FORMAT)
     for ticker in big_df.columns:
+      if big_df[ticker].loc[window_start:date].isna().sum() > 0:
+        continue
       # TODO pre-compute the history
-      history = big_df[ticker].loc[window_start:date].dropna().to_numpy()
+      history = big_df[ticker].loc[window_start:date].to_numpy()
       # TODO pre-compute the deseasonalized history
       deseasonalized = deseasonalize(args.n, history)
       price = estimate(ticker, date, df)
-      if history[-1] < np.percentile(deseasonalized, 0.8) * 0.80:
+      if history[-1] < np.percentile(deseasonalized, 5) * 0.80:
         buy(ticker, date, price)
-      if history[-1] > np.percentile(deseasonalized, 99.6) * 1.4:
+      if history[-1] > np.percentile(deseasonalized, 99) * 1.4:
         sell(ticker, date, price)
 
   print(f"num_trading_days = {num_trading_days}, since = {big_df.index[0]}, until = {big_df.index[-1]}", file=sys.stderr)
