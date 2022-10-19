@@ -32,7 +32,7 @@ OFFSET_FROM_START = 0
 
 def readAndSpectro(start: FloatSeconds, end: FloatSeconds, max_duration: FloatSeconds, video) -> Tuple[int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   """return spectro: np.ndarray[dtype=float64, shape=[Nrows, Nfreqs]]"""
-  rate, data = scipy.io.wavfile.read('audios/%s.wav' % video)
+  rate, data = scipy.io.wavfile.read('data/audios/%s.wav' % video)
   length = data.shape[0] / rate
   # TODO parameterize these limits
   if data.shape[1] > 1:
@@ -142,9 +142,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     if 'max_duration' in data:
       max_duration = FloatSeconds(float(data['max_duration'][0]))
     utterance = None
-    tsv_file = 'tsvs/labeled_%s.tsv' % video_id
+    tsv_file = 'data/tsvs/labeled_%s.tsv' % video_id
     if not os.path.exists(tsv_file):
-      tsv_file = 'tsvs/%s.tsv' % video_id
+      tsv_file = 'data/tsvs/%s.tsv' % video_id
 
     with open(tsv_file, 'rb') as f:
       line_number = -1
@@ -180,8 +180,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
     # TODO make this deterministic to avoid re-creating it
     tmp_file_id = '%s-%d' % (video_id, utterance_id)
-    image_file = 'tmp/%s.png' % tmp_file_id
-    audio_file = 'tmp/%s.wav' % tmp_file_id
+    image_file = 'data/tmp/%s.png' % tmp_file_id
+    audio_file = 'data/tmp/%s.wav' % tmp_file_id
     _windows_per_sec, rate, data, times, freqs, spectro = readAndSpectro(
       utterance['start'],
       utterance['end'],
@@ -318,8 +318,8 @@ document.addEventListener('keydown', event => {{
     # TODO check 'video' in data
     video_id = data['video'][0]
 
-    # TODO read tsvs/labeled_{video_id}
-    # TODO read lyrics/{video_id}
+    # TODO read data/tsvs/labeled_{video_id}
+    # TODO read data/lyrics/{video_id}
     # TODO call alignLyrics from align_lyrics
     webpage_s = """<html>
   <head>
@@ -351,12 +351,12 @@ document.addEventListener('keydown', event => {{
 
     if not os.path.exists(audio_file):
       # TODO make this configurable
-      shutil.copyfile('audios/%s.wav' % video_id, audio_file)
-      # shutil.copyfile('audios/%s/vocals_left.wav' % video_id, audio_file)
+      shutil.copyfile('data/audios/%s.wav' % video_id, audio_file)
+      # shutil.copyfile('data/audios/%s/vocals_left.wav' % video_id, audio_file)
 
     i = 0
     utts = []
-    with open('tsvs/labeled_{video_id}.tsv'.format(video_id=video_id), 'r') as f:
+    with open('data/tsvs/labeled_{video_id}.tsv'.format(video_id=video_id), 'r') as f:
       for line in f:
         start_s, end_s, duration_s, content = line.rstrip('\n').split('\t')
         utts.append((
@@ -496,7 +496,7 @@ function disableRadios(evt) {{
       elem.disabled = false;
     }}
     // TODO <input type="text" placeholder="start/end" />
-    // TODO ajax submit button that writes to tsvs/labeled_video_id.tsv
+    // TODO ajax submit button that writes to data/tsvs/labeled_video_id.tsv
   }});
 
   // TODO get the data into a const JS array
@@ -614,7 +614,7 @@ inputs.forEach((elem) => {{
     range_header = self.headers.get('Range')
     if range_header is not None:
       byte_range = parseRangeHeader(range_header)
-    local_path = 'tmp/%s.%s' % (parts[0], parts[1])
+    local_path = 'data/tmp/%s.%s' % (parts[0], parts[1])
     with open(local_path, 'rb') as f:
       # TODO fix this byte range servicing
       if False and byte_range is not None:
@@ -751,7 +751,7 @@ inputs.forEach((elem) => {{
 
 def main():
   seed = urandom(7)
-  shutil.copyfile('favicon.png', 'tmp/favicon.png')
+  shutil.copyfile('favicon.png', 'data/tmp/favicon.png')
   print('Seeded with:', int(seed.hex(), 16))
   random.seed(int(seed.hex(), 16))
 

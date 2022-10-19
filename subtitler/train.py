@@ -21,13 +21,13 @@ def main() -> None:
   args = parser.parse_args()
 
   def _labelSelector(in_file: str) -> str:
-    tsv_file = 'tsvs/labeled_%s.tsv' % in_file
+    tsv_file = 'data/tsvs/labeled_%s.tsv' % in_file
     if not os.path.isfile(tsv_file):
-      tsv_file = 'tsvs/aws_%s.tsv' % in_file
+      tsv_file = 'data/tsvs/aws_%s.tsv' % in_file
     return tsv_file
   def _readWrapper(in_file: str) -> pd.DataFrame:
     return dict2packed(readData(
-      'audios/%s/vocals_left.wav' % in_file,
+      'data/audios/%s/vocals_left.wav' % in_file,
       _labelSelector(in_file),
       limit_seconds=args.limit
     ))
@@ -35,13 +35,13 @@ def main() -> None:
   train_files = args.files.split(',')
   df = pd.concat(list(map(_readWrapper, train_files)))
   label_files = list(map(_labelSelector, train_files))
-  audio_files = list(map(lambda f: 'audios/%s/vocals_left.wav' % f, train_files))
+  audio_files = list(map(lambda f: 'data/audios/%s/vocals_left.wav' % f, train_files))
 
   # TODO seed rand_int
   scorer_file, model_file = trainModel(
     df,
-    'models/%s' % urandom5(),
-    'models/%s' % urandom5(),
+    'data/models/%s' % urandom5(),
+    'data/models/%s' % urandom5(),
     audio_files,
     label_files,
     n_iter=args.n_iter

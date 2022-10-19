@@ -22,13 +22,13 @@ def main() -> None:
   args = parser.parse_args()
 
   eval_files = args.files.split(',')
-  aws_files = list(map(lambda vid: 'tsvs/aws_%s.tsv' % vid, eval_files))
-  label_files = list(map(lambda vid: 'tsvs/label_%s.tsv' % vid, eval_files))
+  aws_files = list(map(lambda vid: 'data/tsvs/aws_%s.tsv' % vid, eval_files))
+  label_files = list(map(lambda vid: 'data/tsvs/label_%s.tsv' % vid, eval_files))
 
   eval_df, scores, predictions = evalModel(
     args.scorer_file,
     args.model_file,
-    list(map(lambda vid: 'audios/%s/vocals_left.wav' % vid, eval_files)),
+    list(map(lambda vid: 'data/audios/%s/vocals_left.wav' % vid, eval_files)),
     aws_files,
     label_files,
     limit_seconds=args.limit

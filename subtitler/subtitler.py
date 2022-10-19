@@ -73,11 +73,11 @@ def downloadVideo(url: str, video_id: str, dry_run: bool) -> str:
     # '--merge-output-format',
     # 'mkv',
     '--output',
-    'downloads/{video_id}.%(ext)s'.format(
+    'data/downloads/{video_id}.%(ext)s'.format(
       video_id=video_id
     ),
   ])
-  files = [f for f in os.listdir('downloads') if f.startswith(video_id)]
+  files = [f for f in os.listdir('data/downloads') if f.startswith(video_id)]
   if dry_run and len(files) == 0:
     files = ['{video_id}.dummy.mkv'.format(video_id=video_id)]
   assert len(files) > 0, 'Expected at least one video file like %s.*' % video_id
@@ -91,8 +91,8 @@ def extractAudio(video_file: str, video_id: str, dry_run: bool) -> None:
   _resp = mysystem([
     'ffmpeg',
     '-i',
-    'downloads/{video_file}'.format(video_file=video_file),
-    'audios/{video_id}.wav'.format(video_id=video_id),
+    'data/downloads/{video_file}'.format(video_file=video_file),
+    'data/audios/{video_id}.wav'.format(video_id=video_id),
   ])
   return
 
@@ -108,11 +108,11 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     'spleeter',
     'separate',
     '-i',
-    'audios/{video_id}.wav'.format(video_id=video_id),
+    'data/audios/{video_id}.wav'.format(video_id=video_id),
     '-p',
     'spleeter:2stems',
     '-o',
-    'audios/',
+    'data/audios/',
   ])
   if resp != 0:
     print('spleeter failed to run. Return code = %d' % resp, file=sys.stderr)
@@ -121,13 +121,13 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
   _resp = mysystem([
     'ffmpeg',
     '-i',
-    'audios/{video_id}/vocals.wav'.format(video_id=video_id),
+    'data/audios/{video_id}/vocals.wav'.format(video_id=video_id),
     '-map_channel',
     '0.0.0',
-    'audios/{video_id}/vocals_left.wav'.format(video_id=video_id),
+    'data/audios/{video_id}/vocals_left.wav'.format(video_id=video_id),
     '-map_channel',
     '0.0.1',
-    'audios/{video_id}/vocals_right.wav'.format(video_id=video_id),
+    'data/audios/{video_id}/vocals_right.wav'.format(video_id=video_id),
   ])
   return
 
@@ -135,10 +135,10 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
 def uploadAudioToAws(bucket: str, video_id: str, dry_run: bool) -> None:
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
   # Result should be https://s3.console.aws.amazon.com/s3/buckets/subtitler1/?region=us-east-2
-  audio_format = 'audios/{video_id}.wav'
+  audio_format = 'data/audios/{video_id}.wav'
   if spleeter is not None:
     # TODO figure out how to pass multi channel to GCP
-    audio_format = 'audios/{video_id}/vocals_left.wav'
+    audio_format = 'data/audios/{video_id}/vocals_left.wav'
   audio_file = audio_format.format(video_id=video_id)
   _resp = mysystem([
     'aws',
@@ -225,7 +225,7 @@ def downloadAwsTranscriptions(
   dry_run: bool,
 ) -> None:
   # TODO split into two commands
-  command = 'curl -o outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_id} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
+  command = 'curl -o data/outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_id} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
     job_id=job_id,
     region=region,
     video_id=video_id
@@ -248,12 +248,12 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
   #
   # -c is for compact output
   # -r is for "raw" output
-  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' outputs/{video_id}.json > tsvs/aws_{video_id}.tsv'.format(
+  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' data/outputs/{video_id}.json > data/tsvs/aws_{video_id}.tsv'.format(
     video_id=video_id
   )
   if not dry_run:
     results = []
-    with open('outputs/{video_id}.json'.format(video_id=video_id), 'rb') as in_f:
+    with open('data/outputs/{video_id}.json'.format(video_id=video_id), 'rb') as in_f:
       j_obj = json.loads(in_f.read().decode('utf-8'))
       for item in j_obj['results']['items']:
         if 'start_time' not in item:
@@ -264,7 +264,7 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
           float(item['end_time']) - float(item['start_time']),
           item['alternatives'][0]['content'].lower()
         ))
-    with open('tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
+    with open('data/tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
       for item in results:
         out_f.write('{start}\t{end}\t{duration:0.3f}\t{content}\n'.format(
           start=item[0],
@@ -282,10 +282,10 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
 def uploadAudioToGcp(bucket: str, video_id: str, dry_run: bool) -> None:
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
   # Result should be https://console.cloud.google.com/storage/browser/subtitler2?forceOnBucketsSortingFiltering=false&authuser=1&project=emerald-cacao-282303
-  audio_format = 'audios/{video_id}.wav'
+  audio_format = 'data/audios/{video_id}.wav'
   if spleeter is not None:
     # TODO figure out how to pass multi channel to GCP
-    audio_format = 'audios/{video_id}/vocals_left.wav'
+    audio_format = 'data/audios/{video_id}/vocals_left.wav'
   audio_file = audio_format.format(video_id=video_id)
   _resp = mysystem([
     'gsutil',
@@ -348,10 +348,10 @@ def waitForGcpTranscriptions(
   print('gcloud response!')
   print(resp)
   # similar to output2tsv
-  with open('outputs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+  with open('data/outputs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
     f.write(resp.encode('utf-8'))
   obj = json.loads(resp)
-  with open('tsvs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+  with open('data/tsvs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
     # Kinda like `jq '.results[] | .alternatives[] | .words'`
     for thing in obj['results']:
       for other in thing['alternatives']:
@@ -370,7 +370,7 @@ def waitForGcpTranscriptions(
 
 def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
   if dry_run:
-    print('python3 align_lyrics.py tsvs/aws_{video_id}.tsv {lyric_file}'.format(
+    print('python3 align_lyrics.py data/tsvs/aws_{video_id}.tsv {lyric_file}'.format(
       lyric_file=lyric_file,
       video_id=video_id
     ))
@@ -378,9 +378,9 @@ def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
   if not os.path.isfile(lyric_file):
     print('Lyrics for {lyric_file} don\'t exist'.format(lyric_file=lyric_file), file=sys.stderr)
     return
-  # TODO call alignLyrics('tsvs/aws_{video_id}.tsv'.format(video_id=video_id), lyric_file)
+  # TODO call alignLyrics('data/tsvs/aws_{video_id}.tsv'.format(video_id=video_id), lyric_file)
   transcribed = []
-  with open('tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'rb') as in_f:
+  with open('data/tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'rb') as in_f:
       for line in in_f:
         cols = line.decode('utf-8').rstrip('\n').split('\t')
         start = float(cols[0])
@@ -396,8 +396,8 @@ def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
 
 
 def formatTsvAsSrt(video_id: str, dry_run: bool) -> str:
-  tsv_file = 'tsvs/aws_{video_id}.tsv'.format(video_id=video_id)
-  srt_file = 'subtitles/{video_id}.srt'.format(video_id=video_id)
+  tsv_file = 'data/tsvs/aws_{video_id}.tsv'.format(video_id=video_id)
+  srt_file = 'data/subtitles/{video_id}.srt'.format(video_id=video_id)
   if dry_run:
     ok = True
     print('python3 tsv2srt.py {tsv_file} {srt_file}'.format(
@@ -421,7 +421,7 @@ def addSrtToVideo(
   _resp = mysystem([
     'ffmpeg',
     '-i',
-    'downloads/{video_file}'.format(video_file=video_file),
+    'data/downloads/{video_file}'.format(video_file=video_file),
     '-i',
     srt_file,
     '-s',
@@ -430,17 +430,17 @@ def addSrtToVideo(
     # 'copy',
     '-c:s',
     'mov_text',
-    'final/{filename}.mp4'.format(filename=file_name),
+    'data/final/{filename}.mp4'.format(filename=file_name),
   ])
   return
 
 
 def evalModel(video_id: str, model_file: str, dry_run: bool) -> None:
-  audio_format = 'audios/{video_id}.wav'
+  audio_format = 'data/audios/{video_id}.wav'
   if spleeter is not None:
     # TODO figure out how to pass multi channel to GCP
-    audio_format = 'audios/{video_id}/vocals_left.wav'
-  out_file = 'tsvs/predicted_{video_id}.tsv'.format(video_id=video_id)
+    audio_format = 'data/audios/{video_id}/vocals_left.wav'
+  out_file = 'data/tsvs/predicted_{video_id}.tsv'.format(video_id=video_id)
   with open(out_file, 'wb') as f:
     _resp = mysystem_wrapper(
       dry_run,
@@ -472,10 +472,10 @@ def gen_subtitles(
   print('Running job_id: {job_id}'.format(job_id=job_id))
 
   if not dry_run:
-    with open('video_ids/{video_id}.json'.format(video_id=video_id), 'wb') as f:
+    with open('data/video_ids/{video_id}.json'.format(video_id=video_id), 'wb') as f:
       f.write(json.dumps({'job_id': job_id, 'video_name': file_name}, sort_keys=True).encode('utf-8'))
       f.write(b'\n')
-    with open('video_names/{filename}.json'.format(filename=file_name), 'wb') as f:
+    with open('data/video_names/{filename}.json'.format(filename=file_name), 'wb') as f:
       f.write(json.dumps({'job_id': job_id, 'video_id': video_id}, sort_keys=True).encode('utf-8'))
       f.write(b'\n')
 
@@ -500,7 +500,7 @@ def gen_subtitles(
   else:
     print('No lyric file', file=sys.stderr)
 
-  # TODO join aws outputs/{video_id}.json, model eval output, and lyrics file
+  # TODO join aws data/outputs/{video_id}.json, model eval output, and lyrics file
   srt_file = formatTsvAsSrt(video_id, dry_run)
   addSrtToVideo(video_file, file_name, srt_file, dry_run)
 

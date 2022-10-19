@@ -18,8 +18,8 @@ def main() -> None:
   args = parser.parse_args()
   # use pd.concat if this needs to read multiple files
   df = dict2packed(readData(
-    'audios/%s.wav' % args.file,
-    'tsvs/%s.tsv' % args.file,
+    'data/audios/%s.wav' % args.file,
+    'data/tsvs/%s.tsv' % args.file,
     limit_seconds=args.limit
   ))
   df.to_csv(sys.stdout, sep='\t', index=False)

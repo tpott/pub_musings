@@ -1,5 +1,7 @@
 # subtitler
 
+Data directories (nested inside `data/`)
+
 * `downloads/` for the initial download
 * `audios/` the audio extracted from the video
 * `outputs/` raw JSON output from AWS transcribe
@@ -9,9 +11,10 @@
 * [`tmp/` only for utterance_server.py]
 * `video_ids` maps video ids to jobs and names
 * `video_names` maps video names to jobs and ids
-* `notebooks` is for jupyter notebook files
 * `models` stores sklearn serialized (pickled) model files
 * `lyrics` stores optional plain lyric files
+
+Create them via `mkdir -p data/downloads data/audios data/outputs data/tsvs data/subtitles data/final data/tmp data/video_ids data/video_names data/models data/lyrics`
 
 # Dependencies
 

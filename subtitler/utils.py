@@ -3,17 +3,17 @@
 import os
 
 DIRS = [
-  'audios',
-  'downloads',
-  'final',
-  'lyrics',
-  'models',
-  'outputs',
-  'subtitles',
-  'tmp',
-  'tsvs',
-  'video_ids',
-  'video_names',
+  'data/audios',
+  'data/downloads',
+  'data/final',
+  'data/lyrics',
+  'data/models',
+  'data/outputs',
+  'data/subtitles',
+  'data/tmp',
+  'data/tsvs',
+  'data/video_ids',
+  'data/video_names',
 ]
 
 
