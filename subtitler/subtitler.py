@@ -109,7 +109,6 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     '-m',
     'spleeter',
     'separate',
-    '-i',
     'data/audios/{video_id}.wav'.format(video_id=video_id),
     '-p',
     'spleeter:2stems',
