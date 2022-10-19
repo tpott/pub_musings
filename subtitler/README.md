@@ -39,8 +39,9 @@ I would suggest installing this basket of packages (list from https://www.scipy.
 * sympy
 * nose
 * scikit-learn
+* [spleeter]
 
-Run `pip3 install numpy matplotlib ipython jupyter pandas sympy nose scikit-learn youtube_dl awscli`
+Run `pip3 install numpy matplotlib ipython jupyter pandas sympy nose scikit-learn youtube_dl awscli spleeter`
 
 `mlr` is also a really handy command-line tool. It can be pretty powerful when
 combined with `jq` in the modern age where everything is stored in json.
