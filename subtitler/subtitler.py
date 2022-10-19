@@ -495,11 +495,13 @@ def gen_subtitles(
 
   if model_file is not None:
     evalModel(video_id, model_file, dry_run)
-  waitForAwsTranscriptions(aws_region, dry_run)
-  downloadAwsTranscriptions(job_id, aws_region, video_id, dry_run)
+  if aws_bucket is not None:
+    waitForAwsTranscriptions(aws_region, dry_run)
+    downloadAwsTranscriptions(job_id, aws_region, video_id, dry_run)
   # `output2tsv` calls `normalizeTextContent`, which lowercases and transliterates
   output2tsv(video_id, dry_run)
-  waitForGcpTranscriptions(video_id, gcp_job_id, dry_run)
+  if gcp_bucket is not None:
+    waitForGcpTranscriptions(video_id, gcp_job_id, dry_run)
 
   if lyric_file is not None:
     alignLyricFile(video_id, lyric_file, dry_run)
