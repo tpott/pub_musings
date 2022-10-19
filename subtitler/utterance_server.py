@@ -759,6 +759,11 @@ def main():
   if len(sys.argv) > 1:
     PORT = int(sys.argv[1])
 
+  # Generate a self signed cert by running the following:
+  # `openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 30`
+  context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+  context.load_cert_chain('cert.pem', 'key.pem')
+
   # This avoids "Address already in use" errors while testing
   TCPServer.allow_reuse_address = True
   with TCPServer(('0.0.0.0', PORT), MyHandler) as httpd:
@@ -767,15 +772,7 @@ def main():
     })
     print('Serving at port:', PORT)
     print('Try https://localhost:%d/label?video=wr2sVPTacTE&utterance=0' % PORT)
-    # Generate a self signed cert by running the following:
-    # `openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 30`
-    httpd.socket = ssl.wrap_socket(
-      httpd.socket,
-      server_side=True,
-      keyfile='key.pem',
-      certfile='cert.pem',
-      ssl_version=ssl.PROTOCOL_TLSv1_2
-    )
+    httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
     httpd.serve_forever()
 
 
