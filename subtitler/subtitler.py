@@ -66,7 +66,9 @@ def downloadVideo(url: str, video_id: str, dry_run: bool) -> str:
   # --merge-output-format mkv is because sometimes ffmpeg can't merge
   #   the data correctly, https://github.com/ytdl-org/youtube-dl/issues/20515
   _resp = mysystem([
-    'youtube-dl',
+    'python3',
+    '-m',
+    'youtube_dl',
     '--no-cache-dir',
     '--no-playlist',
     url,
