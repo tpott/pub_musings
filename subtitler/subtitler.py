@@ -143,7 +143,9 @@ def uploadAudioToAws(bucket: str, video_id: str, dry_run: bool) -> None:
     audio_format = 'data/audios/{video_id}/vocals_left.wav'
   audio_file = audio_format.format(video_id=video_id)
   _resp = mysystem([
-    'aws',
+    'python3',
+    '-m',
+    'awscli',
     's3',
     'cp',
     audio_file,
@@ -463,12 +465,11 @@ def gen_subtitles(
   lang: str,
   lyric_file: Optional[str],
   model_file: Optional[str],
+  aws_bucket: Optional[str],
+  aws_region: Optional[str],
+  gcp_bucket: Optional[str],
   dry_run: bool,
 ) -> None:
-  aws_bucket = 'subtitler1'
-  gcp_bucket = 'subtitler2'
-  aws_region = 'us-east-2'
-
   job_id = urandom5()
   video_id = youtubeVideoID(url)
   print('Running job_id: {job_id}'.format(job_id=job_id))
@@ -484,10 +485,13 @@ def gen_subtitles(
   video_file = downloadVideo(url, video_id, dry_run)
   extractAudio(video_file, video_id, dry_run)
   maybeSpleeter(video_id, dry_run)
-  uploadAudioToAws(aws_bucket, video_id, dry_run)
-  startAwsTranscriptJob(job_id, lang, aws_bucket, video_id, aws_region, dry_run)
-  uploadAudioToGcp(gcp_bucket, video_id, dry_run)
-  gcp_job_id = startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
+  if aws_bucket is not None:
+    assert aws_region is not None, 'aws_bucket specified without aws_region'
+    uploadAudioToAws(aws_bucket, video_id, dry_run)
+    startAwsTranscriptJob(job_id, lang, aws_bucket, video_id, aws_region, dry_run)
+  if gcp_bucket is not None:
+    uploadAudioToGcp(gcp_bucket, video_id, dry_run)
+    gcp_job_id = startGcpTranscriptJob(lang, gcp_bucket, video_id, dry_run)
 
   if model_file is not None:
     evalModel(video_id, model_file, dry_run)
@@ -527,6 +531,9 @@ def main() -> None:
   parser.add_argument('language')
   parser.add_argument('lyrics_file', nargs='?', default=None)
   parser.add_argument('--model', help='The model file to pass to eval.py')
+  parser.add_argument('--aws_bucket', help='The name of the AWS S3 bucket to use')
+  parser.add_argument('--aws_region', help='The name of the AWS region to use')
+  parser.add_argument('--gcp_bucket', help='The name of the GCP storage bucket to use')
   parser.add_argument('--dry-run', action='store_true', help='Only print commands ' +
                       'that would have run')
   args = parser.parse_args()
@@ -545,6 +552,9 @@ def main() -> None:
     lang,
     args.lyrics_file,
     args.model,
+    args.aws_bucket,
+    args.aws_region,
+    args.gcp_bucket,
     args.dry_run
   )
   return
