@@ -71,13 +71,11 @@ def downloadVideo(url: str, video_id: str, dry_run: bool) -> str:
     'youtube_dl',
     '--no-cache-dir',
     '--no-playlist',
-    '-f',
-    '"bestvideo[height<=480]+bestaudio"',
     url,
     # '--merge-output-format',
     # 'mkv',
     '--output',
-    '"data/downloads/{video_id}.%(ext)s"'.format(
+    'data/downloads/{video_id}.%(ext)s'.format(
       video_id=video_id
     ),
   ])
