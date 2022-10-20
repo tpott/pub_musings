@@ -13,11 +13,11 @@ Failure = SuccessOrFailure(False)
 
 
 class Utterance(object):
-  def __init__(self, start: float, end: float, content: str) -> None:
-    self.end = end
+  def __init__(self, start: float, duration: float, content: str) -> None:
     self.start = start
+    self.duration = duration
     self.content = content
-    self.duration = end - start
+    self.end = start + duration
 
 
 # https://wiki.videolan.org/SubViewer/

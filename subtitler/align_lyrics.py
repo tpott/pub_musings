@@ -7,7 +7,7 @@ import sys
 from typing import Any, List, Optional, Tuple
 
 
-Utterance = Tuple[float, float, float, str]
+Utterance = Tuple[float, float, str]
 
 
 # Generated from `python3 -c 'print("\n".join(["%d: (\"?\", False, %s)," % (i, chr(i)) for i in range(2304, 2390)]))' >> align_lyrics.py`
@@ -172,7 +172,7 @@ def align(utts: List[Utterance], lyrics: List[str]) -> List[Utterance]:
 
   utt_mat = []
   for utt in utts:
-    norm_text = normalizeTextContent(utt[3])
+    norm_text = normalizeTextContent(utt[2])
     row = []
     for word in lyrics:
       row.append(match_score if norm_text == word else miss_score)
@@ -200,7 +200,6 @@ def align(utts: List[Utterance], lyrics: List[str]) -> List[Utterance]:
     ret.append((
       utts[j][0],
       utts[j][1],
-      utts[j][2],
       lyrics[i]
     ))
 
@@ -211,12 +210,10 @@ def align(utts: List[Utterance], lyrics: List[str]) -> List[Utterance]:
 def parseRow(bytestr: bytes) -> Utterance:
   cols = bytestr.decode('utf-8').rstrip('\n').split('\t')
   start = float(cols[0])
-  end = float(cols[1])
-  # TODO assert duration == end - start
-  duration = float(cols[2])
+  duration = float(cols[1])
   # TODO maybe normalize (transliterate) this?
-  text = cols[3].lower()
-  return (start, end, duration, text)
+  text = cols[2].lower()
+  return (start, duration, text)
 
 
 def readTsv(file_name: str) -> List[Utterance]:
@@ -261,11 +258,10 @@ def alignLyrics(
 
   aligned = align(transcribed, lyrics)
   for item in aligned:
-    print('{start:0.3f}\t{end:0.3f}\t{duration:0.3f}\t{content}'.format(
+    print('{start:0.3f}\t{duration:0.3f}\t{content}'.format(
       start=item[0],
-      end=item[1],
-      duration=item[2],
-      content=item[3]
+      duration=item[1],
+      content=item[2]
     ))
   return
 

@@ -182,7 +182,9 @@ def startAwsTranscriptJob(
   else:
     print('echo \'{json_job_str}\' > job-start-command.json'.format(json_job_str=json_job_str))
   _resp = mysystem([
-    'aws',
+    'python3',
+    '-m',
+    'awscli',
     'transcribe',
     'start-transcription-job',
     '--region',
@@ -198,7 +200,9 @@ def waitForAwsTranscriptions(region: str, dry_run: bool) -> None:
   for _ in range(200):
     # Note: `--status IN_PROGRESS` is optional
     res = mysystem2(dry_run, [
-      'aws',
+      'python3',
+      '-m',
+      'awscli',
       'transcribe',
       'list-transcription-jobs',
       '--region',
@@ -228,7 +232,7 @@ def downloadAwsTranscriptions(
   dry_run: bool,
 ) -> None:
   # TODO split into two commands
-  command = 'curl -o data/outputs/{video_id}.json "$(aws transcribe get-transcription-job --region {region} --transcription-job-name {job_id} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
+  command = 'curl -o data/outputs/aws_{video_id}.json "$(python3 -m awscli transcribe get-transcription-job --region {region} --transcription-job-name {job_id} | jq -r .TranscriptionJob.Transcript.TranscriptFileUri)"'.format(
     job_id=job_id,
     region=region,
     video_id=video_id
@@ -251,29 +255,27 @@ def output2tsv(video_id: str, dry_run: bool) -> None:
   #
   # -c is for compact output
   # -r is for "raw" output
-  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, .end_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' data/outputs/{video_id}.json > data/tsvs/aws_{video_id}.tsv'.format(
+  command = 'jq -cr \'.results.items[] | select(.start_time != null) | [.start_time, ((.end_time | tonumber) - (.start_time | tonumber)), (.alternatives[0].content | ascii_downcase)] | @tsv\' data/outputs/aws_{video_id}.json > data/tsvs/aws_{video_id}.tsv'.format(
     video_id=video_id
   )
   if not dry_run:
     results = []
-    with open('data/outputs/{video_id}.json'.format(video_id=video_id), 'rb') as in_f:
+    with open('data/outputs/aws_{video_id}.json'.format(video_id=video_id), 'rb') as in_f:
       j_obj = json.loads(in_f.read().decode('utf-8'))
       for item in j_obj['results']['items']:
         if 'start_time' not in item:
           continue
         results.append((
           item['start_time'],
-          item['end_time'],
           float(item['end_time']) - float(item['start_time']),
           item['alternatives'][0]['content'].lower()
         ))
     with open('data/tsvs/aws_{video_id}.tsv'.format(video_id=video_id), 'wb') as out_f:
       for item in results:
-        out_f.write('{start}\t{end}\t{duration:0.3f}\t{content}\n'.format(
+        out_f.write('{start}\t{duration:0.3f}\t{content}\n'.format(
           start=item[0],
-          end=item[1],
-          duration=item[2],
-          content=normalizeTextContent(item[3])
+          duration=item[1],
+          content=normalizeTextContent(item[2])
         ).encode('utf-8'))
   else:
     print(command)
@@ -351,10 +353,10 @@ def waitForGcpTranscriptions(
   print('gcloud response!')
   print(resp)
   # similar to output2tsv
-  with open('data/outputs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+  with open('data/outputs/gcp_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
     f.write(resp.encode('utf-8'))
   obj = json.loads(resp)
-  with open('data/tsvs/goog_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
+  with open('data/tsvs/gcp_{video_id}.tsv'.format(video_id=video_id), 'wb') as f:
     # Kinda like `jq '.results[] | .alternatives[] | .words'`
     for thing in obj['results']:
       for other in thing['alternatives']:
@@ -362,7 +364,6 @@ def waitForGcpTranscriptions(
           # [:-1] cause google appends an "s" to all their times
           f.write(("\t".join([
             word['startTime'][:-1],
-            word['endTime'][:-1],
             '%.3f' % (float(word['endTime'][:-1]) - float(word['startTime'][:-1])),
             word['word'],
           ])).encode('utf-8'))
@@ -387,10 +388,9 @@ def alignLyricFile(video_id: str, lyric_file: str, dry_run: bool) -> None:
       for line in in_f:
         cols = line.decode('utf-8').rstrip('\n').split('\t')
         start = float(cols[0])
-        end = float(cols[1])
-        duration = float(cols[2])
-        text = cols[3]
-        transcribed.append((start, end, duration, text))
+        duration = float(cols[1])
+        text = cols[2]
+        transcribed.append((start, duration, text))
   lyrics = []
   with open(lyric_file, 'rb') as in_f:
     for line in in_f:
@@ -448,7 +448,7 @@ def evalModel(video_id: str, model_file: str, dry_run: bool) -> None:
     _resp = mysystem_wrapper(
       dry_run,
       [
-        'python',
+        'python3',
         'eval.py',
         model_file,
         video_id,
@@ -507,7 +507,7 @@ def gen_subtitles(
   else:
     print('No lyric file', file=sys.stderr)
 
-  # TODO join aws data/outputs/{video_id}.json, model eval output, and lyrics file
+  # TODO join aws data/outputs/aws_{video_id}.json, model eval output, and lyrics file
   srt_file = formatTsvAsSrt(video_id, dry_run)
   addSrtToVideo(video_file, file_name, srt_file, dry_run)
 
