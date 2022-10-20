@@ -54,10 +54,10 @@ def tsv2srt(in_file: str, out_file: str) -> SuccessOrFailure:
       if cols[0] == '':
         continue
       try:
-        duration = float(cols[2])
-        results.append(Utterance(float(cols[0]), float(cols[1]), cols[3]))
-      except ValueError:
-        print('Failed to parse row %d' % len(results))
+        duration = float(cols[1])
+        results.append(Utterance(float(cols[0]), duration, cols[2]))
+      except ValueError as e:
+        print('Failed to parse row %d. %s: %s' % (len(results), type(e).__name__, str(e)))
         continue
       if results[-1].duration - duration > 0.0001:
         print('Incorrect duration in row %d. Read %f, but derived %f' % (

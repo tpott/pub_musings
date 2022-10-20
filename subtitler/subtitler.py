@@ -71,6 +71,8 @@ def downloadVideo(url: str, video_id: str, dry_run: bool) -> str:
     'youtube_dl',
     '--no-cache-dir',
     '--no-playlist',
+    '-f',
+    'bestvideo[height<=480]',
     url,
     # '--merge-output-format',
     # 'mkv',
@@ -92,6 +94,7 @@ def extractAudio(video_file: str, video_id: str, dry_run: bool) -> None:
   # from https://docs.aws.amazon.com/transcribe/latest/dg/API_TranscriptionJob.html#transcribe-Type-TranscriptionJob-MediaFormat
   _resp = mysystem([
     'ffmpeg',
+    '-n',
     '-i',
     'data/downloads/{video_file}'.format(video_file=video_file),
     'data/audios/{video_id}.wav'.format(video_id=video_id),
@@ -121,6 +124,7 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     return
   _resp = mysystem([
     'ffmpeg',
+    '-n',
     '-i',
     'data/audios/{video_id}/vocals.wav'.format(video_id=video_id),
     '-map_channel',
@@ -423,6 +427,7 @@ def addSrtToVideo(
   mysystem = lambda command: mysystem_wrapper(dry_run, command)
   _resp = mysystem([
     'ffmpeg',
+    '-n',
     '-i',
     'data/downloads/{video_file}'.format(video_file=video_file),
     '-i',
