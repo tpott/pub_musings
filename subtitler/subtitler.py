@@ -71,9 +71,8 @@ def downloadVideo(url: str, video_id: str, dry_run: bool) -> str:
     'youtube_dl',
     '--no-cache-dir',
     '--no-playlist',
+    '--all-subs',
     url,
-    # '--merge-output-format',
-    # 'mkv',
     '--output',
     'data/downloads/{video_id}.%(ext)s'.format(
       video_id=video_id
@@ -110,11 +109,11 @@ def maybeSpleeter(video_id: str, dry_run: bool) -> None:
     '-m',
     'spleeter',
     'separate',
-    'data/audios/{video_id}.wav'.format(video_id=video_id),
     '-p',
     'spleeter:2stems',
     '-o',
     'data/audios/',
+    'data/audios/{video_id}.wav'.format(video_id=video_id),
   ])
   if resp != 0:
     print('spleeter failed to run. Return code = %d' % resp, file=sys.stderr)
@@ -189,10 +188,10 @@ def startAwsTranscriptJob(
     'awscli',
     'transcribe',
     'start-transcription-job',
-    '--region',
-    region,
     '--cli-input-json',
     'file://job-start-command.json',
+    '--region',
+    region,
   ])
   return
   # end def startAwsTranscriptJob
@@ -207,10 +206,10 @@ def waitForAwsTranscriptions(region: str, dry_run: bool) -> None:
       'awscli',
       'transcribe',
       'list-transcription-jobs',
-      '--region',
-      region,
       '--status',
       'IN_PROGRESS',
+      '--region',
+      region,
     ])
     try:
       obj = json.loads(res if res is not None else '')
@@ -315,10 +314,10 @@ def startGcpTranscriptJob(
     'ml',
     'speech',
     'recognize-long-running',
-    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
-    '--language-code={lang}'.format(lang=lang),
-    '--async',
     '--include-word-time-offsets',
+    '--async',
+    '--language-code={lang}'.format(lang=lang),
+    'gs://{bucket}/{video_id}.wav'.format(bucket=bucket, video_id=video_id),
   ]
   print(" ".join(command))
   resp = mysystem(command)
@@ -426,16 +425,14 @@ def addSrtToVideo(
   _resp = mysystem([
     'ffmpeg',
     '-n',
+    '-s',
+    '720x480',
+    '-c:s',
+    'mov_text',
     '-i',
     'data/downloads/{video_file}'.format(video_file=video_file),
     '-i',
     srt_file,
-    '-s',
-    '720x480',
-    # '-c',
-    # 'copy',
-    '-c:s',
-    'mov_text',
     'data/final/{filename}.mp4'.format(filename=file_name),
   ])
   return
