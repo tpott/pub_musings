@@ -425,14 +425,14 @@ def addSrtToVideo(
   _resp = mysystem([
     'ffmpeg',
     '-n',
-    '-s',
-    '720x480',
-    '-c:s',
-    'mov_text',
     '-i',
     'data/downloads/{video_file}'.format(video_file=video_file),
     '-i',
     srt_file,
+    '-s',
+    '720x480',
+    '-c:s',
+    'mov_text',
     'data/final/{filename}.mp4'.format(filename=file_name),
   ])
   return
