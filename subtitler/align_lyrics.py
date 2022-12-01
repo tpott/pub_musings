@@ -249,7 +249,7 @@ def alignLyrics(
       print(utt, file=sys.stderr)
 
   # As suggested by https://stackoverflow.com/questions/3939361/remove-specific-characters-from-a-string-in-python
-  remove_table = dict.fromkeys(map(ord, '?!-.,'), None)
+  remove_table = dict.fromkeys(map(ord, '?!-.,\'()'), None)
   lyrics = []
   with open(lyric_file, 'rb') as in_f:
     for line in in_f:
