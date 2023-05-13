@@ -1,6 +1,11 @@
 audios/
+cert.pem
+data/
 downloads/
 final/
+job-start-command.json
+key.pem
+logs
 lyrics/
 models/
 notebooks/.ipynb_checkpoints/
@@ -10,7 +15,3 @@ tmp/
 tsvs/
 video_ids/
 video_names/
-cert.pem
-job-start-command.json
-key.pem
-logs
