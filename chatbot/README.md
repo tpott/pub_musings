@@ -22,5 +22,8 @@ You can run `curl -k --socks5-hostname 127.0.0.1:9050 -v "YOUR_ONION_URL"`
 * Based off of https_server.py
 * wut.pem was the PEM bundle from harica, including their intermediate certs, but manually removed the non-PEM contents
 
-`LAST_RUN_FILE=/tmp/last_run_file PAGE_ID=108420048810326 PAGE_TOKEN_FILE=/tmp/page_token_file python3.11 facebook_loop.py`
+`OPENAI_API_KEY_FILE=/tmp/openai_api_key_file python3.11 chatgpt.py`
+* Minimal example exercising https://platform.openai.com/docs/guides/gpt/chat-completions-api
+
+`OPENAI_API_KEY_FILE=/tmp/openai_api_key_file LAST_RUN_FILE=/tmp/last_run_file PAGE_ID=108420048810326 PAGE_TOKEN_FILE=/tmp/page_token_file python3.11 facebook_loop.py`
 * These env vars can be exported, this is just a single line command that is copy-pastable and runnable
