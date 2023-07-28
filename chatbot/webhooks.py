@@ -25,6 +25,12 @@ class TCPServer(socketserver.TCPServer):
   def getExample(self):
     return self.example
 
+  def setCallback(self, callback):
+    self.callback = callback
+
+  def getCallback(self):
+    return self.callback
+
 
 class MyHandler(http.server.SimpleHTTPRequestHandler):
   def __init__(self, *args, **kwargs):
@@ -34,8 +40,10 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
   def setup(self):
     if type(self.server) == TCPServer:
       self.example = self.server.getExample()
+      self.callback = self.server.getCallback()
     else:
       self.example = None
+      self.callback = None
     super().setup()
 
   def _myRedirect(self, url: str) -> None:
@@ -123,6 +131,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       self.send_header('Content-Type', 'text/html; charset=utf-8')
       self.end_headers()
       self.wfile.write(s)
+      if self.callback is not None:
+        self.callback()
     return
 
   def do_POST(self):
@@ -146,7 +156,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     return
 
 
-def serve(host, port, cert_fpath, privkey_fpath):
+def serve(host, port, cert_fpath, privkey_fpath, callback=None):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS)
     pword = ''
     if 'BEGIN ENCRYPTED PRIVATE KEY' in open(privkey_fpath).read():
@@ -158,6 +168,7 @@ def serve(host, port, cert_fpath, privkey_fpath):
       httpd.setExample({
         'wut': 'example data!',
       })
+      httpd.setCallback(callback)
       print('Serving at port:', port)
       httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
       httpd.serve_forever()
@@ -172,4 +183,4 @@ if __name__ == '__main__':
     cert_path = sys.argv[2]
     privkey_path = sys.argv[3]
     
-    serve('0.0.0.0', port, cert_path, privkey_path)
+    serve('0.0.0.0', port, cert_path, privkey_path, None)

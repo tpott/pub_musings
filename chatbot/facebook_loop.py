@@ -9,6 +9,7 @@ from typing import (Any, Dict, List, NewType, Tuple)
 import requests
 
 from chatgpt import chatCompletitions
+from webhooks import serve
 
 
 seconds = float
@@ -54,37 +55,57 @@ def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[s
   # created_time like "2023-01-12T03:24:13+0000"
   return sorted(results['messages']['data'], key=lambda x: x['created_time'])
 
-def loop() -> None:
+
+def runOnce() -> None:
+  # get env vars
   last_run_file = os.environ.get('LAST_RUN_FILE')
   page_id = os.environ.get('PAGE_ID')
   page_token_file = os.environ.get('PAGE_TOKEN_FILE')
+
+  # loop over recent conversations
+  conversations = getRecentConversations(page_id, page_token_file, last_run_file)
+  for conv in conversations:
+    messages = getRecentMessages(conv[0], page_token_file)
+    # skip if the last message was from the bot
+    if messages[-1]['from']['id'] == page_id:
+      print(f'skipping conversation t_id {conv[0]} with {conv[1]}')
+      continue 
+
+    # construct our messages for calling openai for chatgpt
+    context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob."}]
+    for msg in messages:
+      if msg['from']['id'] == page_id:
+        context_messages.append({"role": "assistant", "content": msg['message']})
+      else:
+        context_messages.append({"role": "user", "content": msg['message']})
+      print(context_messages[-1])
+      # end for loop over messages
+
+    # call openai and post the message it generates
+    resp = chatCompletitions(context_messages)
+    result = requests.post(f'https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read()}')
+    print(result)
+    result.raise_for_status()
+    # end for loop over conversations
+  open(last_run_file, 'w').write(str(int(time.time())))
+
+
+def runLoop(sleep_time: seconds) -> None:
   while True:
-    conversations = getRecentConversations(page_id, page_token_file, last_run_file)
-    for conv in conversations:
-      messages = getRecentMessages(conv[0], page_token_file)
-      if messages[-1]['from']['id'] == page_id:
-        print(f'skipping conversation t_id {conv[0]} with {conv[1]}')
-        continue # skip if the last message was from the bot
-      context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob."}]
-      for msg in messages:
-        if msg['from']['id'] == page_id:
-          context_messages.append({"role": "assistant", "content": msg['message']})
-        else:
-          context_messages.append({"role": "user", "content": msg['message']})
-        print(context_messages[-1])
-      resp = chatCompletitions(context_messages)
-      result = requests.post(f'https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read()}')
-      print(result)
-      result.raise_for_status()
-      # TODO POST /{page_id}/messages?recipient={id:6397427050373172}&message={text:'You did it!'}&messaging_type=RESPONSE&acess_token=$page_token
-      # end for loop over conversations
-    open(last_run_file, 'w').write(str(int(time.time())))
+    runOnce()
     break # TODO remove
-    time.sleep(seconds(5))
+    time.sleep(sleep_time)
 
 
 def main() -> None:
-  loop()
+  cert_path = os.environ.get('WEBHOOK_CERT_FILE')
+  privkey_path = os.environ.get('WEBHOOK_KEY_FILE')
+  if cert_path is not None or privkey_path is not None:
+    serve('0.0.0.0', 8443, cert_path, privkey_path, runOnce)
+    # TODO async call loop with a 1 min sleep, just as a fallback
+    # in case webhooks stop working
+  else:
+    runLoop(seconds(5))
 
 
 if __name__ == '__main__':
