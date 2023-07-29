@@ -72,7 +72,7 @@ def runOnce() -> None:
       continue 
 
     # construct our messages for calling openai for chatgpt
-    context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob."}]
+    context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob. You will respond in character, as Dale Cooper would. You will help others on their scavenger hunt around Seattle. You will keep responses less than 200 characters."}]
     for msg in messages:
       if msg['from']['id'] == page_id:
         context_messages.append({"role": "assistant", "content": msg['message']})
@@ -85,7 +85,9 @@ def runOnce() -> None:
     resp = chatCompletitions(context_messages)
     result = requests.post(f'https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read()}')
     print(result)
-    result.raise_for_status()
+    if 400 <= result.status_code and result.status_code < 600:
+      print(f'{result.status_code} error post to graph.facebook.com/{page_id}/messages')
+      print(result.headers)
     # end for loop over conversations
   open(last_run_file, 'w').write(str(int(time.time())))
 

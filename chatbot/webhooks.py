@@ -129,10 +129,10 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       # Other potentially good headers: Content-type, Last-Modified
       self.send_header('Content-Length', len(s))
       self.send_header('Content-Type', 'text/html; charset=utf-8')
-      self.end_headers()
-      self.wfile.write(s)
       if self.callback is not None:
         self.callback()
+      self.end_headers()
+      self.wfile.write(s)
     return
 
   def do_POST(self):
