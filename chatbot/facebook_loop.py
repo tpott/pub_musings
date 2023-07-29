@@ -103,6 +103,7 @@ def main() -> None:
   cert_path = os.environ.get('WEBHOOK_CERT_FILE')
   privkey_path = os.environ.get('WEBHOOK_KEY_FILE')
   if cert_path is not None or privkey_path is not None:
+    runOnce()
     serve('0.0.0.0', 8443, cert_path, privkey_path, runOnce)
     # TODO async call loop with a 1 min sleep, just as a fallback
     # in case webhooks stop working

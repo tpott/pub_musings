@@ -142,6 +142,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     except Exception:
       e_type, e, trace = sys.exc_info()
       # TODO add stack trace and exception message
+      print(f'Unexpected exception: {e_type}, {e}')
+      print(traceback.format_tb(trace))
       s = b'<div>Unexpected exception, %s: %s</div>\n' % (e_type.__name__.encode('utf-8'), str(e).encode('utf-8'))
       s += "\n".join(map(lambda s: '<div>%s</div>' % s, traceback.format_tb(trace))).encode('utf-8')
     finally:
@@ -151,8 +153,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
     self.send_header('Content-Length', len(s))
     self.send_header('Content-Type', 'text/html; charset=utf-8')
-    self.end_headers()
-    self.wfile.write(s)
+    if not self.wfile.closed:
+      self.end_headers()
+      self.wfile.write(s)
     return
 
 
