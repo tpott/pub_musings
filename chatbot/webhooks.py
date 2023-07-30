@@ -122,7 +122,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     # TODO move this check after the status check
     if request.path == '/validation':
       print(request)
-      print(self.rfile.read())
+      print(self.rfile.read(int(self.headers['Content-Length'])))
       print(self.headers.get('X-Hub-Signature-256'))
       s = b'1-AM-ALIVE'
       self.send_response(http.server.HTTPStatus.OK)
@@ -153,7 +153,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
     self.send_header('Content-Length', len(s))
     self.send_header('Content-Type', 'text/html; charset=utf-8')
-    if not self.wfile.closed:
+    if not self.socket.wfile.closed:
       self.end_headers()
       self.wfile.write(s)
     return

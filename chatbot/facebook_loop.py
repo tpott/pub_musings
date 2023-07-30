@@ -15,7 +15,8 @@ from webhooks import serve
 seconds = float
 
 t_id = NewType('t_id', str)
-conversation = NewType('conversation', Tuple[t_id, str])
+u_id = NewType('u_id', str)
+conversation = NewType('conversation', Tuple[t_id, u_id])
 
 
 SECONDS_IN_DAY = seconds(86400)
@@ -42,7 +43,7 @@ def getRecentConversations(
       filtered.append(res)
   # TODO we aren't using the paging cursors
   print(f'returning {len(filtered)} recent conversations')
-  return list(map(lambda x: (x['id'], x['other']), filtered))
+  return list(map(lambda x: conversation((t_id(x['id']), u_id(x['other']))), filtered))
 
 
 def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[str, Any]]:
@@ -59,8 +60,11 @@ def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[s
 def runOnce() -> None:
   # get env vars
   last_run_file = os.environ.get('LAST_RUN_FILE')
+  assert last_run_file is not None, "Missing env var: LAST_RUN_FILE"
   page_id = os.environ.get('PAGE_ID')
+  assert page_id is not None, "Missing env var: PAGE_ID"
   page_token_file = os.environ.get('PAGE_TOKEN_FILE')
+  assert page_token_file is not None, "Missing env var: PAGE_TOKEN_FILE"
 
   # loop over recent conversations
   conversations = getRecentConversations(page_id, page_token_file, last_run_file)
