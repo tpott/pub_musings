@@ -27,9 +27,9 @@ def getRecentConversations(
   page_token_file: str,
   last_run_file: str,
 ) -> List[conversation]:
-  last_run_time = int(open(last_run_file).read())
+  last_run_time = int(open(last_run_file).read().strip())
   print(last_run_time)
-  access_token = open(page_token_file).read()
+  access_token = open(page_token_file).read().strip()
   resp = requests.get(f'https://graph.facebook.com/{page_id}/conversations?fields=participants,updated_time&access_token={access_token}')
   results = resp.json()
   print(results)
@@ -47,7 +47,7 @@ def getRecentConversations(
 
 
 def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[str, Any]]:
-  access_token = open(page_token_file).read()
+  access_token = open(page_token_file).read().strip()
   resp = requests.get(f'https://graph.facebook.com/{conversation_id}?fields=messages{{message,created_time,from}}&access_token={access_token}')
   results = resp.json()
   print(results)
@@ -76,7 +76,8 @@ def runOnce() -> None:
       continue 
 
     # construct our messages for calling openai for chatgpt
-    context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob. You will respond in character, as Dale Cooper would. You will help others on their scavenger hunt around Seattle. You will keep responses less than 200 characters."}]
+    # context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob. You will respond in character, as Dale Cooper would. You will help others on their scavenger hunt around Seattle. You will keep responses less than 200 characters."}]
+    context_messages = [{"role": "system", "content": "Let's play a text adventure together. The setting is that you're sailing on a boat across the Caribbean. You are Captain John, and you have two other companions, Emma and Charlie. You must not break out of character."}]
     for msg in messages:
       if msg['from']['id'] == page_id:
         context_messages.append({"role": "assistant", "content": msg['message']})
@@ -87,7 +88,10 @@ def runOnce() -> None:
 
     # call openai and post the message it generates
     resp = chatCompletitions(context_messages)
-    result = requests.post(f'https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read()}')
+    # Replace newlines and tabs because the graph API doesnt like them
+    resp_text = resp.replace('\n', '\\n').replace('\t', '\\t').replace('"', '\\"')
+    print(f'POST to https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp_text}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read().strip()}')
+    result = requests.post(f'https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp_text}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read().strip()}')
     print(result)
     if 400 <= result.status_code and result.status_code < 600:
       print(f'{result.status_code} error post to graph.facebook.com/{page_id}/messages')

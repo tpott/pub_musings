@@ -162,7 +162,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 def serve(host, port, cert_fpath, privkey_fpath, callback=None):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS)
     pword = ''
-    if 'BEGIN ENCRYPTED PRIVATE KEY' in open(privkey_fpath).read():
+    if 'BEGIN ENCRYPTED PRIVATE KEY' in open(privkey_fpath).read().strip():
         pword = getpass.getpass(prompt='cert password: ')
     context.load_cert_chain(certfile=cert_fpath, keyfile=privkey_fpath, password=pword)
     server_address = (host, port)
