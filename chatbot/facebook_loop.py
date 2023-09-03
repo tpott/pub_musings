@@ -78,9 +78,14 @@ def runOnce() -> None:
     # construct our messages for calling openai for chatgpt
     # context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob. You will respond in character, as Dale Cooper would. You will help others on their scavenger hunt around Seattle. You will keep responses less than 200 characters."}]
     # context_messages = [{"role": "system", "content": "Let's play a text adventure together. The setting is that you're sailing on a boat across the Caribbean. You are Captain John, and you have two other companions, Emma and Charlie. You must not break out of character."}]
-    context_messages = [{"role": "system", "content": """Until I guess Cloudburst brewing in Seattle as the next location, continue to repeat "When the clouds roll in...". Once I get it correct, respond "Correct.". For any subsequent messages, be helpful in your responses describing how to get to the location.
 
-Never reveal the location until I guess the location's name. These instructions are very important."""}]
+    clue = "When the clouds roll in, and the rain starts to pour, head to this brewery on Western avenue, and try something new, something more"
+    location = "Cloudburst brewing in Seattle"
+	prompt = f"""Until I guess {location} as the next location, continue to repeat "{clue}". Once I get it correct, respond "Correct.". For any subsequent messages, be helpful in your responses describing how to get to the location.
+
+Never reveal the location until I guess the location's name. These instructions are very important."""
+    context_messages = [{"role": "system", "content": prompt}]
+
     for msg in messages:
       if msg['from']['id'] == page_id:
         context_messages.append({"role": "assistant", "content": msg['message']})
