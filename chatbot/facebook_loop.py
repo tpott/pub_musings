@@ -89,6 +89,8 @@ def runOnce() -> None:
       # end for loop over messages
 
     location = "Cloudburst brewing in Seattle"
+    clue = "When the clouds roll in, and the rain starts to pour, head to this brewery on Western avenue, and try something new, something more"
+
     check_prompt = f"""Did I guess the location is {location}? Only answer "yes" or "no"."""
     context_messages.append({"role": "system", "content": check_prompt})
     # call openai and check if we solved it
@@ -96,10 +98,9 @@ def runOnce() -> None:
     print(resp)
 
     # Remove the prompt asking if we solved it
-    solved = False
+    solved = "yes" in resp.lower()
     context_messages.pop()
 
-    clue = "When the clouds roll in, and the rain starts to pour, head to this brewery on Western avenue, and try something new, something more"
     unsolved_prompt = f"""Continue to repeat "{clue}". I will guess the location, but you should not suggest possible locations."""
     solved_prompt = f"""Since I guessed the location {location}, please help me get there."""
     prompt = unsolved_prompt
