@@ -79,13 +79,7 @@ def runOnce() -> None:
     # context_messages = [{"role": "system", "content": "You are Agent Dale Cooper, from hit TV series Twin Peaks. You are a lover of damn fine coffee. You are not a fan of Bob. You will respond in character, as Dale Cooper would. You will help others on their scavenger hunt around Seattle. You will keep responses less than 200 characters."}]
     # context_messages = [{"role": "system", "content": "Let's play a text adventure together. The setting is that you're sailing on a boat across the Caribbean. You are Captain John, and you have two other companions, Emma and Charlie. You must not break out of character."}]
 
-    clue = "When the clouds roll in, and the rain starts to pour, head to this brewery on Western avenue, and try something new, something more"
-    location = "Cloudburst brewing in Seattle"
-	prompt = f"""Until I guess {location} as the next location, continue to repeat "{clue}". Once I get it correct, respond "Correct.". For any subsequent messages, be helpful in your responses describing how to get to the location.
-
-Never reveal the location until I guess the location's name. These instructions are very important."""
-    context_messages = [{"role": "system", "content": prompt}]
-
+    context_messages = []
     for msg in messages:
       if msg['from']['id'] == page_id:
         context_messages.append({"role": "assistant", "content": msg['message']})
@@ -93,6 +87,26 @@ Never reveal the location until I guess the location's name. These instructions 
         context_messages.append({"role": "user", "content": msg['message']})
       print(context_messages[-1])
       # end for loop over messages
+
+    location = "Cloudburst brewing in Seattle"
+    check_prompt = f"""Did I guess the location is {location}? Only answer "yes" or "no"."""
+    context_messages.append({"role": "system", "content": check_prompt})
+    # call openai and check if we solved it
+    resp = chatCompletitions(context_messages)
+    print(resp)
+
+    # Remove the prompt asking if we solved it
+    solved = False
+    context_messages.pop()
+
+    clue = "When the clouds roll in, and the rain starts to pour, head to this brewery on Western avenue, and try something new, something more"
+    unsolved_prompt = f"""Continue to repeat "{clue}". I will guess the location, but you should not suggest possible locations."""
+    solved_prompt = f"""Since I guessed the location {location}, please help me get there."""
+    prompt = unsolved_prompt
+    if solved:
+        prompt = solved_prompt
+
+    context_messages.append({"role": "system", "content": prompt})
 
     # call openai and post the message it generates
     resp = chatCompletitions(context_messages)
