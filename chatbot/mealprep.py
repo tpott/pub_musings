@@ -45,6 +45,7 @@ def main() -> None:
     # add or remove items that we already have
 
     if not os.path.isfile(args.meal_list):
+        print("no meal_list file detected, here's a potential list:")
         # help construct the meal list
         print(chatCompletitions([
             # This just kinda sorta reformatted the list
@@ -59,6 +60,7 @@ def main() -> None:
         return
 
     if not os.path.isfile(args.meal_plan):
+        print("no meal_plan file detected, here's a potential plan:")
         # help prototype the meal plan for the week
         print(chatCompletitions([
             # Days were numbered, rather than named.
@@ -67,13 +69,19 @@ def main() -> None:
             # {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday."},
             # It really doesn't know how to include snacks
             # {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Each day should include a breakfast, lunch and dinner. Each day may include an optional afternoon snack."},
-            {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Only plan for the work week, Monday through Friday. Each day should include a breakfast, lunch and dinner."},
+            # {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Only plan for the work week, Monday through Friday. Each day should include a breakfast, lunch and dinner."},
+            # lets try to get just two meals a day
+            # {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Only plan for the work week, Monday through Friday. Each day should include a breakfast, lunch or dinner."},
+            # on second thought, lunches aren't a good idea
+            # {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Only plan for the work week, Monday through Friday. Each day should include two meals: a breakfast and a lunch or dinner."},
+            {"role": "system", "content": "Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Only plan for the work week, Monday through Friday. Each day should include two meals: a breakfast and a dinner."},
             # TODO escape meal_list file content
             {"role": "user", "content": open(args.meal_list).read()},
         ]))
         return
 
     if args.modifications is not None and args.modifications != "":
+        print("meal_plan modifications detected, here's a revised plan:")
         messages = [
             {"role": "system", "content": f"Please help me plan a week's worth of meals given these meal options. Start the week on Monday. Only plan for the work week, Monday through Friday. Each day should include a breakfast, lunch and dinner. The current plan is: {open(args.meal_plan).read()}"},
         ]
@@ -84,6 +92,7 @@ def main() -> None:
 
     # aka "print shopping list"
     # help construct the meal list
+    print("meal_plan detected and no modifications, here's a shopping list:")
     print(chatCompletitions([
         {"role": "system", "content": "Please help sort the following recipe ingredients for the following meals for monday - friday. First start with fruits and vegetables, second meats, third dairies and sauces, and finally any grains."},
         # TODO escape ingredient_list file content
