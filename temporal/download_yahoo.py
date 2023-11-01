@@ -32,7 +32,7 @@ def main() -> None:
     end = now
     for i in range(4):
       start = (end - timedelta(days=5 * 365 + 1))
-      command = f"curl -o {data_dir}/{ticker}_{i}.csv 'https://query1.finance.yahoo.com/v7/finance/download/{ticker}?period1={int(start.timestamp())}&period2={int(end.timestamp())}&interval=1d&events=history&includeAdjustedClose=true'"
+      command = f"curl --fail-with-body --silent -o {data_dir}/{ticker}_{i}.csv 'https://query1.finance.yahoo.com/v7/finance/download/{ticker}?period1={int(start.timestamp())}&period2={int(end.timestamp())}&interval=1d&events=history&includeAdjustedClose=true'"
       ret = os.system(command)
       print(f"`{command}` = {ret}")
       time.sleep(0.2)

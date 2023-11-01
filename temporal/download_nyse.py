@@ -22,7 +22,7 @@ def main() -> None:
   chunk_size = 10
   while True:
     # --fail-with-body ensures curl returns an error when we get a non 200 response
-    command = f"curl 'https://www.nyse.com/api/quotes/filter' -H 'Content-Type: application/json' -H 'Referer: https://www.nyse.com/listings_directory/stock' --data-raw '{{\"instrumentType\":\"EQUITY\",\"pageNumber\":{page},\"sortColumn\":\"NORMALIZED_TICKER\",\"sortOrder\":\"ASC\",\"maxResultsPerPage\":{chunk_size},\"filterToken\":\"\"}}' --fail-with-body > {data_dir}/{page}"
+    command = f"curl 'https://www.nyse.com/api/quotes/filter' --silent -H 'Content-Type: application/json' -H 'Referer: https://www.nyse.com/listings_directory/stock' --data-raw '{{\"instrumentType\":\"EQUITY\",\"pageNumber\":{page},\"sortColumn\":\"NORMALIZED_TICKER\",\"sortOrder\":\"ASC\",\"maxResultsPerPage\":{chunk_size},\"filterToken\":\"\"}}' --fail-with-body > {data_dir}/{page}"
     ret = os.system(command)
     print(f"`{command}` = {ret}")
     if ret != 0:
