@@ -124,7 +124,7 @@ def main() -> None:
     ohlc = df.loc[big_df.index[-1], ticker]
     value = round(ohlc.Close * balance, 2)
     value_balance += value
-    print(f"{ticker} +{buy_counts[ticker]} -{sell_counts[ticker]} = {balance} * {ohlc.Close} ~= {value}", file=sys.stderr)
+    print(f"{ticker} +{buy_counts[ticker]} -{sell_counts[ticker]} = {balance} @ ${round(ohlc.Close, 2)} ~= {value}", file=sys.stderr)
   print(f"value_balance = {value_balance}", file=sys.stderr)
 
   return

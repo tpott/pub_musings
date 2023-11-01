@@ -90,10 +90,11 @@ def main() -> None:
 
   # TODO figure out why NaN values are showing up
   series = df[df.Name == args.ticker][args.metric].dropna().to_numpy()
-  print(f"{args.ticker} example")
-  print(series)
-  print(deseasonalize(args.n, series))
-  print()
+  # This prints the entire series... which is a bit verbose
+  # print(f"{args.ticker} example")
+  # print(series)
+  # print(deseasonalize(args.n, series))
+  # print()
 
   # History per Name aggregation
   # hist_lambda = lambda x: pd.Series({"History": list(zip(x.Date, x.Volume))})
@@ -119,7 +120,7 @@ def main() -> None:
 
   axes = big_df[[args.ticker]].plot(figsize=EXTRA_WIDE)
   norm_df[[args.ticker]].plot(ax=axes)
-  plt.legend(["big_df", "norm_df"])
+  plt.legend(["original_df", "deseasonalized_df"])
   plt.show()
 
   # Is `x` a row, a column, or something else?
