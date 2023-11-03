@@ -145,12 +145,9 @@ document.onkeydown = checkKey;
     start = query["start"][0]
     end = query["end"][0]
     ticker = query["ticker"][0]
-    self.send_response(http.server.HTTPStatus.OK)
-    self.send_header("Content-Type", "image/png")
-    self.end_headers()
 
     # TODO pass filename into MyHandler
-    df = pd.read_csv("combined_a392a33ee14c7203.csv")
+    df = pd.read_csv("combined_4b5bf22c082afb4d.csv")
     df = df[(df.Name == ticker) & (start <= df.Date) & (df.Date < end)]
     # TODO pass metric into MyHandler
     metric = "Close"
@@ -162,7 +159,11 @@ document.onkeydown = checkKey;
     # big_df = big_df.dropna(axis=0, how="any")
     axes = big_df[[ticker]].plot(figsize=EXTRA_WIDE)
     norm_df[[ticker]].plot(ax=axes)
-    plt.legend(["big_df", "norm_df"])
+    plt.legend(["original_df", "deseasonalized_df"])
+
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header("Content-Type", "image/png")
+    self.end_headers()
     plt.savefig(self.wfile, format="png")
     return
 
@@ -221,21 +222,27 @@ def main() -> None:
   seed = secrets.randbits(64)
   print(f"Seeded with: {seed}")
   random.seed(seed)
+
+  # Generate a self signed cert by running the following:
+  # `openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 30`
+  context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+  context.load_cert_chain("cert.pem", "key.pem")
   
   # This avoids "Address already in use" errors while testing
   TCPServer.allow_reuse_address = True
   with TCPServer(("0.0.0.0", PORT), MyHandler) as httpd:
     print(f"Serving at {PORT}")
-    # Generate a self signed cert by running the following:
-    # `openssl req -nodes -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 30`
-    httpd.socket = ssl.wrap_socket(
-      httpd.socket,
-      server_side=True,
-      keyfile="key.pem",
-      certfile="cert.pem",
-      ssl_version=ssl.PROTOCOL_TLSv1_2
-    )
-    httpd.serve_forever()
+    with context.wrap_socket(httpd.socket, server_side=True) as sock:
+      httpd.socket = sock
+      httpd.serve_forever()
+      # httpd.socket = ssl.wrap_socket(
+        # httpd.socket,
+        # server_side=True,
+        # keyfile="key.pem",
+        # certfile="cert.pem",
+        # ssl_version=ssl.PROTOCOL_TLSv1_2
+      # )
+      # httpd.serve_forever()
 
   return
 
