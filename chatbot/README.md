@@ -11,6 +11,7 @@ Inside a `static` dir, create `.well-known/pki-validation` for harica DV cert va
 
 `openssl req -new -x509 -nodes -newkey ec:<(openssl ecparam -name secp384r1) -keyout cert.key -out cert.crt -days 30` generates a new cert
 * `openssl ecparam -list_curves` didn't have all the curves I wanted.. secp384r1 seemed okay
+* secp384r1 was based on https://soatok.blog/2022/05/19/guidance-for-choosing-an-elliptic-curve-signature-algorithm-in-2022/ and being available
 
 `python3 ../https_server.py 8443 ../cert.crt ../cert.key` serves the local dir contents for static cert validation
 * Mostly copied. I added the `getpass` bits so the TLS cert can be encrypted at rest
