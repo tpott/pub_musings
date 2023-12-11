@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plaid Link Example</title>
+    <!-- Include Plaid Link JavaScript library -->
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+</head>
+<body>
+
+<h1>Welcome to Plaid Link Example</h1>
+
+<!-- Add a form for entering the link token -->
+<form id="plaid-link-form">
+    <label for="link-token-input">Enter Link Token:</label>
+    <input type="text" id="link-token-input" name="link-token" size="80" required>
+	<br />
+    <button type="button" id="plaid-link-button">Open Plaid Link</button>
+</form>
+<br />
+
+<!-- Add read-only text inputs for displaying Plaid metadata and public token -->
+<label for="public-token">Public Token:</label>
+<input type="text" id="public-token" size="80" readonly>
+<br />
+
+<label for="plaid-metadata">Plaid Metadata:</label>
+<br />
+<textarea id="plaid-metadata" rows="5" cols="80" readonly ></textarea>
+<br />
+
+<label for="plaid-error">Plaid Error:</label>
+<br />
+<textarea id="plaid-error" rows="5" cols="80" readonly ></textarea>
+<br />
+
+<script>
+    // Initialize Plaid Link with the link token
+    function initializePlaidLink(linkToken) {
+        // Get the link token from the input field
+        const linkTokenInput = document.getElementById('link-token-input');
+
+        const linkHandler = Plaid.create({
+            token: linkTokenInput.value,
+            onSuccess: function (public_token, metadata) {
+                // Handle successful Plaid Link integration
+                console.log('Public Token:', public_token);
+                console.log('Metadata:', metadata);
+				document.getElementById('plaid-metadata').value = JSON.stringify(metadata);
+
+                // Display the public token
+                document.getElementById('public-token').value = public_token;
+            },
+            onExit: function (err, metadata) {
+                // Handle when the user exits Plaid Link
+                console.log('Exit Metadata:', metadata);
+				document.getElementById('plaid-metadata').value = JSON.stringify(metadata);
+                if (err == null) {
+					return;
+				}
+				console.error('Error:', err);
+				document.getElementById('plaid-error').value = JSON.stringify(err);
+            },
+        });
+
+		linkHandler.open();
+    }
+
+	function clearResults() {
+		// Clear previous results
+		document.getElementById('plaid-metadata').value = '';
+		document.getElementById('plaid-error').value = '';
+		document.getElementById('public-token').value = '';
+	}
+
+    // Add submit event to the form
+    document.getElementById('plaid-link-form').onsubmit = function (event) {
+        event.preventDefault(); // Prevent the form from submitting
+
+		clearResults();
+		initializePlaidLink();
+    };
+
+	// Add click event to the Plaid Link button
+	document.getElementById('plaid-link-button').onclick = function () {
+		clearResults();
+		initializePlaidLink();
+	};
+</script>
+
+</body>
+</html>
