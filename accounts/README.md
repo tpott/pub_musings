@@ -39,4 +39,4 @@ Then, copy the cert out... And change the owner.
 
 `cd static && python3 ../https_server.py 8443 ../fullchain.pem ../privkey.pem`
 
-And from the first terminal, `ssh -vNTR 443:localhost:8443 root@home2.pottingers.us`
+And from the first terminal, `ssh -vNTR 443:localhost:8443 $user@$domain`
