@@ -18,7 +18,7 @@ https://plaid.com/docs/api/tokens/#itempublic_tokenexchange
 
 `openssl req -new -x509 -nodes -newkey ec:<(openssl ecparam -name secp384r1) -keyout cert.key -out cert.crt -days 30`
 
-`cd static && python3 ../https_server.py 8443 ../cert.crt ../cert.key`
+`cd static && python3 ../https_server.py 8443 ../private/cert.crt ../private/cert.key`
 
 Maybe just a https://letsencrypt.org/docs/challenge-types/#http-01-challenge ?
 
@@ -37,6 +37,6 @@ From another terminal:
 
 Then, copy the cert out... And change the owner.
 
-`cd static && python3 ../https_server.py 8443 ../fullchain.pem ../privkey.pem`
+`cd static && python3 ../https_server.py 8443 ../private/fullchain.pem ../private/privkey.pem`
 
 And from the first terminal, `ssh -vNTR 443:localhost:8443 $user@$domain`
