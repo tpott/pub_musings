@@ -40,3 +40,9 @@ Then, copy the cert out... And change the owner.
 `cd static && python3 ../https_server.py 8443 ../private/fullchain.pem ../private/privkey.pem`
 
 And from the first terminal, `ssh -vNTR 443:localhost:8443 $user@$domain`
+
+# Updating
+
+Run it with `python update_plaid.py`
+
+For type checking, `mypy --strict update_plaid.py`
