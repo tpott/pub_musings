@@ -191,7 +191,7 @@ def main() -> None:
 	}
 
 	fetched_accounts, balances = fetchAccounts(client_id, secrets, logins)
-	print(fetched_accounts)
+	print(f'fetched_accounts = {fetched_accounts}')
 	fetched_account_ids = set(map(lambda x: x['accountID'], fetched_accounts))
 	print(f'Added account IDs: {fetched_account_ids - account_ids}')
 	print(f'Removed account IDs: {account_ids - fetched_account_ids}')
