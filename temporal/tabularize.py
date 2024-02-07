@@ -3,6 +3,7 @@
 # Sun Feb  4 21:52:43 PST 2024
 
 import argparse
+from io import StringIO
 import sys
 
 import pandas as pd
@@ -33,8 +34,8 @@ def main() -> None:
     assert col in df.columns
 
   # "Adj Close" is optional
-  if "Adj Close" in df.columns:
-    expected_columns.append("Adj_Close")
+  # if "Adj Close" in df.columns:
+    # expected_columns.append("Adj_Close")
 
   existing_tickers = df.Name.unique()
   selectable = set(tickers).intersection(existing_tickers)
@@ -42,20 +43,33 @@ def main() -> None:
   print(f"only selecting {len(tickers)} of them... result: {selectable}")
   df = df[df.Name.isin(selectable)]
 
-  res_columns = ["Date"]
-  res_columns.extend([f"{ticker}_{col}" for col in expected_columns for ticker in selectable])
-  print(res_columns)
+  res_columns1 = ["Date"]
+  res_columns1.extend([f"{ticker}_{col}" for col in expected_columns for ticker in selectable])
+  print(res_columns1)
 
   # res_df = df.pivot(index="Date", columns=res_columns)
   # res_df = df.pivot(index="Date", columns="Name")
   # Reset index to make "Date" a regular column
   # res_df.reset_index(inplace=True)
+  # print(res_df)
 
-  res_df = pd.concat([
-    df.Date,
-  ])
+  # inplace=False means we return a new series rather than modifying "in place"
+  dates = df.Date.sort_values().reset_index(drop=True, inplace=False)
 
-  print(res_df)
+  res_columns = [dates]
+  for ticker in selectable:
+    for col in expected_columns:
+      res_columns.append(
+        df[df.Name == ticker].sort_values(by="Date")[col].reset_index(drop=True, inplace=False),
+      )
+
+  res_df = pd.concat(res_columns, axis=1)
+
+  output = StringIO()
+  res_df.to_csv(output, index=False)
+  output.seek(0)
+  print(output.read())
+
 
 if __name__ == "__main__":
   main()
