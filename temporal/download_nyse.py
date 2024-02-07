@@ -13,7 +13,8 @@ import time
 YMD_FORMAT = "%Y-%m-%d"
 
 def main() -> None:
-  parser = argparse.ArgumentParser(description="Fetch some data")
+  parser = argparse.ArgumentParser(description="Fetch some tickers")
+  parser.add_argument("-n", type=int, default=100000, help="Number of tickers to fetch")
   args = parser.parse_args()
 
   data_dir = tempfile.mkdtemp()
@@ -26,6 +27,8 @@ def main() -> None:
     ret = os.system(command)
     print(f"`{command}` = {ret}")
     if ret != 0:
+      break
+    if page == args.n:
       break
     time.sleep(0.2)
     page += 1
@@ -42,7 +45,8 @@ def main() -> None:
       # maybe use symbolExchangeTicker or normalizedTicker or symbolEsignalTicker
       all_tickers.append(t['symbolTicker'])
 
-  with open(f"tickers_{secrets.token_hex(8)}.csv", "wb") as f:
+  tickers_file = f"tickers_{secrets.token_hex(8)}.csv"
+  with open(tickers_files, "wb") as f:
     f.write("ticker\n".encode("utf-8"))
     for t in all_tickers:
       f.write(f"{t}\n".encode("utf-8"))

@@ -16,7 +16,7 @@ import pandas as pd
 YMD_FORMAT = "%Y-%m-%d"
 
 def main() -> None:
-  parser = argparse.ArgumentParser(description="Fetch some data")
+  parser = argparse.ArgumentParser(description="Fetch some open, high, low, close data for the given tickers. Defaults to last 20 years")
   parser.add_argument("ticker_file", help="A CSV file with tickers. Use \"-\" for stdin")
   args = parser.parse_args()
 
