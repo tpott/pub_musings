@@ -5,23 +5,26 @@
 import argparse
 from io import StringIO
 import sys
+from typing import Dict
 
 import pandas as pd
 
 
-def main() -> None:
+def parseArgs() -> argparse.Namespace:
   parser = argparse.ArgumentParser(description="Tabularize OHLC csv data")
   parser.add_argument("input_file", help="The input CSV file. Use \"-\" for stdin")
   parser.add_argument("--tickers", help="Comma separated list of tickers to select")
-  args = parser.parse_args()
+  return parser.parse_args()
+  
 
+def main(args: Dict[str, str]) -> None:
   tickers = []
-  if args.tickers is not None:
-    for ticker in args.tickers.split(","):
+  if args["tickers"] is not None:
+    for ticker in args["tickers"].split(","):
       tickers.append(ticker)
 
-  if args.input_file != "-":
-    df = pd.read_csv(args.input_file)
+  if args["input_file"] != "-":
+    df = pd.read_csv(args["input_file"])
   else:
     df = pd.read_csv(sys.stdin)
 
@@ -33,37 +36,40 @@ def main() -> None:
   for col in expected_columns:
     assert col in df.columns
 
+  # TODO undo
   # "Adj Close" is optional
   # if "Adj Close" in df.columns:
     # expected_columns.append("Adj_Close")
 
   existing_tickers = df.Name.unique()
-  selectable = set(tickers).intersection(existing_tickers)
-  print(f"found {len(existing_tickers)} distinct tickers")
-  print(f"only selecting {len(tickers)} of them... result: {selectable}")
+  selectable = sorted(set(tickers).intersection(existing_tickers))
+  print(f"found {len(existing_tickers)} distinct tickers", file=sys.stderr)
+  print(f"only selecting {len(tickers)} of them... result: {selectable}", file=sys.stderr)
   df = df[df.Name.isin(selectable)]
 
-  res_columns1 = ["Date"]
-  res_columns1.extend([f"{ticker}_{col}" for col in expected_columns for ticker in selectable])
-  print(res_columns1)
-
-  # res_df = df.pivot(index="Date", columns=res_columns)
-  # res_df = df.pivot(index="Date", columns="Name")
-  # Reset index to make "Date" a regular column
-  # res_df.reset_index(inplace=True)
-  # print(res_df)
-
   # inplace=False means we return a new series rather than modifying "in place"
-  dates = df.Date.sort_values().reset_index(drop=True, inplace=False)
+  dates = df.Date.drop_duplicates().reset_index(drop=True, inplace=False)
+  # Note: df.Date can have duplicates because multiple tickers may have data
+  df.set_index("Date", inplace=True)
+  res_df = pd.DataFrame(dates)
+  res_df.set_index("Date", inplace=True)
 
-  res_columns = [dates]
+  res_columns = []
   for ticker in selectable:
     for col in expected_columns:
-      res_columns.append(
-        df[df.Name == ticker].sort_values(by="Date")[col].reset_index(drop=True, inplace=False),
-      )
+      # values = df[df.Name == ticker]. \
+        # sort_index(inplace=False)[col]. \
+      values = df[df.Name == ticker][col]. \
+        rename(f"{ticker}_{col}"). \
+        reindex_like(res_df)
+        # reindex(index=res_df.index)
+        # reset_index(drop=True, inplace=False)
+        # reset_index(drop=False, inplace=False)
+        # reset_index(inplace=False)
+      res_columns.append(values)
 
-  res_df = pd.concat(res_columns, axis=1)
+  res_df = res_df.join(res_columns, how="inner", sort=True)
+  res_df.reset_index(inplace=True)
 
   output = StringIO()
   res_df.to_csv(output, index=False)
@@ -72,4 +78,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-  main()
+  main(vars(parseArgs()))
