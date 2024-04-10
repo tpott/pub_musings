@@ -57,6 +57,9 @@ function App() {
         <header className="App-header">
           <p>Welcome to {partyID}</p>
           <p>Now playing: TODO</p>
+	  <audio controls preload="auto">
+	    <source src="e_J14fbBluE.mp3" />
+	  </audio>
           <p>My name: TODO</p>
           <p><button onClick={() => setListParty(true)}>Participants list</button></p>
           <p><button onClick={() => setPartyID(null)}>Leave Party</button></p>
