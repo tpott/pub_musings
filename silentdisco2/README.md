@@ -26,3 +26,11 @@ Notes:
 * `document.getElementsByTagName('audio')[0].currentTime` is a floating point number. Includes six digits of precision (microseconds?!)...
 * `(new Date()).getTime() / 1000` is a floating point number. Seconds since unix epoch (jan 1st, 1970). Three digits of precision (milliseconds).
 * Apparently `document.getElementsByTagName('audio')[0].play()` may raise an exception: `NotAllowedError`. It also returns a promise, so needs to be await'ed. https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/play
+
+# Server implementation
+
+Note: the silentdisco/ dir contains the react app. I created node_server_v1 for an express server, since I can eventually re-use the [isomorphic-git](https://isomorphic-git.org/) library on both the server and react client app. It should also be easy to add websockets. I'm not sure how I will be able to compile/transpile it to a Java server though for running on native Android...
+
+I tried to scope `npm install express` to `silent_disco2/node_server_v1/`, but it updated `silentdisco2/package.json` instead... :shrug:
+
+I ran `pushd node_server_v1 && cp -R ../silentdisco/build/* build`

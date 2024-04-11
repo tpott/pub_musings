@@ -13,14 +13,31 @@ function App() {
   // TODO my roles... listener (everyone...), host, DJ
   // TODO my name
 
+  // TODO require roles.includes "host"
+  const handleCreateParty = async () => {
+    try {
+      const response = await fetch('/create-party', { method: 'POST' });
+      if (!response.ok) {
+        console.error('Failed to create party');
+        return;
+      }
+      // Redirect to the newly created party
+      const partyId = await response.text();
+      window.location.href = `/party/${partyId}`;
+    } catch (err) {
+      console.error('Error creating party:', err);
+    }
+  };
+
   if (partyID == null) {
     // <PartyList>
+    // TODO only include create new party button if (roles.includes "host")
     return (
       <div className="App">
         <header className="App-header">
           <p>Party List</p>
           <p>* <button onClick={() => setPartyID("todoXY")}>TODO</button></p>
-          <p>TODO if (roles.includes "host") { "Create New Party" }</p>
+          <p><button onClick={handleCreateParty}>Create New Party</button></p>
         </header>
       </div>
     );
@@ -57,9 +74,9 @@ function App() {
         <header className="App-header">
           <p>Welcome to {partyID}</p>
           <p>Now playing: TODO</p>
-	  <audio controls preload="auto">
-	    <source src="e_J14fbBluE.mp3" />
-	  </audio>
+          <audio controls preload="auto">
+            <source src="e_J14fbBluE.mp3" />
+          </audio>
           <p>My name: TODO</p>
           <p><button onClick={() => setListParty(true)}>Participants list</button></p>
           <p><button onClick={() => setPartyID(null)}>Leave Party</button></p>
