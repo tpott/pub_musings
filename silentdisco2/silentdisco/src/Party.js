@@ -62,7 +62,7 @@ function Party() {
           <p>Welcome to {partyID}</p>
           <p>Now playing: TODO</p>
           <audio controls preload="auto">
-            <source src="e_J14fbBluE.mp3" />
+            <source src="/e_J14fbBluE.mp3" />
           </audio>
           <p>My name: TODO</p>
           <p><button onClick={() => setListParty(true)}>Participants list</button></p>

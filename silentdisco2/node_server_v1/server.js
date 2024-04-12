@@ -12,19 +12,25 @@ app.use(express.static(path.join(__dirname, '../silentdisco/build')));
 
 app.get('/', (req, res) => {
   // TODO route / to party_list.html
-  res.sendFile(path.join(__dirname, './build/index.html'));
+  res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
 });
 
 // TODO check if req.roles includes "host"
+let parties = {};
 app.post('/create-party', (req, res) => {
-  const partyId = crypto.randomBytes(3).toString('hex');
-  res.send(partyId);
+  const partyID = crypto.randomBytes(3).toString('hex');
+  parties[partyID] = {};
+  res.send(partyID);
 });
 
-app.get('/party/:partyId', (req, res) => {
-  const partyId = req.params.partyId;
-  // TODO route /party/:partyId to now_playing.html
+app.get('/party/:partyID', (req, res) => {
+  const partyID = req.params.partyID;
+  // TODO route /party/:partyID to now_playing.html
   res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
+});
+
+app.get('/parties', (req, res) => {
+  res.json(Object.keys(parties));
 });
 
 // Start the server

@@ -40,3 +40,7 @@ I tried to have `npm run build` output two separate files, i.e. party_list.html 
 Reverting some of the renaming, deleting App.css, I had to `npm install react-router-dom`, and things seem to be okay again.
 
 My new workflow is working out of `silentdisco/` and iterating on react while running `npm run start`. Once that seemed okay, I'd run `npm run build && node ../node_server_v1/server.js`. This is working nicely, but now I want the party list to actually fetch a list of existing parties from the server.
+
+# Flight notes
+
+I was able to get the server setup to track parties. The build command is clearing the build/e_J14fbBluE.mp3 file. So I need to run `npm run build && cp src/e_J14fbBluE.mp3 build/ && node ../node_server_v1/server.js` to keep that file available.
