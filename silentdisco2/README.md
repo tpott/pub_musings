@@ -36,3 +36,7 @@ I tried to scope `npm install express` to `silent_disco2/node_server_v1/`, but i
 I ran `pushd node_server_v1 && cp -R ../silentdisco/build/* build`.. And then reverted that to just use ../silentdisco/build/ directly.
 
 I tried to have `npm run build` output two separate files, i.e. party_list.html and party.html instead of index.html, but it turns out to be [required by react-scripts](https://github.com/facebook/create-react-app/blob/0a827f69ab0d2ee3871ba9b71350031d8a81b7ae/packages/react-scripts/scripts/start.js#L50). So I need to rethink this a bit.
+
+Reverting some of the renaming, deleting App.css, I had to `npm install react-router-dom`, and things seem to be okay again.
+
+My new workflow is working out of `silentdisco/` and iterating on react while running `npm run start`. Once that seemed okay, I'd run `npm run build && node ../node_server_v1/server.js`. This is working nicely, but now I want the party list to actually fetch a list of existing parties from the server.

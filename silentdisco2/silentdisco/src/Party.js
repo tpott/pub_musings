@@ -1,17 +1,77 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './party.css';
-import Party from './Party';
-import reportWebVitals from './reportWebVitals';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <Party />
-  </React.StrictMode>
-);
+import './Party.css';
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+function Party() {
+  const { partyID } = useParams();
+
+  const [isValidPartyID, setIsValidPartyID] = useState(false);
+  const [participantID, setParticipantID] = useState(null);
+  const [listParty, setListParty] = useState(null);
+
+  // TODO nowPlaying, so we know what song/video is playing
+  // TODO DJ's name... idk if there's multiple DJs
+  // TODO my roles... listener (everyone...), host, DJ
+  // TODO my name
+
+  useEffect(() => {
+    const hexPattern = /^[0-9A-Fa-f]{6}$/i;
+    const isValid = partyID.length === 6 && hexPattern.test(partyID);
+    setIsValidPartyID(isValid);
+  }, [partyID]);
+
+  if (!isValidPartyID) {
+    return (
+      <>
+        <h1>Invalid Party ID</h1>
+        <p><button onClick={() => window.location.href = "/"}>Leave Party</button></p>
+      </>
+    );
+
+  } else if (participantID != null) {
+    // <Participant>
+    return (
+      <div className="Party">
+        <header className="Party-header">
+          <p>Name: No Name // TODO</p>
+          <p>Roles: // TODO</p>
+          <p>TODO if (roles.includes "host") "Invite to DJ"</p>
+          <p><button onClick={() => setParticipantID(null)}>Participants list</button></p>
+        </header>
+      </div>
+    );
+
+  } else if (listParty ?? false) {
+    // <ParticipantList>
+    return (
+      <div className="Party">
+        <header className="Party-header">
+          <p><button onClick={() => setParticipantID("abcdef")}>No name</button></p>
+          <p><button onClick={() => setListParty(null)}>Now Playing</button></p>
+        </header>
+      </div>
+    );
+
+  } else {
+    // <NowPlaying>
+    // TODO if roles includes "dj" then replace "Leave Party" button with "Stop DJ"
+    return (
+      <div className="Party">
+        <header className="Party-header">
+          <p>Welcome to {partyID}</p>
+          <p>Now playing: TODO</p>
+          <audio controls preload="auto">
+            <source src="e_J14fbBluE.mp3" />
+          </audio>
+          <p>My name: TODO</p>
+          <p><button onClick={() => setListParty(true)}>Participants list</button></p>
+          <p><button onClick={() => window.location.href = "/"}>Leave Party</button></p>
+        </header>
+      </div>
+    );
+
+  }
+}
+
+export default Party;

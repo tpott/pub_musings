@@ -18,8 +18,6 @@ app.get('/', (req, res) => {
 // TODO check if req.roles includes "host"
 app.post('/create-party', (req, res) => {
   const partyId = crypto.randomBytes(3).toString('hex');
-  // Redirect the client to the newly created party
-  // res.redirect(`/party/${partyId}`);
   res.send(partyId);
 });
 
