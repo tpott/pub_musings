@@ -17,6 +17,7 @@ app.get('/', (req, res) => {
 
 // TODO check if req.roles includes "host"
 let parties = {};
+let randHostID = crypto.randomBytes(16).toString('hex');
 app.post('/create-party', (req, res) => {
   const partyID = crypto.randomBytes(3).toString('hex');
   parties[partyID] = {};
@@ -33,7 +34,17 @@ app.get('/parties', (req, res) => {
   res.json(Object.keys(parties));
 });
 
+app.get('/iamhost/:hostID', (req, res) => {
+  // TODO write a cookie? add "host" to user roles?
+  const { hostID } = req.params;
+  if (hostID === randHostID) {
+    res.cookie('host', true);
+  }
+  res.redirect('/');
+});
+
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}\n`);
+  console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
 });
