@@ -1,7 +1,10 @@
 const crypto = require('crypto');
+const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
 
 const express = require('express');
+const git = require('isomorphic-git');
 const tweetnacl = require('tweetnacl');
 
 
@@ -30,93 +33,118 @@ function textToUint8Array(str /* string */) /* Uint8Array */ {
 const hostIsTrue = textToUint8Array('host:true');
 
 
-const app = express();
-const PORT = process.env.PORT || 8080;
+async function main() {
+  const app = express();
+  const PORT = process.env.PORT || 8080;
 
-let parties = {};
-let randHostID = crypto.randomBytes(16).toString('hex');
-const { publicKey, secretKey } = tweetnacl.sign.keyPair();
-const publicKeyStr = uint8ArrayToHex(publicKey);
+  let parties = {};
+  let randHostID = crypto.randomBytes(16).toString('hex');
+  const { publicKey, secretKey } = tweetnacl.sign.keyPair();
+  const publicKeyStr = uint8ArrayToHex(publicKey);
 
-// Serve static files from the build directory
-app.use(express.static(path.join(__dirname, '../silentdisco/build')));
+  const tmpDir = path.join(os.tmpdir(), 'silentdisco', randHostID);
+  const gitDir = path.join(tmpDir, 'gitstate');
+  await fs.mkdir(
+    tmpDir,
+    { recursive: true },
+  );
+  await fs.mkdir(gitDir);
+  await fs.mkdir(path.join(tmpDir, 'objects'));
+  console.log(`Created tempDir: ${tmpDir}`);
 
-app.get('/', (req, res) => {
-  // TODO route / to party_list.html
-  res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
-});
+  await git.init({ fs, dir: gitDir });
 
-app.post('/create-party', (req, res) => {
-  // Convert raw document.cookie string into a dictionary object
-  let rawCookies = '';
-  for (let i = 0; i < req.rawHeaders.length; i++) {
+  async function shutDown() {
+    server.close();
+    await fs.rm(tmpDir, { recursive: true });
+    console.log('Shut down');
+  }
+
+  // Serve static files from the build directory
+  app.use(express.static(path.join(__dirname, '../silentdisco/build')));
+
+  app.get('/', (req, res) => {
+    // TODO route / to party_list.html
+    res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
+  });
+
+  app.post('/create-party', (req, res) => {
+    // Convert raw document.cookie string into a dictionary object
+    let rawCookies = '';
+    for (let i = 0; i < req.rawHeaders.length; i++) {
     if (req.rawHeaders[i] === 'Cookie' && i + 1 < req.rawHeaders.length) {
       rawCookies = req.rawHeaders[i + 1];
     }
-  }
-  if (rawCookies === '') {
+    }
+    if (rawCookies === '') {
     res.status(401).json({ error: 'Unauthenticated' });
     return;
-  }
+    }
 
-  // TODO move this into a lib because it's shared with PartyList.js
-  const cookies = rawCookies.split(';').reduce((acc, cookie) => {
+    // TODO move this into a lib because it's shared with PartyList.js
+    const cookies = rawCookies.split(';').reduce((acc, cookie) => {
     const [name, value] = cookie.trim().split('=');
     return { ...acc, [name]: value };
-  }, {});
-  // TODO write a test for this... it will be tricky because PartyList.js
-  // won't render the /create-party button. Maybe manually force it to render
-  // and then restart the server to get a new key to force validation to fail
-  if (!('host' in cookies)) {
+    }, {});
+    // TODO write a test for this... it will be tricky because PartyList.js
+    // won't render the /create-party button. Maybe manually force it to render
+    // and then restart the server to get a new key to force validation to fail
+    if (!('host' in cookies)) {
     res.status(401).json({ error: 'Unauthenticated' });
     return;
-  }
+    }
 
-  const verified = tweetnacl.sign.detached.verify(
+    const verified = tweetnacl.sign.detached.verify(
     hostIsTrue,
     hexToUint8Array(cookies.host),
     publicKey,
-  );
-  if (!verified) {
+    );
+    if (!verified) {
     res.status(403).json({ error: 'Unauthorized' });
     return;
-  }
+    }
 
-  const partyID = crypto.randomBytes(3).toString('hex');
-  parties[partyID] = {};
-  res.send(partyID);
-});
+    const partyID = crypto.randomBytes(3).toString('hex');
+    parties[partyID] = {};
+    res.send(partyID);
+  });
 
-app.get('/party/:partyID', (req, res) => {
-  const partyID = req.params.partyID;
-  // TODO route /party/:partyID to now_playing.html
-  res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
-});
+  app.get('/party/:partyID', (req, res) => {
+    const partyID = req.params.partyID;
+    // TODO route /party/:partyID to now_playing.html
+    res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
+  });
 
-app.get('/parties', (req, res) => {
-  res.json(Object.keys(parties));
-});
+  app.get('/parties', (req, res) => {
+    res.json(Object.keys(parties));
+  });
 
-app.get('/iamhost/:hostID', (req, res) => {
-  const { hostID } = req.params;
-  if (hostID !== randHostID) {
+  app.get('/iamhost/:hostID', (req, res) => {
+    const { hostID } = req.params;
+    if (hostID !== randHostID) {
     res.redirect('/');
     return;
-  }
-  // TODO generalize this to more roles
-  // TODO is there any value in making some cookies httpOnly?
-  const signature = tweetnacl.sign.detached(hostIsTrue, secretKey);
-  res.cookie('host', uint8ArrayToHex(signature));
-  res.redirect('/');
-});
+    }
+    // TODO generalize this to more roles
+    // TODO is there any value in making some cookies httpOnly?
+    const signature = tweetnacl.sign.detached(hostIsTrue, secretKey);
+    res.cookie('host', uint8ArrayToHex(signature));
+    res.redirect('/');
+  });
 
-app.get('/public-key', (req, res) => {
-  res.send(publicKeyStr);
-})
+  app.get('/public-key', (req, res) => {
+    res.send(publicKeyStr);
+  })
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Generated signing key: ${publicKeyStr}`);
-  console.log(`Server is running on http://localhost:${PORT}`);
-  console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
-});
+  process.on('SIGTERM', shutDown);
+  process.on('SIGINT', shutDown);
+
+  // Start the server
+  const server = app.listen(PORT, () => {
+    console.log(`Generated signing key: ${publicKeyStr}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
+  });
+}
+
+main()
