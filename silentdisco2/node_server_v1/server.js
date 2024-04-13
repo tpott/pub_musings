@@ -26,6 +26,9 @@ function textToUint8Array(str /* string */) /* Uint8Array */ {
   return Uint8Array.from(Array.from(str).map(letter => letter.charCodeAt(0)));
 }
 
+// Note: this is Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101])
+const hostIsTrue = textToUint8Array('host:true');
+
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -43,8 +46,42 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
 });
 
-// TODO check if req.roles includes "host"
 app.post('/create-party', (req, res) => {
+  // Convert raw document.cookie string into a dictionary object
+  let rawCookies = '';
+  for (let i = 0; i < req.rawHeaders.length; i++) {
+    if (req.rawHeaders[i] === 'Cookie' && i + 1 < req.rawHeaders.length) {
+      rawCookies = req.rawHeaders[i + 1];
+    }
+  }
+  if (rawCookies === '') {
+    res.status(401).json({ error: 'Unauthenticated' });
+    return;
+  }
+
+  // TODO move this into a lib because it's shared with PartyList.js
+  const cookies = rawCookies.split(';').reduce((acc, cookie) => {
+    const [name, value] = cookie.trim().split('=');
+    return { ...acc, [name]: value };
+  }, {});
+  // TODO write a test for this... it will be tricky because PartyList.js
+  // won't render the /create-party button. Maybe manually force it to render
+  // and then restart the server to get a new key to force validation to fail
+  if (!('host' in cookies)) {
+    res.status(401).json({ error: 'Unauthenticated' });
+    return;
+  }
+
+  const verified = tweetnacl.sign.detached.verify(
+    hostIsTrue,
+    hexToUint8Array(cookies.host),
+    publicKey,
+  );
+  if (!verified) {
+    res.status(403).json({ error: 'Unauthorized' });
+    return;
+  }
+
   const partyID = crypto.randomBytes(3).toString('hex');
   parties[partyID] = {};
   res.send(partyID);
@@ -68,8 +105,7 @@ app.get('/iamhost/:hostID', (req, res) => {
   }
   // TODO generalize this to more roles
   // TODO is there any value in making some cookies httpOnly?
-  // Note: this is Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101])
-  const signature = tweetnacl.sign.detached(textToUint8Array('host:true'), secretKey);
+  const signature = tweetnacl.sign.detached(hostIsTrue, secretKey);
   res.cookie('host', uint8ArrayToHex(signature));
   res.redirect('/');
 });

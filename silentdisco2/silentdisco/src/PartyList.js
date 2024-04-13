@@ -94,7 +94,6 @@ function PartyList() {
       const [name, value] = cookie.trim().split('=');
       return { ...acc, [name]: value };
     }, {});
-    console.log('host signature is', cookies.host);
     if (!('host' in cookies)) {
       setIsHost(false);
       return noEffect;
