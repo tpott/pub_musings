@@ -37,7 +37,6 @@ async function main() {
   const app = express();
   const PORT = process.env.PORT || 8080;
 
-  let parties = {};
   let randHostID = crypto.randomBytes(16).toString('hex');
   const { publicKey, secretKey } = tweetnacl.sign.keyPair();
   const publicKeyStr = uint8ArrayToHex(publicKey);
@@ -53,6 +52,7 @@ async function main() {
   console.log(`Created tempDir: ${tmpDir}`);
 
   await git.init({ fs, dir: gitDir });
+  await git.branch({ fs, dir: gitDir, ref: 'trunk', checkout: true });
 
   async function shutDown() {
     server.close();
@@ -68,45 +68,62 @@ async function main() {
     res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
   });
 
-  app.post('/create-party', (req, res) => {
+  app.post('/create-party', async (req, res) => {
     // Convert raw document.cookie string into a dictionary object
     let rawCookies = '';
     for (let i = 0; i < req.rawHeaders.length; i++) {
-    if (req.rawHeaders[i] === 'Cookie' && i + 1 < req.rawHeaders.length) {
-      rawCookies = req.rawHeaders[i + 1];
-    }
+      if (req.rawHeaders[i] === 'Cookie' && i + 1 < req.rawHeaders.length) {
+        rawCookies = req.rawHeaders[i + 1];
+      }
     }
     if (rawCookies === '') {
-    res.status(401).json({ error: 'Unauthenticated' });
-    return;
+      res.status(401).json({ error: 'Unauthenticated' });
+      return;
     }
 
     // TODO move this into a lib because it's shared with PartyList.js
     const cookies = rawCookies.split(';').reduce((acc, cookie) => {
-    const [name, value] = cookie.trim().split('=');
-    return { ...acc, [name]: value };
+      const [name, value] = cookie.trim().split('=');
+      return { ...acc, [name]: value };
     }, {});
     // TODO write a test for this... it will be tricky because PartyList.js
     // won't render the /create-party button. Maybe manually force it to render
     // and then restart the server to get a new key to force validation to fail
     if (!('host' in cookies)) {
-    res.status(401).json({ error: 'Unauthenticated' });
-    return;
+      res.status(401).json({ error: 'Unauthenticated' });
+      return;
     }
 
     const verified = tweetnacl.sign.detached.verify(
-    hostIsTrue,
-    hexToUint8Array(cookies.host),
-    publicKey,
+      hostIsTrue,
+      hexToUint8Array(cookies.host),
+      publicKey,
     );
     if (!verified) {
-    res.status(403).json({ error: 'Unauthorized' });
-    return;
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
     }
 
     const partyID = crypto.randomBytes(3).toString('hex');
-    parties[partyID] = {};
+
+    await fs.mkdir(
+      path.join(gitDir, 'parties', partyID),
+      { recursive: true },
+    );
     res.send(partyID);
+  });
+
+  app.get('/iamhost/:hostID', (req, res) => {
+    const { hostID } = req.params;
+    if (hostID !== randHostID) {
+      res.redirect('/');
+      return;
+    }
+    // TODO generalize this to more roles
+    // TODO is there any value in making some cookies httpOnly?
+    const signature = tweetnacl.sign.detached(hostIsTrue, secretKey);
+    res.cookie('host', uint8ArrayToHex(signature));
+    res.redirect('/');
   });
 
   app.get('/party/:partyID', (req, res) => {
@@ -115,21 +132,15 @@ async function main() {
     res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
   });
 
-  app.get('/parties', (req, res) => {
-    res.json(Object.keys(parties));
-  });
-
-  app.get('/iamhost/:hostID', (req, res) => {
-    const { hostID } = req.params;
-    if (hostID !== randHostID) {
-    res.redirect('/');
-    return;
+  app.get('/parties', async (req, res) => {
+    try {
+      const parties = await fs.readdir(path.join(gitDir, 'parties'));
+      res.json(parties);
+      return;
+    } catch (err) {
+      res.json([]);
+      return;
     }
-    // TODO generalize this to more roles
-    // TODO is there any value in making some cookies httpOnly?
-    const signature = tweetnacl.sign.detached(hostIsTrue, secretKey);
-    res.cookie('host', uint8ArrayToHex(signature));
-    res.redirect('/');
   });
 
   app.get('/public-key', (req, res) => {
