@@ -44,3 +44,5 @@ My new workflow is working out of `silentdisco/` and iterating on react while ru
 # Flight notes
 
 I was able to get the server setup to track parties. The build command is clearing the build/e_J14fbBluE.mp3 file. So I need to run `npm run build && cp src/e_J14fbBluE.mp3 build/ && node ../node_server_v1/server.js` to keep that file available.
+
+I learned that `node something.js --inspect` doesn't work, but `node --inspect something.js` does... My iteration command is now `npm run build && cp src/e_J14fbBluE.mp3 build/ && node --inspect ../node_server_v1/server.js`. I also forgot that vanilla node isn't actually typescript...
