@@ -154,6 +154,11 @@ async function main() {
   const server = app.listen(PORT, () => {
     console.log(`Generated signing key: ${publicKeyStr}`);
     console.log(`Server is running on http://localhost:${PORT}`);
+    fs.mkdir(
+      path.join(gitDir, 'parties', '000000'),
+      { recursive: true },
+    );
+    console.log('Created empty 000000 party');
     console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
   });
 }

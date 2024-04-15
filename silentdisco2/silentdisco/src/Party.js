@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 
 import './Party.css';
 
-function Party() {
-  const { partyID } = useParams();
-
+function Party({ partyID, partyRedirect }) {
   const [isValidPartyID, setIsValidPartyID] = useState(false);
   const [participantID, setParticipantID] = useState(null);
   const [listParty, setListParty] = useState(null);
@@ -25,7 +22,7 @@ function Party() {
     return (
       <>
         <h1>Invalid Party ID</h1>
-        <p><button onClick={() => window.location.href = "/"}>Leave Party</button></p>
+        <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
       </>
     );
 
@@ -66,7 +63,7 @@ function Party() {
           </audio>
           <p>My name: TODO</p>
           <p><button onClick={() => setListParty(true)}>Participants list</button></p>
-          <p><button onClick={() => window.location.href = "/"}>Leave Party</button></p>
+          <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
         </header>
       </div>
     );
