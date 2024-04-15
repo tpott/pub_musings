@@ -1,5 +1,5 @@
-// import * as git from 'isomorphic-git';
-// import { LightningFS } from '@isomorphic-git/lightning-fs';
+import * as git from 'isomorphic-git';
+import FS from '@isomorphic-git/lightning-fs';
 import { useEffect, useState } from 'react';
 
 import Party from './Party';
@@ -47,16 +47,20 @@ function App() {
     };
   }, []);
 
-/*
   useEffect(() => {
     async function initializeGitRepository() {
-      debugger;
-      const fs = new LightningFS('fs');
-      await git.init({ fs, dir: '/path/to/repository' });
+      const fs = new FS('fs');
+      await git.init({ fs, dir: '/' });
+      console.log('done initializing fs and git');
+      console.log(fs);
+      // This is currently failing because "Buffer" is not defined in browsers
+      // and the Buffer npm module isn't properly polyfilled in the isomorphic-git
+      // repo.
+      const files = await git.listFiles({ fs, dir: '/' });
+      console.log(files);
     }
     initializeGitRepository();
   }, []);
-*/
 
   return (
     <div>
