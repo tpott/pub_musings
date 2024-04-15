@@ -1,6 +1,25 @@
+# Silent Disco
+
+A tool for hosting synchronized parties
+
+Someone needs to run the party server. Ideally we get this to work as a
+mobile app, so all someone needs is to bring their phone.
+
+We probably want someone to hotspot, so everyone is on the same WiFi
+network. This should minimize latency between all the devices and should
+ensure the best synchronization possible.
+
+# History
+
+I ran `npm install create-react-app` and then `./node_modules/.bin/create-react-app party-web`
+
+Next, I think `npm start` starts watching the react changes.
+
+`npm run build` should build static files, at which point, we no longer need npm nor node.
+
 # silent disco v2
 
-Oops
+Oops, I forgot to commit the above^... So the next few sections were re-done from scratch.
 
 Ran `npm install create-react-app`
 
