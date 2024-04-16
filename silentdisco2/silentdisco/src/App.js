@@ -1,4 +1,5 @@
 import * as git from 'isomorphic-git';
+import http from "isomorphic-git/http/web";
 import FS from '@isomorphic-git/lightning-fs';
 import { useEffect, useState } from 'react';
 
@@ -22,7 +23,7 @@ function App() {
   useEffect(() => {
     // Parse window.location to check if the URL is "/"
     const path = window.location.pathname;
-    const [_, maybePartyID] = path.split('/party/');
+    const [, maybePartyID] = path.split('/party/');
     if (path.startsWith('/party/') && maybePartyID != null) {
       setPartyID(maybePartyID);
     } else {
@@ -32,7 +33,7 @@ function App() {
     // Add event listener to handle popstate events (back/forward navigation)
     const handlePopState = () => {
       const newPath = window.location.pathname;
-      const [_, maybePartyID] = newPath.split('/party/');
+      const [, maybePartyID] = newPath.split('/party/');
       if (newPath.startsWith('/party/') && maybePartyID != null) {
         setPartyID(maybePartyID);
       } else {
@@ -49,18 +50,33 @@ function App() {
 
   useEffect(() => {
     async function initializeGitRepository() {
+      if (partyID === null) {
+        return;
+      }
       const fs = new FS('fs');
-      await git.init({ fs, dir: '/' });
+      await git.init({ fs, dir: window.location.pathname });
       console.log('done initializing fs and git');
-      console.log(fs);
+
       // This is currently failing because "Buffer" is not defined in browsers
       // and the Buffer npm module isn't properly polyfilled in the isomorphic-git
       // repo.
-      const files = await git.listFiles({ fs, dir: '/' });
-      console.log(files);
+      // const files = await git.listFiles({ fs, dir: '/' });
+      // console.log(files);
+
+      // TODO I should use partyID state here instead of window.location...
+      // otherwise, the browser will send two requests when it browses to /party/000000
+      // once when partyID is null and once from when partyID is parsed properly
+      await git.clone({
+        fs,
+        http,
+        dir: window.location.pathname,
+        url: window.location.href + '.git',
+        singleBranch: true,
+        depth: 1
+      });
     }
     initializeGitRepository();
-  }, []);
+  }, [partyID]);
 
   return (
     <div>

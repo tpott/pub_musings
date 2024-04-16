@@ -1,3 +1,7 @@
+const child_process = require('child_process');
+const util = require('util');
+const exec = util.promisify(child_process.exec);
+
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const os = require('os');
@@ -42,17 +46,13 @@ async function main() {
   const publicKeyStr = uint8ArrayToHex(publicKey);
 
   const tmpDir = path.join(os.tmpdir(), 'silentdisco', randHostID);
-  const gitDir = path.join(tmpDir, 'gitstate');
   await fs.mkdir(
     tmpDir,
     { recursive: true },
   );
-  await fs.mkdir(gitDir);
-  await fs.mkdir(path.join(tmpDir, 'objects'));
+  await fs.mkdir(path.join(tmpDir, 'objects')); // i.e. audio file references
+  await fs.mkdir(path.join(tmpDir, 'parties'));
   console.log(`Created tempDir: ${tmpDir}`);
-
-  await git.init({ fs, dir: gitDir });
-  await git.branch({ fs, dir: gitDir, ref: 'trunk', checkout: true });
 
   async function shutDown() {
     server.close();
@@ -106,10 +106,11 @@ async function main() {
 
     const partyID = crypto.randomBytes(3).toString('hex');
 
-    await fs.mkdir(
-      path.join(gitDir, 'parties', partyID),
-      { recursive: true },
-    );
+    const partyDir = path.join(tmpDir, 'parties', partyID);
+    await fs.mkdir(partyDir, { recursive: true });
+    await git.init({ fs, dir: partyDir });
+    await git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
+
     res.send(partyID);
   });
 
@@ -128,13 +129,40 @@ async function main() {
 
   app.get('/party/:partyID', (req, res) => {
     const partyID = req.params.partyID;
+    // TODO move this into a lib to share with Party.js
+    const hexPattern = /^[0-9A-Fa-f]{6}$/i;
+    const isValid = partyID.length === 6 && hexPattern.test(partyID);
+    if (!isValid) {
+      res.redirect('/');
+    }
     // TODO route /party/:partyID to now_playing.html
     res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
   });
 
+  app.get('/party/:partyID.git/info/refs', async (req, res) => {
+    const partyID = req.params.partyID;
+
+    // TODO move this into a lib to share with Party.js
+    const hexPattern = /^[0-9A-Fa-f]{6}$/i;
+    const isValid = partyID.length === 6 && hexPattern.test(partyID);
+    if (!isValid) {
+      res.redirect('/');
+    }
+
+    const partyDir = path.join(tmpDir, 'parties', partyID);
+    // const command = `git upload-pack --advertise-refs ${partyDir}`;
+    // const command = `GIT_PROJECT_ROOT=${partyDir} git http-backend`;
+    const command = 'git http-backend';
+    const { stdout } = await exec(command, {env: {
+      GIT_PROJECT_ROOT: partyDir,
+      GIT_HTTP_EXPORT_ALL: '',
+    }});
+    res.send(stdout);
+  });
+
   app.get('/parties', async (req, res) => {
     try {
-      const parties = await fs.readdir(path.join(gitDir, 'parties'));
+      const parties = await fs.readdir(path.join(tmpDir, 'parties'));
       res.json(parties);
       return;
     } catch (err) {
@@ -145,7 +173,12 @@ async function main() {
 
   app.get('/public-key', (req, res) => {
     res.send(publicKeyStr);
-  })
+  });
+
+  app.get('*', (req, res) => {
+    console.log('got unexpected request', req.url);
+    res.status(404).send('unexpected request');
+  });
 
   process.on('SIGTERM', shutDown);
   process.on('SIGINT', shutDown);
@@ -154,11 +187,13 @@ async function main() {
   const server = app.listen(PORT, () => {
     console.log(`Generated signing key: ${publicKeyStr}`);
     console.log(`Server is running on http://localhost:${PORT}`);
-    fs.mkdir(
-      path.join(gitDir, 'parties', '000000'),
-      { recursive: true },
-    );
+
+    const partyDir = path.join(tmpDir, 'parties', '000000');
+    /* await */ fs.mkdir(partyDir, { recursive: true });
+    /* await */ git.init({ fs, dir: partyDir });
+    /* await */ git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
     console.log('Created empty 000000 party');
+
     console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
   });
 }

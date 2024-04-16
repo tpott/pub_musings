@@ -13,6 +13,7 @@ function Party({ partyID, partyRedirect }) {
   // TODO my name
 
   useEffect(() => {
+    // TODO move this to a lib to share with server.js
     const hexPattern = /^[0-9A-Fa-f]{6}$/i;
     const isValid = partyID.length === 6 && hexPattern.test(partyID);
     setIsValidPartyID(isValid);

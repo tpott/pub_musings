@@ -65,3 +65,7 @@ My new workflow is working out of `silentdisco/` and iterating on react while ru
 I was able to get the server setup to track parties. The build command is clearing the build/e_J14fbBluE.mp3 file. So I need to run `npm run build && cp src/e_J14fbBluE.mp3 build/ && node ../node_server_v1/server.js` to keep that file available.
 
 I learned that `node something.js --inspect` doesn't work, but `node --inspect something.js` does... My iteration command is now `npm run build && cp src/e_J14fbBluE.mp3 build/ && node --inspect ../node_server_v1/server.js`. I also forgot that vanilla node isn't actually typescript...
+
+I learned that e.preventDefault() and e.stopPropagation() don't actually prevent playing/pausing of <audio> elements. Calling play() or pause() _works_ from the UX perspective, but may actually be incrementing playback.
+
+`git upload-pack --advertise-refs .` is cool. TIL about [https://git-scm.com/docs/pack-protocol/2.2.3](https://git-scm.com/docs/pack-protocol/2.2.3) . I was also reading about `git http-backend`. I was having a hard time figuring out the correct env vars, and pipes...
