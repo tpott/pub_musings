@@ -69,3 +69,7 @@ I learned that `node something.js --inspect` doesn't work, but `node --inspect s
 I learned that e.preventDefault() and e.stopPropagation() don't actually prevent playing/pausing of <audio> elements. Calling play() or pause() _works_ from the UX perspective, but may actually be incrementing playback.
 
 `git upload-pack --advertise-refs .` is cool. TIL about [https://git-scm.com/docs/pack-protocol/2.2.3](https://git-scm.com/docs/pack-protocol/2.2.3) . I was also reading about `git http-backend`. I was having a hard time figuring out the correct env vars, and pipes...
+
+I finally got `GIT_HTTP_EXPORT_ALL= GIT_PROJECT_ROOT=/tmp/silentdisco/e964a3e5e7c35043596841054b02900a/parties/000000/ PATH_INFO="/info/refs" QUERY_STRING="service=git-upload-pack" REQUEST_METHOD=GET git http-backend` to work. After it was working in server.js, I was also able to run `git clone http://localhost:8080/party/000000.git`.
+
+I'm getting a weird "EmptyServerResponseError: Empty response from git server.", which seems to be from https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/wire/parseRefsAdResponse.js#L18 .

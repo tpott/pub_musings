@@ -139,7 +139,7 @@ async function main() {
     res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
   });
 
-  app.get('/party/:partyID.git/info/refs', async (req, res) => {
+  app.get('/party/:partyID.git*', async (req, res) => {
     const partyID = req.params.partyID;
 
     // TODO move this into a lib to share with Party.js
@@ -149,15 +149,70 @@ async function main() {
       res.redirect('/');
     }
 
+    const urlParts = req.url.split('/');
+    if (urlParts.length < 3) {
+      res.redirect('/');
+    }
+    // urlParts[0] should equal the empty string
+    if (urlParts[0] !== '') {
+      res.redirect('/');
+    }
+    if (urlParts[1] !== 'party') {
+      res.redirect('/');
+    }
+    // urlParts[2] should end in .git
+    if (!urlParts[2].startsWith(partyID) || !urlParts[2].endsWith('.git')) {
+      res.redirect('/');
+    }
+
     const partyDir = path.join(tmpDir, 'parties', partyID);
-    // const command = `git upload-pack --advertise-refs ${partyDir}`;
-    // const command = `GIT_PROJECT_ROOT=${partyDir} git http-backend`;
     const command = 'git http-backend';
-    const { stdout } = await exec(command, {env: {
-      GIT_PROJECT_ROOT: partyDir,
+    const envVars = {
       GIT_HTTP_EXPORT_ALL: '',
-    }});
-    res.send(stdout);
+      GIT_PROJECT_ROOT: partyDir,
+      PATH_INFO: '/' + urlParts.slice(3).join('/').split('?')[0],
+      QUERY_STRING: req.url.split('?')[1],
+      REQUEST_METHOD: req.method,
+    };
+
+    const { stdout, stderr } = await exec(command, {env: envVars});
+
+    // if there's no stderr then return the stdout
+    if (stderr !== '') {
+      res.status(500).send(stderr);
+    }
+
+    const lines = stdout.split('\r\n');
+    let headers = {};
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('Cache-Control') ||
+          lines[i].startsWith('Content-Type') ||
+          lines[i].startsWith('Expires') ||
+          lines[i].startsWith('Pragma')) {
+        const header = lines[i].split(': ');
+        // just skip over the incorrectly formatted headers...
+        if (header.length !== 2) {
+          continue;
+        }
+        // res.setHeader(header[0], header[1]);
+        headers[header[0]] = header[1];
+        continue;
+      }
+      // idk if joining with '\n' is necessary. it seems git http-backend
+      // already formats the actual response this way...
+      if (lines[i] === '') {
+        // Use writeHead instead of setHeader because isomorphic-git can't handle ; charset=utf-8 in Content-Type
+        // https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/managers/GitRemoteHTTP.js#L137
+        // and send too... https://stackoverflow.com/questions/59449221/express-remove-charset-utf-8-from-content-type-application-json-charset-utf-8
+        // res.status(200).send(lines.slice(i + 1).join('\n'));
+        res.writeHead(200, headers);
+        res.write(lines.slice(i + 1).join('\n'));
+        res.end();
+        return;
+      }
+    }
+
+    res.status(500).send('Failed to parse git http-backend output');
   });
 
   app.get('/parties', async (req, res) => {
@@ -182,16 +237,25 @@ async function main() {
 
   process.on('SIGTERM', shutDown);
   process.on('SIGINT', shutDown);
+  const initParty0 = async () => {
+    const partyDir = path.join(tmpDir, 'parties', '000000');
+    await fs.mkdir(partyDir, { recursive: true });
+    await git.init({ fs, dir: partyDir });
+    await git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
+    await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '# start\n');
+    await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });
+    await git.commit({ fs, dir: partyDir, message: 'init party', author: {
+      name: 'Harry Potter',
+      email: 'harry@example.com',
+    }});
+  };
 
   // Start the server
   const server = app.listen(PORT, () => {
     console.log(`Generated signing key: ${publicKeyStr}`);
     console.log(`Server is running on http://localhost:${PORT}`);
 
-    const partyDir = path.join(tmpDir, 'parties', '000000');
-    /* await */ fs.mkdir(partyDir, { recursive: true });
-    /* await */ git.init({ fs, dir: partyDir });
-    /* await */ git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
+    initParty0();
     console.log('Created empty 000000 party');
 
     console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
