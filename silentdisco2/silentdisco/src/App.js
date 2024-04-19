@@ -6,6 +6,10 @@ import { useEffect, useState } from 'react';
 import Party from './Party';
 import PartyList from './PartyList';
 
+// WTF https://github.com/isomorphic-git/isomorphic-git/issues/1680
+import { Buffer } from 'buffer';
+window.Buffer = Buffer;
+
 function App() {
   const [partyID, setPartyID] = useState(null);
 
@@ -60,8 +64,8 @@ function App() {
       // This is currently failing because "Buffer" is not defined in browsers
       // and the Buffer npm module isn't properly polyfilled in the isomorphic-git
       // repo.
-      // const files = await git.listFiles({ fs, dir: '/' });
-      // console.log(files);
+      const files = await git.listFiles({ fs, dir: '/' });
+      console.log(files);
 
       // TODO I should use partyID state here instead of window.location...
       // otherwise, the browser will send two requests when it browses to /party/000000

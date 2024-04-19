@@ -60,8 +60,85 @@ async function main() {
     console.log('Shut down');
   }
 
+  // TODO move this into a lib to share with Party.js
+  const isValidPartyID = (partyID /*: string */) => {
+    const hexPattern = /^[0-9A-Fa-f]{6}$/i;
+    return partyID.length === 6 && hexPattern.test(partyID);
+  };
+
+  const processGitRequest = async (req, res, partyID) => {
+    const urlParts = req.url.split('/');
+    if (urlParts.length < 3) {
+      res.redirect('/');
+    }
+    // urlParts[0] should equal the empty string
+    if (urlParts[0] !== '') {
+      res.redirect('/');
+    }
+    if (urlParts[1] !== 'party') {
+      res.redirect('/');
+    }
+    // urlParts[2] should end in .git
+    if (!urlParts[2].startsWith(partyID) || !urlParts[2].endsWith('.git')) {
+      res.redirect('/');
+    }
+
+    const partyDir = path.join(tmpDir, 'parties', partyID);
+    const command = 'git http-backend';
+    const envVars = {
+      CONTENT_TYPE: 'application/x-git-upload-pack-request',
+      GIT_HTTP_EXPORT_ALL: '',
+      GIT_PROJECT_ROOT: partyDir,
+      PATH_INFO: '/' + urlParts.slice(3).join('/').split('?')[0],
+      QUERY_STRING: req.url.split('?')[1],
+      REQUEST_METHOD: req.method,
+    };
+
+    const { stdout, stderr } = await exec(command, {env: envVars});
+
+    // if there's no stderr then return the stdout
+    if (stderr !== '') {
+      res.status(500).send(stderr);
+    }
+
+    const lines = stdout.split('\r\n');
+    let headers = {};
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('Cache-Control') ||
+          lines[i].startsWith('Content-Type') ||
+          lines[i].startsWith('Expires') ||
+          lines[i].startsWith('Pragma')) {
+        const header = lines[i].split(': ');
+        // just skip over the incorrectly formatted headers...
+        if (header.length !== 2) {
+          continue;
+        }
+        // res.setHeader(header[0], header[1]);
+        headers[header[0]] = header[1];
+        continue;
+      }
+      // idk if joining with '\n' is necessary. it seems git http-backend
+      // already formats the actual response this way...
+      if (lines[i] === '') {
+        // Use writeHead instead of setHeader because isomorphic-git can't handle ; charset=utf-8 in Content-Type
+        // https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/managers/GitRemoteHTTP.js#L137
+        // and send too... https://stackoverflow.com/questions/59449221/express-remove-charset-utf-8-from-content-type-application-json-charset-utf-8
+        // res.status(200).send(lines.slice(i + 1).join('\n'));
+        res.writeHead(200, headers);
+        res.write(lines.slice(i + 1).join('\n'));
+        res.end();
+        return;
+      }
+    }
+
+    res.status(500).send('Failed to parse git http-backend output');
+  };
+
   // Serve static files from the build directory
   app.use(express.static(path.join(__dirname, '../silentdisco/build')));
+
+  // accept post data
+  app.use(express.raw());
 
   app.get('/', (req, res) => {
     // TODO route / to party_list.html
@@ -139,80 +216,24 @@ async function main() {
     res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
   });
 
-  app.get('/party/:partyID.git*', async (req, res) => {
+  app.get('/party/:partyID.git/*', async (req, res) => {
+    console.log('git request', req.method, req.url);
     const partyID = req.params.partyID;
-
-    // TODO move this into a lib to share with Party.js
-    const hexPattern = /^[0-9A-Fa-f]{6}$/i;
-    const isValid = partyID.length === 6 && hexPattern.test(partyID);
+    const isValid = isValidPartyID(partyID);
     if (!isValid) {
       res.redirect('/');
     }
+    await processGitRequest(req, res, partyID);
+  });
 
-    const urlParts = req.url.split('/');
-    if (urlParts.length < 3) {
+  app.post('/party/:partyID.git/*', async (req, res) => {
+    console.log('git request', req.method, req.url);
+    const partyID = req.params.partyID;
+    const isValid = isValidPartyID(partyID);
+    if (!isValid) {
       res.redirect('/');
     }
-    // urlParts[0] should equal the empty string
-    if (urlParts[0] !== '') {
-      res.redirect('/');
-    }
-    if (urlParts[1] !== 'party') {
-      res.redirect('/');
-    }
-    // urlParts[2] should end in .git
-    if (!urlParts[2].startsWith(partyID) || !urlParts[2].endsWith('.git')) {
-      res.redirect('/');
-    }
-
-    const partyDir = path.join(tmpDir, 'parties', partyID);
-    const command = 'git http-backend';
-    const envVars = {
-      GIT_HTTP_EXPORT_ALL: '',
-      GIT_PROJECT_ROOT: partyDir,
-      PATH_INFO: '/' + urlParts.slice(3).join('/').split('?')[0],
-      QUERY_STRING: req.url.split('?')[1],
-      REQUEST_METHOD: req.method,
-    };
-
-    const { stdout, stderr } = await exec(command, {env: envVars});
-
-    // if there's no stderr then return the stdout
-    if (stderr !== '') {
-      res.status(500).send(stderr);
-    }
-
-    const lines = stdout.split('\r\n');
-    let headers = {};
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('Cache-Control') ||
-          lines[i].startsWith('Content-Type') ||
-          lines[i].startsWith('Expires') ||
-          lines[i].startsWith('Pragma')) {
-        const header = lines[i].split(': ');
-        // just skip over the incorrectly formatted headers...
-        if (header.length !== 2) {
-          continue;
-        }
-        // res.setHeader(header[0], header[1]);
-        headers[header[0]] = header[1];
-        continue;
-      }
-      // idk if joining with '\n' is necessary. it seems git http-backend
-      // already formats the actual response this way...
-      if (lines[i] === '') {
-        // Use writeHead instead of setHeader because isomorphic-git can't handle ; charset=utf-8 in Content-Type
-        // https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/managers/GitRemoteHTTP.js#L137
-        // and send too... https://stackoverflow.com/questions/59449221/express-remove-charset-utf-8-from-content-type-application-json-charset-utf-8
-        // res.status(200).send(lines.slice(i + 1).join('\n'));
-        res.writeHead(200, headers);
-        res.write(lines.slice(i + 1).join('\n'));
-        res.end();
-        return;
-      }
-    }
-
-    res.status(500).send('Failed to parse git http-backend output');
+    await processGitRequest(req, res, partyID);
   });
 
   app.get('/parties', async (req, res) => {
@@ -231,7 +252,12 @@ async function main() {
   });
 
   app.get('*', (req, res) => {
-    console.log('got unexpected request', req.url);
+    console.log('got unexpected get request', req.method, req.url);
+    res.status(404).send('unexpected request');
+  });
+
+  app.post('*', (req, res) => {
+    console.log('got unexpected post request', req.method, req.url);
     res.status(404).send('unexpected request');
   });
 

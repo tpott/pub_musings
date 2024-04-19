@@ -73,3 +73,9 @@ I learned that e.preventDefault() and e.stopPropagation() don't actually prevent
 I finally got `GIT_HTTP_EXPORT_ALL= GIT_PROJECT_ROOT=/tmp/silentdisco/e964a3e5e7c35043596841054b02900a/parties/000000/ PATH_INFO="/info/refs" QUERY_STRING="service=git-upload-pack" REQUEST_METHOD=GET git http-backend` to work. After it was working in server.js, I was also able to run `git clone http://localhost:8080/party/000000.git`.
 
 I'm getting a weird "EmptyServerResponseError: Empty response from git server.", which seems to be from https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/wire/parseRefsAdResponse.js#L18 .
+
+# Instrumenting git
+
+I figured out that I could pipe and modify the output from `CONTENT_TYPE=application/x-git-upload-pack-request GIT_HTTP_EXPORT_ALL= GIT_PROJECT_ROOT=/Users/tpott/Github/pub_musings PATH_INFO="/info/refs" QUERY_STRING="service=git-upload-pack" REQUEST_METHOD=GET git http-backend` and then pipe that as stdin to `CONTENT_TYPE=application/x-git-upload-pack-request GIT_HTTP_EXPORT_ALL= GIT_PROJECT_ROOT=/Users/tpott/Github/pub_musings/ PATH_INFO="/git-upload-pack" QUERY_STRING="" REQUEST_METHOD=POST git http-backend`. But it comes back empty (headers + empty response)... And testing with `git clone ...` still yields nothing. It just infinite loops? My best guess is that express's body parser isn't parsing the POST body properly and therefore passing an empty body...
+
+Bubbling back up, looking at the isomorphic-git error line, I think it's actually because the client doesn't have `Buffer`.
