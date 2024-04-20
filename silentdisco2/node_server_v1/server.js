@@ -1,6 +1,5 @@
 const child_process = require('child_process');
 const util = require('util');
-// const exec = util.promisify(child_process.exec);
 
 const crypto = require('crypto');
 const fs = require('fs/promises');
@@ -100,43 +99,46 @@ async function main() {
       options.input = req.body;
     }
 
-    // const { stdout, stderr } = await exec(command, options);
     const stdoutBytes = child_process.execSync(command, options);
-    const stdout = (new TextDecoder()).decode(stdoutBytes);
 
-    // if there's no stderr then return the stdout
-    // if (stderr !== '') {
-      // res.status(500).send(stderr);
-    // }
-
-    const lines = stdout.split('\r\n');
     let headers = {};
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('Cache-Control') ||
-          lines[i].startsWith('Content-Type') ||
-          lines[i].startsWith('Expires') ||
-          lines[i].startsWith('Pragma')) {
-        const header = lines[i].split(': ');
+    const returnNewline = new Uint8Array([13, 10]); // \r\n
+    for (let i = 0; i < stdoutBytes.length && i >= 0; ) {
+      const end = stdoutBytes.indexOf(returnNewline, i)
+
+      // Use writeHead instead of setHeader because isomorphic-git can't handle ; charset=utf-8 in Content-Type
+      // https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/managers/GitRemoteHTTP.js#L137
+      // and send too... https://stackoverflow.com/questions/59449221/express-remove-charset-utf-8-from-content-type-application-json-charset-utf-8
+      const nextEnd = stdoutBytes.indexOf(returnNewline, end + 2);
+      if (nextEnd < 0 && req.method === 'POST') {
+        res.writeHead(200, headers);
+        res.write(stdoutBytes.slice(i + 2));
+        res.end();
+        return;
+      } else if (nextEnd < 0 && req.method === 'GET') {
+        res.writeHead(200, headers);
+        res.write(stdoutBytes.slice(i + 2));
+        res.end();
+        return;
+      }
+
+      const line = (new TextDecoder()).decode(stdoutBytes.slice(i, end));
+
+      if (line.startsWith('Cache-Control') ||
+          line.startsWith('Content-Type') ||
+          line.startsWith('Expires') ||
+          line.startsWith('Pragma')) {
+        const header = line.split(': ');
         // just skip over the incorrectly formatted headers...
         if (header.length !== 2) {
           continue;
         }
-        // res.setHeader(header[0], header[1]);
         headers[header[0]] = header[1];
+        i = end + 2;
         continue;
       }
-      // idk if joining with '\n' is necessary. it seems git http-backend
-      // already formats the actual response this way...
-      if (lines[i] === '') {
-        // Use writeHead instead of setHeader because isomorphic-git can't handle ; charset=utf-8 in Content-Type
-        // https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/managers/GitRemoteHTTP.js#L137
-        // and send too... https://stackoverflow.com/questions/59449221/express-remove-charset-utf-8-from-content-type-application-json-charset-utf-8
-        // res.status(200).send(lines.slice(i + 1).join('\n'));
-        res.writeHead(200, headers);
-        res.write(lines.slice(i + 1).join('\n'));
-        res.end();
-        return;
-      }
+
+      i = end + 2;
     }
 
     res.status(500).send('Failed to parse git http-backend output');

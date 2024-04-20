@@ -58,6 +58,7 @@ function App() {
       if (partyID === null) {
         return;
       }
+      // window.location.pathname == '/party/:partyID'
       const fs = new FS('fs');
       await git.init({ fs, dir: window.location.pathname });
       console.log('done initializing fs and git');
@@ -75,7 +76,7 @@ function App() {
       });
       console.log('done cloning');
 
-      const files = await git.listFiles({ fs, dir: '/' });
+      const files = await git.listFiles({ fs, dir: window.location.pathname });
       console.log(files);
     };
 
