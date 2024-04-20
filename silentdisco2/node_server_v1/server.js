@@ -1,6 +1,6 @@
 const child_process = require('child_process');
 const util = require('util');
-const exec = util.promisify(child_process.exec);
+// const exec = util.promisify(child_process.exec);
 
 const crypto = require('crypto');
 const fs = require('fs/promises');
@@ -93,13 +93,21 @@ async function main() {
       QUERY_STRING: req.url.split('?')[1],
       REQUEST_METHOD: req.method,
     };
+    let options = {
+      env: envVars,
+    };
+    if (req.method === 'POST') {
+      options.input = req.body;
+    }
 
-    const { stdout, stderr } = await exec(command, {env: envVars});
+    // const { stdout, stderr } = await exec(command, options);
+    const stdoutBytes = child_process.execSync(command, options);
+    const stdout = (new TextDecoder()).decode(stdoutBytes);
 
     // if there's no stderr then return the stdout
-    if (stderr !== '') {
-      res.status(500).send(stderr);
-    }
+    // if (stderr !== '') {
+      // res.status(500).send(stderr);
+    // }
 
     const lines = stdout.split('\r\n');
     let headers = {};
@@ -138,7 +146,7 @@ async function main() {
   app.use(express.static(path.join(__dirname, '../silentdisco/build')));
 
   // accept post data
-  app.use(express.raw());
+  app.use(express.raw({ type: '*/*' }));
 
   app.get('/', (req, res) => {
     // TODO route / to party_list.html
