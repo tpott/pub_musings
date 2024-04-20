@@ -85,13 +85,22 @@ async function main() {
     const partyDir = path.join(tmpDir, 'parties', partyID);
     const command = 'git http-backend';
     const envVars = {
-      CONTENT_TYPE: 'application/x-git-upload-pack-request',
       GIT_HTTP_EXPORT_ALL: '',
       GIT_PROJECT_ROOT: partyDir,
       PATH_INFO: '/' + urlParts.slice(3).join('/').split('?')[0],
       QUERY_STRING: req.url.split('?')[1],
       REQUEST_METHOD: req.method,
     };
+
+    for (let i = 0; i < req.rawHeaders.length; i++) {
+      const header = req.rawHeaders[i];
+      if ((header.toLowerCase() !== 'content-type') || ((i + 1) === req.rawHeaders.length)) {
+        continue;
+      }
+      // For example: 'application/x-git-upload-pack-request',
+      envVars.CONTENT_TYPE = req.rawHeaders[i + 1];
+    }
+
     let options = {
       env: envVars,
     };
@@ -110,12 +119,7 @@ async function main() {
       // https://github.com/isomorphic-git/isomorphic-git/blob/545c8f128763cb2f76a831f69aee8745089c359b/src/managers/GitRemoteHTTP.js#L137
       // and send too... https://stackoverflow.com/questions/59449221/express-remove-charset-utf-8-from-content-type-application-json-charset-utf-8
       const nextEnd = stdoutBytes.indexOf(returnNewline, end + 2);
-      if (nextEnd < 0 && req.method === 'POST') {
-        res.writeHead(200, headers);
-        res.write(stdoutBytes.slice(i + 2));
-        res.end();
-        return;
-      } else if (nextEnd < 0 && req.method === 'GET') {
+      if (nextEnd < 0) {
         res.writeHead(200, headers);
         res.write(stdoutBytes.slice(i + 2));
         res.end();
@@ -123,7 +127,10 @@ async function main() {
       }
 
       const line = (new TextDecoder()).decode(stdoutBytes.slice(i, end));
-
+      if (line.startsWith('Status')) {
+        console.log('oops, git set a status', line);
+        break;
+      }
       if (line.startsWith('Cache-Control') ||
           line.startsWith('Content-Type') ||
           line.startsWith('Expires') ||
@@ -193,10 +200,15 @@ async function main() {
 
     const partyID = crypto.randomBytes(3).toString('hex');
 
+    // TODO move this into a func
     const partyDir = path.join(tmpDir, 'parties', partyID);
     await fs.mkdir(partyDir, { recursive: true });
-    await git.init({ fs, dir: partyDir });
+    // bare means we can run this as a git server, like github...
+    await git.init({ fs, dir: partyDir, bare: true });
     await git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
+
+    // TODO: Run `git config --bool http.receivepack true` to allow pushes
+    child_process.execSync('git config --bool http.receivepack true', { GIT_DIR: partyDir });
 
     res.send(partyID);
   });
@@ -274,10 +286,16 @@ async function main() {
   process.on('SIGTERM', shutDown);
   process.on('SIGINT', shutDown);
   const initParty0 = async () => {
+    // TODO move this into a func
     const partyDir = path.join(tmpDir, 'parties', '000000');
     await fs.mkdir(partyDir, { recursive: true });
-    await git.init({ fs, dir: partyDir });
+    // bare means we can run this as a git server, like github...
+    await git.init({ fs, dir: partyDir, bare: true });
     await git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
+
+    // TODO: Run `git config --bool http.receivepack true` to allow pushes
+    child_process.execSync('git config --bool http.receivepack true', { GIT_DIR: partyDir });
+
     await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '# start\n');
     await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });
     await git.commit({ fs, dir: partyDir, message: 'init party', author: {

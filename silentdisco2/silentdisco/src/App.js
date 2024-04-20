@@ -58,10 +58,14 @@ function App() {
       if (partyID === null) {
         return;
       }
+
       // window.location.pathname == '/party/:partyID'
       const fs = new FS('fs');
       await git.init({ fs, dir: window.location.pathname });
       console.log('done initializing fs and git');
+
+      // Note: if the page is already loaded, then fs may be cached, and git may already
+      // be cloned...
 
       // TODO I should use partyID state here instead of window.location...
       // otherwise, the browser will send two requests when it browses to /party/000000
@@ -78,6 +82,30 @@ function App() {
 
       const files = await git.listFiles({ fs, dir: window.location.pathname });
       console.log(files);
+
+      /*
+      await fs.promises.writeFile(window.location.pathname + '/now_playing.txt', 'hey\n# start\n');
+      await git.add({ fs, dir: window.location.pathname, filepath: 'now_playing.txt'});
+      const sha = await git.commit({
+        fs,
+        dir: window.location.pathname,
+        author: {
+          name: 'Ron Weasley',
+          email: 'ron@weasly.com',
+        },
+        message: 'lolz',
+      });
+      console.log('done committing', sha);
+      const pushResult = await git.push({
+        fs,
+        http,
+        dir: window.location.pathname,
+        remote: 'origin',
+        ref: 'trunk',
+      });
+      console.log('done pushing', pushResult);
+      */
+
     };
 
     console.log('going to initialize...');
