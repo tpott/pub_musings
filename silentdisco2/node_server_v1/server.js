@@ -92,6 +92,12 @@ async function main() {
       REQUEST_METHOD: req.method,
     };
 
+    // If someone is trying to push, git requires them to be authenticated
+    // TODO loop in authentication
+    if (envVars.QUERY_STRING === 'service=git-receive-pack' || envVars.PATH_INFO === '/git-receive-pack') {
+      envVars.REMOTE_USER = 'TODO';
+    }
+
     for (let i = 0; i < req.rawHeaders.length; i++) {
       const header = req.rawHeaders[i];
       if ((header.toLowerCase() !== 'content-type') || ((i + 1) === req.rawHeaders.length)) {
@@ -200,16 +206,7 @@ async function main() {
 
     const partyID = crypto.randomBytes(3).toString('hex');
 
-    // TODO move this into a func
-    const partyDir = path.join(tmpDir, 'parties', partyID);
-    await fs.mkdir(partyDir, { recursive: true });
-    // bare means we can run this as a git server, like github...
-    await git.init({ fs, dir: partyDir, bare: true });
-    await git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
-
-    // TODO: Run `git config --bool http.receivepack true` to allow pushes
-    child_process.execSync('git config --bool http.receivepack true', { GIT_DIR: partyDir });
-
+    initParty(partyID);
     res.send(partyID);
   });
 
@@ -285,17 +282,17 @@ async function main() {
 
   process.on('SIGTERM', shutDown);
   process.on('SIGINT', shutDown);
-  const initParty0 = async () => {
-    // TODO move this into a func
-    const partyDir = path.join(tmpDir, 'parties', '000000');
+  const initParty = async (partyID /* string */) => {
+    const partyDir = path.join(tmpDir, 'parties', partyID);
     await fs.mkdir(partyDir, { recursive: true });
     // bare means we can run this as a git server, like github...
-    await git.init({ fs, dir: partyDir, bare: true });
+    await git.init({ fs, dir: partyDir, bare: true, defaultBranch: 'trunk' });
     await git.branch({ fs, dir: partyDir, ref: 'trunk', checkout: true });
 
     // TODO: Run `git config --bool http.receivepack true` to allow pushes
-    child_process.execSync('git config --bool http.receivepack true', { GIT_DIR: partyDir });
+    child_process.execSync('git config --bool http.receivepack true', { env: { GIT_DIR: partyDir } });
 
+    // TODO remove me once we know what we're doing
     await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '# start\n');
     await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });
     await git.commit({ fs, dir: partyDir, message: 'init party', author: {
@@ -309,7 +306,7 @@ async function main() {
     console.log(`Generated signing key: ${publicKeyStr}`);
     console.log(`Server is running on http://localhost:${PORT}`);
 
-    initParty0();
+    initParty('000000');
     console.log('Created empty 000000 party');
 
     console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
