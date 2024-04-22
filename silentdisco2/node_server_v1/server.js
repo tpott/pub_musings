@@ -293,7 +293,7 @@ async function main() {
     child_process.execSync('git config --bool http.receivepack true', { env: { GIT_DIR: partyDir } });
 
     // TODO remove me once we know what we're doing
-    await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '# start\n');
+    await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '');
     await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });
     await git.commit({ fs, dir: partyDir, message: 'init party', author: {
       name: 'Harry Potter',
