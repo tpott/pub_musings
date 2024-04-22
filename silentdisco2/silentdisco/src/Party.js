@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import NowPlaying from './NowPlaying';
 import './Party.css';
 
 function Party({ partyID, partyRedirect }) {
@@ -52,21 +53,8 @@ function Party({ partyID, partyRedirect }) {
     );
 
   } else {
-    // <NowPlaying>
-    // TODO if roles includes "dj" then replace "Leave Party" button with "Stop DJ"
     return (
-      <div className="Party">
-        <header className="Party-header">
-          <p>Welcome to {partyID}</p>
-          <p>Now playing: TODO</p>
-          <audio controls preload="auto">
-            <source src="/e_J14fbBluE.mp3" />
-          </audio>
-          <p>My name: TODO</p>
-          <p><button onClick={() => setListParty(true)}>Participants list</button></p>
-          <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
-        </header>
-      </div>
+      <NowPlaying partyID={partyID} partyRedirect={partyRedirect} setListParty={setListParty} />
     );
 
   }
