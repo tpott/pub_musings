@@ -1,5 +1,5 @@
 import * as git from 'isomorphic-git';
-import http from "isomorphic-git/http/web";
+import http from 'isomorphic-git/http/web';
 import FS from '@isomorphic-git/lightning-fs';
 import { useEffect, useState } from 'react';
 
@@ -17,7 +17,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   const [fs, setFS] = useState(null);
 
   useEffect(() => {
-    setAudioList(["e_J14fbBluE.mp3"]);
+    setAudioList(['e_J14fbBluE.mp3']);
     setPlayingList([false]);
 
     // window.location.pathname == '/party/:partyID'
@@ -33,13 +33,6 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
 
     // TODO set a reasonable interval for pulling git
     const intervalId = setInterval(async () => {
-      // slice is because iso git apparently wants relative paths
-      const gitStatus = await git.status({
-        fs,
-        dir: window.location.pathname,
-        filepath: window.location.pathname.slice(1),
-      });
-      console.log('fetching', gitStatus);
       await git.fetch({
         fs,
         http,
@@ -47,7 +40,6 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         remote: 'origin',
         ref: 'trunk',
       });
-      console.log('done fetching');
       const result = await git.merge({
         fs,
         dir: window.location.pathname,
@@ -58,18 +50,28 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
           email: 'ron@weasly.com',
         },
       });
-      console.log(result);
+      console.log('fetched', result);
 
-      if (result.alreadyMerged) {
+      if (result.alreadyMerged ?? false) {
         return;
       }
 
+      // I'm not entirely sure why isogit requires us to checkout the branch we just
+      // updated with the merge...
+      await git.checkout({
+        fs,
+        dir: window.location.pathname,
+      });
+
+      console.log('!alreadyMerged, need to schedule something?');
       const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
+      console.log('read', fileBytes);
       // TODO don't decode the entire file?
       const nowPlaying = (new TextDecoder()).decode(fileBytes);
       // TODO do we need to handle more lines?
       const lines = nowPlaying.split('\n');
       if (lines.length === 0 || lines[0].length === 0) {
+        console.log('empty lines or empty first line', lines);
         return;
       }
       const line = lines[0];
@@ -82,7 +84,8 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         console.error('now_playing line missing leading or trailing parenthesis', line);
         return;
       }
-      const fields = line.split(', ');
+      // slice is to remove the leading and trailing paranthesis
+      const fields = line.slice(1, -1).split(', ');
       if (fields.length !== 5) {
         console.error('now_playing line incorrect number of fields', line);
         return;
@@ -114,7 +117,8 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
             // TODO use the react dom elements from state?
             const audios = document.getElementsByTagName('audio');
             audios[i].currentTime = parseFloat(fields[3]);
-            setPlayingList(playingList.map((_, k) => (actionType === "play" && i === k)));
+            console.log('going to', actionType, i, audioList[i], audios[i]);
+            setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
             if (actionType === 'play') {
               audios[i].play();
             } else {
@@ -132,7 +136,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
     }, 2000);
 
     return () => clearInterval(intervalId);
-  }, [fs]);
+  }, [audioList, playingList, fs]);
 
 
   // TODO DJ's name... idk if there's multiple DJs
@@ -148,13 +152,16 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         return;
       }
 
+      const currentTime = audios[i].currentTime;
       const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
       const nowInSec = (new Date()).getTime() / 1000;
+      const targetInSec = nowInSec + (clickDelayMs / 1000);
       // TODO figure out time skew for scheduling in the future...
       await fs.promises.writeFile(
         window.location.pathname + '/now_playing.txt',
-        `(${actionType}, ${i}, ${audioList[i]}, ${audios[i].currentTime}, ${nowInSec + (clickDelayMs / 1000)})\n` + fileBytes,
+        `(${actionType}, ${i}, ${audioList[i]}, ${currentTime}, ${targetInSec})\n` + fileBytes,
       );
+
       await git.add({ fs, dir: window.location.pathname, filepath: 'now_playing.txt'});
       const sha = await git.commit({
         fs,
@@ -177,14 +184,14 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
 
       // TODO move this into a function
       const updatedNow = (new Date()).getTime() / 1000;
-      const diff = (nowInSec + (clickDelayMs / 1000)) - updatedNow;
+      const diff = targetInSec - updatedNow;
       if (diff > 0) {
         console.log('self scheduling action for future', diff, updatedNow);
 
         setTimeout(
           () => {
-            setPlayingList(playingList.map((_, k) => (actionType === "play" && i === k)));
-            audios[i].currentTime = audios[i].currentTime;
+            setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
+            audios[i].currentTime = currentTime;
             if (actionType === 'play') {
               audios[i].play();
             } else {
@@ -199,11 +206,9 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         // TODO calc diff in audios[i].currentTime and fields[3]
       }
 
-
-
       setTimeout(
         () => {
-          setPlayingList(playingList.map((_, k) => (actionType === "play" && i === k)));
+          setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
           if (actionType === 'play') {
             audios[i].play();
           } else {
@@ -231,17 +236,17 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
 
   const audioElemList = audioList.map((filename, i) => (
     <>
-      <audio controls preload="auto" onPlay={accident(i)} onPause={accident(i)}>
+      <audio controls preload='auto' onPlay={accident(i)} onPause={accident(i)}>
         <source src={`/${filename}`} />
       </audio>
-      {playingList[i] ? <span onClick={playOrPause("pause", i)}>⏸️</span> : <span onClick={playOrPause("play", i)}>▶️</span> }
+      {playingList[i] ? <button onClick={playOrPause('pause', i)}>⏸️</button> : <button onClick={playOrPause('play', i)}>▶️</button> }
     </>
   ));
 
-  // TODO if roles includes "dj" then replace "Leave Party" button with "Stop DJ"
+  // TODO if roles includes 'dj' then replace 'Leave Party' button with 'Stop DJ'
   return (
-    <div className="Party">
-      <header className="Party-header">
+    <div className='Party'>
+      <header className='Party-header'>
         <p>Welcome to {partyID}</p>
         <p>Now playing: TODO</p>
         {audioElemList}

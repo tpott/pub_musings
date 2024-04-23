@@ -79,3 +79,12 @@ I'm getting a weird "EmptyServerResponseError: Empty response from git server.",
 I figured out that I could pipe and modify the output from `CONTENT_TYPE=application/x-git-upload-pack-request GIT_HTTP_EXPORT_ALL= GIT_PROJECT_ROOT=/Users/tpott/Github/pub_musings PATH_INFO="/info/refs" QUERY_STRING="service=git-upload-pack" REQUEST_METHOD=GET git http-backend` and then pipe that as stdin to `CONTENT_TYPE=application/x-git-upload-pack-request GIT_HTTP_EXPORT_ALL= GIT_PROJECT_ROOT=/Users/tpott/Github/pub_musings/ PATH_INFO="/git-upload-pack" QUERY_STRING="" REQUEST_METHOD=POST git http-backend`. But it comes back empty (headers + empty response)... And testing with `git clone ...` still yields nothing. It just infinite loops? My best guess is that express's body parser isn't parsing the POST body properly and therefore passing an empty body...
 
 Bubbling back up, looking at the isomorphic-git error line, I think it's actually because the client doesn't have `Buffer`.
+
+# Almost there
+
+It's mostly working... But multi clients isn't working because the other clients can't seem to get their FS updated...
+
+I'm trying to replicate `git clone http://localhost:8080/party/000000.git`
+* `mkdir 000000 && cd 000000 && ~/Github/pub_musings/silentdisco2/node_modules/.bin/isogit clone --url=http://localhost:8080/party/000000.git --depth=1 --singleBranch`
+* `~/Github/pub_musings/silentdisco2/node_modules/.bin/isogit fetch origin trunk`
+* `cp ~/.gitconfig .git/config && ~/Github/pub_musings/silentdisco2/node_modules/.bin/isogit merge --ours=trunk --theirs=remotes/origin/trunk`
