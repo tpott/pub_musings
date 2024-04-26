@@ -13,6 +13,22 @@ window.Buffer = Buffer;
 function App() {
   const [partyID, setPartyID] = useState(null);
 
+  const postDeviceKey = async () => {
+    const response = await fetch('/device-key', {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) {
+      return;
+    }
+    // Redirect to the newly created party
+    // const partiesArr = await response.json();
+    // setParties(partiesArr);
+  };
+
   const partyRedirect = (partyID) => {
     return () => {
       if (partyID == null) {
@@ -54,12 +70,14 @@ function App() {
 
 
   useEffect(() => {
+    console.log('going to initialize...');
+
     const initializeGitRepository = async () => {
       if (partyID === null) {
         return;
       }
 
-	  // This is necessary otherwise we may have loaded the browser with an old git repo
+      // This is necessary otherwise we may have loaded the browser with an old git repo
       console.log('clearing the fs');
       indexedDB.deleteDatabase('fs');
 
@@ -86,10 +104,8 @@ function App() {
 
       const files = await git.listFiles({ fs, dir: window.location.pathname });
       console.log(files);
-
     };
 
-    console.log('going to initialize...');
     initializeGitRepository();
   }, [partyID]);
 

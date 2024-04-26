@@ -19,20 +19,19 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   useEffect(() => {
     setAudioList(['e_J14fbBluE.mp3']);
     setPlayingList([false]);
-
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
     console.log('done initializing fs');
     setFS(myFs);
   }, []);
 
+
   useEffect(() => {
     if (fs == null) {
       return doNothing;
     }
 
-    // TODO set a reasonable interval for pulling git
-    const intervalId = setInterval(async () => {
+    const asyncPullGit = async () => {
       await git.fetch({
         fs,
         http,
@@ -132,12 +131,12 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         console.log('TODO scheduled action from past', diff);
         // TODO calc diff in audios[i].currentTime and fields[3]
       }
+    };
 
-    }, 2000);
-
+    // TODO set a reasonable interval for pulling git
+    const intervalId = setInterval(asyncPullGit, 2000);
     return () => clearInterval(intervalId);
   }, [audioList, playingList, fs]);
-
 
   // TODO DJ's name... idk if there's multiple DJs
   // TODO my roles... listener (everyone...), host, DJ

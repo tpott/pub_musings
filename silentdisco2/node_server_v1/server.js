@@ -160,6 +160,9 @@ async function main() {
   // Serve static files from the build directory
   app.use(express.static(path.join(__dirname, '../silentdisco/build')));
 
+  // Serve static object files from the uploaded object dir
+  app.use('/objects', express.static(path.join(tmpDir, 'objects')));
+
   // accept post data
   app.use(express.raw({ type: '*/*' }));
 
@@ -268,6 +271,11 @@ async function main() {
 
   app.get('/public-key', (req, res) => {
     res.send(publicKeyStr);
+  });
+
+  app.post('/device-key', (req, res) => {
+    // TODO update devices.json
+    res.send({});
   });
 
   app.get('*', (req, res) => {
