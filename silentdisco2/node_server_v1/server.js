@@ -213,6 +213,11 @@ async function main() {
     res.send(partyID);
   });
 
+  app.post('/device-key', (req, res) => {
+    // TODO update devices.json
+    res.send({});
+  });
+
   app.get('/iamhost/:hostID', (req, res) => {
     const { hostID } = req.params;
     if (hostID !== randHostID) {
@@ -273,9 +278,7 @@ async function main() {
     res.send(publicKeyStr);
   });
 
-  app.post('/device-key', (req, res) => {
-    // TODO update devices.json
-    res.send({});
+  app.post('/upload', (req, res) => {
   });
 
   app.get('*', (req, res) => {

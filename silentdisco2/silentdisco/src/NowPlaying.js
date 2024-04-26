@@ -17,14 +17,13 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   const [fs, setFS] = useState(null);
 
   useEffect(() => {
+    // TODO fetchAudioList
     setAudioList(['e_J14fbBluE.mp3']);
     setPlayingList([false]);
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
-    console.log('done initializing fs');
     setFS(myFs);
   }, []);
-
 
   useEffect(() => {
     if (fs == null) {
@@ -242,6 +241,10 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
     </>
   ));
 
+  const uploadFile = async (formData) => {
+    console.log('uploading', formData);
+  };
+
   // TODO if roles includes 'dj' then replace 'Leave Party' button with 'Stop DJ'
   return (
     <div className='Party'>
@@ -249,6 +252,12 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         <p>Welcome to {partyID}</p>
         <p>Now playing: TODO</p>
         {audioElemList}
+        <div>
+          <form action={uploadFile}>
+            <input type='file' />
+            <button type='submit'>Upload</button>
+          </form>
+        </div>
         <p>My name: TODO</p>
         <p><button onClick={() => setListParty(true)}>Participants list</button></p>
         <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
