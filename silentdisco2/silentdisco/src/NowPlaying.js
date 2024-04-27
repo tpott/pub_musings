@@ -241,8 +241,20 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
     </>
   ));
 
-  const uploadFile = async (formData) => {
-    console.log('uploading', formData);
+  const uploadFile = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    // TODO use the react state instead of finding the html element...
+    const elem = document.getElementById('fileUpload');
+    console.log('uploading', elem);
+    formData.append('file', elem.files[0]);
+    const response = await fetch('/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      console.error('failed to upload file', response);
+    }
   };
 
   // TODO if roles includes 'dj' then replace 'Leave Party' button with 'Stop DJ'
@@ -253,8 +265,8 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         <p>Now playing: TODO</p>
         {audioElemList}
         <div>
-          <form action={uploadFile}>
-            <input type='file' />
+          <form onSubmit={uploadFile}>
+            <input type='file' id='fileUpload' />
             <button type='submit'>Upload</button>
           </form>
         </div>

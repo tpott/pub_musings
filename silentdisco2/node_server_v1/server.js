@@ -51,7 +51,7 @@ async function main() {
   );
   await fs.mkdir(path.join(tmpDir, 'objects')); // i.e. audio file references
   await fs.mkdir(path.join(tmpDir, 'parties'));
-  console.log(`Created tempDir: ${tmpDir}`);
+  console.log(`Created tmpDir: ${tmpDir}`);
 
   async function shutDown() {
     server.close();
@@ -164,7 +164,7 @@ async function main() {
   app.use('/objects', express.static(path.join(tmpDir, 'objects')));
 
   // accept post data
-  app.use(express.raw({ type: '*/*' }));
+  app.use(express.raw({ limit: '50mb', type: '*/*' }));
 
   app.get('/', (req, res) => {
     // TODO route / to party_list.html
@@ -278,7 +278,20 @@ async function main() {
     res.send(publicKeyStr);
   });
 
-  app.post('/upload', (req, res) => {
+  app.post('/upload', async (req, res) => {
+    // TODO parse Content-Disposition: form-data, name, filename="...", Content-Type: audio/mpeg
+    const returnNewline = new Uint8Array([13, 10, 13, 10]); // \r\n
+    const start = req.body.indexOf(returnNewline);
+    // 4 is to skip the \r\n
+    // -44 is to skip the ------WebKitFormBoundary4gS2tefbOBZWFoWn--\r\n\r\n
+    const fileBytes = req.body.slice(start + 4, -46);
+    const hash = crypto.createHash('sha256');
+    hash.update(fileBytes);
+    // TODO parse filetype above and figure out if mp3 is reasonable
+    const tmpFile = path.join(tmpDir, 'objects', hash.digest('hex') + '.mp3');
+    await fs.writeFile(tmpFile, fileBytes);
+    console.log(tmpFile);
+    res.status(200).send('ok');
   });
 
   app.get('*', (req, res) => {
