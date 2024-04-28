@@ -56,7 +56,7 @@ async function main() {
   // TODO when running `node --inspect ../node_server_v1/server.js` from the
   // silentdisco dir, this file isn't in the local path..
   await fs.copyFile(
-    '../node_server_v1/e_J14fbBluE.mp3',
+    path.join(__dirname, 'e_J14fbBluE.mp3'), // __dirname should be $something/node_server_v1/
     path.join(tmpDir, 'objects', '9f033b2cf7176e5c18d9694103ac7ca9cbdad1a70d02a96648850690e9760542.mp3'),
   );
 
@@ -301,6 +301,9 @@ async function main() {
     await fs.writeFile(tmpFile, fileBytes);
     // TODO add formdata for partyID
     const partyDir = path.join(tmpDir, 'parties', '000000');
+    // Similar to silentdisco/src/NowPlaying.js, I'm not sure why this git checkout
+    // is necessary with isogit
+    await git.checkout({ fs, dir: partyDir });
     await fs.appendFile(
       path.join(partyDir, 'objects.txt'),
       `{"sha256": "${hexDigest}", "filetype": "mp3", "name": "TODO"}\n`,
