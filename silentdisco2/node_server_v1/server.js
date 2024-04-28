@@ -53,6 +53,13 @@ async function main() {
   await fs.mkdir(path.join(tmpDir, 'parties'));
   console.log(`Created tmpDir: ${tmpDir}`);
 
+  // TODO when running `node --inspect ../node_server_v1/server.js` from the
+  // silentdisco dir, this file isn't in the local path..
+  await fs.copyFile(
+    '../node_server_v1/e_J14fbBluE.mp3',
+    path.join(tmpDir, 'objects', '9f033b2cf7176e5c18d9694103ac7ca9cbdad1a70d02a96648850690e9760542.mp3'),
+  );
+
   async function shutDown() {
     server.close();
     await fs.rm(tmpDir, { recursive: true });
@@ -279,6 +286,7 @@ async function main() {
   });
 
   app.post('/upload', async (req, res) => {
+    // TODO add formdata for partyID
     // TODO parse Content-Disposition: form-data, name, filename="...", Content-Type: audio/mpeg
     const returnNewline = new Uint8Array([13, 10, 13, 10]); // \r\n
     const start = req.body.indexOf(returnNewline);
@@ -287,10 +295,21 @@ async function main() {
     const fileBytes = req.body.slice(start + 4, -46);
     const hash = crypto.createHash('sha256');
     hash.update(fileBytes);
+    const hexDigest = hash.digest('hex');
     // TODO parse filetype above and figure out if mp3 is reasonable
-    const tmpFile = path.join(tmpDir, 'objects', hash.digest('hex') + '.mp3');
+    const tmpFile = path.join(tmpDir, 'objects', hexDigest + '.mp3');
     await fs.writeFile(tmpFile, fileBytes);
-    console.log(tmpFile);
+    // TODO add formdata for partyID
+    const partyDir = path.join(tmpDir, 'parties', '000000');
+    await fs.appendFile(
+      path.join(partyDir, 'objects.txt'),
+      `{"sha256": "${hexDigest}", "filetype": "mp3", "name": "TODO"}\n`,
+    );
+    await git.add({ fs, dir: partyDir, filepath: 'objects.txt' });
+    await git.commit({ fs, dir: partyDir, message: 'uploaded file', author: {
+      name: 'Harry Potter',
+      email: 'harry@example.com',
+    }});
     res.status(200).send('ok');
   });
 
@@ -306,6 +325,7 @@ async function main() {
 
   process.on('SIGTERM', shutDown);
   process.on('SIGINT', shutDown);
+
   const initParty = async (partyID /* string */) => {
     const partyDir = path.join(tmpDir, 'parties', partyID);
     await fs.mkdir(partyDir, { recursive: true });
@@ -317,6 +337,8 @@ async function main() {
     child_process.execSync('git config --bool http.receivepack true', { env: { GIT_DIR: partyDir } });
 
     // TODO remove me once we know what we're doing
+    await fs.writeFile(path.join(partyDir, 'objects.txt'), '{"sha256": "9f033b2cf7176e5c18d9694103ac7ca9cbdad1a70d02a96648850690e9760542", "filetype": "mp3", "name": "Cello Suite - Bach"}\n');
+    await git.add({ fs, dir: partyDir, filepath: 'objects.txt' });
     await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '');
     await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });
     await git.commit({ fs, dir: partyDir, message: 'init party', author: {

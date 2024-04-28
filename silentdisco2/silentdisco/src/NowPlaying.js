@@ -17,12 +17,24 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   const [fs, setFS] = useState(null);
 
   useEffect(() => {
-    // TODO fetchAudioList
-    setAudioList(['e_J14fbBluE.mp3']);
-    setPlayingList([false]);
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
     setFS(myFs);
+
+    // TODO move this into another function to be shared with the other useEffect
+    const fetchObjects = async () => {
+      const fileBytes = await myFs.promises.readFile(window.location.pathname + '/objects.txt');
+      const audios = (new TextDecoder()).decode(fileBytes)
+        .split('\n')
+        .filter(line => line !== '')
+        .map(line => {
+          const audioObj = JSON.parse(line)
+          return `${audioObj['sha256']}.${audioObj['filetype']}`;
+        });
+      setAudioList(audios);
+      setPlayingList(audios.map(() => false));
+    };
+    fetchObjects();
   }, []);
 
   useEffect(() => {
@@ -62,6 +74,22 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
       });
 
       console.log('!alreadyMerged, need to schedule something?');
+
+      // TODO move this into another function to share with the other useEffect
+      const fetchObjects = async () => {
+        const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
+        const audios = (new TextDecoder()).decode(fileBytes)
+          .split('\n')
+          .filter(line => line !== '')
+          .map(line => {
+            const audioObj = JSON.parse(line)
+            return `${audioObj['sha256']}.${audioObj['filetype']}`;
+          });
+        setAudioList(audios);
+        setPlayingList(audios.map(() => false));
+      };
+      fetchObjects();
+
       const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
       console.log('read', fileBytes);
       // TODO don't decode the entire file?
@@ -233,12 +261,12 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   };
 
   const audioElemList = audioList.map((filename, i) => (
-    <>
+    <li>
       <audio controls preload='auto' onPlay={accident(i)} onPause={accident(i)}>
-        <source src={`/${filename}`} />
+        <source src={`/objects/${filename}`} />
       </audio>
       {playingList[i] ? <button onClick={playOrPause('pause', i)}>⏸️</button> : <button onClick={playOrPause('play', i)}>▶️</button> }
-    </>
+    </li>
   ));
 
   const uploadFile = async (e) => {
@@ -263,7 +291,9 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
       <header className='Party-header'>
         <p>Welcome to {partyID}</p>
         <p>Now playing: TODO</p>
-        {audioElemList}
+        <ul>
+          {audioElemList}
+        </ul>
         <div>
           <form onSubmit={uploadFile}>
             <input type='file' id='fileUpload' />
