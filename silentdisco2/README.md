@@ -103,5 +103,7 @@ two (N) hex chars from the device key.
 the interval set for `asyncPullGit` and timeout set with `clickDelayMs`.
 * Client side full state from fs parsing. Every function that calls `readFile`...
 Will be able to handle scheduling in the past. And can delete rows from 
-`now_playing.txt` once they're no longer relevant. Check an <audio> element's `duration`.
-Will need to set the "Now playing" banner text.
+`now_playing.txt` once they're no longer relevant. Check an <audio> element's
+`duration`.  Will need to set the "Now playing" banner text.
+* Cache what commit the FS is currently at? Eh not necessary because of the
+`alradyMerged` flag.
