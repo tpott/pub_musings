@@ -88,3 +88,20 @@ I'm trying to replicate `git clone http://localhost:8080/party/000000.git`
 * `mkdir 000000 && cd 000000 && ~/Github/pub_musings/silentdisco2/node_modules/.bin/isogit clone --url=http://localhost:8080/party/000000.git --depth=1 --singleBranch`
 * `~/Github/pub_musings/silentdisco2/node_modules/.bin/isogit fetch origin trunk`
 * `cp ~/.gitconfig .git/config && ~/Github/pub_musings/silentdisco2/node_modules/.bin/isogit merge --ours=trunk --theirs=remotes/origin/trunk`
+
+# Git is working
+
+Git is now working! I think the hardest parts to figure out are done. To run the server, I typically run `cd silentdisco && npm run build && node --inspect ../node_server_v1/server.js`
+
+Up next:
+* User authentication. Need some sort of device keys, user names, and user
+roles (listener, DJ, host). Every user name should be rendered with first
+two (N) hex chars from the device key.
+* Audio autoplay (loop?). And ideally drag to re-order (if you're the DJ).
+* Delete / unschedule a song (if you're the DJ). Also maybe song name?
+* Websockets! We need websockets to make everything more responsive. Then reduce
+the interval set for `asyncPullGit` and timeout set with `clickDelayMs`.
+* Client side full state from fs parsing. Every function that calls `readFile`...
+Will be able to handle scheduling in the past. And can delete rows from 
+`now_playing.txt` once they're no longer relevant. Check an <audio> element's `duration`.
+Will need to set the "Now playing" banner text.

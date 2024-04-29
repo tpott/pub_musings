@@ -283,6 +283,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
     if (!response.ok) {
       console.error('failed to upload file', response);
     }
+    elem.value = ''; // clear the selected file
   };
 
   // TODO if roles includes 'dj' then replace 'Leave Party' button with 'Stop DJ'
