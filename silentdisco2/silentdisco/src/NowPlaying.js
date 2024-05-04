@@ -11,177 +11,152 @@ const gitIntervalMs = 16000; // 16 seconds
 // doNothing is an empty cleanup function to make react useEffect happy
 const doNothing = () => {};
 
+const myAsyncPullGit = (
+  fs,
+  commit,
+  setCommit,
+  audioList,
+  setAudioList,
+  playingList,
+  setPlayingList,
+) => {
+  return async () => {
+    await git.fetch({
+      fs,
+      http,
+      dir: window.location.pathname,
+      remote: 'origin',
+      ref: 'trunk',
+    });
+    const result = await git.merge({
+      fs,
+      dir: window.location.pathname,
+      theirs: 'remotes/origin/trunk',
+      ours: 'trunk',
+      author: {
+        name: 'Ron Weasley',
+        email: 'ron@weasly.com',
+      },
+    });
+    console.log('fetched', result);
+
+    if (commit == null) {
+      setCommit(result.oid);
+    }
+
+    if (result.alreadyMerged ?? false) {
+      return;
+    }
+    // Don't setCommit(result.oid) just yet.. wait till we update other state
+
+    // I'm not entirely sure why isogit requires us to checkout the branch we just
+    // updated with the merge...
+    await git.checkout({
+      fs,
+      dir: window.location.pathname,
+    });
+
+    console.log('!alreadyMerged, need to schedule something?');
+
+    // TODO move this into another function to share with the other useEffect
+    const fetchObjects = async () => {
+      const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
+      const audios = (new TextDecoder()).decode(fileBytes)
+        .split('\n')
+        .filter(line => line !== '')
+        .map(line => {
+          const audioObj = JSON.parse(line)
+          return `${audioObj['sha256']}.${audioObj['filetype']}`;
+        });
+      setAudioList(audios);
+      setPlayingList(audios.map(() => false));
+    };
+    fetchObjects();
+
+    const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
+    console.log('read', fileBytes);
+    // TODO don't decode the entire file?
+    const nowPlaying = (new TextDecoder()).decode(fileBytes);
+    // TODO do we need to handle more lines?
+    const lines = nowPlaying.split('\n');
+    if (lines.length === 0 || lines[0].length === 0) {
+      console.log('empty lines or empty first line', lines);
+      return;
+    }
+    const line = lines[0];
+    console.log(nowPlaying);
+    if (line.length < 2) {
+      console.error('now_playing line shorter than expected', line);
+      return;
+    }
+    if (line[0] !== '(' || line[line.length - 1] !== ')') {
+      console.error('now_playing line missing leading or trailing parenthesis', line);
+      return;
+    }
+    // slice is to remove the leading and trailing paranthesis
+    const fields = line.slice(1, -1).split(', ');
+    if (fields.length !== 5) {
+      console.error('now_playing line incorrect number of fields', line);
+      return;
+    }
+
+    const i = parseInt(fields[1]);
+    if (i < 0) {
+      console.error('now_playing line with negative i', line, i);
+      return;
+    }
+    if (i >= audioList.length) {
+      console.error('now_playing line i out of bounds', line, i, audioList.length);
+      return;
+    }
+    if (audioList[i] !== fields[2]) {
+      console.error('now_playing line unknown audio vs expected', line, audioList[i]);
+      return;
+    }
+
+    // TODO move this into a function
+    const actionType = fields[0];
+    const nowInSec = (new Date()).getTime() / 1000;
+    const diff = parseFloat(fields[4]) - nowInSec;
+
+    // TODO use the react dom elements from state?
+    const audios = document.getElementsByTagName('audio');
+    const updatePlaying = () => {
+      if (actionType === 'play' && diff <= 0) {
+        audios[i].currentTime = parseFloat(fields[3]) - diff;
+      } else {
+        audios[i].currentTime = parseFloat(fields[3]);
+      }
+      console.log('going to', actionType, i, audioList[i]);
+      setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
+      if (actionType === 'play') {
+        audios[i].play();
+      } else {
+        audios[i].pause();
+      }
+    };
+
+    if (diff > 0) {
+      console.log('scheduling action for future', diff, nowInSec, fields[4]);
+      setTimeout(updatePlaying, diff * 1000,);
+    } else {
+      console.log('TODO scheduled action from past', diff);
+      updatePlaying();
+    }
+
+    // Force the component to re-render
+    setCommit(result.oid);
+  };
+};
+
+
 function NowPlaying({ partyID, partyRedirect, setListParty }) {
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
   const [playingList, setPlayingList] = useState([]);
   const [fs, setFS] = useState(null);
+  const [wsClient, setWSClient] = useState(null);
   const [commit, setCommit] = useState(null);
-
-  useEffect(() => {
-    // TODO move asyncPullGit outside of NowPlaying
-    const asyncPullGit = async () => {
-      await git.fetch({
-        fs,
-        http,
-        dir: window.location.pathname,
-        remote: 'origin',
-        ref: 'trunk',
-      });
-      const result = await git.merge({
-        fs,
-        dir: window.location.pathname,
-        theirs: 'remotes/origin/trunk',
-        ours: 'trunk',
-        author: {
-          name: 'Ron Weasley',
-          email: 'ron@weasly.com',
-        },
-      });
-      console.log('fetched', result);
-
-      if (commit == null) {
-        setCommit(result.oid);
-      }
-
-      if (result.alreadyMerged ?? false) {
-        return;
-      }
-      // Don't setCommit(result.oid) just yet.. wait till we update other state
-
-      // I'm not entirely sure why isogit requires us to checkout the branch we just
-      // updated with the merge...
-      await git.checkout({
-        fs,
-        dir: window.location.pathname,
-      });
-
-      console.log('!alreadyMerged, need to schedule something?');
-
-      // TODO move this into another function to share with the other useEffect
-      const fetchObjects = async () => {
-        const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
-        const audios = (new TextDecoder()).decode(fileBytes)
-          .split('\n')
-          .filter(line => line !== '')
-          .map(line => {
-            const audioObj = JSON.parse(line)
-            return `${audioObj['sha256']}.${audioObj['filetype']}`;
-          });
-        setAudioList(audios);
-        setPlayingList(audios.map(() => false));
-      };
-      fetchObjects();
-
-      const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
-      console.log('read', fileBytes);
-      // TODO don't decode the entire file?
-      const nowPlaying = (new TextDecoder()).decode(fileBytes);
-      // TODO do we need to handle more lines?
-      const lines = nowPlaying.split('\n');
-      if (lines.length === 0 || lines[0].length === 0) {
-        console.log('empty lines or empty first line', lines);
-        return;
-      }
-      const line = lines[0];
-      console.log(nowPlaying);
-      if (line.length < 2) {
-        console.error('now_playing line shorter than expected', line);
-        return;
-      }
-      if (line[0] !== '(' || line[line.length - 1] !== ')') {
-        console.error('now_playing line missing leading or trailing parenthesis', line);
-        return;
-      }
-      // slice is to remove the leading and trailing paranthesis
-      const fields = line.slice(1, -1).split(', ');
-      if (fields.length !== 5) {
-        console.error('now_playing line incorrect number of fields', line);
-        return;
-      }
-
-      const i = parseInt(fields[1]);
-      if (i < 0) {
-        console.error('now_playing line with negative i', line, i);
-        return;
-      }
-      if (i >= audioList.length) {
-        console.error('now_playing line i out of bounds', line, i, audioList.length);
-        return;
-      }
-      if (audioList[i] !== fields[2]) {
-        console.error('now_playing line unknown audio vs expected', line, audioList[i]);
-        return;
-      }
-
-      // TODO move this into a function
-      const actionType = fields[0];
-      const nowInSec = (new Date()).getTime() / 1000;
-      const diff = parseFloat(fields[4]) - nowInSec;
-      if (diff > 0) {
-        console.log('scheduling action for future', diff, nowInSec, fields[4]);
-
-        setTimeout(
-          () => {
-            // TODO use the react dom elements from state?
-            const audios = document.getElementsByTagName('audio');
-            audios[i].currentTime = parseFloat(fields[3]);
-            console.log('going to', actionType, i, audioList[i]);
-            setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-            if (actionType === 'play') {
-              audios[i].play();
-            } else {
-              audios[i].pause();
-            }
-          },
-          diff * 1000,
-        );
-
-      } else {
-        console.log('TODO scheduled action from past', diff);
-        // TODO calc diff in audios[i].currentTime and fields[3]
-        const audios = document.getElementsByTagName('audio');
-        if (actionType === 'play') {
-          audios[i].currentTime = parseFloat(fields[3]) - diff;
-        } else {
-          audios[i].currentTime = parseFloat(fields[3]);
-        }
-        console.log('going to', actionType, i, audioList[i]);
-        setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-        if (actionType === 'play') {
-          audios[i].play();
-        } else {
-          audios[i].pause();
-        }
-      }
-
-      // Force the component to re-render
-      setCommit(result.oid);
-    };
-
-
-
-    // const client = new WebSocket.w3cwebsocket('ws://localhost:3001');
-    const client = new WebSocket(`ws://${window.location.hostname}:8081`);
-
-    client.onopen = () => {
-      console.log('WebSocket Client Connected', client);
-    };
-
-    client.onclose = () => {
-      console.log('WebSocket Client Disconnected');
-    };
-
-    client.onmessage = (e) => {
-      console.log('Received websocket message: ', e.data);
-      if (e.data === 'please-pull') {
-      }
-    };
-
-    return () => {
-      client.close();
-    };
-  }, []);
 
   useEffect(() => {
     // window.location.pathname == '/party/:partyID'
@@ -206,155 +181,62 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   }, []);
 
   useEffect(() => {
+    if (wsClient !== null) {
+      return doNothing;
+    }
+
+    const client = new WebSocket(`ws://${window.location.hostname}:8081`);
+    client.onopen = () => {
+      console.log('WebSocket Client Connected', client);
+    };
+    client.onclose = () => {
+      console.log('WebSocket Client Disconnected');
+    };
+
+    // don't set client.onmessage here. we need asyncPullGit for that
+    setWSClient(client);
+    return () => {
+      // TODO when should we close the websocket? not doing at all will lead to
+      // memory leaks
+      // client.close();
+    };
+  }, [wsClient]);
+
+  useEffect(() => {
     if (fs == null) {
       return doNothing;
     }
 
-    // TODO move asyncPullGit outside of NowPlaying
-    const asyncPullGit = async () => {
-      await git.fetch({
-        fs,
-        http,
-        dir: window.location.pathname,
-        remote: 'origin',
-        ref: 'trunk',
-      });
-      const result = await git.merge({
-        fs,
-        dir: window.location.pathname,
-        theirs: 'remotes/origin/trunk',
-        ours: 'trunk',
-        author: {
-          name: 'Ron Weasley',
-          email: 'ron@weasly.com',
-        },
-      });
-      console.log('fetched', result);
-
-      if (commit == null) {
-        setCommit(result.oid);
-      }
-
-      if (result.alreadyMerged ?? false) {
-        return;
-      }
-      // Don't setCommit(result.oid) just yet.. wait till we update other state
-
-      // I'm not entirely sure why isogit requires us to checkout the branch we just
-      // updated with the merge...
-      await git.checkout({
-        fs,
-        dir: window.location.pathname,
-      });
-
-      console.log('!alreadyMerged, need to schedule something?');
-
-      // TODO move this into another function to share with the other useEffect
-      const fetchObjects = async () => {
-        const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
-        const audios = (new TextDecoder()).decode(fileBytes)
-          .split('\n')
-          .filter(line => line !== '')
-          .map(line => {
-            const audioObj = JSON.parse(line)
-            return `${audioObj['sha256']}.${audioObj['filetype']}`;
-          });
-        setAudioList(audios);
-        setPlayingList(audios.map(() => false));
-      };
-      fetchObjects();
-
-      const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
-      console.log('read', fileBytes);
-      // TODO don't decode the entire file?
-      const nowPlaying = (new TextDecoder()).decode(fileBytes);
-      // TODO do we need to handle more lines?
-      const lines = nowPlaying.split('\n');
-      if (lines.length === 0 || lines[0].length === 0) {
-        console.log('empty lines or empty first line', lines);
-        return;
-      }
-      const line = lines[0];
-      console.log(nowPlaying);
-      if (line.length < 2) {
-        console.error('now_playing line shorter than expected', line);
-        return;
-      }
-      if (line[0] !== '(' || line[line.length - 1] !== ')') {
-        console.error('now_playing line missing leading or trailing parenthesis', line);
-        return;
-      }
-      // slice is to remove the leading and trailing paranthesis
-      const fields = line.slice(1, -1).split(', ');
-      if (fields.length !== 5) {
-        console.error('now_playing line incorrect number of fields', line);
-        return;
-      }
-
-      const i = parseInt(fields[1]);
-      if (i < 0) {
-        console.error('now_playing line with negative i', line, i);
-        return;
-      }
-      if (i >= audioList.length) {
-        console.error('now_playing line i out of bounds', line, i, audioList.length);
-        return;
-      }
-      if (audioList[i] !== fields[2]) {
-        console.error('now_playing line unknown audio vs expected', line, audioList[i]);
-        return;
-      }
-
-      // TODO move this into a function
-      const actionType = fields[0];
-      const nowInSec = (new Date()).getTime() / 1000;
-      const diff = parseFloat(fields[4]) - nowInSec;
-      if (diff > 0) {
-        console.log('scheduling action for future', diff, nowInSec, fields[4]);
-
-        setTimeout(
-          () => {
-            // TODO use the react dom elements from state?
-            const audios = document.getElementsByTagName('audio');
-            audios[i].currentTime = parseFloat(fields[3]);
-            console.log('going to', actionType, i, audioList[i]);
-            setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-            if (actionType === 'play') {
-              audios[i].play();
-            } else {
-              audios[i].pause();
-            }
-          },
-          diff * 1000,
-        );
-
-      } else {
-        console.log('TODO scheduled action from past', diff);
-        // TODO calc diff in audios[i].currentTime and fields[3]
-        const audios = document.getElementsByTagName('audio');
-        if (actionType === 'play') {
-          audios[i].currentTime = parseFloat(fields[3]) - diff;
-        } else {
-          audios[i].currentTime = parseFloat(fields[3]);
-        }
-        console.log('going to', actionType, i, audioList[i]);
-        setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-        if (actionType === 'play') {
-          audios[i].play();
-        } else {
-          audios[i].pause();
-        }
-
-      }
-
-      // Force the component to re-render
-      setCommit(result.oid);
-    };
+    const asyncPullGit = myAsyncPullGit(
+      fs,
+      commit,
+      setCommit,
+      audioList,
+      setAudioList,
+      playingList,
+      setPlayingList,
+    );
 
     // TODO set a reasonable interval for pulling git
     const intervalId = setInterval(asyncPullGit, gitIntervalMs);
-    return () => clearInterval(intervalId);
-  }, [audioList, playingList, fs, commit]);
+
+    if (wsClient == null) {
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+
+    wsClient.onmessage = (e) => {
+      console.log('Received websocket message: ', e.data);
+      if (e.data === 'please-pull') {
+        asyncPullGit();
+      }
+    };
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [audioList, playingList, fs, commit, wsClient]);
 
   // TODO DJ's name... idk if there's multiple DJs
   // TODO my roles... listener (everyone...), host, DJ
