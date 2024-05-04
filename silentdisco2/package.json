@@ -3,6 +3,7 @@
     "create-react-app": "^5.0.1",
     "express": "^4.19.2",
     "isomorphic-git": "^1.25.7",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.17.0"
   }
 }

@@ -3,12 +3,14 @@ const util = require('util');
 
 const crypto = require('crypto');
 const fs = require('fs/promises');
+const http = require('http');
 const os = require('os');
 const path = require('path');
 
 const express = require('express');
 const git = require('isomorphic-git');
 const tweetnacl = require('tweetnacl');
+const ws = require('ws');
 
 
 // TODO run this file through ts-compile so we can include type hints here
@@ -39,6 +41,32 @@ const hostIsTrue = textToUint8Array('host:true');
 async function main() {
   const app = express();
   const PORT = process.env.PORT || 8080;
+  const WS_PORT = process.env.WS_PORT || 8081;
+
+  const handoffServer = http.createServer(app);
+  const wss = new ws.Server({ server: handoffServer });
+  const clients = [];
+
+  wss.on('connection', (conn) => {
+    clients.push(conn);
+
+    conn.on('message', (msg) => {
+      console.log('got unexpected message', msg, conn);
+    });
+
+    conn.on('close', () => {
+      // remove conn from clients
+      clients.splice(clients.indexOf(conn), 1);
+    });
+  });
+
+  const broadcast = (message) => {
+    clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  };
 
   let randHostID = crypto.randomBytes(16).toString('hex');
   const { publicKey, secretKey } = tweetnacl.sign.keyPair();
@@ -136,6 +164,9 @@ async function main() {
         res.writeHead(200, headers);
         res.write(stdoutBytes.slice(i + 2));
         res.end();
+        if (envVars.PATH_INFO === '/git-receive-pack') {
+          broadcast('please-pull');
+        }
         return;
       }
 
@@ -359,6 +390,10 @@ async function main() {
     console.log('Created empty 000000 party');
 
     console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
+  });
+
+  handoffServer.listen(WS_PORT, () => {
+    console.log(`Websocket server listening on port ${WS_PORT}`);
   });
 }
 
