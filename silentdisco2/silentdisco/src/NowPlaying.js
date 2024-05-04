@@ -15,6 +15,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
   const [audioList, setAudioList] = useState([]);
   const [playingList, setPlayingList] = useState([]);
   const [fs, setFS] = useState(null);
+  const [commit, setCommit] = useState(null);
 
   useEffect(() => {
     // window.location.pathname == '/party/:partyID'
@@ -34,6 +35,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
       setAudioList(audios);
       setPlayingList(audios.map(() => false));
     };
+
     fetchObjects();
   }, []);
 
@@ -62,9 +64,14 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
       });
       console.log('fetched', result);
 
+      if (commit == null) {
+        setCommit(result.oid);
+      }
+
       if (result.alreadyMerged ?? false) {
         return;
       }
+      // Don't setCommit(result.oid) just yet.. wait till we update other state
 
       // I'm not entirely sure why isogit requires us to checkout the branch we just
       // updated with the merge...
@@ -158,12 +165,15 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         console.log('TODO scheduled action from past', diff);
         // TODO calc diff in audios[i].currentTime and fields[3]
       }
+
+      // Force the component to re-render
+      setCommit(result.oid);
     };
 
     // TODO set a reasonable interval for pulling git
     const intervalId = setInterval(asyncPullGit, 2000);
     return () => clearInterval(intervalId);
-  }, [audioList, playingList, fs]);
+  }, [audioList, playingList, fs, commit]);
 
   // TODO DJ's name... idk if there's multiple DJs
   // TODO my roles... listener (everyone...), host, DJ
@@ -207,6 +217,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         ref: 'trunk',
       });
       console.log('done pushing', pushResult);
+      // TODO if (!pushResult.ok) { ... }
 
       // TODO move this into a function
       const updatedNow = (new Date()).getTime() / 1000;
@@ -243,6 +254,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         },
         clickDelayMs,
       );
+      setCommit(sha);
     };
   };
 
@@ -304,6 +316,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
         <p>My name: TODO</p>
         <p><button onClick={() => setListParty(true)}>Participants list</button></p>
         <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
+        <p>{commit}</p>
       </header>
     </div>
   );
