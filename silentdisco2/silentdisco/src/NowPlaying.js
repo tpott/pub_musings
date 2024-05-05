@@ -11,6 +11,23 @@ const gitIntervalMs = 16000; // 16 seconds
 // doNothing is an empty cleanup function to make react useEffect happy
 const doNothing = () => {};
 
+const fetchAudioObjects = async (
+  fs,
+  setAudioList,
+  setPlayingList,
+) => {
+  const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
+  const audios = (new TextDecoder()).decode(fileBytes)
+    .split('\n')
+    .filter(line => line !== '')
+    .map(line => {
+      const audioObj = JSON.parse(line)
+      return `${audioObj['sha256']}.${audioObj['filetype']}`;
+    });
+  setAudioList(audios);
+  setPlayingList(audios.map(() => false));
+};
+
 const myAsyncPullGit = (
   fs,
   commit,
@@ -58,20 +75,7 @@ const myAsyncPullGit = (
 
     console.log('!alreadyMerged, need to schedule something?');
 
-    // TODO move this into another function to share with the other useEffect
-    const fetchObjects = async () => {
-      const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
-      const audios = (new TextDecoder()).decode(fileBytes)
-        .split('\n')
-        .filter(line => line !== '')
-        .map(line => {
-          const audioObj = JSON.parse(line)
-          return `${audioObj['sha256']}.${audioObj['filetype']}`;
-        });
-      setAudioList(audios);
-      setPlayingList(audios.map(() => false));
-    };
-    fetchObjects();
+    fetchAudioObjects(fs, setAudioList, setPlayingList);
 
     const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
     console.log('read', fileBytes);
@@ -162,22 +166,7 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
     setFS(myFs);
-
-    // TODO move this into another function to be shared with the other useEffect
-    const fetchObjects = async () => {
-      const fileBytes = await myFs.promises.readFile(window.location.pathname + '/objects.txt');
-      const audios = (new TextDecoder()).decode(fileBytes)
-        .split('\n')
-        .filter(line => line !== '')
-        .map(line => {
-          const audioObj = JSON.parse(line)
-          return `${audioObj['sha256']}.${audioObj['filetype']}`;
-        });
-      setAudioList(audios);
-      setPlayingList(audios.map(() => false));
-    };
-
-    fetchObjects();
+    fetchAudioObjects(myFs, setAudioList, setPlayingList);
   }, []);
 
   useEffect(() => {
@@ -285,25 +274,27 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
       // TODO move this into a function
       const updatedNow = (new Date()).getTime() / 1000;
       const diff = targetInSec - updatedNow;
+      const updatePlaying = () => {
+        setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
+        audios[i].currentTime = currentTime;
+        if (actionType === 'play') {
+          audios[i].play();
+        } else {
+          audios[i].pause();
+        }
+      };
+
       if (diff > 0) {
         console.log('self scheduling action for future', diff, updatedNow);
-
         setTimeout(
-          () => {
-            setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-            audios[i].currentTime = currentTime;
-            if (actionType === 'play') {
-              audios[i].play();
-            } else {
-              audios[i].pause();
-            }
-          },
+          updatePlaying,
           diff * 1000,
         );
 
       } else {
-        console.log('TODO self scheduled action from past', diff);
+        console.log('self scheduled action from past', diff);
         // TODO calc diff in audios[i].currentTime and fields[3]
+        updatePlaying();
       }
 
       setTimeout(

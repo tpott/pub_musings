@@ -70,7 +70,7 @@ function App() {
 
 
   useEffect(() => {
-    console.log('going to initialize...');
+    console.log('going to initialize App.js...');
 
     const initializeGitRepository = async () => {
       if (partyID === null) {
