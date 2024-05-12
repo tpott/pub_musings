@@ -113,3 +113,6 @@ Will be able to handle scheduling in the past. And can delete rows from
 * Playing one song while another is already playing. Its not correctly `.pause()`ing
 the song that was playing first.
 * The git commit ID on the NowPlaying.js component takes a long time to render.
+* Loading the party doesn't load the current timestamp based on the last parsed
+pause. Or last play with currentTime = target + diff (?).
+* Idk if websockets are working correctly?
