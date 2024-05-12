@@ -167,6 +167,12 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
     const myFs = new FS('fs');
     setFS(myFs);
     fetchAudioObjects(myFs, setAudioList, setPlayingList);
+
+    // const getCurrent = async () => {
+      // return await git.resolveRef({ fs, dir: window.location.pathname, ref: 'HEAD' });
+    // };
+    // const currentCommit = getCurrent();
+    // setCommit(currentCommit);
   }, []);
 
   useEffect(() => {

@@ -94,16 +94,22 @@ I'm trying to replicate `git clone http://localhost:8080/party/000000.git`
 Git is now working! I think the hardest parts to figure out are done. To run the server, I typically run `cd silentdisco && npm run build && node --inspect ../node_server_v1/server.js`
 
 Up next:
-* User authentication. Need some sort of device keys, user names, and user
+[ ] User authentication. Need some sort of device keys, user names, and user
 roles (listener, DJ, host). Every user name should be rendered with first
 two (N) hex chars from the device key.
-* Audio autoplay (loop?). And ideally drag to re-order (if you're the DJ).
-* Delete / unschedule a song (if you're the DJ). Also maybe song name?
-* Websockets! We need websockets to make everything more responsive. Then reduce
+[ ] Audio autoplay (loop?). And ideally drag to re-order (if you're the DJ).
+[ ] Delete / unschedule a song (if you're the DJ). Also maybe song name?
+[x] Websockets! We need websockets to make everything more responsive. Then reduce
 the interval set for `asyncPullGit` and timeout set with `clickDelayMs`.
-* Client side full state from fs parsing. Every function that calls `readFile`...
+[ ] Client side full state from fs parsing. Every function that calls `readFile`...
 Will be able to handle scheduling in the past. And can delete rows from 
 `now_playing.txt` once they're no longer relevant. Check an <audio> element's
 `duration`.  Will need to set the "Now playing" banner text.
-* Cache what commit the FS is currently at? Eh not necessary because of the
-`alradyMerged` flag.
+[x] Cache what commit the FS is currently at? Eh not necessary because of the
+`alradyMerged` flag. Actually, this will be good for flagging react to re-render
+
+# Issues
+
+* Playing one song while another is already playing. Its not correctly `.pause()`ing
+the song that was playing first.
+* The git commit ID on the NowPlaying.js component takes a long time to render.

@@ -100,10 +100,11 @@ function App() {
         singleBranch: true,
         depth: 1
       });
-      console.log('done cloning');
 
+	  // This is supposed to be like `git rev-parse HEAD`
+      const currentCommit = await git.resolveRef({ fs, dir: window.location.pathname, ref: 'HEAD' });
       const files = await git.listFiles({ fs, dir: window.location.pathname });
-      console.log(files);
+      console.log('done cloning', currentCommit, files);
     };
 
     initializeGitRepository();
