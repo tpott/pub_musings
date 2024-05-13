@@ -331,6 +331,8 @@ async function main() {
     const tmpFile = path.join(tmpDir, 'objects', hexDigest + '.mp3');
     await fs.writeFile(tmpFile, fileBytes);
     // TODO add formdata for partyID
+    // or just parse it from Referer... Seriously, do this. Or else other parties can't
+    // have music.
     const partyDir = path.join(tmpDir, 'parties', '000000');
     // Similar to silentdisco/src/NowPlaying.js, I'm not sure why this git checkout
     // is necessary with isogit
@@ -371,7 +373,14 @@ async function main() {
     child_process.execSync('git config --bool http.receivepack true', { env: { GIT_DIR: partyDir } });
 
     // TODO remove me once we know what we're doing
-    await fs.writeFile(path.join(partyDir, 'objects.txt'), '{"sha256": "9f033b2cf7176e5c18d9694103ac7ca9cbdad1a70d02a96648850690e9760542", "filetype": "mp3", "name": "Cello Suite - Bach"}\n');
+    let objectStr = '';
+    if (partyID === '000000') {
+      objectStr = '{"sha256": "9f033b2cf7176e5c18d9694103ac7ca9cbdad1a70d02a96648850690e9760542", "filetype": "mp3", "name": "Cello Suite - Bach"}\n';
+    }
+    await fs.writeFile(
+      path.join(partyDir, 'objects.txt'),
+      objectStr,
+    );
     await git.add({ fs, dir: partyDir, filepath: 'objects.txt' });
     await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '');
     await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });

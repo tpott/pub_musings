@@ -180,14 +180,18 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
       return doNothing;
     }
 
-    let port = '8081';
+    let port = '443';
     if (window.location.port.length === 4) {
       port = window.location.port.slice(0, 3) + '1';
       console.log('overwrote port', port, window.location.port.slice(0, 3));
     }
     console.log('connecting to websockets...', port, window.location.port, window.location.port.length);
 
-    const client = new WebSocket(`ws://${window.location.hostname}:${port}`);
+    let protocol = 'ws';
+    if (window.location.protocol === 'https:') {
+      protocol = 'wss';
+    }
+    const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
     client.onopen = () => {
       console.log('WebSocket Client Connected', client);
     };

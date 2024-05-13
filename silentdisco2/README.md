@@ -116,3 +116,41 @@ the song that was playing first.
 * Loading the party doesn't load the current timestamp based on the last parsed
 pause. Or last play with currentTime = target + diff (?).
 * Idk if websockets are working correctly?
+* File uploads always go to the `000000` party
+
+I added the following to `/etc/nginx/nginx.conf` inside the `http` section...
+Replace all $server_name manually
+
+```
+	server {
+        listen 80;
+        server_name $sever_name;
+        return 301 https://$server_name$request_uri;
+    }
+
+    server {
+       listen 443 ssl;
+       server_name $server_name;
+
+       ssl_certificate /etc/letsencrypt/live/$server_name/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/$server_name/privkey.pem;
+
+       location /ws {
+           proxy_pass http://localhost:8001;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+
+       location / {
+           proxy_pass http://localhost:8000;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+   }
+```
