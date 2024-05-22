@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import NowPlaying from './NowPlaying';
 import './Party.css';
 
-function Party({ partyID, partyRedirect }) {
+function Party({ isHost, partyID, partyRedirect }) {
   const [isValidPartyID, setIsValidPartyID] = useState(false);
   const [participantID, setParticipantID] = useState(null);
   const [listParty, setListParty] = useState(null);
@@ -54,7 +54,7 @@ function Party({ partyID, partyRedirect }) {
 
   } else {
     return (
-      <NowPlaying partyID={partyID} partyRedirect={partyRedirect} setListParty={setListParty} />
+      <NowPlaying partyID={partyID} partyRedirect={partyRedirect} setListParty={setListParty} isHost={isHost} />
     );
 
   }

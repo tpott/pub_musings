@@ -154,7 +154,7 @@ const myAsyncPullGit = (
 };
 
 
-function NowPlaying({ partyID, partyRedirect, setListParty }) {
+function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
   const [playingList, setPlayingList] = useState([]);
@@ -379,10 +379,10 @@ function NowPlaying({ partyID, partyRedirect, setListParty }) {
           {audioElemList}
         </ul>
         <div>
-          <form onSubmit={uploadFile}>
+          {isHost && <form onSubmit={uploadFile}>
             <input type='file' id='fileUpload' />
             <button type='submit'>Upload</button>
-          </form>
+          </form>}
         </div>
         <p>My name: TODO</p>
         <p><button onClick={() => setListParty(true)}>Participants list</button></p>

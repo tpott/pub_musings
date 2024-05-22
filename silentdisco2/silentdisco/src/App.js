@@ -152,7 +152,7 @@ function App() {
 
   return (
     <div>
-      <Party partyID={partyID} partyRedirect={partyRedirect} />
+      <Party partyID={partyID} partyRedirect={partyRedirect} isHost={isHost} />
     </div>
   );
 }
