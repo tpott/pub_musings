@@ -312,10 +312,6 @@ async function main() {
     }
   });
 
-  app.get('/public-key', (req, res) => {
-    res.send(publicKeyStr);
-  });
-
   app.post('/upload', async (req, res) => {
     // TODO add formdata for partyID
     // TODO parse Content-Disposition: form-data, name, filename="...", Content-Type: audio/mpeg
