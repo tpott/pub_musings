@@ -181,8 +181,8 @@ function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
     }
 
     let port = '443';
-    if (window.location.port.length === 4) {
-      port = window.location.port.slice(0, 3) + '1';
+    if (window.location.port.length !== 0) {
+      port = window.location.port;
       console.log('overwrote port', port, window.location.port.slice(0, 3));
     }
     console.log('connecting to websockets...', port, window.location.port, window.location.port.length);

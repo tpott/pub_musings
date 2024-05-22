@@ -43,8 +43,8 @@ async function main() {
   const PORT = process.env.PORT || 8080;
   const WS_PORT = process.env.WS_PORT || 8081;
 
-  const handoffServer = http.createServer(app);
-  const wss = new ws.Server({ server: handoffServer });
+  const httpServer = http.createServer(app);
+  const wss = new ws.Server({ server: httpServer });
   const clients = [];
 
   wss.on('connection', (conn) => {
@@ -89,7 +89,7 @@ async function main() {
   );
 
   async function shutDown() {
-    server.close();
+    httpServer.close();
     await fs.rm(tmpDir, { recursive: true });
     console.log('Shut down');
   }
@@ -392,7 +392,7 @@ async function main() {
   };
 
   // Start the server
-  const server = app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`Generated signing key: ${publicKeyStr}`);
     console.log(`Server is running on http://localhost:${PORT}`);
 
@@ -400,10 +400,6 @@ async function main() {
     console.log('Created empty 000000 party');
 
     console.log(`Host should visit http://localhost:${PORT}/iamhost/${randHostID}`);
-  });
-
-  handoffServer.listen(WS_PORT, () => {
-    console.log(`Websocket server listening on port ${WS_PORT}`);
   });
 }
 
