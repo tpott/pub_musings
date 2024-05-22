@@ -1,34 +1,11 @@
 import { useEffect, useState } from 'react';
-import tweetnacl from 'tweetnacl';
 
 import './PartyList.css';
 
-// TODO move this into a lib because it's shared with server.js
-function hexToUint8Array(str: string ): Uint8Array {
-  if (str.length % 2 !== 0) {
-    throw new Error('Invalid hex string: length must be even');
-  }
-  const bytes = [];
-  for (let i = 0; i < str.length; i += 2) {
-    const byteString = str.substring(i, i + 2);
-    bytes.push(parseInt(byteString, 16));
-  }
-  return new Uint8Array(bytes);
-}
-
-// TODO don't hardcode this from server.js
-const hostIsTrue = new Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101]);
-
-// This is to make react happy
-// https://stackoverflow.com/questions/56800694/what-is-the-expected-return-of-useeffect-used-for
-const noEffect = () => {};
-
-function PartyList({ partyRedirect }) {
+function PartyList({ partyRedirect, isHost }) {
   const [parties, setParties] = useState([]);
-  const [publicKey, setPublicKey] = useState(null);
-  // TODO generalize this to more roles
-  const [isHost, setIsHost] = useState(false);
 
+  // TODO read parties from the local browser's FS
   const fetchParties = async () => {
     const response = await fetch('/parties');
     if (!response.ok) {
@@ -39,18 +16,6 @@ function PartyList({ partyRedirect }) {
     // TODO validate each partyID with the same logic as in Party.js
     // i.e. hexPattern and length 6. Must also match logic in node_server_v1/server.js
     setParties(partiesArr);
-  };
-
-  const fetchPublicKey = async () => {
-    // TODO re-enable early returns from reading from local storage.
-    // the problem was if the server was restarted, the key would change.
-    const response = await fetch('/public-key');
-    if (!response.ok) {
-      console.error('Failed to fetch public key');
-    }
-    const publicKeyStr = await response.text();
-    localStorage.hostPublicKeyStr = publicKeyStr;
-    setPublicKey(publicKeyStr);
   };
 
   // TODO require roles.includes "host"
@@ -68,31 +33,6 @@ function PartyList({ partyRedirect }) {
   useEffect(() => {
     fetchParties();
   }, []);
-
-  useEffect(() => {
-    fetchPublicKey();
-  }, []);
-
-  useEffect(() => {
-    if (publicKey === null) {
-      setIsHost(false);
-      return noEffect;
-    }
-    // Convert raw document.cookie string into a dictionary object
-    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-      const [name, value] = cookie.trim().split('=');
-      return { ...acc, [name]: value };
-    }, {});
-    if (!('host' in cookies)) {
-      setIsHost(false);
-      return noEffect;
-    }
-    setIsHost(tweetnacl.sign.detached.verify(
-      hostIsTrue,
-      hexToUint8Array(cookies.host),
-      hexToUint8Array(publicKey),
-    ));
-  }, [publicKey]);
 
   return (
     <div className="PartyList">

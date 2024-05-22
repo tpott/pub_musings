@@ -382,8 +382,13 @@ async function main() {
       objectStr,
     );
     await git.add({ fs, dir: partyDir, filepath: 'objects.txt' });
+
     await fs.writeFile(path.join(partyDir, 'now_playing.txt'), '');
     await git.add({ fs, dir: partyDir, filepath: 'now_playing.txt' });
+
+    await fs.writeFile(path.join(partyDir, 'public_key.txt'), publicKeyStr);
+    await git.add({ fs, dir: partyDir, filepath: 'public_key.txt' });
+
     await git.commit({ fs, dir: partyDir, message: 'init party', author: {
       name: 'Harry Potter',
       email: 'harry@example.com',
