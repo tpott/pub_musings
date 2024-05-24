@@ -338,7 +338,7 @@ function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
         console.log('accidental play', audios[i].currentTime, audios[i].duration);
         audios[i].pause();
       } else if (evt.type === 'pause' && playingList[i]) {
-        if (Math.abs(audios[i].currentTime - audios[i].currentTime.duration) < endingBufferSec) {
+        if (Math.abs(audios[i].currentTime - audios[i].duration) < endingBufferSec) {
           console.log('song ended', audios[i].currentTime, audios[i].duration);
           // TODO play next song
           setPlayingList(playingList.map(() => false));
