@@ -7,6 +7,7 @@ import './Party.css';
 
 const clickDelayMs = 300; // 300 milliseconds
 const gitIntervalMs = 16000; // 16 seconds
+const endingBufferSec = 0.1; // 100 milliseconds
 
 // doNothing is an empty cleanup function to make react useEffect happy
 const doNothing = () => {};
@@ -334,10 +335,16 @@ function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
       // TODO use the react dom elements from state?
       const audios = document.getElementsByTagName('audio');
       if (evt.type === 'play' && !playingList[i]) {
-        console.log('accidental play');
+        console.log('accidental play', audios[i].currentTime, audios[i].duration);
         audios[i].pause();
       } else if (evt.type === 'pause' && playingList[i]) {
-        console.log('accidental pause');
+        if (Math.abs(audios[i].currentTime - audios[i].currentTime.duration) < endingBufferSec) {
+          console.log('song ended', audios[i].currentTime, audios[i].duration);
+          // TODO play next song
+          setPlayingList(playingList.map(() => false));
+          return; // skip, this wasn't an accident
+        }
+        console.log('accidental pause', audios[i].currentTime, audios[i].duration);
         audios[i].play();
       }
     };
