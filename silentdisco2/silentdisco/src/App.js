@@ -13,7 +13,9 @@ window.Buffer = Buffer;
 
 // This is to make react happy
 // https://stackoverflow.com/questions/56800694/what-is-the-expected-return-of-useeffect-used-for
-const noEffect = () => {};
+const doNothing = () => {};
+
+const gitIntervalMs = 16000; // 16 seconds
 
 // TODO don't hardcode this from server.js
 const hostIsTrue = new Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101]);
@@ -31,11 +33,59 @@ function hexToUint8Array(str: string ): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+const myAsyncPullGit = (
+  fs,
+  commit,
+  setCommit,
+) => {
+  return async () => {
+    await git.fetch({
+      fs,
+      http,
+      dir: window.location.pathname,
+      remote: 'origin',
+      ref: 'trunk',
+    });
+
+    const result = await git.merge({
+      fs,
+      dir: window.location.pathname,
+      theirs: 'remotes/origin/trunk',
+      ours: 'trunk',
+      author: {
+        name: 'Ron Weasley',
+        email: 'ron@weasly.com',
+      },
+    });
+    console.log('fetched', result);
+
+    if (commit == null) {
+      setCommit(result.oid);
+    }
+
+    if (result.alreadyMerged ?? false) {
+      return;
+    }
+
+    // I'm not entirely sure why isogit requires us to checkout the branch we just
+    // updated with the merge...
+    await git.checkout({
+      fs,
+      dir: window.location.pathname,
+    });
+
+    // Force the component to re-render
+    setCommit(result.oid);
+  };
+};
+
 function App() {
+  const [commit, setCommit] = useState(null);
   const [partyID, setPartyID] = useState(null);
   const [publicKey, setPublicKey] = useState(null);
   // TODO generalize this to more roles
   const [isHost, setIsHost] = useState(false);
+  const [wsClient, setWSClient] = useState(null);
 
   const partyRedirect = (partyID) => {
     return () => {
@@ -70,11 +120,69 @@ function App() {
     };
     window.addEventListener('popstate', handlePopState);
 
+    const fs = new FS('fs');
+    const asyncPullGit = myAsyncPullGit(
+      fs,
+      commit,
+      setCommit,
+    );
+
+    // TODO set a reasonable interval for pulling git
+    const intervalId = setInterval(asyncPullGit, gitIntervalMs);
+
+    if (wsClient == null) {
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        clearInterval(intervalId);
+      };
+    }
+
+    wsClient.onmessage = (e) => {
+      console.log('Received websocket message: ', e.data);
+      if (e.data === 'please-pull') {
+        asyncPullGit();
+      }
+    };
+
     // Cleanup event listener on component unmount
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      clearInterval(intervalId);
     };
-  }, []);
+  }, [commit, wsClient]);
+
+  useEffect(() => {
+    if (wsClient !== null) {
+      return doNothing;
+    }
+
+    let port = '443';
+    if (window.location.port.length !== 0) {
+      port = window.location.port;
+      console.log('overwrote port', port, window.location.port.slice(0, 3));
+    }
+    console.log('connecting to websockets...', port, window.location.port, window.location.port.length);
+
+    let protocol = 'ws';
+    if (window.location.protocol === 'https:') {
+      protocol = 'wss';
+    }
+    const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
+    client.onopen = () => {
+      console.log('WebSocket Client Connected', client);
+    };
+    client.onclose = () => {
+      console.log('WebSocket Client Disconnected');
+    };
+
+    // don't set client.onmessage here. we need asyncPullGit for that
+    setWSClient(client);
+    return () => {
+      // TODO when should we close the websocket? not doing at all will lead to
+      // memory leaks
+      // client.close();
+    };
+  }, [wsClient]);
 
   useEffect(() => {
     console.log('going to initialize App.js...');
@@ -112,6 +220,7 @@ function App() {
       const currentCommit = await git.resolveRef({ fs, dir: window.location.pathname, ref: 'HEAD' });
       const files = await git.listFiles({ fs, dir: window.location.pathname });
       console.log('done cloning', currentCommit, files);
+      setCommit(currentCommit);
 
       const fileBytes = await fs.promises.readFile(window.location.pathname + '/public_key.txt');
       const publicKeyStr = (new TextDecoder()).decode(fileBytes);
@@ -124,7 +233,7 @@ function App() {
   useEffect(() => {
     if (publicKey === null) {
       setIsHost(false);
-      return noEffect;
+      return doNothing;
     }
     // Convert raw document.cookie string into a dictionary object
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
@@ -133,7 +242,7 @@ function App() {
     }, {});
     if (!('host' in cookies)) {
       setIsHost(false);
-      return noEffect;
+      return doNothing;
     }
     setIsHost(tweetnacl.sign.detached.verify(
       hostIsTrue,
@@ -152,7 +261,13 @@ function App() {
 
   return (
     <div>
-      <Party partyID={partyID} partyRedirect={partyRedirect} isHost={isHost} />
+      <Party
+        commit={commit}
+        isHost={isHost}
+        partyID={partyID}
+        partyRedirect={partyRedirect}
+        setCommit={setCommit}
+      />
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import './Party.css';
 
 const clickDelayMs = 300; // 300 milliseconds
-const gitIntervalMs = 16000; // 16 seconds
 const endingBufferSec = 0.1; // 100 milliseconds
 
 // doNothing is an empty cleanup function to make react useEffect happy
@@ -29,50 +28,14 @@ const fetchAudioObjects = async (
   setPlayingList(audios.map(() => false));
 };
 
-const myAsyncPullGit = (
+const updateAudio = (
   fs,
-  commit,
-  setCommit,
   audioList,
   setAudioList,
   playingList,
   setPlayingList,
 ) => {
   return async () => {
-    await git.fetch({
-      fs,
-      http,
-      dir: window.location.pathname,
-      remote: 'origin',
-      ref: 'trunk',
-    });
-    const result = await git.merge({
-      fs,
-      dir: window.location.pathname,
-      theirs: 'remotes/origin/trunk',
-      ours: 'trunk',
-      author: {
-        name: 'Ron Weasley',
-        email: 'ron@weasly.com',
-      },
-    });
-    console.log('fetched', result);
-
-    if (commit == null) {
-      setCommit(result.oid);
-    }
-
-    if (result.alreadyMerged ?? false) {
-      return;
-    }
-    // Don't setCommit(result.oid) just yet.. wait till we update other state
-
-    // I'm not entirely sure why isogit requires us to checkout the branch we just
-    // updated with the merge...
-    await git.checkout({
-      fs,
-      dir: window.location.pathname,
-    });
 
     console.log('!alreadyMerged, need to schedule something?');
 
@@ -88,6 +51,7 @@ const myAsyncPullGit = (
       console.log('empty lines or empty first line', lines);
       return;
     }
+
     const line = lines[0];
     console.log(nowPlaying);
     if (line.length < 2) {
@@ -149,101 +113,48 @@ const myAsyncPullGit = (
       updatePlaying();
     }
 
-    // Force the component to re-render
-    setCommit(result.oid);
   };
 };
 
-
-function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
+function NowPlaying({
+  commit,
+  isHost,
+  partyID,
+  partyRedirect,
+  setCommit,
+  setListParty,
+}) {
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
   const [playingList, setPlayingList] = useState([]);
   const [fs, setFS] = useState(null);
-  const [wsClient, setWSClient] = useState(null);
-  const [commit, setCommit] = useState(null);
 
   useEffect(() => {
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
     setFS(myFs);
     fetchAudioObjects(myFs, setAudioList, setPlayingList);
-
-    // const getCurrent = async () => {
-      // return await git.resolveRef({ fs, dir: window.location.pathname, ref: 'HEAD' });
-    // };
-    // const currentCommit = getCurrent();
-    // setCommit(currentCommit);
   }, []);
 
-  useEffect(() => {
-    if (wsClient !== null) {
-      return doNothing;
-    }
-
-    let port = '443';
-    if (window.location.port.length !== 0) {
-      port = window.location.port;
-      console.log('overwrote port', port, window.location.port.slice(0, 3));
-    }
-    console.log('connecting to websockets...', port, window.location.port, window.location.port.length);
-
-    let protocol = 'ws';
-    if (window.location.protocol === 'https:') {
-      protocol = 'wss';
-    }
-    const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
-    client.onopen = () => {
-      console.log('WebSocket Client Connected', client);
-    };
-    client.onclose = () => {
-      console.log('WebSocket Client Disconnected');
-    };
-
-    // don't set client.onmessage here. we need asyncPullGit for that
-    setWSClient(client);
-    return () => {
-      // TODO when should we close the websocket? not doing at all will lead to
-      // memory leaks
-      // client.close();
-    };
-  }, [wsClient]);
-
+  /*
+  // TODO this should probably be deleted?
   useEffect(() => {
     if (fs == null) {
       return doNothing;
     }
 
-    const asyncPullGit = myAsyncPullGit(
+    const myUpdateAudio = updateAudio(
       fs,
-      commit,
-      setCommit,
       audioList,
       setAudioList,
       playingList,
       setPlayingList,
     );
+    myUpdateAudio();
 
-    // TODO set a reasonable interval for pulling git
-    const intervalId = setInterval(asyncPullGit, gitIntervalMs);
-
-    if (wsClient == null) {
-      return () => {
-        clearInterval(intervalId);
-      };
-    }
-
-    wsClient.onmessage = (e) => {
-      console.log('Received websocket message: ', e.data);
-      if (e.data === 'please-pull') {
-        asyncPullGit();
-      }
-    };
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [audioList, playingList, fs, commit, wsClient]);
+    return () => {};
+  }, [audioList, playingList, fs, commit]);
+  */
 
   // TODO DJ's name... idk if there's multiple DJs
   // TODO my roles... listener (everyone...), host, DJ
@@ -279,6 +190,7 @@ function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
         message: 'dj click',
       });
       console.log('done committing', sha);
+
       const pushResult = await git.push({
         fs,
         http,
@@ -326,6 +238,7 @@ function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
         },
         clickDelayMs,
       );
+
       setCommit(sha);
     };
   };
@@ -398,7 +311,6 @@ function NowPlaying({ isHost, partyID, partyRedirect, setListParty }) {
       </header>
     </div>
   );
-
 }
 
 export default NowPlaying;
