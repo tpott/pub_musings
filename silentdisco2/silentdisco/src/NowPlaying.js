@@ -91,11 +91,13 @@ const updateAudio = (
       }
       console.log('going to', actionType, i, audioList[i]);
       setPlayingList(audioList.map((_, k) => (actionType === 'play' && i === k)));
-      if (actionType === 'play') {
-        audios[i].play();
-      } else {
-        audios[i].pause();
-      }
+      audioList.map((_, k) => {
+        if (actionType === 'play' && i === k) {
+          audios[k].play();
+        } else {
+          audios[k].pause();
+        }
+      });
     };
 
     if (diff > 0) {
