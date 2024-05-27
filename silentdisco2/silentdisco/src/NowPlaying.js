@@ -11,35 +11,28 @@ const endingBufferSec = 0.1; // 100 milliseconds
 // doNothing is an empty cleanup function to make react useEffect happy
 const doNothing = () => {};
 
-const fetchAudioObjects = async (
-  fs,
-  setAudioList,
-  setPlayingList,
-) => {
+const fetchAudioObjects = async (fs) => {
   const fileBytes = await fs.promises.readFile(window.location.pathname + '/objects.txt');
-  const audios = (new TextDecoder()).decode(fileBytes)
+  return (new TextDecoder()).decode(fileBytes)
     .split('\n')
     .filter(line => line !== '')
     .map(line => {
       const audioObj = JSON.parse(line)
       return `${audioObj['sha256']}.${audioObj['filetype']}`;
     });
-  setAudioList(audios);
-  setPlayingList(audios.map(() => false));
 };
 
 const updateAudio = (
   fs,
-  audioList,
   setAudioList,
-  playingList,
   setPlayingList,
 ) => {
   return async () => {
 
     console.log('!alreadyMerged, need to schedule something?');
 
-    fetchAudioObjects(fs, setAudioList, setPlayingList);
+    const audioList = await fetchAudioObjects(fs);
+    setAudioList(audioList);
 
     const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
     console.log('read', fileBytes);
@@ -97,7 +90,7 @@ const updateAudio = (
         audios[i].currentTime = parseFloat(fields[3]);
       }
       console.log('going to', actionType, i, audioList[i]);
-      setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
+      setPlayingList(audioList.map((_, k) => (actionType === 'play' && i === k)));
       if (actionType === 'play') {
         audios[i].play();
       } else {
@@ -133,11 +126,17 @@ function NowPlaying({
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
     setFS(myFs);
-    fetchAudioObjects(myFs, setAudioList, setPlayingList);
+
+    const fetchAndSet = async () => {
+      const audioList = await fetchAudioObjects(myFs);
+      setAudioList(audioList);
+      setPlayingList(audioList.map(() => false));
+    };
+    fetchAndSet();
+
+    return doNothing;
   }, []);
 
-  /*
-  // TODO this should probably be deleted?
   useEffect(() => {
     if (fs == null) {
       return doNothing;
@@ -145,16 +144,13 @@ function NowPlaying({
 
     const myUpdateAudio = updateAudio(
       fs,
-      audioList,
       setAudioList,
-      playingList,
       setPlayingList,
     );
     myUpdateAudio();
 
-    return () => {};
-  }, [audioList, playingList, fs, commit]);
-  */
+    return doNothing;
+  }, [fs, commit]);
 
   // TODO DJ's name... idk if there's multiple DJs
   // TODO my roles... listener (everyone...), host, DJ
@@ -200,44 +196,6 @@ function NowPlaying({
       });
       console.log('done pushing', pushResult);
       // TODO if (!pushResult.ok) { ... }
-
-      // TODO move this into a function
-      const updatedNow = (new Date()).getTime() / 1000;
-      const diff = targetInSec - updatedNow;
-      const updatePlaying = () => {
-        setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-        audios[i].currentTime = currentTime;
-        if (actionType === 'play') {
-          audios[i].play();
-        } else {
-          audios[i].pause();
-        }
-      };
-
-      if (diff > 0) {
-        console.log('self scheduling action for future', diff, updatedNow);
-        setTimeout(
-          updatePlaying,
-          diff * 1000,
-        );
-
-      } else {
-        console.log('self scheduled action from past', diff);
-        // TODO calc diff in audios[i].currentTime and fields[3]
-        updatePlaying();
-      }
-
-      setTimeout(
-        () => {
-          setPlayingList(playingList.map((_, k) => (actionType === 'play' && i === k)));
-          if (actionType === 'play') {
-            audios[i].play();
-          } else {
-            audios[i].pause();
-          }
-        },
-        clickDelayMs,
-      );
 
       setCommit(sha);
     };
