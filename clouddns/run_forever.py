@@ -16,8 +16,8 @@ def main() -> None:
     while True:
         print(f'checking at {time.time()}')
 
-        res = subprocess.run(['curl', 'https://cloudflare.com/cdn-cgi/trace'], capture_output=True, text=True, check=True)
         try:
+            res = subprocess.run(['curl', 'https://cloudflare.com/cdn-cgi/trace'], capture_output=True, text=True, check=True)
             # this is better than `grep ip=`
             current_ip = [ line.lstrip('ip=') for line in res.stdout.split('\n') if line.startswith('ip=') ][0]
         except:
