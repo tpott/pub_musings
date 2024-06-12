@@ -239,6 +239,7 @@ function NowPlaying({
     const elem = document.getElementById('fileUpload');
     console.log('uploading', elem);
     formData.append('file', elem.files[0]);
+    formData.append('party_id', partyID);
     const response = await fetch('/upload', {
       method: 'POST',
       body: formData,

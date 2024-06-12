@@ -34,6 +34,132 @@ function textToUint8Array(str /* string */) /* Uint8Array */ {
   return Uint8Array.from(Array.from(str).map(letter => letter.charCodeAt(0)));
 }
 
+function isArrayEqual(arr1 /* Uint8Array */, arr2 /* Uint8Array */) {
+  if (arr1.length !== arr2.length) {
+    return false;
+  }
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// ------WebKitFormBoundary
+// EgoUi9YxyjfwBaZU
+// \r\n
+// Content-Disposition: form-data; name="file"; filename="u6bk53x2Kno.mp3"
+// \r\n
+// Content-Type: audio/mpeg
+// \r\n
+// \r\n
+// fileBytes
+// \r\n
+// ------WebKitFormBoundary
+// EgoUi9YxyjfwBaZU
+// \r\n
+// Content-Disposition: form-data; name="party_id"
+// \r\n
+// \r\n
+// 2fda55
+// \r\n
+// ------WebKitFormBoundary
+// EgoUi9YxyjfwBaZU
+// --
+// \r\n
+
+function tokenizeChunk(bytes /* Uint8Array */) /* Array<Uint8Array> */ {
+  // \r\n
+  const returnNewline = new Uint8Array([13, 10]);
+  // --
+  const dashDash = new Uint8Array([45, 45]);
+  let ret = [];
+  for (let i = 0; i < bytes.length && i >= 0; i = bytes.indexOf(returnNewline, i + 1)) {
+    const count = ret.length;
+    if (count >= 2 && isArrayEqual(ret[count - 1], returnNewline) &&
+        isArrayEqual(ret[count - 2], returnNewline)) {
+      // the form-data!
+      ret.push(bytes.slice(i, bytes.length - 2));
+      // trailing \r\n
+      ret.push(bytes.slice(bytes.length - 2));
+      return ret;
+    } else if (isArrayEqual(bytes.slice(i, i + 2), returnNewline)) {
+      ret.push(bytes.slice(i, i + 2));
+      // when there's a \r\n\r\n, bytes.slice(i + 2, i +2) will return the whole bytes
+      const next = bytes.indexOf(returnNewline, i + 1);
+      if (i + 2 === next) {
+        ret.push(bytes.slice(i + 2, i + 4));
+      } else {
+        ret.push(bytes.slice(i + 2, bytes.indexOf(returnNewline, i + 1)));
+      }
+    } else if (isArrayEqual(bytes.slice(i, i + 2), dashDash)) {
+      ret.push(bytes.slice(i, i + 2));
+    } else {
+      ret.push(bytes.slice(i, bytes.indexOf(returnNewline, i + 1)));
+    }
+  }
+  return ret;
+}
+
+// ------WebKitFormBoundaryEgoUi9YxyjfwBaZU
+// \r\nContent-Disposition: form-data; name="file"; filename="u6bk53x2Kno.mp3"
+// \r\nContent-Type: audio/mpeg
+// \r\n\r\nfileBytes
+// \r\n
+// ------WebKitFormBoundaryEgoUi9YxyjfwBaZU
+// \r\nContent-Disposition: form-data; name="party_id"
+// \r\n\r\n2fda55
+// \r\n
+// ------WebKitFormBoundaryEgoUi9YxyjfwBaZU
+// --\r\n
+
+function tokenizeBoundaries(bytes /* Uint8Array */) /* Array<Uint8Array> */ {
+  // ------WebKitFormBoundary
+  const boundary = new Uint8Array([45, 45, 45, 45, 45, 45, 87, 101, 98, 75, 105, 116, 70, 111, 114, 109, 66, 111, 117, 110, 100, 97, 114, 121]);
+  let ret = [];
+  for (let i = 0; i < bytes.length && i >= 0; i = bytes.indexOf(boundary, i + 1)) {
+    // this should just be the literal boundary...
+    ret.push(bytes.slice(i, i + boundary.length));
+    // 16 bytes for the unique ID that follows the boundary
+    ret.push(bytes.slice(i + boundary.length, i + boundary.length + 16));
+    const end = bytes.indexOf(boundary, i + 1);
+    let chunk = null;
+    if (end >= 0) {
+      chunk = bytes.slice(i + boundary.length + 16, end);
+    } else {
+      // pick up the trailing "--\r\n"
+      chunk = bytes.slice(i + boundary.length + 16);
+    }
+    tokenizeChunk(chunk).forEach((token) => ret.push(token));
+  }
+  return ret;
+}
+
+function parseFileFromBody(bytes /* Uint8Array */) /* Uint8Array */ {
+  const tokens = tokenizeBoundaries(bytes);
+  console.log(`Got ${tokens.length} tokens`);
+  console.log(tokens.map((tok) => tok.length));
+  tokens.forEach((token) => {
+    if (token.length < 100) {
+      console.log((new TextDecoder()).decode(token.slice(0, 100)));
+    } else {
+      console.log(token.slice(0, 100));
+    }
+  });
+
+  // TODO add formdata for partyID
+  // TODO parse Content-Disposition: form-data, name, filename="...", Content-Type: audio/mpeg
+  const returnNewline2 = new Uint8Array([13, 10, 13, 10]); // \r\n
+  const start = bytes.indexOf(returnNewline2);
+
+  // 4 is to skip the \r\n
+  // -44 is to skip the ------WebKitFormBoundary4gS2tefbOBZWFoWn--\r\n\r\n
+  const fileBytes = bytes.slice(start + 4, -46);
+
+  return fileBytes;
+}
+
 // Note: this is Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101])
 const hostIsTrue = textToUint8Array('host:true');
 
@@ -301,6 +427,8 @@ async function main() {
     await processGitRequest(req, res, partyID);
   });
 
+  // /parties is its own GET request because each party is its own git
+  // repo. So there's no way to replicate this in isogit.
   app.get('/parties', async (req, res) => {
     try {
       const parties = await fs.readdir(path.join(tmpDir, 'parties'));
@@ -313,23 +441,23 @@ async function main() {
   });
 
   app.post('/upload', async (req, res) => {
-    // TODO add formdata for partyID
-    // TODO parse Content-Disposition: form-data, name, filename="...", Content-Type: audio/mpeg
-    const returnNewline = new Uint8Array([13, 10, 13, 10]); // \r\n
-    const start = req.body.indexOf(returnNewline);
-    // 4 is to skip the \r\n
-    // -44 is to skip the ------WebKitFormBoundary4gS2tefbOBZWFoWn--\r\n\r\n
-    const fileBytes = req.body.slice(start + 4, -46);
+    console.log('got an upload', req.body);
+
+    const fileBytes = parseFileFromBody(req.body);
+
     const hash = crypto.createHash('sha256');
     hash.update(fileBytes);
     const hexDigest = hash.digest('hex');
+
     // TODO parse filetype above and figure out if mp3 is reasonable
     const tmpFile = path.join(tmpDir, 'objects', hexDigest + '.mp3');
     await fs.writeFile(tmpFile, fileBytes);
+
     // TODO add formdata for partyID
     // or just parse it from Referer... Seriously, do this. Or else other parties can't
     // have music.
     const partyDir = path.join(tmpDir, 'parties', '000000');
+
     // Similar to silentdisco/src/NowPlaying.js, I'm not sure why this git checkout
     // is necessary with isogit
     await git.checkout({ fs, dir: partyDir });
