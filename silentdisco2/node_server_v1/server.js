@@ -80,7 +80,7 @@ function tokenizeChunk(bytes /* Uint8Array */) /* Array<Uint8Array> */ {
     if (count >= 2 && isArrayEqual(ret[count - 1], returnNewline) &&
         isArrayEqual(ret[count - 2], returnNewline)) {
       // the form-data!
-      ret.push(bytes.slice(i, bytes.length - 2));
+      ret.push(bytes.slice(i + 2, bytes.length - 2));
       // trailing \r\n
       ret.push(bytes.slice(bytes.length - 2));
       return ret;
@@ -138,26 +138,46 @@ function tokenizeBoundaries(bytes /* Uint8Array */) /* Array<Uint8Array> */ {
 
 function parseFileFromBody(bytes /* Uint8Array */) /* Uint8Array */ {
   const tokens = tokenizeBoundaries(bytes);
-  console.log(`Got ${tokens.length} tokens`);
-  console.log(tokens.map((tok) => tok.length));
-  tokens.forEach((token) => {
-    if (token.length < 100) {
-      console.log((new TextDecoder()).decode(token.slice(0, 100)));
-    } else {
-      console.log(token.slice(0, 100));
+
+  var doodads = [{}];
+  for (let i = 1; i < tokens.length; i++) {
+    if (tokens[i].length <= 2) {
+      continue;
     }
-  });
+    if (tokens[i].length >= 1000) {
+      continue;
+    }
+    // tokens[0] should always be the const boundary
+    if (isArrayEqual(tokens[i], tokens[0])) {
+      doodads[doodads.length - 1]['value'] = tokens[i - 2];
+      doodads.push({});
+      continue;
+    }
+    const token = (new TextDecoder()).decode(tokens[i]);
+    // Content-Type: audio/mpeg
+    if (token.startsWith('Content-Type')) {
+      doodads[doodads.length - 1]['content-type'] = token.split(': ')[1];
+      continue;
+    }
+    if (!token.startsWith('Content-Disposition: form-data')) {
+      continue;
+    }
+    const subtokens = token.split('; ');
+    for (let j = 1; j < subtokens.length; j++) {
+      const parts = subtokens[j].split('=');
+      doodads[doodads.length - 1][parts[0]] = parts[1].slice(1, -1);
+    }
+  }
 
-  // TODO add formdata for partyID
-  // TODO parse Content-Disposition: form-data, name, filename="...", Content-Type: audio/mpeg
-  const returnNewline2 = new Uint8Array([13, 10, 13, 10]); // \r\n
-  const start = bytes.indexOf(returnNewline2);
+  let ret = {};
+  for (let i = 0; i < doodads.length; i++) {
+    if (!('name' in doodads[i])) {
+      continue;
+    }
+    ret[doodads[i]['name']] = doodads[i];
+  }
 
-  // 4 is to skip the \r\n
-  // -44 is to skip the ------WebKitFormBoundary4gS2tefbOBZWFoWn--\r\n\r\n
-  const fileBytes = bytes.slice(start + 4, -46);
-
-  return fileBytes;
+  return ret;
 }
 
 // Note: this is Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101])
@@ -443,7 +463,9 @@ async function main() {
   app.post('/upload', async (req, res) => {
     console.log('got an upload', req.body);
 
-    const fileBytes = parseFileFromBody(req.body);
+    const parsedData = parseFileFromBody(req.body);
+    const fileBytes = parsedData['file']['value'];
+    const partyID = (new TextDecoder()).decode(parsedData['party_id']['value']);
 
     const hash = crypto.createHash('sha256');
     hash.update(fileBytes);
@@ -453,10 +475,7 @@ async function main() {
     const tmpFile = path.join(tmpDir, 'objects', hexDigest + '.mp3');
     await fs.writeFile(tmpFile, fileBytes);
 
-    // TODO add formdata for partyID
-    // or just parse it from Referer... Seriously, do this. Or else other parties can't
-    // have music.
-    const partyDir = path.join(tmpDir, 'parties', '000000');
+    const partyDir = path.join(tmpDir, 'parties', partyID);
 
     // Similar to silentdisco/src/NowPlaying.js, I'm not sure why this git checkout
     // is necessary with isogit
