@@ -25,7 +25,7 @@ const fetchAudioObjects = async (fs) => {
 const updateAudio = (
   fs,
   setAudioList,
-  setPlayingList,
+  setNowPlayingI,
 ) => {
   return async () => {
 
@@ -90,7 +90,11 @@ const updateAudio = (
         audios[i].currentTime = parseFloat(fields[3]);
       }
       console.log('going to', actionType, i, audioList[i]);
-      setPlayingList(audioList.map((_, k) => (actionType === 'play' && i === k)));
+	  if (actionType === 'play') {
+        setNowPlayingI(i);
+	  } else {
+        setNowPlayingI(-1);
+	  }
       audioList.map((_, k) => {
         if (actionType === 'play' && i === k) {
           audios[k].play();
@@ -121,7 +125,7 @@ function NowPlaying({
 }) {
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
-  const [playingList, setPlayingList] = useState([]);
+  const [nowPlayingI, setNowPlayingI] = useState(-1);
   const [fs, setFS] = useState(null);
 
   useEffect(() => {
@@ -132,7 +136,7 @@ function NowPlaying({
     const fetchAndSet = async () => {
       const audioList = await fetchAudioObjects(myFs);
       setAudioList(audioList);
-      setPlayingList(audioList.map(() => false));
+      setNowPlayingI(-1);
     };
     fetchAndSet();
 
@@ -147,7 +151,7 @@ function NowPlaying({
     const myUpdateAudio = updateAudio(
       fs,
       setAudioList,
-      setPlayingList,
+      setNowPlayingI,
     );
     myUpdateAudio();
 
@@ -207,14 +211,14 @@ function NowPlaying({
     return (evt) => {
       // TODO use the react dom elements from state?
       const audios = document.getElementsByTagName('audio');
-      if (evt.type === 'play' && !playingList[i]) {
+      if (evt.type === 'play' && i !== nowPlayingI) {
         console.log('accidental play', audios[i].currentTime, audios[i].duration);
         audios[i].pause();
-      } else if (evt.type === 'pause' && playingList[i]) {
+      } else if (evt.type === 'pause' && i === nowPlayingI) {
         if (Math.abs(audios[i].currentTime - audios[i].duration) < endingBufferSec) {
           console.log('song ended', audios[i].currentTime, audios[i].duration);
           // TODO play next song
-          setPlayingList(playingList.map(() => false));
+          setNowPlayingI(-1);
           return; // skip, this wasn't an accident
         }
         console.log('accidental pause', audios[i].currentTime, audios[i].duration);
@@ -228,7 +232,7 @@ function NowPlaying({
       <audio controls preload='auto' onPlay={accident(i)} onPause={accident(i)}>
         <source src={`/objects/${filename}`} />
       </audio>
-      {playingList[i] ? <button onClick={playOrPause('pause', i)}>⏸️</button> : <button onClick={playOrPause('play', i)}>▶️</button> }
+      {nowPlayingI === i ? <button onClick={playOrPause('pause', i)}>⏸️</button> : <button onClick={playOrPause('play', i)}>▶️</button> }
     </li>
   ));
 
