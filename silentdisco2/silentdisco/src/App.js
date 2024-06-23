@@ -16,6 +16,7 @@ window.Buffer = Buffer;
 const doNothing = () => {};
 
 const gitIntervalMs = 16000; // 16 seconds
+const minOffsetChangeInSec = 0.05; // 50 milliseconds
 
 // TODO don't hardcode this from server.js
 const hostIsTrue = new Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101]);
@@ -33,7 +34,7 @@ function hexToUint8Array(str: string ): Uint8Array {
   return new Uint8Array(bytes);
 }
 
-const ping = async (setOffsetInSec) => {
+const ping = async (offsetInSec, setOffsetInSec) => {
   const startInMs = (new Date()).getTime();
   const resp = await fetch(`/ping?nowInMs=${startInMs}`);
   const nowInMs = (new Date()).getTime();
@@ -43,8 +44,12 @@ const ping = async (setOffsetInSec) => {
   const result = await resp.json();
   // optional parse result.clientInitInMs vs startInMs
   const rtt = nowInMs - startInMs;
-  console.log(`ping results, rtt=${rtt}, now-server=${nowInMs - result.serverNowInMs}`);
-  setOffsetInSec((nowInMs - result.serverNowInMs - (rtt / 2)) / 1000.0);
+  const newOffsetInSec = (nowInMs - result.serverNowInMs - (rtt / 2)) / 1000.0;
+  console.log(`ping results, rtt=${rtt}, offset=${newOffsetInSec}, old offset=${offsetInSec}`);
+  if (Math.abs(newOffsetInSec - offsetInSec) < minOffsetChangeInSec) {
+    return;
+  }
+  setOffsetInSec(newOffsetInSec);
 };
 
 const myAsyncPullGit = (
@@ -147,7 +152,7 @@ function App() {
     // TODO set a reasonable interval for pulling git
     const intervalId = setInterval(() => {
       asyncPullGit();
-      ping(setOffsetInSec);
+      ping(offsetInSec, setOffsetInSec);
     }, gitIntervalMs);
 
     if (wsClient == null) {
@@ -158,7 +163,7 @@ function App() {
     }
 
     wsClient.onmessage = (e) => {
-      console.log('Received websocket message: ', e.data);
+      console.log(`Received websocket message: ${e.data} @ ${(new Date()).getTime() / 1000.0}`);
       if (e.data === 'please-pull') {
         asyncPullGit();
       }
@@ -169,7 +174,7 @@ function App() {
       window.removeEventListener('popstate', handlePopState);
       clearInterval(intervalId);
     };
-  }, [commit, wsClient]);
+  }, [offsetInSec, commit, wsClient]);
 
   useEffect(() => {
     if (wsClient !== null) {

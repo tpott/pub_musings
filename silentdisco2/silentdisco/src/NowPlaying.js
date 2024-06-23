@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import './Party.css';
 
 const acceptableDiffSec = 0.1; // 100 milliseconds
-const clickDelaySec = 0.01; // 10 milliseconds
+const clickDelaySec = 0.2; // 200 milliseconds
 const correctionsEnabled = false;
 const endingBufferSec = 0.1; // 100 milliseconds
 
@@ -26,20 +26,20 @@ const fetchAudioObjects = async (fs) => {
 
 const updateAudio = (
   appOffsetInSec,
+  commit,
   fs,
   setAudioList,
   setNowPlayingI,
   setPlayState,
 ) => {
   return async () => {
-
-    console.log('!alreadyMerged, need to schedule something?');
+    // appOffsetInSec or commit may have changed
 
     const audioList = await fetchAudioObjects(fs);
     setAudioList(audioList);
 
     const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
-    console.log('read', fileBytes);
+    console.log('read now_playing', fileBytes);
     // TODO don't decode the entire file?
     const nowPlaying = (new TextDecoder()).decode(fileBytes);
     // TODO do we need to handle more lines?
@@ -93,7 +93,9 @@ const updateAudio = (
     const updatePlaying = () => {
       // TODO why do we have this diff?
       if (actionType === 'play' && diff <= 0) {
-        audios[i].currentTime = startTime - diff;
+        // audios[i].currentTime = startTime;
+        audios[i].currentTime = startTime + diff;
+        // audios[i].currentTime = startTime - diff;
       } else {
         audios[i].currentTime = startTime;
       }
@@ -115,10 +117,10 @@ const updateAudio = (
     };
 
     if (diff > 0) {
-      console.log('scheduling action for future', diff, nowInSec, fields[4]);
-      setTimeout(updatePlaying, diff * 1000,);
+      console.log('scheduling action for future', diff, nowInSec, startAsOf);
+      setTimeout(updatePlaying, diff * 1000);
     } else {
-      console.log('TODO scheduled action from past', diff);
+      console.log('scheduled action from past', diff);
       updatePlaying();
     }
 
@@ -159,6 +161,7 @@ function NowPlaying({
 
     const myUpdateAudio = updateAudio(
       appOffsetInSec,
+      commit,
       fs,
       setAudioList,
       setNowPlayingI,
