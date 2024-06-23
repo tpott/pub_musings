@@ -460,6 +460,17 @@ async function main() {
     }
   });
 
+  app.get('/ping', async (req, res) => {
+    let initInMs = null;
+    if ('nowInMs' in req.query) {
+      initInMs = req.query.nowInMs;
+    }
+    res.json({
+      clientInitInMs: initInMs,
+      serverNowInMs: (new Date()).getTime(),
+    });
+  });
+
   app.post('/upload', async (req, res) => {
     console.log('got an upload', req.body);
 
@@ -490,6 +501,8 @@ async function main() {
       email: 'harry@example.com',
     }});
     res.status(200).send('ok');
+
+    broadcast('please-pull');
   });
 
   app.get('*', (req, res) => {

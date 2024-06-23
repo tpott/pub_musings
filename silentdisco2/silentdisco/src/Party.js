@@ -3,7 +3,14 @@ import { useEffect, useState } from 'react';
 import NowPlaying from './NowPlaying';
 import './Party.css';
 
-function Party({ commit, isHost, partyID, partyRedirect, setCommit }) {
+function Party({
+  appOffsetInSec,
+  commit,
+  isHost,
+  partyID,
+  partyRedirect,
+  setCommit,
+}) {
   const [isValidPartyID, setIsValidPartyID] = useState(false);
   const [participantID, setParticipantID] = useState(null);
   const [listParty, setListParty] = useState(null);
@@ -55,6 +62,7 @@ function Party({ commit, isHost, partyID, partyRedirect, setCommit }) {
   } else {
     return (
       <NowPlaying
+        appOffsetInSec={appOffsetInSec}
         commit={commit}
         isHost={isHost}
         partyID={partyID}

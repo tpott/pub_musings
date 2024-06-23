@@ -5,7 +5,9 @@ import { useEffect, useState } from 'react';
 
 import './Party.css';
 
-const clickDelayMs = 300; // 300 milliseconds
+const acceptableDiffSec = 0.1; // 100 milliseconds
+const clickDelaySec = 0.01; // 10 milliseconds
+const correctionsEnabled = false;
 const endingBufferSec = 0.1; // 100 milliseconds
 
 // doNothing is an empty cleanup function to make react useEffect happy
@@ -23,9 +25,11 @@ const fetchAudioObjects = async (fs) => {
 };
 
 const updateAudio = (
+  appOffsetInSec,
   fs,
   setAudioList,
   setNowPlayingI,
+  setPlayState,
 ) => {
   return async () => {
 
@@ -78,23 +82,29 @@ const updateAudio = (
 
     // TODO move this into a function
     const actionType = fields[0];
+    const startTime = parseFloat(fields[3]);
+    // TODO iterate on appOffsetInSec some more
+    const startAsOf = parseFloat(fields[4]) + appOffsetInSec;
     const nowInSec = (new Date()).getTime() / 1000;
-    const diff = parseFloat(fields[4]) - nowInSec;
+    const diff = startAsOf - nowInSec;
 
     // TODO use the react dom elements from state?
     const audios = document.getElementsByTagName('audio');
     const updatePlaying = () => {
+      // TODO why do we have this diff?
       if (actionType === 'play' && diff <= 0) {
-        audios[i].currentTime = parseFloat(fields[3]) - diff;
+        audios[i].currentTime = startTime - diff;
       } else {
-        audios[i].currentTime = parseFloat(fields[3]);
+        audios[i].currentTime = startTime;
       }
       console.log('going to', actionType, i, audioList[i]);
-	  if (actionType === 'play') {
+      if (actionType === 'play') {
         setNowPlayingI(i);
-	  } else {
+        setPlayState([startTime, startAsOf]);
+      } else {
         setNowPlayingI(-1);
-	  }
+        setPlayState([null, null]);
+      }
       audioList.map((_, k) => {
         if (actionType === 'play' && i === k) {
           audios[k].play();
@@ -116,6 +126,7 @@ const updateAudio = (
 };
 
 function NowPlaying({
+  appOffsetInSec,
   commit,
   isHost,
   partyID,
@@ -123,23 +134,21 @@ function NowPlaying({
   setCommit,
   setListParty,
 }) {
+
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
   const [nowPlayingI, setNowPlayingI] = useState(-1);
+  const [currentTime, setCurrentTime] = useState(null);
+  // playState[0] is seconds offset into now playing audio
+  // playState[1] is seconds offset from unix epoch, i.e. UTC
+  const [playState, setPlayState] = useState([null, null]);
+  const [numCorrections, setNumCorrections] = useState(0);
   const [fs, setFS] = useState(null);
 
   useEffect(() => {
     // window.location.pathname == '/party/:partyID'
     const myFs = new FS('fs');
     setFS(myFs);
-
-    const fetchAndSet = async () => {
-      const audioList = await fetchAudioObjects(myFs);
-      setAudioList(audioList);
-      setNowPlayingI(-1);
-    };
-    fetchAndSet();
-
     return doNothing;
   }, []);
 
@@ -149,14 +158,16 @@ function NowPlaying({
     }
 
     const myUpdateAudio = updateAudio(
+      appOffsetInSec,
       fs,
       setAudioList,
       setNowPlayingI,
+      setPlayState,
     );
     myUpdateAudio();
 
     return doNothing;
-  }, [fs, commit]);
+  }, [appOffsetInSec, fs, commit]);
 
   // TODO DJ's name... idk if there's multiple DJs
   // TODO my roles... listener (everyone...), host, DJ
@@ -172,13 +183,12 @@ function NowPlaying({
       }
 
       const currentTime = audios[i].currentTime;
-      const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
       const nowInSec = (new Date()).getTime() / 1000;
-      const targetInSec = nowInSec + (clickDelayMs / 1000);
+      const targetInSec = nowInSec - appOffsetInSec + clickDelaySec;
       // TODO figure out time skew for scheduling in the future...
       await fs.promises.writeFile(
         window.location.pathname + '/now_playing.txt',
-        `(${actionType}, ${i}, ${audioList[i]}, ${currentTime}, ${targetInSec})\n` + fileBytes,
+        `(${actionType}, ${i}, ${audioList[i]}, ${currentTime}, ${targetInSec})\n`,
       );
 
       await git.add({ fs, dir: window.location.pathname, filepath: 'now_playing.txt'});
@@ -219,6 +229,7 @@ function NowPlaying({
           console.log('song ended', audios[i].currentTime, audios[i].duration);
           // TODO play next song
           setNowPlayingI(-1);
+          setPlayState([null, null]);
           return; // skip, this wasn't an accident
         }
         console.log('accidental pause', audios[i].currentTime, audios[i].duration);
@@ -227,9 +238,48 @@ function NowPlaying({
     };
   };
 
+  const updateCurrentTime = (i) => {
+    return () => {
+      // TODO use the react dom elements from state?
+      const audios = document.getElementsByTagName('audio');
+      if (nowPlayingI === -1 || nowPlayingI >= audios.length) {
+        return;
+      }
+
+      const currentTime = audios[nowPlayingI].currentTime;
+      setCurrentTime(currentTime);
+
+      const nowInSec = (new Date()).getTime() / 1000;
+      const expectedTime = nowInSec - playState[1] + playState[0];
+
+      if (Math.abs(expectedTime - currentTime) < acceptableDiffSec) {
+        return;
+      }
+      setNumCorrections(numCorrections + 1);
+      console.log(`expected ${expectedTime} vs actual ${currentTime}`);
+
+      if (!correctionsEnabled) {
+        return;
+      }
+
+      if (expectedTime > currentTime) {
+        // jump ahead to catch up
+        audios[nowPlayingI].currentTime = expectedTime;
+        setCurrentTime(expectedTime);
+      } else {
+        setNowPlayingI(-1);
+        audios[nowPlayingI].pause();
+        setTimeout(currentTime - expectedTime, () => {
+          setNowPlayingI(i);
+          audios[nowPlayingI].play();
+        });
+      }
+    };
+  };
+
   const audioElemList = audioList.map((filename, i) => (
     <li>
-      <audio controls preload='auto' onPlay={accident(i)} onPause={accident(i)}>
+      <audio controls preload='auto' onPlay={accident(i)} onPause={accident(i)} onTimeUpdate={updateCurrentTime(i)}>
         <source src={`/objects/${filename}`} />
       </audio>
       {nowPlayingI === i ? <button onClick={playOrPause('pause', i)}>⏸️</button> : <button onClick={playOrPause('play', i)}>▶️</button> }
@@ -259,7 +309,7 @@ function NowPlaying({
     <div className='Party'>
       <header className='Party-header'>
         <p>Welcome to {partyID}</p>
-        <p>Now playing: TODO</p>
+        <p>Now playing: TODO, @ {currentTime}</p>
         <ul>
           {audioElemList}
         </ul>
@@ -272,6 +322,7 @@ function NowPlaying({
         <p>My name: TODO</p>
         <p><button onClick={() => setListParty(true)}>Participants list</button></p>
         <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
+        <p>Num corrections: {numCorrections}</p>
         <p>{commit}</p>
       </header>
     </div>

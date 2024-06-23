@@ -33,6 +33,20 @@ function hexToUint8Array(str: string ): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+const ping = async (setOffsetInSec) => {
+  const startInMs = (new Date()).getTime();
+  const resp = await fetch(`/ping?nowInMs=${startInMs}`);
+  const nowInMs = (new Date()).getTime();
+  if (!resp.ok) {
+    console.log('ping failed');
+  }
+  const result = await resp.json();
+  // optional parse result.clientInitInMs vs startInMs
+  const rtt = nowInMs - startInMs;
+  console.log(`ping results, rtt=${rtt}, now-server=${nowInMs - result.serverNowInMs}`);
+  setOffsetInSec((nowInMs - result.serverNowInMs - (rtt / 2)) / 1000.0);
+};
+
 const myAsyncPullGit = (
   fs,
   commit,
@@ -86,6 +100,9 @@ function App() {
   // TODO generalize this to more roles
   const [isHost, setIsHost] = useState(false);
   const [wsClient, setWSClient] = useState(null);
+  // a positive offset (> 0) means this device is ahead of the server
+  // a negative offset (< 0) means this device is behind the server
+  const [offsetInSec, setOffsetInSec] = useState(0.0);
 
   const partyRedirect = (partyID) => {
     return () => {
@@ -128,7 +145,10 @@ function App() {
     );
 
     // TODO set a reasonable interval for pulling git
-    const intervalId = setInterval(asyncPullGit, gitIntervalMs);
+    const intervalId = setInterval(() => {
+      asyncPullGit();
+      ping(setOffsetInSec);
+    }, gitIntervalMs);
 
     if (wsClient == null) {
       return () => {
@@ -262,6 +282,7 @@ function App() {
   return (
     <div>
       <Party
+        appOffsetInSec={offsetInSec}
         commit={commit}
         isHost={isHost}
         partyID={partyID}
