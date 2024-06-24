@@ -45,8 +45,8 @@ const ping = async (offsetInSec, setOffsetInSec) => {
   // optional parse result.clientInitInMs vs startInMs
   const rtt = nowInMs - startInMs;
   const newOffsetInSec = (nowInMs - result.serverNowInMs - (rtt / 2)) / 1000.0;
-  console.log(`ping results, rtt=${rtt}, offset=${newOffsetInSec}, old offset=${offsetInSec}`);
-  if (Math.abs(newOffsetInSec - offsetInSec) < minOffsetChangeInSec) {
+  console.log(`ping results, rtt=${rtt}, offset=${newOffsetInSec}, old offset=${offsetInSec}, now=${nowInMs}`);
+  if (offsetInSec !== null && Math.abs(newOffsetInSec - offsetInSec) < minOffsetChangeInSec) {
     return;
   }
   setOffsetInSec(newOffsetInSec);
@@ -107,7 +107,7 @@ function App() {
   const [wsClient, setWSClient] = useState(null);
   // a positive offset (> 0) means this device is ahead of the server
   // a negative offset (< 0) means this device is behind the server
-  const [offsetInSec, setOffsetInSec] = useState(0.0);
+  const [offsetInSec, setOffsetInSec] = useState(null);
 
   const partyRedirect = (partyID) => {
     return () => {
@@ -163,7 +163,8 @@ function App() {
     }
 
     wsClient.onmessage = (e) => {
-      console.log(`Received websocket message: ${e.data} @ ${(new Date()).getTime() / 1000.0}`);
+      const nowInMs = ((new Date()).getTime() / 1000.0) - offsetInSec;
+      console.log(`Received websocket message: ${e.data} @ ${nowInMs}`);
       if (e.data === 'please-pull') {
         asyncPullGit();
       }
@@ -247,6 +248,7 @@ function App() {
       console.log('done cloning', currentCommit, files);
       setCommit(currentCommit);
 
+      // TODO this doesn't work when window.location isn't in a /party/
       const fileBytes = await fs.promises.readFile(window.location.pathname + '/public_key.txt');
       const publicKeyStr = (new TextDecoder()).decode(fileBytes);
       setPublicKey(publicKeyStr);
@@ -275,6 +277,13 @@ function App() {
       hexToUint8Array(publicKey),
     ));
   }, [publicKey]);
+
+  useEffect(() => {
+    if (offsetInSec !== null) {
+      return;
+    }
+    ping(offsetInSec, setOffsetInSec);
+  }, [offsetInSec]);
 
   if (partyID == null) {
     return (

@@ -39,9 +39,9 @@ const updateAudio = (
     setAudioList(audioList);
 
     const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
-    console.log('read now_playing', fileBytes);
     // TODO don't decode the entire file?
     const nowPlaying = (new TextDecoder()).decode(fileBytes);
+    console.log('read now_playing', nowPlaying);
     // TODO do we need to handle more lines?
     const lines = nowPlaying.split('\n');
     if (lines.length === 0 || lines[0].length === 0) {
@@ -50,7 +50,6 @@ const updateAudio = (
     }
 
     const line = lines[0];
-    console.log(nowPlaying);
     if (line.length < 2) {
       console.error('now_playing line shorter than expected', line);
       return;
@@ -84,8 +83,8 @@ const updateAudio = (
     const actionType = fields[0];
     const startTime = parseFloat(fields[3]);
     // TODO iterate on appOffsetInSec some more
-    const startAsOf = parseFloat(fields[4]) + appOffsetInSec;
-    const nowInSec = (new Date()).getTime() / 1000;
+    const startAsOf = parseFloat(fields[4]);
+    const nowInSec = ((new Date()).getTime() / 1000) - appOffsetInSec;
     const diff = startAsOf - nowInSec;
 
     // TODO use the react dom elements from state?
@@ -94,8 +93,8 @@ const updateAudio = (
       // TODO why do we have this diff?
       if (actionType === 'play' && diff <= 0) {
         // audios[i].currentTime = startTime;
-        audios[i].currentTime = startTime + diff;
-        // audios[i].currentTime = startTime - diff;
+        // audios[i].currentTime = startTime + diff;
+        audios[i].currentTime = startTime - diff;
       } else {
         audios[i].currentTime = startTime;
       }
@@ -180,14 +179,14 @@ function NowPlaying({
     return async () => {
       // TODO use the react dom elements from state?
       const audios = document.getElementsByTagName('audio');
-      console.log('clicked', actionType, audioList[i], audios[i].currentTime, (new Date()).getTime() / 1000);
+      const nowInSec = ((new Date()).getTime() / 1000) - appOffsetInSec;
+      console.log('clicked', actionType, audioList[i], audios[i].currentTime, nowInSec);
       if (fs == null) {
         return;
       }
 
       const currentTime = audios[i].currentTime;
-      const nowInSec = (new Date()).getTime() / 1000;
-      const targetInSec = nowInSec - appOffsetInSec + clickDelaySec;
+      const targetInSec = nowInSec + clickDelaySec;
       // TODO figure out time skew for scheduling in the future...
       await fs.promises.writeFile(
         window.location.pathname + '/now_playing.txt',
@@ -252,7 +251,7 @@ function NowPlaying({
       const currentTime = audios[nowPlayingI].currentTime;
       setCurrentTime(currentTime);
 
-      const nowInSec = (new Date()).getTime() / 1000;
+      const nowInSec = ((new Date()).getTime() / 1000) - appOffsetInSec;
       const expectedTime = nowInSec - playState[1] + playState[0];
 
       if (Math.abs(expectedTime - currentTime) < acceptableDiffSec) {
