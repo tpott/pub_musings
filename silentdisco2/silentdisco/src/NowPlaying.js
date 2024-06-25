@@ -13,7 +13,7 @@ const coeffPosition = 0.25;
 const coeffIntegral = 0.1;
 const coeffDerivative = 1.0;
 const playbackErrorLimit = 30; // record at most the last 30 events
-const minCorrectionForce = 0.5; // 500 milliseconds
+const minCorrectionForce = 0.3; // 300 milliseconds
 const minNumPlaybackErrors = 15;
 
 // doNothing is an empty cleanup function to make react useEffect happy
