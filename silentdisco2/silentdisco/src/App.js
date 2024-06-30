@@ -106,7 +106,6 @@ function App() {
   // TODO generalize this to more roles
   const [isHost, setIsHost] = useState(false);
   const [wsClient, setWSClient] = useState(null);
-  const [connectCount, setConnectCount] = useState(0);
   // a positive offset (> 0) means this device is ahead of the server
   // a negative offset (< 0) means this device is behind the server
   const [offsetInSec, setOffsetInSec] = useState(null);
@@ -196,29 +195,23 @@ function App() {
       protocol = 'wss';
     }
 
-    const connect = () => {
-      const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
-      client.onopen = () => {
-        console.log('WebSocket Client Connected', client);
-        setConnectCount(0);
-      };
-      client.onclose = () => {
-        console.log('WebSocket Client Disconnected');
-        setTimeout(connect, reconnectTime * (connectCount + 1));
-        setConnectCount(connectCount + 1);
-      };
-      // don't set client.onmessage here. we need asyncPullGit for that
-      setWSClient(client);
+    const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
+    client.onopen = () => {
+      console.log('WebSocket Client Connected', client);
     };
-
-    connect();
+    client.onclose = () => {
+      console.log('WebSocket Client Disconnected');
+      setWSClient(null);
+    };
+    // don't set client.onmessage here. we need asyncPullGit for that
+    setWSClient(client);
 
     return () => {
       // TODO when should we close the websocket? not doing at all will lead to
       // memory leaks
       // client.close();
     };
-  }, [wsClient, connectCount]);
+  }, [wsClient]);
 
   useEffect(() => {
     console.log('going to initialize App.js...');
