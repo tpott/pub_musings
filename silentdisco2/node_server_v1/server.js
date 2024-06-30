@@ -246,6 +246,9 @@ async function main() {
     return partyID.length === 6 && hexPattern.test(partyID);
   };
 
+  // processGetRequest gets GET and POST requests
+  // service=git-upload-pack is for `git pull` and `git clone` (?)
+  // service=git-receive-pack is for is for `git push`
   const processGitRequest = async (req, res, partyID) => {
     const urlParts = req.url.split('/');
     if (urlParts.length < 3) {

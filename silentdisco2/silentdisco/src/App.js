@@ -17,6 +17,7 @@ const doNothing = () => {};
 
 const gitIntervalMs = 16000; // 16 seconds
 const minOffsetChangeInSec = 0.05; // 50 milliseconds
+const reconnectTime = 2000; // 2 seconds
 
 // TODO don't hardcode this from server.js
 const hostIsTrue = new Uint8Array([104, 111, 115, 116, 58, 116, 114, 117, 101]);
@@ -105,6 +106,7 @@ function App() {
   // TODO generalize this to more roles
   const [isHost, setIsHost] = useState(false);
   const [wsClient, setWSClient] = useState(null);
+  const [connectCount, setConnectCount] = useState(0);
   // a positive offset (> 0) means this device is ahead of the server
   // a negative offset (< 0) means this device is behind the server
   const [offsetInSec, setOffsetInSec] = useState(null);
@@ -193,22 +195,30 @@ function App() {
     if (window.location.protocol === 'https:') {
       protocol = 'wss';
     }
-    const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
-    client.onopen = () => {
-      console.log('WebSocket Client Connected', client);
-    };
-    client.onclose = () => {
-      console.log('WebSocket Client Disconnected');
+
+    const connect = () => {
+      const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
+      client.onopen = () => {
+        console.log('WebSocket Client Connected', client);
+        setConnectCount(0);
+      };
+      client.onclose = () => {
+        console.log('WebSocket Client Disconnected');
+        setTimeout(connect, reconnectTime * (connectCount + 1));
+        setConnectCount(connectCount + 1);
+      };
+      // don't set client.onmessage here. we need asyncPullGit for that
+      setWSClient(client);
     };
 
-    // don't set client.onmessage here. we need asyncPullGit for that
-    setWSClient(client);
+    connect();
+
     return () => {
       // TODO when should we close the websocket? not doing at all will lead to
       // memory leaks
       // client.close();
     };
-  }, [wsClient]);
+  }, [wsClient, connectCount]);
 
   useEffect(() => {
     console.log('going to initialize App.js...');
