@@ -181,10 +181,7 @@ function NowPlaying({
     return doNothing;
   }, [appOffsetInSec, fs, commit]);
 
-  // TODO DJ's name... idk if there's multiple DJs
-  // TODO my roles... listener (everyone...), host, DJ
-  // TODO my name
-
+  // playOrPause takes a click and writes to git what song to play
   const playOrPause = (actionType, i) => {
     return async () => {
       // TODO use the react dom elements from state?
