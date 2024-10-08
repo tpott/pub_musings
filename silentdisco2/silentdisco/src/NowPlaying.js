@@ -114,7 +114,7 @@ const updateAudio = (
         setPlayState([null, null]);
         setPlaybackErrors([]);
       }
-      audioList.map((_, k) => {
+      audioList.forEach((_, k) => {
         if (actionType === 'play' && i === k) {
           audios[k].play();
         } else {
