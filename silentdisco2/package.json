@@ -5,5 +5,8 @@
     "isomorphic-git": "^1.25.7",
     "tweetnacl": "^1.0.3",
     "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "puppeteer": "^23.5.1"
   }
 }

@@ -372,7 +372,7 @@ function NowPlaying({
         <p><button onClick={() => setListParty(true)}>Participants list</button></p>
         <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
         <p>Num corrections: {numCorrections}</p>
-        <p>{commit}</p>
+        <p>Commit: {commit}</p>
       </header>
     </div>
   );
