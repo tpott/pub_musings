@@ -345,7 +345,7 @@ async function main() {
   };
 
   // Serve static files from the build directory
-  app.use(express.static(path.join(__dirname, '../silentdisco/build')));
+  app.use(express.static(path.join(__dirname, '../silentdisco_v1/build')));
 
   // Serve static object files from the uploaded object dir
   app.use('/objects', express.static(path.join(tmpDir, 'objects')));
@@ -355,7 +355,7 @@ async function main() {
 
   app.get('/', (req, res) => {
     // TODO route / to party_list.html
-    res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
+    res.sendFile(path.join(__dirname, '../silentdisco_v1/build/index.html'));
   });
 
   app.post('/create-party', async (req, res) => {
@@ -427,7 +427,7 @@ async function main() {
       res.redirect('/');
     }
     // TODO route /party/:partyID to now_playing.html
-    res.sendFile(path.join(__dirname, '../silentdisco/build/index.html'));
+    res.sendFile(path.join(__dirname, '../silentdisco_v1/build/index.html'));
   });
 
   app.get('/party/:partyID.git/*', async (req, res) => {
