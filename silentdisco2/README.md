@@ -160,3 +160,9 @@ Replace all $server_name manually
 After a long while back, I ran `npm update` for the server and client, which bumped a bunch of
 package-lock.json bits. I can still run `cd silentdisco && npm run build && node --inspect ../node_server_v1/server.js`
 so hopefully nothing is breaking...
+
+# Testing
+
+I'm running `node --inspect ../node_server_v1/server.js` in one terminal,
+and `node node_server_v1/test_sync.js http://localhost:8080/iamhost/d7ff7332c6a617c153b75e27f836902e`
+in another. Once that finishes, I run `open -a "Google Chrome" test.wav`.
