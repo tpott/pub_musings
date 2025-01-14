@@ -165,4 +165,11 @@ so hopefully nothing is breaking...
 
 I'm running `node --inspect ../node_server_v1/server.js` in one terminal,
 and `node node_server_v1/test_sync.js http://localhost:8080/iamhost/d7ff7332c6a617c153b75e27f836902e`
-in another. Once that finishes, I run `open -a "Google Chrome" test.wav`.
+in another. Once that finishes, I run `open -a "Google Chrome" test.wav`. Assuming you've captured
+the recording you want, then you can move on to analysis.
+
+I'm relying on jupyter notebooks, cause they have the best plotting / exploration capabilities
+built in. If you haven't before, `pip install -r requirements.txt`. Then you can run `jupyter notebook`
+and open node_server_v1/test_sync_post_process.ipynb. In order to read the original mp3, I ran
+`ffmpeg -i node_server_v1/e_J14fbBluE.mp3 original.wav` once to create a wav file that
+scipy wavfile could read.
