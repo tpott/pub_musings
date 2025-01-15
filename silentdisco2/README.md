@@ -173,3 +173,12 @@ built in. If you haven't before, `pip install -r requirements.txt`. Then you can
 and open node_server_v1/test_sync_post_process.ipynb. In order to read the original mp3, I ran
 `ffmpeg -i node_server_v1/e_J14fbBluE.mp3 original.wav` once to create a wav file that
 scipy wavfile could read.
+
+# Evaluating metrics
+
+I was very confident that comparing the original.wav with the test.wav that I would be able to
+visually see a linear plot showing the two wav files progressing together. And that there would
+be two or more lines for every out of sync speaker used in the recording of test.wav. But
+alas, the data was not conclusive. 
+
+I liked clicking Kernel > "Restart Kernel and Run All Cells" to make sure it would be re-runnable.
