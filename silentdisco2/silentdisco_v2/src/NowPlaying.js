@@ -36,6 +36,7 @@ const updateAudio = (
   commit,
   fs,
   setAudioList,
+  setIsPlaying,
   setNowPlayingI,
   setCurrentTime,
   setPlayState,
@@ -105,10 +106,11 @@ const updateAudio = (
       }
       console.log('going to', actionType, i, audioList[i]);
       if (actionType === 'play') {
+        setIsPlaying(true);
         setNowPlayingI(i);
         setPlayState(startAsOf);
       } else {
-        setNowPlayingI(-1);
+        setIsPlaying(false);
         setPlayState(null);
         setPlaybackErrors([]);
       }
@@ -139,6 +141,7 @@ function NowPlaying({
   const [fs, setFS] = useState(null);
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [nowPlayingI, setNowPlayingI] = useState(-1);
   // playState is seconds offset from unix epoch, i.e. UTC
   const [playState, setPlayState] = useState(null);
@@ -164,6 +167,7 @@ function NowPlaying({
       commit,
       fs,
       setAudioList,
+      setIsPlaying,
       setNowPlayingI,
       setCurrentTime,
       setPlayState,
@@ -231,8 +235,8 @@ function NowPlaying({
       <AudioFile
         audioCtx={audioCtx}
         url={`/objects/${filename}`}
-        isPlaying={nowPlayingI === i}
-        currentTime={(nowPlayingI === i) ? currentTime : null}
+        isPlaying={isPlaying}
+        currentTime={(nowPlayingI === i) ? currentTime : 0.0}
         parentPlay={playOrPause('play', i)}
         parentPause={playOrPause('pause', i)}
         onEnded={onEnded(i)}

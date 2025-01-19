@@ -1,5 +1,39 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+// from https://stackoverflow.com/questions/55187563/determine-which-dependency-array-variable-caused-useeffect-hook-to-fire
+const usePrevious = (value, initialValue) => {
+  const ref = useRef(initialValue);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+};
+
+const useEffectDebugger = (effectHook, dependencies, dependencyNames = []) => {
+  const previousDeps = usePrevious(dependencies, []);
+
+  const changedDeps = dependencies.reduce((accum, dependency, index) => {
+    if (dependency !== previousDeps[index]) {
+      const keyName = dependencyNames[index] || index;
+      return {
+        ...accum,
+        [keyName]: {
+          before: previousDeps[index],
+          after: dependency
+        }
+      };
+    }
+
+    return accum;
+  }, {});
+
+  if (Object.keys(changedDeps).length) {
+    console.log('[use-effect-debugger] ', changedDeps);
+  }
+
+  useEffect(effectHook, dependencies);
+};
+// done from stackoverflow
 
 // Start playback
 const realPlay = (
@@ -7,8 +41,7 @@ const realPlay = (
   audioBuffer,
   startTimeRef,
   sourceRef,
-  onEnded,
-  currentTime,
+  songCurrentTime,
 ) => {
   console.log('realPlay', audioBuffer, audioCtx);
   if (audioBuffer === null) {
@@ -32,12 +65,13 @@ const realPlay = (
 
   // TODO get offset from appOffsetInSec
   // Start now (zero delay) from the last pausedAt offset
-  source.start(0, currentTime);
+  source.start(0, songCurrentTime);
 
   source.onended = () => {
     sourceRef.current = null;
+    // TODO onEnded was causing unnecessary react rerenders
     // Call onEnded so the parent component can play the next track?...
-    onEnded();
+    // onEnded();
   };
 
   // Keep a reference in case we want to stop manually
@@ -47,7 +81,7 @@ const realPlay = (
 // Stop playback
 const handlePause = (
   audioCtx,
-  currentTime,
+  songCurrentTime,
   startTimeRef,
   sourceRef,
 ) => {
@@ -57,7 +91,7 @@ const handlePause = (
   }
 
   const elapsed = audioCtx.currentTime - startTimeRef.current;
-  const newPausedAt = currentTime + elapsed;
+  const newPausedAt = songCurrentTime + elapsed;
 
   sourceRef.current.stop();
   sourceRef.current = null;
@@ -105,28 +139,26 @@ function AudioFile({
     return () => { isCancelled = true; };
   }, [url, audioCtx]);
 
-  useEffect(() => {
-	console.log('FML', currentTime, audioCtx, audioBuffer, onEnded, isPlaying);
+  useEffectDebugger(() => {
+    // TODO onEnded was causing unnecessary react rerenders
+    console.log(`useEffect currentTime=${currentTime}, isPlaying=${isPlaying}, audioCtx=${audioCtx}, audioBuffer=${audioBuffer}`);
     if (!isPlaying) {
       handlePause(audioCtx, currentTime, startTimeRef, sourceRef)
       return () => {}; // do nothing
     }
+    // TODO uncomment when bugs are fixed
     realPlay(
       audioCtx,
       audioBuffer,
       startTimeRef,
       sourceRef,
-      onEnded,
       currentTime,
     );
     return () => {}; // do nothing
-  }, [currentTime, audioCtx, audioBuffer, onEnded, isPlaying]);
+  }, [currentTime, isPlaying, audioCtx, audioBuffer]);
 
   const handlePlay = () => {
     console.log('handlePlay', audioBuffer, audioCtx, currentTime);
-    if (currentTime === null) {
-      currentTime = 0.0;
-    }
     parentPlay(currentTime);
   };
 
@@ -135,23 +167,24 @@ function AudioFile({
     parentPause(newPausedAt);
   };
 
-  // You can show the current time or progress by polling or via requestAnimationFrame
+  // TODO show the current time or progress by polling or via requestAnimationFrame
+
   // For a simple example, let's just compute it on each render:
-  let myCurrentTime = currentTime ?? 0.0;
-  if (currentTime !== null) {
+  // let myCurrentTime = currentTime ?? 0.0;
+  // if (currentTime !== null) {
     // TODO using the audioCtx.currentTime here blindly is incorrect. It
     // causes the numerator to show as the audioCtx.currentTime the first time
     // someone clicks pause, which is really just how long the page has been loaded
-    myCurrentTime += audioCtx.currentTime - startTimeRef.current;
-  }
-
-  myCurrentTime = Math.min(myCurrentTime, audioBuffer?.duration || Infinity);
+    // myCurrentTime += audioCtx.currentTime - startTimeRef.current;
+  // }
+  // myCurrentTime = Math.min(myCurrentTime, audioBuffer?.duration || Infinity);
   
+  // currentTime?.toFixed(2)
   return (
     <div>
-      {myCurrentTime.toFixed(2)} / {audioBuffer && (audioBuffer.duration.toFixed(2))} &nbsp;
-      <button onClick={currentTime !== null ? handlePauseWithCallback : handlePlay}>
-        {currentTime !== null ? "⏸️" : "▶️"}
+      {currentTime} / {audioBuffer && (audioBuffer.duration.toFixed(2))} &nbsp;
+      <button onClick={isPlaying ? handlePauseWithCallback : handlePlay}>
+        {isPlaying ? "⏸️" : "▶️"}
       </button>
     </div>
   );
