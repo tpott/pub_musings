@@ -4,6 +4,7 @@ import NowPlaying from './NowPlaying';
 import './Party.css';
 
 function Party({
+  audioCtx,
   appOffsetInSec,
   commit,
   isHost,
@@ -62,6 +63,7 @@ function Party({
   } else {
     return (
       <NowPlaying
+        audioCtx={audioCtx}
         appOffsetInSec={appOffsetInSec}
         commit={commit}
         isHost={isHost}

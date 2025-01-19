@@ -3,6 +3,7 @@ import http from 'isomorphic-git/http/web';
 import FS from '@isomorphic-git/lightning-fs';
 import { useEffect, useState } from 'react';
 
+import AudioFile from './AudioFile';
 import './Party.css';
 
 const clickDelaySec = 0.2; // 200 milliseconds
@@ -135,6 +136,7 @@ const updateAudio = (
 };
 
 function NowPlaying({
+  audioCtx,
   appOffsetInSec,
   commit,
   isHost,
@@ -326,12 +328,21 @@ function NowPlaying({
     };
   };
 
+  const onEnded = (i) => {
+    return () => {
+      // TODO check if a i+1 should be playing. note it's possible audio i just
+      // got paused
+      console.log(`onEnded called for track ${i}`);
+    };
+  };
+
   const audioElemList = audioList.map((filename, i) => (
     <li>
-      <audio controls preload='auto' onPlay={accident(i)} onPause={accident(i)} onTimeUpdate={updateCurrentTime(i)}>
-        <source src={`/objects/${filename}`} />
-      </audio>
-      {nowPlayingI === i ? <button onClick={playOrPause('pause', i)}>⏸️</button> : <button onClick={playOrPause('play', i)}>▶️</button> }
+      <AudioFile
+        audioCtx={audioCtx}
+        url={`/objects/${filename}`}
+        onEnded={onEnded(i)}
+      />
     </li>
   ));
 

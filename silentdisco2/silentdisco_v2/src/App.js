@@ -110,6 +110,7 @@ function App() {
   // a positive offset (> 0) means this device is ahead of the server
   // a negative offset (< 0) means this device is behind the server
   const [offsetInSec, setOffsetInSec] = useState(null);
+  const [audioCtx, setAudioCtx] = useState(null);
 
   const partyRedirect = (partyID) => {
     return () => {
@@ -294,6 +295,13 @@ function App() {
     ping(offsetInSec, setOffsetInSec);
   }, [offsetInSec]);
 
+  useEffect(() => {
+    if (audioCtx !== null) {
+      return;
+    }
+    setAudioCtx(new (window.AudioContext || window.webkitAudioContext)());
+  }, []);
+
   if (partyID == null) {
     return (
       <div>
@@ -305,6 +313,7 @@ function App() {
   return (
     <div>
       <Party
+        audioCtx={audioCtx}
         appOffsetInSec={offsetInSec}
         commit={commit}
         isHost={isHost}

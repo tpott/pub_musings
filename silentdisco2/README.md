@@ -182,3 +182,23 @@ be two or more lines for every out of sync speaker used in the recording of test
 alas, the data was not conclusive. 
 
 I liked clicking Kernel > "Restart Kernel and Run All Cells" to make sure it would be re-runnable.
+
+# v2 with AudioBuffer
+
+I want precise playback control. I'll ask chatgpt for help using AudioBuffers. I initially
+tried `cp -r silentdisco_v1/* silentdisco_v2/` but the first time I ran `npm build` failed.
+So I had to `rm -rf node_modules` from the v2 dir and then `npm install`.
+
+After initially getting some playback to work, I discovered
+https://github.com/WebAudio/web-audio-api/issues/2467 and
+https://blog.paul.cx/post/audio-video-synchronization-with-the-web-audio-api/ which seem like
+great sources of info.
+
+New command: `cd silentdisco_v2 && npm run build && node --inspect ../node_server_v2/server.js`
+
+TODO
+* <audio> onPlay and onPause = accident(i)
+* <audio> onTimeUpdate = updateCurrentTime
+* <button> onClick = playOrPause('pause/play', i)
+
+I think playOrPause is the only important one, because that's what interacts with git.
