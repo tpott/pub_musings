@@ -231,6 +231,7 @@ function NowPlaying({
       <AudioFile
         audioCtx={audioCtx}
         url={`/objects/${filename}`}
+        isPlaying={nowPlayingI === i}
         currentTime={(nowPlayingI === i) ? currentTime : null}
         parentPlay={playOrPause('play', i)}
         parentPause={playOrPause('pause', i)}

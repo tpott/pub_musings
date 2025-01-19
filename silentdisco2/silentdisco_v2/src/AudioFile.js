@@ -68,6 +68,7 @@ function AudioFile({
   audioCtx,
   url,
   currentTime,
+  isPlaying,
   parentPlay,
   parentPause,
   onEnded,
@@ -105,13 +106,9 @@ function AudioFile({
   }, [url, audioCtx]);
 
   useEffect(() => {
-    if (currentTime === null) {
-      // This is just like handlePause...
-      if (sourceRef.current === null) {
-        return;
-      }
-      sourceRef.current.stop();
-      sourceRef.current = null;
+	console.log('FML', currentTime, audioCtx, audioBuffer, onEnded, isPlaying);
+    if (!isPlaying) {
+      handlePause(audioCtx, currentTime, startTimeRef, sourceRef)
       return () => {}; // do nothing
     }
     realPlay(
@@ -123,7 +120,7 @@ function AudioFile({
       currentTime,
     );
     return () => {}; // do nothing
-  }, [currentTime, audioCtx, audioBuffer, onEnded]);
+  }, [currentTime, audioCtx, audioBuffer, onEnded, isPlaying]);
 
   const handlePlay = () => {
     console.log('handlePlay', audioBuffer, audioCtx, currentTime);
@@ -142,6 +139,9 @@ function AudioFile({
   // For a simple example, let's just compute it on each render:
   let myCurrentTime = currentTime ?? 0.0;
   if (currentTime !== null) {
+    // TODO using the audioCtx.currentTime here blindly is incorrect. It
+    // causes the numerator to show as the audioCtx.currentTime the first time
+    // someone clicks pause, which is really just how long the page has been loaded
     myCurrentTime += audioCtx.currentTime - startTimeRef.current;
   }
 
