@@ -300,7 +300,7 @@ function App() {
       return;
     }
     setAudioCtx(new (window.AudioContext || window.webkitAudioContext)());
-  }, []);
+  }, [audioCtx]);
 
   if (partyID == null) {
     return (

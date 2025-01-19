@@ -37,6 +37,7 @@ const updateAudio = (
   fs,
   setAudioList,
   setNowPlayingI,
+  setCurrentTime,
   setPlayState,
   setPlaybackErrors,
 ) => {
@@ -95,33 +96,22 @@ const updateAudio = (
     const nowInSec = ((new Date()).getTime() / 1000.0) - appOffsetInSec;
     const diff = startAsOf - nowInSec;
 
-    // TODO use the react dom elements from state?
-    const audios = document.getElementsByTagName('audio');
     const updatePlaying = () => {
       // TODO why do we have this diff?
       if (actionType === 'play' && diff <= 0) {
-        // audios[i].currentTime = startTime;
-        // audios[i].currentTime = startTime + diff;
-        audios[i].currentTime = startTime - diff;
+        setCurrentTime(startTime - diff);
       } else {
-        audios[i].currentTime = startTime;
+        setCurrentTime(startTime);
       }
       console.log('going to', actionType, i, audioList[i]);
       if (actionType === 'play') {
         setNowPlayingI(i);
-        setPlayState([startTime, startAsOf]);
+        setPlayState(startAsOf);
       } else {
         setNowPlayingI(-1);
-        setPlayState([null, null]);
+        setPlayState(null);
         setPlaybackErrors([]);
       }
-      audioList.forEach((_, k) => {
-        if (actionType === 'play' && i === k) {
-          audios[k].play();
-        } else {
-          audios[k].pause();
-        }
-      });
     };
 
     if (diff > 0) {
@@ -146,16 +136,16 @@ function NowPlaying({
   setListParty,
 }) {
 
+  const [fs, setFS] = useState(null);
   // TODO use the react dom elements from state?
   const [audioList, setAudioList] = useState([]);
   const [nowPlayingI, setNowPlayingI] = useState(-1);
-  const [currentTime, setCurrentTime] = useState(null);
+  // playState is seconds offset from unix epoch, i.e. UTC
+  const [playState, setPlayState] = useState(null);
+  // currentTime is seconds offset into now playing audio
+  const [currentTime, setCurrentTime] = useState(0.0);
   const [playbackErrors, setPlaybackErrors] = useState([]);
-  // playState[0] is seconds offset into now playing audio
-  // playState[1] is seconds offset from unix epoch, i.e. UTC
-  const [playState, setPlayState] = useState([null, null]);
   const [numCorrections, setNumCorrections] = useState(0);
-  const [fs, setFS] = useState(null);
 
   useEffect(() => {
     // window.location.pathname == '/party/:partyID'
@@ -175,6 +165,7 @@ function NowPlaying({
       fs,
       setAudioList,
       setNowPlayingI,
+      setCurrentTime,
       setPlayState,
       setPlaybackErrors,
     );
@@ -185,21 +176,19 @@ function NowPlaying({
 
   // playOrPause takes a click and writes to git what song to play
   const playOrPause = (actionType, i) => {
-    return async () => {
+    return async (childCurrentTime) => {
       // TODO use the react dom elements from state?
-      const audios = document.getElementsByTagName('audio');
       const nowInSec = ((new Date()).getTime() / 1000.0) - appOffsetInSec;
-      console.log('clicked', actionType, audioList[i], audios[i].currentTime, nowInSec);
+      console.log('clicked', actionType, audioList[i], childCurrentTime, nowInSec);
       if (fs == null) {
         return;
       }
 
-      const currentTime = audios[i].currentTime;
       const targetInSec = nowInSec + clickDelaySec;
       // TODO figure out time skew for scheduling in the future...
       await fs.promises.writeFile(
         window.location.pathname + '/now_playing.txt',
-        `(${actionType}, ${i}, ${audioList[i]}, ${currentTime}, ${targetInSec})\n`,
+        `(${actionType}, ${i}, ${audioList[i]}, ${childCurrentTime}, ${targetInSec})\n`,
       );
 
       await git.add({ fs, dir: window.location.pathname, filepath: 'now_playing.txt'});
@@ -225,106 +214,7 @@ function NowPlaying({
       // TODO if (!pushResult.ok) { ... }
 
       setCommit(sha);
-    };
-  };
-
-  const accident = (i) => {
-    return (evt) => {
-      // TODO use the react dom elements from state?
-      const audios = document.getElementsByTagName('audio');
-      if (evt.type === 'play' && i !== nowPlayingI) {
-        console.log('accidental play', audios[i].currentTime, audios[i].duration);
-        audios[i].pause();
-      } else if (evt.type === 'pause' && i === nowPlayingI) {
-        if (Math.abs(audios[i].currentTime - audios[i].duration) < endingBufferSec) {
-          console.log('song ended', audios[i].currentTime, audios[i].duration);
-          // TODO play next song
-          setNowPlayingI(-1);
-          setPlayState([null, null]);
-          setPlaybackErrors([]);
-          return; // skip, this wasn't an accident
-        }
-        console.log('accidental pause', audios[i].currentTime, audios[i].duration);
-        audios[i].play();
-      }
-    };
-  };
-
-  const updateCurrentTime = (i) => {
-    return () => {
-      // TODO use the react dom elements from state?
-      const audios = document.getElementsByTagName('audio');
-      if (nowPlayingI === -1 || nowPlayingI >= audios.length) {
-        return;
-      }
-
-      const currentTime = audios[nowPlayingI].currentTime;
-      setCurrentTime(currentTime);
-
-      const unnormalized = (new Date()).getTime() / 1000.0;
-      const nowInSec = unnormalized - appOffsetInSec;
-      const expectedTime = nowInSec - playState[1] + playState[0];
-
-      // if we have too many observations, pop the oldest one off
-      if (playbackErrors.length === playbackErrorLimit) {
-        playbackErrors.shift();
-      }
-
-      playbackErrors.push([
-        unnormalized,
-        nowInSec,
-        expectedTime,
-        currentTime,
-      ]);
-      setPlaybackErrors(playbackErrors);
-
-      // we need a stat sig number of observations
-      if (playbackErrors.length < minNumPlaybackErrors) {
-        return;
-      }
-
-      const positionError = expectedTime - currentTime;
-      const prev = playbackErrors[playbackErrors.length - 2];
-      const deriveError = (positionError - prev[2] + prev[3]) / (unnormalized - prev[0]);
-      let integError = 0.0;
-
-      for (let i = 1; i < playbackErrors.length; i++) {
-        const current = playbackErrors[i];
-        const prev = playbackErrors[i - 1];
-        integError += (current[2] - current[3]) * (current[0] - prev[0]);
-      }
-      const correctionForce = coeffPosition * positionError + coeffIntegral * integError +
-        coeffDerivative * deriveError;
-
-      // These were all useful for debugging the PID calculation:
-      // console.log(`expected ${expectedTime} vs actual ${currentTime}`);
-      // console.log(`force=${correctionForce}, position=${positionError}, derive=${deriveError}, integ=${integError}`);
-      // console.log(playbackErrors);
-
-      if (Math.abs(correctionForce) < minCorrectionForce) {
-        return;
-      }
-
-      setNumCorrections(numCorrections + 1);
-
-      if (!correctionsEnabled) {
-        return;
-      }
-
-      setPlaybackErrors([]);
-      if (expectedTime > currentTime) {
-        // jump ahead to catch up
-        audios[nowPlayingI].currentTime = expectedTime + correctionForce;
-        setCurrentTime(expectedTime);
-      } else {
-        setNowPlayingI(-1);
-        audios[nowPlayingI].pause();
-        // TODO use correctionForce for calculation of currentTime
-        setTimeout(currentTime - expectedTime /* + correctionForce */, () => {
-          setNowPlayingI(i);
-          audios[nowPlayingI].play();
-        });
-      }
+      setCurrentTime(childCurrentTime);
     };
   };
 
@@ -341,6 +231,9 @@ function NowPlaying({
       <AudioFile
         audioCtx={audioCtx}
         url={`/objects/${filename}`}
+        currentTime={(nowPlayingI === i) ? currentTime : null}
+        parentPlay={playOrPause('play', i)}
+        parentPause={playOrPause('pause', i)}
         onEnded={onEnded(i)}
       />
     </li>

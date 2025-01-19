@@ -1,20 +1,89 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+
+// Start playback
+const realPlay = (
+  audioCtx,
+  audioBuffer,
+  startTimeRef,
+  sourceRef,
+  onEnded,
+  currentTime,
+) => {
+  console.log('realPlay', audioBuffer, audioCtx);
+  if (audioBuffer === null) {
+    return;
+  }
+
+  // This feels like a hack because realPlay takes too many args
+  // and the useEffect has too many dependencies
+  if (sourceRef.current !== null) {
+    sourceRef.current.stop();
+    sourceRef.current = null;
+  }
+
+  // Create a new BufferSource
+  const source = audioCtx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(audioCtx.destination);
+
+  // Mark the time we started playing
+  startTimeRef.current = audioCtx.currentTime;
+
+  // TODO get offset from appOffsetInSec
+  // Start now (zero delay) from the last pausedAt offset
+  source.start(0, currentTime);
+
+  source.onended = () => {
+    sourceRef.current = null;
+    // Call onEnded so the parent component can play the next track?...
+    onEnded();
+  };
+
+  // Keep a reference in case we want to stop manually
+  sourceRef.current = source;
+};
+
+// Stop playback
+const handlePause = (
+  audioCtx,
+  currentTime,
+  startTimeRef,
+  sourceRef,
+) => {
+  console.log('handlePause', sourceRef.current);
+  if (sourceRef.current === null) {
+    return;
+  }
+
+  const elapsed = audioCtx.currentTime - startTimeRef.current;
+  const newPausedAt = currentTime + elapsed;
+
+  sourceRef.current.stop();
+  sourceRef.current = null;
+  return newPausedAt;
+};
+
 function AudioFile({
   audioCtx,
   url,
+  currentTime,
+  parentPlay,
+  parentPause,
   onEnded,
  }) {
   const [audioBuffer, setAudioBuffer] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  
+
   // We'll store our current playing AudioBufferSourceNode here (so we can stop it).
   const sourceRef = useRef(null);
+
+  // Keep track of when we started (AudioContext currentTime)
+  const startTimeRef = useRef(0);
 
   // Fetch and decode audio when `url` changes
   useEffect(() => {
     let isCancelled = false;
-    
+
     async function loadAudio() {
       console.log('loadAudio', url);
       try {
@@ -35,50 +104,56 @@ function AudioFile({
     return () => { isCancelled = true; };
   }, [url, audioCtx]);
 
-  // Start playback
-  const handlePlay = () => {
-    console.log('handlePlay', audioBuffer, audioCtx);
-    if (audioBuffer === null) {
-      return;
-    }
-
-    // Create a new BufferSource
-    console.log('creating buffer source');
-    const source = audioCtx.createBufferSource();
-    console.log('created buffer source', source);
-    source.buffer = audioBuffer;
-    source.connect(audioCtx.destination);
-
-    source.onended = () => {
-      setIsPlaying(false);
-      sourceRef.current = null;
-      // Call onEnded so the parent component can play the next track
-      onEnded();
-    };
-
-    // TODO get offset from appOffsetInSec
-    // Start now (zero delay)
-    source.start(0);
-  
-    // Keep a reference in case we want to stop manually
-    sourceRef.current = source;
-    setIsPlaying(true);
-  };
-
-  // Stop playback
-  const handleStop = () => {
-    console.log('handleStop', sourceRef.current);
-    if (sourceRef.current !== null) {
+  useEffect(() => {
+    if (currentTime === null) {
+      // This is just like handlePause...
+      if (sourceRef.current === null) {
+        return;
+      }
       sourceRef.current.stop();
       sourceRef.current = null;
+      return () => {}; // do nothing
     }
-    setIsPlaying(false);
+    realPlay(
+      audioCtx,
+      audioBuffer,
+      startTimeRef,
+      sourceRef,
+      onEnded,
+      currentTime,
+    );
+    return () => {}; // do nothing
+  }, [currentTime, audioCtx, audioBuffer, onEnded]);
+
+  const handlePlay = () => {
+    console.log('handlePlay', audioBuffer, audioCtx, currentTime);
+    if (currentTime === null) {
+      currentTime = 0.0;
+    }
+    parentPlay(currentTime);
   };
+
+  const handlePauseWithCallback = () => {
+    const newPausedAt = handlePause(audioCtx, currentTime, startTimeRef, sourceRef);
+    parentPause(newPausedAt);
+  };
+
+  // You can show the current time or progress by polling or via requestAnimationFrame
+  // For a simple example, let's just compute it on each render:
+  let myCurrentTime = currentTime ?? 0.0;
+  if (currentTime !== null) {
+    myCurrentTime += audioCtx.currentTime - startTimeRef.current;
+  }
+
+  myCurrentTime = Math.min(myCurrentTime, audioBuffer?.duration || Infinity);
   
   return (
-    <button onClick={isPlaying ? handleStop : handlePlay}>
-      {isPlaying ? "⏸️" : "▶️"}
-    </button>
+    <div>
+      {myCurrentTime.toFixed(2)} / {audioBuffer && (audioBuffer.duration.toFixed(2))} &nbsp;
+      <button onClick={currentTime !== null ? handlePauseWithCallback : handlePlay}>
+        {currentTime !== null ? "⏸️" : "▶️"}
+      </button>
+    </div>
   );
 }
 
