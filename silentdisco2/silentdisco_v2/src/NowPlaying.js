@@ -6,16 +6,7 @@ import { useEffect, useState } from 'react';
 import AudioFile from './AudioFile';
 import './Party.css';
 
-const clickDelaySec = 0.2; // 200 milliseconds
-const endingBufferSec = 0.1; // 100 milliseconds
-
-const correctionsEnabled = true;
-const coeffPosition = 0.25;
-const coeffIntegral = 0.1;
-const coeffDerivative = 1.0;
-const playbackErrorLimit = 30; // record at most the last 30 events
-const minCorrectionForce = 0.3; // 300 milliseconds
-const minNumPlaybackErrors = 15;
+const clickDelaySec = 0.9; // 900 milliseconds
 
 // doNothing is an empty cleanup function to make react useEffect happy
 const doNothing = () => {};
@@ -35,12 +26,12 @@ const updateAudio = (
   appOffsetInSec,
   commit,
   fs,
+  audioCtx,
   setAudioList,
   setIsPlaying,
   setNowPlayingI,
   setCurrentTime,
-  setPlayState,
-  setPlaybackErrors,
+  setAudioCtxOffset,
 ) => {
   return async () => {
     // appOffsetInSec or commit may have changed
@@ -95,6 +86,10 @@ const updateAudio = (
     // TODO iterate on appOffsetInSec some more
     const startAsOf = parseFloat(fields[4]);
     const nowInSec = ((new Date()).getTime() / 1000.0) - appOffsetInSec;
+    // diff > 0 means startAsOf is in the future, and we should schedule audio
+    // in the future.
+    // diff < 0 means startAsOf was in the past, and we should skip ahead,
+    // meaning setCurrentTime should shorten the audio, and we should start now
     const diff = startAsOf - nowInSec;
 
     const updatePlaying = () => {
@@ -104,25 +99,24 @@ const updateAudio = (
       } else {
         setCurrentTime(startTime);
       }
+      // TODO should audioCtxOffset be - diff or + diff?
+      setAudioCtxOffset(audioCtx.currentTime + diff);
       console.log('going to', actionType, i, audioList[i]);
       if (actionType === 'play') {
         setIsPlaying(true);
         setNowPlayingI(i);
-        setPlayState(startAsOf);
       } else {
         setIsPlaying(false);
-        setPlayState(null);
-        setPlaybackErrors([]);
       }
     };
 
     if (diff > 0) {
       console.log('scheduling action for future', diff, nowInSec, startAsOf);
-      setTimeout(updatePlaying, diff * 1000);
+      // setTimeout(updatePlaying, diff * 1000);
     } else {
       console.log('scheduled action from past', diff);
-      updatePlaying();
     }
+    updatePlaying();
 
   };
 };
@@ -143,12 +137,11 @@ function NowPlaying({
   const [audioList, setAudioList] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [nowPlayingI, setNowPlayingI] = useState(-1);
-  // playState is seconds offset from unix epoch, i.e. UTC
-  const [playState, setPlayState] = useState(null);
   // currentTime is seconds offset into now playing audio
   const [currentTime, setCurrentTime] = useState(0.0);
-  const [playbackErrors, setPlaybackErrors] = useState([]);
-  const [numCorrections, setNumCorrections] = useState(0);
+  // audioCtxOffset is seconds offset from audioContext.currentTime
+  // when the current now playing audio should start for real
+  const [audioCtxOffset, setAudioCtxOffset] = useState(0.0);
 
   useEffect(() => {
     // window.location.pathname == '/party/:partyID'
@@ -166,17 +159,17 @@ function NowPlaying({
       appOffsetInSec,
       commit,
       fs,
+      audioCtx,
       setAudioList,
       setIsPlaying,
       setNowPlayingI,
       setCurrentTime,
-      setPlayState,
-      setPlaybackErrors,
+      setAudioCtxOffset,
     );
     myUpdateAudio();
 
     return doNothing;
-  }, [appOffsetInSec, fs, commit]);
+  }, [appOffsetInSec, commit, fs, audioCtx]);
 
   // playOrPause takes a click and writes to git what song to play
   const playOrPause = (actionType, i) => {
@@ -230,10 +223,12 @@ function NowPlaying({
     };
   };
 
+  // TODO audioCtxOffset
   const audioElemList = audioList.map((filename, i) => (
     <li>
       <AudioFile
         audioCtx={audioCtx}
+        audioCtxOffset={audioCtxOffset}
         url={`/objects/${filename}`}
         isPlaying={isPlaying}
         currentTime={(nowPlayingI === i) ? currentTime : 0.0}
@@ -280,7 +275,6 @@ function NowPlaying({
         <p>My name: TODO</p>
         <p><button onClick={() => setListParty(true)}>Participants list</button></p>
         <p><button onClick={partyRedirect(null)}>Leave Party</button></p>
-        <p>Num corrections: {numCorrections}</p>
         <p>Commit: {commit}</p>
       </header>
     </div>

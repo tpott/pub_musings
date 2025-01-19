@@ -196,9 +196,11 @@ great sources of info.
 
 New command: `cd silentdisco_v2 && npm run build && node --inspect ../node_server_v2/server.js`
 
-TODO
-* <audio> onPlay and onPause = accident(i)
-* <audio> onTimeUpdate = updateCurrentTime
-* <button> onClick = playOrPause('pause/play', i)
-
 I think playOrPause is the only important one, because that's what interacts with git.
+
+TODO
+* Get it actually working...
+* Sometimes a mobile device would get the currentTime to become a NaN
+* The "scheduling in past" seems indicative of brokenness
+* I set a big delay to try to get things to schedule in the future
+
