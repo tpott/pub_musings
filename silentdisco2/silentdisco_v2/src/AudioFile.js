@@ -64,9 +64,16 @@ const realPlay = (
   // Mark the time we started playing
   startTimeRef.current = audioCtx.currentTime;
 
-  // TODO get offset from appOffsetInSec
-  // Start now (zero delay) from the last pausedAt offset
-  source.start(0, songCurrentTime);
+  // songCurrentTime is the number of seconds since the beginning of the song
+  // songCtxOffset is the number of seconds since audioCtx.currentTime for `when`
+  // the song should start playing. If its <= audioCtx.currentTime, it will play
+  // *now*. If it's > audioCtx.currentTime, then it will wait until
+  // audioCtx.currentTime == songCtxOffset.
+  try {
+    source.start(songCtxOffset, songCurrentTime);
+  } catch (e) {
+    console.log('failed to start audio in realPlay!', e);
+  }
 
   source.onended = () => {
     sourceRef.current = null;
@@ -94,7 +101,11 @@ const handlePause = (
   const elapsed = audioCtx.currentTime - startTimeRef.current;
   const newPausedAt = songCurrentTime + elapsed;
 
-  sourceRef.current.stop();
+  try {
+    sourceRef.current.stop();
+  } catch (e) {
+    console.log('failed to stop', e);
+  }
   sourceRef.current = null;
   return newPausedAt;
 };

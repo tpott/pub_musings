@@ -92,32 +92,23 @@ const updateAudio = (
     // meaning setCurrentTime should shorten the audio, and we should start now
     const diff = startAsOf - nowInSec;
 
-    const updatePlaying = () => {
-      // TODO why do we have this diff?
-      if (actionType === 'play' && diff <= 0) {
-        setCurrentTime(startTime - diff);
-      } else {
-        setCurrentTime(startTime);
-      }
-      // TODO should audioCtxOffset be - diff or + diff?
-      setAudioCtxOffset(audioCtx.currentTime + diff);
-      console.log('going to', actionType, i, audioList[i]);
-      if (actionType === 'play') {
-        setIsPlaying(true);
-        setNowPlayingI(i);
-      } else {
-        setIsPlaying(false);
-      }
-    };
-
     if (diff > 0) {
       console.log('scheduling action for future', diff, nowInSec, startAsOf);
-      // setTimeout(updatePlaying, diff * 1000);
     } else {
       console.log('scheduled action from past', diff);
     }
-    updatePlaying();
+    console.log('going to', actionType, i, audioList[i], 'at', startTime);
 
+    // TODO why do we have this diff?
+    if (actionType === 'play' && diff <= 0) {
+      setCurrentTime(startTime - diff);
+    } else {
+      setCurrentTime(startTime);
+    }
+    // TODO should audioCtxOffset be - diff or + diff?
+    setAudioCtxOffset(audioCtx.currentTime + diff);
+    setNowPlayingI(i);
+    setIsPlaying(actionType === 'play');
   };
 };
 
@@ -211,7 +202,6 @@ function NowPlaying({
       // TODO if (!pushResult.ok) { ... }
 
       setCommit(sha);
-      setCurrentTime(childCurrentTime);
     };
   };
 
