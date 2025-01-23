@@ -222,7 +222,7 @@ function AudioList({
         audioCtx={audioCtx}
         audioCtxOffset={audioCtxOffset}
         url={`/objects/${filename}`}
-        isPlaying={isPlaying}
+        isPlaying={isPlaying && (nowPlayingI === i)}
         currentTime={(nowPlayingI === i) ? currentTime : 0.0}
         parentPlay={playOrPause('play', i)}
         parentPause={playOrPause('pause', i)}
