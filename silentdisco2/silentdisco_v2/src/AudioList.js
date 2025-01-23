@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import AudioFile from './AudioFile';
 import './Party.css';
 
-const clickDelaySec = 0.9; // 900 milliseconds
+const clickDelaySec = 1.9; // 1900 milliseconds
 
 // doNothing is an empty cleanup function to make react useEffect happy
 const doNothing = () => {};
@@ -42,41 +42,43 @@ const updateAudio = (
     const fileBytes = await fs.promises.readFile(window.location.pathname + '/now_playing.txt');
     // TODO don't decode the entire file?
     const nowPlaying = (new TextDecoder()).decode(fileBytes);
-    console.log('read now_playing', nowPlaying);
+    let nowInSec = (new Date()).getTime() / 1000.0 - (appOffsetInSec ?? 0.0);
+    console.log('read now_playing', nowPlaying, `nowInSec=${nowInSec}`);
     // TODO do we need to handle more lines?
     const lines = nowPlaying.split('\n');
     if (lines.length === 0 || lines[0].length === 0) {
-      console.log('empty lines or empty first line', lines);
+      console.log('empty lines or empty first line', lines, `nowInSec=${nowInSec}`);
       return;
     }
 
+    // TODO add support for scheduling multiple lines
     const line = lines[0];
     if (line.length < 2) {
-      console.error('now_playing line shorter than expected', line);
+      console.error('now_playing line shorter than expected', line, `nowInSec=${nowInSec}`);
       return;
     }
     if (line[0] !== '(' || line[line.length - 1] !== ')') {
-      console.error('now_playing line missing leading or trailing parenthesis', line);
+      console.error('now_playing line missing leading or trailing parenthesis', line, `nowInSec=${nowInSec}`);
       return;
     }
     // slice is to remove the leading and trailing paranthesis
     const fields = line.slice(1, -1).split(', ');
     if (fields.length !== 5) {
-      console.error('now_playing line incorrect number of fields', line);
+      console.error('now_playing line incorrect number of fields', line, `nowInSec=${nowInSec}`);
       return;
     }
 
     const i = parseInt(fields[1]);
     if (i < 0) {
-      console.error('now_playing line with negative i', line, i);
+      console.error('now_playing line with negative i', line, i, `nowInSec=${nowInSec}`);
       return;
     }
     if (i >= audioList.length) {
-      console.error('now_playing line i out of bounds', line, i, audioList.length);
+      console.error('now_playing line i out of bounds', line, i, audioList.length, `nowInSec=${nowInSec}`);
       return;
     }
     if (audioList[i] !== fields[2]) {
-      console.error('now_playing line unknown audio vs expected', line, audioList[i]);
+      console.error('now_playing line unknown audio vs expected', line, audioList[i], `nowInSec=${nowInSec}`);
       return;
     }
 
@@ -85,7 +87,7 @@ const updateAudio = (
     const startTime = parseFloat(fields[3]);
     // TODO iterate on appOffsetInSec some more
     const startAsOf = parseFloat(fields[4]);
-    const nowInSec = ((new Date()).getTime() / 1000.0) - appOffsetInSec;
+    nowInSec = ((new Date()).getTime() / 1000.0) - appOffsetInSec;
     // diff > 0 means startAsOf is in the future, and we should schedule audio
     // in the future.
     // diff < 0 means startAsOf was in the past, and we should skip ahead,
@@ -93,7 +95,7 @@ const updateAudio = (
     const diff = startAsOf - nowInSec;
 
     if (diff > 0) {
-      console.log('scheduling action for future', diff, nowInSec, startAsOf);
+      console.log('scheduling action for future', diff, nowInSec, startAsOf, `nowInSec=${nowInSec}`);
     } else {
       console.log('scheduled action from past', diff);
     }
@@ -112,7 +114,7 @@ const updateAudio = (
   };
 };
 
-function NowPlaying({
+function AudioList({
   audioCtx,
   appOffsetInSec,
   commit,
@@ -252,7 +254,7 @@ function NowPlaying({
     <div className='Party'>
       <header className='Party-header'>
         <p>Welcome to {partyID}</p>
-        <p>Now playing: TODO, @ {currentTime}</p>
+        <p>Now playing: TODO, {isPlaying}</p>
         <ul>
           {audioElemList}
         </ul>
@@ -271,4 +273,4 @@ function NowPlaying({
   );
 }
 
-export default NowPlaying;
+export default AudioList;

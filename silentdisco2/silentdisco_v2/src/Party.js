@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import NowPlaying from './NowPlaying';
+import AudioList from './AudioList';
 import './Party.css';
 
 function Party({
@@ -62,7 +62,7 @@ function Party({
 
   } else {
     return (
-      <NowPlaying
+      <AudioList
         audioCtx={audioCtx}
         appOffsetInSec={appOffsetInSec}
         commit={commit}

@@ -40,13 +40,13 @@ const ping = async (offsetInSec, setOffsetInSec) => {
   const resp = await fetch(`/ping?nowInMs=${startInMs}`);
   const nowInMs = (new Date()).getTime();
   if (!resp.ok) {
-    console.log('ping failed');
+    console.log(`ping failed rawNowInMs=${(new Date()).getTime()}`);
   }
   const result = await resp.json();
   // optional parse result.clientInitInMs vs startInMs
   const rtt = nowInMs - startInMs;
   const newOffsetInSec = (nowInMs - result.serverNowInMs - (rtt / 2)) / 1000.0;
-  console.log(`ping results, rtt=${rtt}, offset=${newOffsetInSec}, old offset=${offsetInSec}, now=${nowInMs}`);
+  console.log(`ping results, rtt=${rtt}, offset=${newOffsetInSec}, old offset=${offsetInSec}, rawNowInMs=${nowInMs}`);
   if (offsetInSec !== null && Math.abs(newOffsetInSec - offsetInSec) < minOffsetChangeInSec) {
     return;
   }
@@ -77,7 +77,7 @@ const myAsyncPullGit = (
         email: 'ron@weasly.com',
       },
     });
-    console.log('fetched', result);
+    console.log('fetched', result, `rawNowInMs=${(new Date()).getTime()}`);
 
     if (commit == null) {
       setCommit(result.oid);
@@ -166,8 +166,8 @@ function App() {
     }
 
     wsClient.onmessage = (e) => {
-      const nowInMs = ((new Date()).getTime() / 1000.0) - offsetInSec;
-      console.log(`Received websocket message: ${e.data} @ ${nowInMs}`);
+      const now = ((new Date()).getTime() / 1000.0) - offsetInSec;
+      console.log(`Received websocket message: ${e.data} @ ${now}`);
       if (e.data === 'please-pull') {
         asyncPullGit();
       }
@@ -188,9 +188,9 @@ function App() {
     let port = '443';
     if (window.location.port.length !== 0) {
       port = window.location.port;
-      console.log('overwrote port', port, window.location.port.slice(0, 3));
+      console.log('overwrote port', port, window.location.port.slice(0, 3), `rawNowInMs=${(new Date()).getTime()}`);
     }
-    console.log('connecting to websockets...', port, window.location.port, window.location.port.length);
+    console.log('connecting to websockets...', port, window.location.port, window.location.port.length, `rawNowInMs=${(new Date()).getTime()}`);
 
     let protocol = 'ws';
     if (window.location.protocol === 'https:') {
@@ -199,11 +199,11 @@ function App() {
 
     const client = new WebSocket(`${protocol}://${window.location.hostname}:${port}/ws`);
     client.onopen = () => {
-      console.log('WebSocket Client Connected', client);
+      console.log('WebSocket Client Connected', client, `rawNowInMs=${(new Date()).getTime()}`);
       setConnectCount(0);
     };
     client.onclose = () => {
-      console.log('WebSocket Client Disconnected');
+      console.log('WebSocket Client Disconnected', `rawNowInMs=${(new Date()).getTime()}`);
       // don't create a new WebSocket client here. Let react do it
       setTimeout(() => {
         setWSClient(null);
@@ -221,7 +221,7 @@ function App() {
   }, [wsClient, connectCount]);
 
   useEffect(() => {
-    console.log('going to initialize App.js...');
+    console.log(`going to initialize App.js... rawNowInMs=${(new Date()).getTime()}`);
 
     const initializeGitRepository = async () => {
       if (partyID === null) {
@@ -229,13 +229,13 @@ function App() {
       }
 
       // This is necessary otherwise we may have loaded the browser with an old git repo
-      console.log('clearing the fs');
+      console.log(`clearing the fs rawNowInMs=${(new Date()).getTime()}`);
       indexedDB.deleteDatabase('fs');
 
       // window.location.pathname == '/party/:partyID'
       const fs = new FS('fs'); // maybe call this partyID?
       await git.init({ fs, dir: window.location.pathname });
-      console.log('done initializing fs and git');
+      console.log(`done initializing fs and git rawNowInMs=${(new Date()).getTime()}`);
 
       // Note: if the page is already loaded, then fs may be cached, and git may already
       // be cloned...
@@ -255,7 +255,7 @@ function App() {
       // This is supposed to be like `git rev-parse HEAD`
       const currentCommit = await git.resolveRef({ fs, dir: window.location.pathname, ref: 'HEAD' });
       const files = await git.listFiles({ fs, dir: window.location.pathname });
-      console.log('done cloning', currentCommit, files);
+      console.log('done cloning', currentCommit, files, `rawNowInMs=${(new Date()).getTime()}`);
       setCommit(currentCommit);
 
       // TODO this doesn't work when window.location isn't in a /party/
