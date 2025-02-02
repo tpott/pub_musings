@@ -52,8 +52,12 @@ function PartyList({ partyRedirect, isHost }) {
     fetchParties();
   }, []);
 
+  // chatgpt recommended this outer <View> to have style={styles.container}
+  // but if I do that, then nothing renders on the first render... If I remove it,
+  // everything renders w/o the style. And then adding it back causes everything
+  // to render in the center. But wtf
   return (
-    <View style={styles.container}>
+    <View>
       <Text style={styles.header}>Party List</Text>
       {parties.map((partyID) => (
         <View key={partyID} style={styles.partyItem}>
