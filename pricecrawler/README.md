@@ -42,12 +42,18 @@ Each price target should have multiple URLs. Each URL can return multiple produc
 
 Setup
 ```
-python3 -m venv .
-source bin/activate
+mkdir -p tmp
+python3 -m venv tmp
+source tmp/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
 Running
 ```
 OPENAI_API_KEY_FILE=/tmp/key python3 loop.py
+```
+
+Cleanup
+```
+deactivate
 ```
