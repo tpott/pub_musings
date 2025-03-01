@@ -165,7 +165,8 @@ def main():
         for target, target_obj, status, content in results:
             url = target_obj["url"]
             print(f"Start URL: {url}")
-            print(f"Now in UTC: {formatdate(time.time())}")
+            print(f"Now in UTC: {formatdate(time.time(), localtime=False)}")
+            print(f"Now in localtime: {formatdate(time.time(), localtime=True)}")
             print(f"Status: {status}")
             print(f"Content-Length: {len(content)}")
 
