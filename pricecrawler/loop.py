@@ -26,6 +26,11 @@ targets = {
             "id": "product-listing-container",
         },
     ],
+    # TODO chatgpt requires pupeteer
+    # "chatgpt": [
+        # {"url": "https://openai.com/api/pricing/", "kind": "main", "id": "main"},
+        # {"url": "https://openai.com/api/pricing/", "kind": "div", "class": "flex"},
+    # ],
     "lifepo batteries": [
         # TODO find a url for dumfume besides amazon
         # https://camelcamelcamel.com/product/B0DLGNJH8P?context=search
@@ -33,6 +38,9 @@ targets = {
         {"url": "https://www.litime.com/collections/12v-batteries", "kind": "div", "id": "CollectionProductGrid"},
         {"url": "https://www.litime.com/collections/48v-batteries", "kind": "div", "id": "CollectionProductGrid"},
         {"url": "https://signaturesolar.com/all-products/batteries/?sort=priceasc", "kind": "div", "id": "product-listing-container"},
+    ],
+    "priority bicycles": [
+        {"url": "https://www.prioritybicycles.com/collections/bicycles-1", "kind": "div", "class": "collection-grid_products"},
     ],
     "solar panels": [
         {"url": "https://signaturesolar.com/shop-all/solar-panels/pallets/?sort=priceasc", "kind": "div", "id": "product-listing-container"},
@@ -188,7 +196,7 @@ def main():
             # results = soup.find("div", id="Collection") # ecoflow
             results = soup.find(target_obj["kind"], **kwargs)
             if results is None:
-                print(f"Failed to find \"{css_id}\" in the results. Content: {content[:1000]}")
+                print(f"Failed to find \"{kwargs}\" in the results. Content: {content[:1000]}")
                 continue
             text = results.text.strip()
             output_text = re.sub(r' +', ' ', text)
