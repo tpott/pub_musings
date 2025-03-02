@@ -65,4 +65,10 @@ deactivate
 
 # Notes
 
-I copied `webhooks.py`, `chatgpt.py`, and `facebook_loop.py` from my pub_musings/chatbot project
+* I copied `webhooks.py`, `chatgpt.py`, and `facebook_loop.py` from my pub_musings/chatbot project
+* I was able to create a self signed cert via `openssl req -new -x509 -nodes -newkey ec:<(openssl ecparam -name secp384r1) -keyout cert.key -out cert.crt -days 30`
+* I was able to create a new cloudflare tunnel and set it up with `https://localhost:8443`
+* I then ran `python3 webhooks.py 8443 cert.crt cert.key` in order to verify ownership with facebook
+* I used the graph API explorer to figure out my app scoped page ID https://developers.facebook.com/tools/explorer/ by calling `/me` with a page token
+* I was then able to plug everything together with `WEBHOOK_CERT_FILE=cert.crt WEBHOOK_KEY_FILE=cert.key OPENAI_API_KEY_FILE=/tmp/key LAST_RUN_FILE=/tmp/last_run_file PAGE_ID=506755539197493 PAGE_TOKEN_FILE=/tmp/page_token_file python3 facebook_loop.py`
+* I haven't gotten webhooks to work yet though... If it just triggers the loop, then it will work, so I literally just need any webhook.
