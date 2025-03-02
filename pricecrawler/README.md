@@ -48,6 +48,11 @@ source tmp/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
+And
+```
+brew install cloudflared
+```
+
 Running
 ```
 OPENAI_API_KEY_FILE=/tmp/key python3 loop.py
@@ -57,3 +62,7 @@ Cleanup
 ```
 deactivate
 ```
+
+# Notes
+
+I copied `webhooks.py`, `chatgpt.py`, and `facebook_loop.py` from my pub_musings/chatbot project

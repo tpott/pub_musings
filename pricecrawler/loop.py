@@ -11,6 +11,8 @@ import aiohttp
 from bs4 import BeautifulSoup
 import requests
 
+from chatgpt import chatCompletitions
+
 
 # note the keys get passed as values of an enum to chatgpt
 # target urls should be sorted with approximate prices ascending
@@ -47,81 +49,6 @@ targets = {
     ],
 }
 
-
-def query_target(prompt):
-    """Send user input to ChatGPT and return the response."""
-
-    # Set up API key and endpoint
-    API_KEY_FILE = os.getenv("OPENAI_API_KEY_FILE")
-    if API_KEY_FILE is None:
-        raise Exception("Failed reading OPENAI_API_KEY_FILE env var")
-    API_KEY = open(API_KEY_FILE).read().strip()
-
-    # Headers for API request
-    HEADERS = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    price_targets = list(targets.keys())
-    joined_targets = ", ".join(price_targets)
-
-    data = {
-        "model": "gpt-4o",  # Change to "gpt-3.5-turbo" if needed
-        "messages": [
-            {"role": "system", "content": f"Which of the price targets is the user asking about. Only respond with exactly one of the following price targets: {joined_targets}"},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.7
-    }
-
-    URL = "https://api.openai.com/v1/chat/completions"
-    response = requests.post(URL, headers=HEADERS, json=data)
-
-    if response.status_code == 200:
-        result = response.json()
-        return result["choices"][0]["message"]["content"].lower()
-    else:
-        return f"Error {response.status_code}: {response.text}"
-
-
-def query_products(filtered_html_text):
-    """Send filtered HTML to ChatGPT and return its summary."""
-
-    # TODO librarize
-    # Set up API key and endpoint
-    API_KEY_FILE = os.getenv("OPENAI_API_KEY_FILE")
-    if API_KEY_FILE is None:
-        raise Exception("Failed reading OPENAI_API_KEY_FILE env var")
-    API_KEY = open(API_KEY_FILE).read().strip()
-
-    # Headers for API request
-    HEADERS = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    price_targets = list(targets.keys())
-    joined_targets = ", ".join(price_targets)
-
-    data = {
-        "model": "gpt-4o",  # Change to "gpt-3.5-turbo" if needed
-        "messages": [
-            # {"role": "system", "content": f"Which of the price targets is the user asking about. Only respond with exactly one of the following price targets: {joined_targets}"},
-            {"role": "system", "content": f"Please summarize the products listed in this HTML. Include their prices (prefer sales price over real price or regular price). Please sort the products with prices ascending. Please do not repeat products."},
-            {"role": "user", "content": filtered_html_text}
-        ],
-        "temperature": 0.7
-    }
-
-    URL = "https://api.openai.com/v1/chat/completions"
-    response = requests.post(URL, headers=HEADERS, json=data)
-
-    if response.status_code == 200:
-        result = response.json()
-        return result["choices"][0]["message"]["content"].lower()
-    else:
-        return f"Error {response.status_code}: {response.text}"
 
 async def fetch_url(target, session, target_obj):
     """Fetch URL using async HTTP request."""
@@ -160,10 +87,15 @@ def main():
         # TODO how to associate `summarized` with `user_input`?
         # future `user_input` could be questions about previous `summarized`
         # Query ChatGPT
-        target = query_target(user_input)
+        price_targets = list(targets.keys())
+        joined_targets = ", ".join(price_targets)
+        messages = [
+            {"role": "system", "content": f"Which of the price targets is the user asking about. Only respond with exactly one of the following price targets: {joined_targets}"},
+            {"role": "user", "content": user_input}
+        ]
+        target = chatCompletitions(messages)
         if target not in targets:
-            target_keys = list(targets.keys())
-            print(f"Did not find one of {target_keys}, ChatGPT response: {target}\n")
+            print(f"Did not find one of {price_targets}, ChatGPT response: {target}\n")
             continue
 
         print(f"ChatGPT recognized: {target}\n")
@@ -205,7 +137,11 @@ def main():
 
             # TODO how to associate `summarized` with `user_input`?
             # future `user_input` could be questions about previous `summarized`
-            summarized = query_products(output_text)
+            messages = [
+                {"role": "system", "content": f"Please summarize the products listed in this HTML. Include their prices (prefer sales price over real price or regular price). Please sort the products with prices ascending. Please do not repeat products."},
+                {"role": "user", "content": output_text}
+            ]
+            summarized = chatCompletitions(messages)
             print(f"Summarized products: {summarized}\n")
             print(f"End URL: {url}\n")
        
