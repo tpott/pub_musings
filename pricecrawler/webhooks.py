@@ -82,6 +82,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     # path in {'/' => 'start button', '/label' => 'image + audio'}
     # TODO move this check after the status check
     if request.path == '/validation':
+      # TODO utilize x-hub-signature to ensure webhook integrity
+      # print(self.rfile.read(int(self.headers['Content-Length'])))
+      # print(self.headers.get('X-Hub-Signature-256'))
       self.getValidation(request.query)
       return
     if request.path == '/status':
@@ -124,18 +127,20 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     # path in {'/' => 'start button', '/label' => 'image + audio'}
     # TODO move this check after the status check
     if request.path == '/validation':
-      print(request)
-      print(self.rfile.read(int(self.headers['Content-Length'])))
-      print(self.headers.get('X-Hub-Signature-256'))
-      s = b'1-AM-ALIVE'
-      self.send_response(http.server.HTTPStatus.OK)
-      # Other potentially good headers: Content-type, Last-Modified
+      # https://developers.facebook.com/docs/graph-api/webhooks/getting-started#verification-requests
+      s = b'This is a GET only request'
+      self.send_response(http.server.HTTPStatus.NOT_FOUND)
       self.send_header('Content-Length', len(s))
       self.send_header('Content-Type', 'text/html; charset=utf-8')
-      if self.callback is not None:
-        self.callback()
       self.end_headers()
       self.wfile.write(s)
+      return
+    s = b'Unknown page'
+    self.send_response(http.server.HTTPStatus.NOT_FOUND)
+    self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s)
     return
 
   def do_POST(self):

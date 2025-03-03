@@ -15,8 +15,10 @@ from chatgpt import chatCompletitions
 # note the keys get passed as values of an enum to chatgpt
 # target urls should be sorted with approximate prices ascending
 targets = {
-    "ecoflow": [
+    "ecoflow river": [
         {"url": "https://us.ecoflow.com/collections/river-series", "kind": "div", "id": "Collection"},
+    ],
+    "ecoflow delta": [
         {"url": "https://us.ecoflow.com/collections/delta-series", "kind": "div", "id": "Collection"},
     ],
     "inverters": [
@@ -31,11 +33,13 @@ targets = {
         # {"url": "https://openai.com/api/pricing/", "kind": "main", "id": "main"},
         # {"url": "https://openai.com/api/pricing/", "kind": "div", "class": "flex"},
     # ],
-    "lifepo batteries": [
+    "12v lifepo batteries": [
         # TODO find a url for dumfume besides amazon
         # https://camelcamelcamel.com/product/B0DLGNJH8P?context=search
         {"url": "https://www.wattcycle.com/collections/12v-batteries?sort_by=price-ascending", "kind": "div", "id": "filter-results"},
         {"url": "https://www.litime.com/collections/12v-batteries", "kind": "div", "id": "CollectionProductGrid"},
+    ],
+    "48v lifepo batteries": [
         {"url": "https://www.litime.com/collections/48v-batteries", "kind": "div", "id": "CollectionProductGrid"},
         {"url": "https://signaturesolar.com/all-products/batteries/?sort=priceasc", "kind": "div", "id": "product-listing-container"},
     ],
