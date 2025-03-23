@@ -30,6 +30,10 @@
 - use the google cloud places api new with a maps api key
 - the google cloud places api location parameter must be specified as latitude,longitude, so call the geocoding api to get a latitude,longitude for the target search location
 - you may use the places Find Place API or the Text Search API, include tool functions for both
+- prefer the text search API over find place and nearby places api
 - structure the functions around tool function calls, as in that each function must have a name and take its args in json
 - these tools should almost look like command line tools
 - include a help tool, so if someone in the loop asks for help, they should get some example commands. Similar/same as running the script with `-h`
+- the help should enumerate all callable tools
+- all python functions starting with "tool_" should be callable tools. 
+- the help should include at least a mention of different function parameters, whether or not they are required or optional, but don't enumerate api keys or verbose flags

@@ -10,34 +10,48 @@ from typing import Any, Dict, List
 
 def check_file_permissions(path: str) -> None:
     """
-    Verify file permissions are 0o400 or 0o600. Exit otherwise.
+    Ensure that 'path' has mode 0o400 or 0o600. Exit if not.
     """
     try:
         mode = os.stat(path).st_mode
         perms = mode & 0o777
     except Exception as e:
-        print(f"Cannot stat file: {path}. Error: {e}")
+        print(f"Cannot stat file {path}: {e}")
         sys.exit(1)
     if perms != 0o400 and perms != 0o600:
-        msg = f"File '{path}' must have permissions 400 or 600, found {oct(perms)}"
+        msg = (
+            f"File '{path}' must have permissions 400 or 600, but has {oct(perms)}. "
+            "Please run chmod 400 or chmod 600 on the file."
+        )
         print(msg)
         sys.exit(1)
 
 def read_api_keys(google_key_file: str, openai_key_file: str) -> Dict[str, str]:
     """
-    Read Google and OpenAI keys from files. Check permissions. Exit if invalid.
+    Read and return Google/OpenAI API keys from files after permission checks.
     """
     check_file_permissions(google_key_file)
     check_file_permissions(openai_key_file)
     try:
-        with open(google_key_file, "r", encoding="utf-8") as fg:
-            google_key = fg.read().strip()
-        with open(openai_key_file, "r", encoding="utf-8") as fo:
-            openai_key = fo.read().strip()
+        with open(google_key_file, encoding="utf-8") as fg:
+            gkey = fg.read().strip()
+        with open(openai_key_file, encoding="utf-8") as fo:
+            okey = fo.read().strip()
     except Exception as e:
         print(f"Error reading key files: {e}")
         sys.exit(1)
-    return {"google_api_key": google_key, "openai_api_key": openai_key}
+    return {"google_api_key": gkey, "openai_api_key": okey}
+
+def save_chat_line(role: str, content: str, filename: str) -> None:
+    """
+    Append a JSON line with 'role' and 'content' to 'filename'.
+    """
+    record = {"role": role, "content": content}
+    try:
+        with open(filename, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as e:
+        print(f"Could not save chat line: {e}")
 
 def tool_chat_completion(
     openai_api_key: str,
@@ -45,187 +59,96 @@ def tool_chat_completion(
     verbose: bool,
 ) -> Dict[str, Any]:
     """
-    Call the OpenAI Chat Completions API with the given message history.
-    Return a dict with either {"content": "..."} or {"error": "..."}.
+    Tool: Chat completion via OpenAI. 
+    Expects messages; returns {"content": "..."} or {"error": "..."}.
     """
-    result: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}
     if openai_api_key == "":
-        result["error"] = "Missing openai_api_key"
-        return result
+        out["error"] = "Missing openai_api_key"
+        return out
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {openai_api_key}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "model": "gpt-3.5-turbo",
-        "messages": messages,
-        "temperature": 0.0,
-    }
+    payload = {"model": "gpt-3.5-turbo", "messages": messages, "temperature": 0.0}
     if verbose:
         print(f"OpenAI POST: {url}")
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        resp = requests.post(url, headers=headers, json=payload)
     except Exception as e:
-        result["error"] = f"OpenAI request failed: {e}"
-        return result
-    if response.status_code != 200:
-        text = response.text
-        result["error"] = f"OpenAI API error {response.status_code}: {text}"
-        return result
-    data = response.json()
+        out["error"] = f"OpenAI request failed: {e}"
+        return out
+    if resp.status_code != 200:
+        out["error"] = f"OpenAI API error {resp.status_code}: {resp.text}"
+        return out
+    data = resp.json()
     choices = data.get("choices", [])
-    if len(choices) == 0:
-        result["error"] = "No completion choices returned."
-        return result
-    content = choices[0].get("message", {}).get("content", "")
-    result["content"] = content
-    return result
+    if len(choices) < 1:
+        out["error"] = "No completion choices returned."
+        return out
+    out["content"] = choices[0].get("message", {}).get("content", "")
+    return out
 
-def tool_geocode_address(
-    google_api_key: str,
-    address: str,
-    verbose: bool,
-) -> Dict[str, Any]:
+def tool_geocode_address(google_api_key: str, address: str, verbose: bool) -> Dict[str, Any]:
     """
-    Call the Google Geocoding API to get lat/lng from an address.
-    Return {'lat': float, 'lng': float} or {'error': str}.
+    Tool: Geocode an address. 
+    Returns {"lat": float, "lng": float} or {"error": "..."}.
     """
-    result: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}
     if google_api_key == "" or address == "":
-        result["error"] = "Missing google_api_key or address"
-        return result
+        out["error"] = "Missing google_api_key or address"
+        return out
     url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {"key": google_api_key, "address": address}
     if verbose:
         print(f"Geocode GET: {url} {params}")
     try:
-        response = requests.get(url, params=params)
+        resp = requests.get(url, params=params)
     except Exception as e:
-        result["error"] = f"Geocoding request failed: {e}"
-        return result
-    if response.status_code != 200:
-        text = response.text
-        result["error"] = f"Geocoding error {response.status_code}, text: {text}"
-        return result
-    data = response.json()
+        out["error"] = f"Geocoding request failed: {e}"
+        return out
+    if resp.status_code != 200:
+        out["error"] = f"Geocoding error {resp.status_code}, text: {resp.text}"
+        return out
+    data = resp.json()
     status = data.get("status", "")
     if status != "OK":
-        result["error"] = f"Geocoding API status: {status}, response text: {response.text}"
-        return result
+        out["error"] = f"Geocoding API status: {status}, text: {resp.text}"
+        return out
     results = data.get("results", [])
     if len(results) == 0:
-        result["error"] = f"No geocoding results found. Address: {address}"
-        return result
-    location = results[0].get("geometry", {}).get("location", {})
-    lat = location.get("lat", 0.0)
-    lng = location.get("lng", 0.0)
-    result["lat"] = lat
-    result["lng"] = lng
-    return result
+        out["error"] = f"No geocoding results for '{address}'"
+        return out
+    loc = results[0].get("geometry", {}).get("location", {})
+    out["lat"] = loc.get("lat", 0.0)
+    out["lng"] = loc.get("lng", 0.0)
+    return out
 
-def tool_nearby_search(
-    google_api_key: str,
-    latlng: str,
-    place_type: str,
-    radius: int,
-    verbose: bool,
-) -> Dict[str, Any]:
+def tool_text_search(google_api_key: str, query: str, verbose: bool) -> Dict[str, Any]:
     """
-    Google Places Nearby Search.
-    Return {"results": [...]} or {"error": "..."}.
+    Tool: Google Places Text Search.
+    Returns {"results": [...]} or {"error": "..."}.
     """
-    result: Dict[str, Any] = {}
-    if google_api_key == "" or latlng == "":
-        result["error"] = "Missing google_api_key or latlng"
-        return result
-    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-    params = {
-        "key": google_api_key,
-        "location": latlng,
-        "type": place_type,
-        "radius": radius,
-    }
-    if verbose:
-        print(f"Places GET: {url} {params}")
-    try:
-        response = requests.get(url, params=params)
-    except Exception as e:
-        result["error"] = f"Nearby Search request failed: {e}"
-        return result
-    if response.status_code != 200:
-        text = response.text
-        result["error"] = f"Nearby Search error {response.status_code}, text: {text}"
-        return result
-    data = response.json()
-    result["results"] = data.get("results", [])
-    return result
-
-def tool_text_search(
-    google_api_key: str,
-    query: str,
-    verbose: bool,
-) -> Dict[str, Any]:
-    """
-    Google Places Text Search.
-    Return {"results": [...]} or {"error": "..."}.
-    """
-    result: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}
     if google_api_key == "" or query == "":
-        result["error"] = "Missing google_api_key or query"
-        return result
+        out["error"] = "Missing google_api_key or query"
+        return out
     url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
     params = {"key": google_api_key, "query": query}
     if verbose:
         print(f"TextSearch GET: {url} {params}")
     try:
-        response = requests.get(url, params=params)
+        resp = requests.get(url, params=params)
     except Exception as e:
-        result["error"] = f"Text Search request failed: {e}"
-        return result
-    if response.status_code != 200:
-        text = response.text
-        result["error"] = f"Text Search error {response.status_code}, text: {text}"
-        return result
-    data = response.json()
-    result["results"] = data.get("results", [])
-    return result
-
-def tool_find_place(
-    google_api_key: str,
-    input_str: str,
-    input_type: str,
-    verbose: bool,
-) -> Dict[str, Any]:
-    """
-    Google Places Find Place API.
-    Return {"candidates": [...]} or {"error": "..."}.
-    """
-    result: Dict[str, Any] = {}
-    if google_api_key == "" or input_str == "" or input_type == "":
-        result["error"] = "Missing google_api_key or input or input_type"
-        return result
-    url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
-    params = {
-        "key": google_api_key,
-        "input": input_str,
-        "inputtype": input_type,  # e.g. 'textquery', 'phonenumber'
-        "fields": "formatted_address,name,geometry",
-    }
-    if verbose:
-        print(f"FindPlace GET: {url} {params}")
-    try:
-        response = requests.get(url, params=params)
-    except Exception as e:
-        result["error"] = f"Find Place request failed: {e}"
-        return result
-    if response.status_code != 200:
-        text = response.text
-        result["error"] = f"Find Place error {response.status_code}, text: {text}"
-        return result
-    data = response.json()
-    result["candidates"] = data.get("candidates", [])
-    return result
+        out["error"] = f"Text Search request failed: {e}"
+        return out
+    if resp.status_code != 200:
+        out["error"] = f"Text Search error {resp.status_code}, text: {resp.text}"
+        return out
+    data = resp.json()
+    out["results"] = data.get("results", [])
+    return out
 
 def tool_get_distance_matrix(
     google_api_key: str,
@@ -234,231 +157,184 @@ def tool_get_distance_matrix(
     verbose: bool,
 ) -> Dict[str, Any]:
     """
-    Google Distance Matrix call. Return distance/duration or {"error": "..."}.
+    Tool: Distance Matrix for route planning. 
+    Returns distance/duration or {"error": "..."}.
     """
-    result: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}
     if google_api_key == "" or origin == "" or destination == "":
-        result["error"] = "Missing google_api_key/origin/destination"
-        return result
+        out["error"] = "Missing google_api_key/origin/destination"
+        return out
     url = "https://maps.googleapis.com/maps/api/distancematrix/json"
     params = {"key": google_api_key, "origins": origin, "destinations": destination}
     if verbose:
         print(f"DistanceMatrix GET: {url} {params}")
     try:
-        response = requests.get(url, params=params)
+        resp = requests.get(url, params=params)
     except Exception as e:
-        result["error"] = f"Distance Matrix request failed: {e}"
-        return result
-    if response.status_code != 200:
-        text = response.text
-        result["error"] = f"Distance Matrix error {response.status_code}, text: {text}"
-        return result
-    data = response.json()
+        out["error"] = f"Distance Matrix request failed: {e}"
+        return out
+    if resp.status_code != 200:
+        out["error"] = f"Distance Matrix error {resp.status_code}, text: {resp.text}"
+        return out
+    data = resp.json()
     rows = data.get("rows", [])
     if len(rows) < 1:
-        result["error"] = "No rows in Distance Matrix response"
-        return result
-    elements = rows[0].get("elements", [])
-    if len(elements) < 1:
-        result["error"] = "No elements in Distance Matrix row"
-        return result
-    dist = elements[0].get("distance", {})
-    dur = elements[0].get("duration", {})
-    result["distance_text"] = dist.get("text", "")
-    result["distance_value"] = dist.get("value", 0)
-    result["duration_text"] = dur.get("text", "")
-    result["duration_value"] = dur.get("value", 0)
-    return result
+        out["error"] = "No rows in Distance Matrix response"
+        return out
+    elems = rows[0].get("elements", [])
+    if len(elems) < 1:
+        out["error"] = "No elements in Distance Matrix row"
+        return out
+    dist = elems[0].get("distance", {})
+    dur = elems[0].get("duration", {})
+    out["distance_text"] = dist.get("text", "")
+    out["distance_value"] = dist.get("value", 0)
+    out["duration_text"] = dur.get("text", "")
+    out["duration_value"] = dur.get("value", 0)
+    return out
 
-def tool_help() -> None:
-    """
-    Print help info with example commands.
-    """
-    print("Commands you can try:")
-    print("  search for coffee near seattle")
-    print("  remember home is 40.7128,-74.0060")
-    print("  plan route from home to seattle")
-    print("  exit or quit")
-
-def save_chat_line(role: str, content: str, filename: str) -> None:
-    """
-    Append a single JSON line with role/content to the history file.
-    """
-    record = {"role": role, "content": content}
-    try:
-        with open(filename, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record))
-            f.write("\n")
-    except Exception as e:
-        print(f"Could not save chat line: {e}")
-
-def handle_search(
-    google_api_key: str,
-    place_description: str,
-    place_type: str,
-    verbose: bool,
-) -> None:
-    """
-    Try to interpret place_description as 'lat,lng' or geocode it.
-    Then call nearby search for place_type within a fixed radius.
-    Print up to 3 results.
-    """
-    lat_lng = ""
-    parts = place_description.split(",")
-    if len(parts) == 2:
-        try:
-            float(parts[0].strip())
-            float(parts[1].strip())
-            lat_lng = place_description.strip()
-        except ValueError:
-            lat_lng = ""
-    if lat_lng == "":
-        geo = tool_geocode_address(google_api_key, place_description, verbose)
-        if "error" in geo:
-            print(f"Geocoding error: {geo['error']}")
-            return
-        lat_lng = f"{geo['lat']},{geo['lng']}"
-    radius = 5000
-    resp = tool_nearby_search(google_api_key, lat_lng, place_type, radius, verbose)
-    if "error" in resp:
-        print(f"Search error: {resp['error']}")
-        return
-    results = resp.get("results", [])
-    if len(results) == 0:
-        print("No places found.")
-        return
-    limit = min(3, len(results))
-    for i in range(limit):
-        place = results[i]
-        name = place.get("name", "?")
-        vicinity = place.get("vicinity", "?")
-        index = i + 1
-        print(f"{index}. {name} - {vicinity}")
-
-def handle_remember(
+def tool_remember(
     known_locations: Dict[str, str],
     label: str,
     location: str,
-) -> None:
+) -> Dict[str, Any]:
     """
-    Save a label: location mapping.
+    Tool: Remember a location label. 
+    Returns {"success": True} or {"error": "..."}.
     """
+    out: Dict[str, Any] = {}
     if label == "" or location == "":
-        print("Invalid remember arguments.")
-        return
+        out["error"] = "Empty label or location"
+        return out
     known_locations[label] = location
-    print(f"Remembered '{label}' as '{location}'.")
+    out["success"] = True
+    return out
 
-def handle_plan_route(
-    google_api_key: str,
-    known_locations: Dict[str, str],
-    from_label: str,
-    to_label: str,
-    verbose: bool,
-) -> None:
+def tool_help() -> None:
     """
-    Use distance matrix to plan route from known location A to B.
+    Tool: Show help. 
+    Lists all available tool actions with minimal parameters info.
     """
-    if from_label not in known_locations or to_label not in known_locations:
-        print("Unknown label(s). Use 'remember' first.")
-        return
-    origin = known_locations[from_label]
-    destination = known_locations[to_label]
-    resp = tool_get_distance_matrix(google_api_key, origin, destination, verbose)
-    if "error" in resp:
-        print(f"Route error: {resp['error']}")
-        return
-    dist_txt = resp["distance_text"]
-    dur_txt = resp["duration_text"]
-    print(f"Route from '{from_label}' to '{to_label}': {dist_txt} in {dur_txt}")
+    print("Available tool actions:")
+    print('  {"action":"help"}')
+    print('  {"action":"text_search","query":"some query"}')
+    print('  {"action":"geocode","address":"some address"}')
+    print('  {"action":"distance_matrix","origin":"loc","destination":"loc"}')
+    print('  {"action":"remember","label":"name","location":"lat,lng or text"}')
+    print("You can also type 'exit' or 'quit' to end.")
 
-def conversation_loop(
+def handle_chat_loop(
     google_api_key: str,
     openai_api_key: str,
-    verbose: bool,
     history_file: str,
+    verbose: bool,
 ) -> None:
     known_locations: Dict[str, str] = {}
-    conversation: List[Dict[str, str]] = []
-    system_prompt = (
-        "You are a helpful AI. You read the user's input and produce JSON for the "
-        'relevant tool call, e.g. {"action":"search","location":"seattle","type":"coffee"}. '
-        'If the user is not requesting a known action, respond with {"action":"help"}.'
+    convo: List[Dict[str, str]] = []
+    sys_prompt = (
+        "You are an assistant that outputs JSON for a relevant tool action, e.g. "
+        '{"action":"text_search","query":"restaurants in Seattle"}. '
+        'If input is not recognized, respond with {"action":"help"}.'
     )
-    conversation.append({"role": "system", "content": system_prompt})
-    save_chat_line("system", system_prompt, history_file)
+    convo.append({"role": "system", "content": sys_prompt})
+    save_chat_line("system", sys_prompt, history_file)
     while True:
         try:
-            line = input("> ")
+            user_line = input("> ")
         except (EOFError, KeyboardInterrupt):
             print("\nExiting.")
             break
-        line = line.strip()
-        if line.lower() == "exit" or line.lower() == "quit":
+        user_line = user_line.strip()
+        if user_line.lower() in ("exit", "quit"):
             print("Exiting.")
             break
-        conversation.append({"role": "user", "content": line})
-        save_chat_line("user", line, history_file)
-        comp_out = tool_chat_completion(openai_api_key, conversation, verbose)
-        if "error" in comp_out:
-            print(f"OpenAI error: {comp_out['error']}")
+        convo.append({"role": "user", "content": user_line})
+        save_chat_line("user", user_line, history_file)
+        completion = tool_chat_completion(openai_api_key, convo, verbose)
+        if "error" in completion:
+            print(f"OpenAI error: {completion['error']}")
             continue
-        content = comp_out.get("content", "")
-        conversation.append({"role": "assistant", "content": content})
-        save_chat_line("assistant", content, history_file)
+        msg = completion.get("content", "")
+        convo.append({"role": "assistant", "content": msg})
+        save_chat_line("assistant", msg, history_file)
         try:
-            parsed = json.loads(content)
+            parsed = json.loads(msg)
         except Exception:
             print("Assistant returned non-JSON content. Raw output:")
-            print(content)
+            print(msg)
             continue
         action = parsed.get("action", "")
         if action == "help":
             tool_help()
             continue
-        if action == "search":
-            loc = parsed.get("location", "")
-            typ = parsed.get("type", "restaurant")
-            handle_search(google_api_key, loc, typ, verbose)
+        if action == "text_search":
+            query = parsed.get("query", "")
+            resp = tool_text_search(google_api_key, query, verbose)
+            if "error" in resp:
+                print(f"Text Search error: {resp['error']}")
+            else:
+                results = resp.get("results", [])
+                if not results:
+                    print("No places found.")
+                else:
+                    limit = min(3, len(results))
+                    for i in range(limit):
+                        r = results[i]
+                        name = r.get("name", "?")
+                        address = r.get("formatted_address", "?")
+                        print(f"{i+1}. {name} - {address}")
+            continue
+        if action == "geocode":
+            address = parsed.get("address", "")
+            geo = tool_geocode_address(google_api_key, address, verbose)
+            if "error" in geo:
+                print(f"Geocode error: {geo['error']}")
+            else:
+                lat = geo.get("lat", 0.0)
+                lng = geo.get("lng", 0.0)
+                print(f"Coordinates for '{address}': {lat},{lng}")
+            continue
+        if action == "distance_matrix":
+            origin = parsed.get("origin", "")
+            destination = parsed.get("destination", "")
+            dist_data = tool_get_distance_matrix(google_api_key, origin, destination, verbose)
+            if "error" in dist_data:
+                print(f"Distance error: {dist_data['error']}")
+            else:
+                dtxt = dist_data["distance_text"]
+                durtxt = dist_data["duration_text"]
+                print(f"Distance from '{origin}' to '{destination}': {dtxt} in {durtxt}")
             continue
         if action == "remember":
             lbl = parsed.get("label", "")
-            lct = parsed.get("location", "")
-            handle_remember(known_locations, lbl, lct)
+            loc = parsed.get("location", "")
+            result = tool_remember(known_locations, lbl, loc)
+            if "error" in result:
+                print(f"Remember error: {result['error']}")
+            else:
+                print(f"Remembered '{lbl}' as '{loc}'.")
             continue
-        if action == "plan_route":
-            f_lbl = parsed.get("from_label", "")
-            t_lbl = parsed.get("to_label", "")
-            handle_plan_route(google_api_key, known_locations, f_lbl, t_lbl, verbose)
-            continue
-        print("No recognized action. Raw output:")
-        print(content)
+        print("Unknown action. Raw output:")
+        print(msg)
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Simple GMaps chat script.")
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Print verbose API requests."
-    )
+    parser = argparse.ArgumentParser(description="Chat-based Google Maps script.")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Print debug info.")
     parser.add_argument(
         "--history-file",
         default="conversation.log",
-        help="Append conversation lines to this file.",
+        help="File to append conversation lines to.",
     )
     args = parser.parse_args()
-    google_path = os.environ.get("GCLOUD_API_KEY_FILE", "")
-    openai_path = os.environ.get("OPENAI_API_KEY_FILE", "")
-    if google_path == "" or openai_path == "":
-        print("Need GCLOUD_API_KEY_FILE and OPENAI_API_KEY_FILE in env vars.")
+    google_file = os.environ.get("GCLOUD_API_KEY_FILE", "")
+    openai_file = os.environ.get("OPENAI_API_KEY_FILE", "")
+    if google_file == "" or openai_file == "":
+        print("Must set GCLOUD_API_KEY_FILE and OPENAI_API_KEY_FILE environment vars.")
         sys.exit(1)
-    keys = read_api_keys(google_path, openai_path)
-    google_key = keys["google_api_key"]
-    openai_key = keys["openai_api_key"]
-    conversation_loop(
-        google_api_key=google_key,
-        openai_api_key=openai_key,
-        verbose=args.verbose,
-        history_file=args.history_file,
-    )
+    keys = read_api_keys(google_file, openai_file)
+    gkey = keys["google_api_key"]
+    okey = keys["openai_api_key"]
+    handle_chat_loop(gkey, okey, args.history_file, args.verbose)
 
 if __name__ == "__main__":
     main()
