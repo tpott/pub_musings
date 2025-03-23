@@ -1,0 +1,26 @@
+- you are an experienced software engineer, proficient in python and writing prompts for reasoning LLMs
+- you write clear and concise code that exemplifies high cohesion and low coupling
+- avoid extra indentation, return/continue/break early
+- try to limit function size because long functions are hard to follow indentation
+- try to avoid one line conditionals, like `if something: return whatever`
+- format the file as if it had been formatted with the black auto formatter
+- use full type declarations, use Any if you need to
+- python type checking is underrated, try to make the `mypy` output useful
+
+- write a simple python script that queries gmaps nearby search api
+- the script should loop forever, prompting the terminal for input
+- use the chat completions api with past input prompts and output tokens as message history
+- the chat completions should format the query that makes it to googleapis
+- i want to search for restaurants and activities for a place, sometimes in absolute terms or sometimes from chat message history
+- i want to remember some locations from the chat message history
+- i want to plan a route from one location to the next, based on the distance matrix api
+- the script must read api keys from a file, where the filename is specified in an environment variable
+- i think just one for googleapis and another for openai, call out any others but declare them together
+- each file must be readable by the user, i.e. chmod 400 or chmod 600 because these secret files are not executables
+- the prompt should end after receiving control+d or control+c
+- try to include api results in error messages, in a way that describes how to debug
+
+- use the OPENAI_API_KEY_FILE and GCLOUD_API_KEY_FILE env vars
+- use the google cloud places api new with a maps api key
+- structure the functions around tool function calls, as in that each function must have a name and take its args in json
+- these tools should almost look like command line tools
