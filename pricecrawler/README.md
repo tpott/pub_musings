@@ -72,3 +72,11 @@ deactivate
 * I used the graph API explorer to figure out my app scoped page ID https://developers.facebook.com/tools/explorer/ by calling `/me` with a page token
 * I was then able to plug everything together with `WEBHOOK_CERT_FILE=cert.crt WEBHOOK_KEY_FILE=cert.key OPENAI_API_KEY_FILE=/tmp/key LAST_RUN_FILE=/tmp/last_run_file PAGE_ID=506755539197493 PAGE_TOKEN_FILE=/tmp/page_token_file python3 facebook_loop.py`
 * I haven't gotten webhooks to work yet though... If it just triggers the loop, then it will work, so I literally just need any webhook.
+
+# Saturday Fun
+
+Playing with `cat prompts.txt | pbcopy` -> chatgpt o3. The result is python scavengerhunt.py:
+
+```
+GCLOUD_API_KEY_FILE=/tmp/gcloud OPENAI_API_KEY_FILE=/tmp/openai python scavengerhunt.py
+```
