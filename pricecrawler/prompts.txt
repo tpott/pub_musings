@@ -7,6 +7,7 @@
 - use full type declarations, use Any if you need to
 - python type checking is underrated, try to make the `mypy` output useful
 - avoid passing `args` that are untyped `Dict[str, Any]` inputs, give everything a name and a type
+- use python f-strings to print formatted messages
 
 - write a simple python script that queries gmaps nearby search api
 - the script should loop forever, prompting the terminal for input
@@ -27,6 +28,8 @@
 
 - use the OPENAI_API_KEY_FILE and GCLOUD_API_KEY_FILE env vars
 - use the google cloud places api new with a maps api key
+- the google cloud places api location parameter must be specified as latitude,longitude, so call the geocoding api to get a latitude,longitude for the target search location
+- you may use the places Find Place API or the Text Search API, include tool functions for both
 - structure the functions around tool function calls, as in that each function must have a name and take its args in json
 - these tools should almost look like command line tools
 - include a help tool, so if someone in the loop asks for help, they should get some example commands. Similar/same as running the script with `-h`

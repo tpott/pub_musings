@@ -80,3 +80,9 @@ Playing with `cat prompts.txt | pbcopy` -> chatgpt o3. The result is python scav
 ```
 GCLOUD_API_KEY_FILE=/tmp/gcloud OPENAI_API_KEY_FILE=/tmp/openai python scavengerhunt.py
 ```
+
+Adding `-v` at the end includes some extra debugging bits...
+
+This isn't really working after a night of tinkering. I've tried prompting
+`coffee near {home}` and `handle_search` prints _something_. But it doesn't seem
+to find the right search results, when I compare with https://www.google.com/maps
