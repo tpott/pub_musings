@@ -86,3 +86,20 @@ Adding `-v` at the end includes some extra debugging bits...
 This isn't really working after a night of tinkering. I've tried prompting
 `coffee near {home}` and `handle_search` prints _something_. But it doesn't seem
 to find the right search results, when I compare with https://www.google.com/maps
+
+* I wish the `tool_*` functions were using a python function decorator. I'm not sure what
+  it would be useful for, but I think it would better separate out what the tool functions
+  are.
+* The `handle_chat_loop` function should include the tool function names, parameters, types
+  and descriptions in the "system" prompt.
+* The `text_search` action case in `handle_chat_loop` is overly nested...
+* The "remember" tool should remember a location, write it to a file. "Recall" would then
+  read the file to include previously remembered locations.
+* https://developers.google.com/maps/documentation/places/web-service/supported_types#table1
+  these enums seem nice, but idk if I want to include them in a prompt?
+
+It's crazy that I'm basically asking chatgpt to re-write this script from scratch
+every time. It's not _completely_ from scratch, but almost. It uses the chat history
+to see previous versions of the python. Older versions of the python script can fall
+out of context. But I re-state the entire prompt every time so that it doesn't fall
+out of context.

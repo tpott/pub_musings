@@ -8,6 +8,7 @@
 - python type checking is underrated, try to make the `mypy` output useful
 - avoid passing `args` that are untyped `Dict[str, Any]` inputs, give everything a name and a type
 - use python f-strings to print formatted messages
+- avoid truthy/falsey checks and instead prefer explicit checks, example: `if len(some_list) == 0` over `if not some_list`
 
 - write a simple python script that queries gmaps nearby search api
 - the script should loop forever, prompting the terminal for input
@@ -16,6 +17,8 @@
 - if the input is like "search for coffee near seattle" then chat completions should format a tool call for searching the googleapis
 - i want to search for restaurants and activities for a place, sometimes in absolute terms or sometimes from chat message history
 - i want to remember some locations from the chat message history
+- include a "remember" tool that saves a location from the gmaps search response to a file
+- include a "recall" tool that reads all the previously remembered locations
 - save the chat history to a file, in an append only format
 - i want to plan a route from one location to the next, based on the distance matrix api
 - the script must read api keys from a file, where the filename is specified in an environment variable
@@ -37,3 +40,5 @@
 - the help should enumerate all callable tools
 - all python functions starting with "tool_" should be callable tools. 
 - the help should include at least a mention of different function parameters, whether or not they are required or optional, but don't enumerate api keys or verbose flags
+- the function tools must all be enumerated in the system prompt in `handle_chat_loop`
+- when enumerating each function tool in the system prompt, also include the function signature and which parameters are optional/required
