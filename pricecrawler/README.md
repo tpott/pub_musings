@@ -103,3 +103,5 @@ every time. It's not _completely_ from scratch, but almost. It uses the chat his
 to see previous versions of the python. Older versions of the python script can fall
 out of context. But I re-state the entire prompt every time so that it doesn't fall
 out of context.
+
+Moving to scavengerhunt/
