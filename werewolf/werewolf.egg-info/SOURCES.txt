@@ -1,0 +1,16 @@
+README.md
+setup.py
+werewolf/__init__.py
+werewolf/ai.py
+werewolf/channel.py
+werewolf/config.py
+werewolf/game.py
+werewolf/prompts.py
+werewolf/roles.py
+werewolf/state.py
+werewolf.egg-info/PKG-INFO
+werewolf.egg-info/SOURCES.txt
+werewolf.egg-info/dependency_links.txt
+werewolf.egg-info/entry_points.txt
+werewolf.egg-info/requires.txt
+werewolf.egg-info/top_level.txt
