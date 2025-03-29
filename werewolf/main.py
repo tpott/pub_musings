@@ -3,7 +3,7 @@
 Werewolf Game with AI Players
 
 A command-line implementation of the Werewolf social deduction game
-where all players are AI agents using the OpenAI API directly via requests.
+where all players are AI agents using either the OpenAI or Anthropic API.
 """
 
 import os
@@ -42,29 +42,49 @@ def main():
     parser.add_argument("--players", type=int, default=6, help="Number of players (default: 6)")
     parser.add_argument("--werewolves", type=int, default=1, help="Number of werewolves (default: 1)")
     parser.add_argument("--seers", type=int, default=1, help="Number of seers (default: 1)")
-    parser.add_argument("--api-key-file", type=str, help="File containing OpenAI API key")
-    parser.add_argument("--model", type=str, default="gpt-4o", help="OpenAI model to use (default: gpt-4o)")
+    
+    # API options - only one should be provided
+    api_group = parser.add_mutually_exclusive_group(required=True)
+    api_group.add_argument("--openai-key-file", type=str, help="File containing OpenAI API key")
+    api_group.add_argument("--anthropic-key-file", type=str, help="File containing Anthropic API key")
+    
+    parser.add_argument("--model", type=str, help="Model to use (defaults based on API choice)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     args = parser.parse_args()
     
+    # Determine API type based on which key file was provided
+    api_type = "openai" if args.openai_key_file else "anthropic"
+    key_file = args.openai_key_file if api_type == "openai" else args.anthropic_key_file
+    
     # Check if API key file is valid
-    api_key = None
-    if args.api_key_file:
-        if check_api_key_file(args.api_key_file):
-            with open(args.api_key_file, 'r') as f:
-                api_key = f.read().strip()
-        else:
-            sys.exit(1)
+    openai_api_key = None
+    anthropic_api_key = None
+    
+    if check_api_key_file(key_file):
+        with open(key_file, 'r') as f:
+            api_key = f.read().strip()
+            if api_type == "openai":
+                openai_api_key = api_key
+            else:
+                anthropic_api_key = api_key
+    else:
+        sys.exit(1)
     
     # Create game configuration
     config = GameConfig(
         total_players=args.players,
         num_werewolves=args.werewolves,
         num_seers=args.seers,
-        openai_api_key=api_key,
-        model_name=args.model,
+        openai_api_key=openai_api_key,
+        anthropic_api_key=anthropic_api_key,
+        api_type=api_type,
+        model_name=args.model if args.model else None,  # Will use default if None
         verbose=args.verbose
     )
+    
+    # Set default model if none provided
+    if not config.model_name:
+        config.model_name = config.default_model_name
     
     # Create and run game
     game = Game(config)

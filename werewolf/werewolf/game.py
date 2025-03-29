@@ -5,7 +5,9 @@ from typing import Dict, List, Optional, Set, Tuple
 from werewolf.config import GameConfig
 from werewolf.state import GameState, GamePhase
 from werewolf.roles import Player, Role
-from werewolf.ai import OpenAIClient
+from werewolf.ai import AIClient
+from werewolf.openai import OpenAIClient
+from werewolf.anthropic import AnthropicClient
 from werewolf.prompts import *
 
 class Game:
@@ -24,15 +26,20 @@ class Game:
         self.config = config
         self.state = GameState(config)
         
-        # Initialize the AI client if API key is provided
+        # Initialize the AI client based on configured API type
         self.ai = None
-        if config.openai_api_key:
+        
+        if config.api_type == "openai" and config.openai_api_key:
             self.ai = OpenAIClient(config.openai_api_key, config.model_name)
+        elif config.api_type == "anthropic" and config.anthropic_api_key:
+            # Use default Anthropic model if model_name is still the OpenAI default
+            model = config.model_name if config.model_name != "gpt-4o" else config.default_model_name
+            self.ai = AnthropicClient(config.anthropic_api_key, model)
     
     def run(self) -> None:
         """Run the game until completion."""
         if not self.ai:
-            print("Error: OpenAI API key not provided. Cannot start game.")
+            print(f"Error: No valid API key provided for {self.config.api_type} API. Cannot start game.")
             return
         
         print("\n=== Werewolf Game with AI Players ===\n")

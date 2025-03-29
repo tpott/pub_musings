@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Literal
 
 @dataclass
 class GameConfig:
@@ -12,7 +12,9 @@ class GameConfig:
     
     # API parameters
     openai_api_key: Optional[str] = None
-    model_name: str = "gpt-4o"
+    anthropic_api_key: Optional[str] = None
+    model_name: str = "gpt-4o"  # Default for OpenAI
+    api_type: Literal["openai", "anthropic"] = "openai"
     
     # Other settings
     verbose: bool = False
@@ -22,6 +24,11 @@ class GameConfig:
     def num_villagers(self) -> int:
         """Calculate the number of regular villagers based on other role counts."""
         return self.total_players - self.num_werewolves - self.num_seers
+    
+    @property
+    def default_model_name(self) -> str:
+        """Return the default model name based on the API type."""
+        return "gpt-4o" if self.api_type == "openai" else "claude-3-7-sonnet-20250219"
     
     def validate(self) -> bool:
         """Validate the configuration."""
@@ -35,6 +42,13 @@ class GameConfig:
         
         # Ensure there are enough players
         if self.total_players < 3:
+            return False
+        
+        # Ensure we have one (and only one) API key set based on the api_type
+        if self.api_type == "openai" and not self.openai_api_key:
+            return False
+        
+        if self.api_type == "anthropic" and not self.anthropic_api_key:
             return False
             
         return True
