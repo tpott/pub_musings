@@ -73,6 +73,7 @@ python main.py --anthropic-key-file anthropic_key.txt --model claude-3-opus-2024
 - `--openai-key-file`: Path to file containing your OpenAI API key (alternative to using Anthropic)
 - `--model`: Model to use (defaults to claude-3-7-sonnet-20250219 for Anthropic or gpt-4o for OpenAI)
 - `--verbose`: Enable verbose output to see more details about the game
+- `--log-to-file`: Log detailed AI prompts and responses to logs.txt (useful for debugging or studying AI behavior)
 
 **Note**: You must provide either `--anthropic-key-file` OR `--openai-key-file`, but not both.
 

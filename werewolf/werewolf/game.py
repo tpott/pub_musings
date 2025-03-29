@@ -35,6 +35,10 @@ class Game:
             # Use default Anthropic model if model_name is still the OpenAI default
             model = config.model_name if config.model_name != "gpt-4o" else config.default_model_name
             self.ai = AnthropicClient(config.anthropic_api_key, model)
+            
+        # Initialize log file if logging is enabled
+        if config.log_to_file:
+            self._initialize_log_file()
     
     def run(self) -> None:
         """Run the game until completion."""
@@ -387,16 +391,44 @@ class Game:
         Returns:
             The AI's response
         """
+        # Add instruction to keep responses brief
+        system_content = (
+            "You are playing a role in a game of Werewolf. Respond in character as described in the prompt. "
+            "Keep your responses brief (1-2 sentences maximum) and direct."
+        )
+        
         messages = [
-            {"role": "system", "content": "You are playing a role in a game of Werewolf. Respond in character as described in the prompt."},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": prompt}
         ]
         
+        # Log the prompt if logging is enabled
+        if self.config.log_to_file:
+            self._log_to_file(f"PROMPT:\n{prompt}\n")
+        
+        # Get response from AI
         response = self.ai.complete(messages)
+        
         if response:
-            return response
+            # Limit response length if needed (max ~100 words)
+            words = response.split()
+            if len(words) > 40:
+                truncated_response = ' '.join(words[:40]) + "..."
+            else:
+                truncated_response = response
+                
+            # Log the full response if logging is enabled
+            if self.config.log_to_file:
+                self._log_to_file(f"RESPONSE:\n{response}\n")
+                self._log_to_file("-" * 50 + "\n")
+                
+            return truncated_response
         else:
             # Fallback response if API call fails
+            if self.config.log_to_file:
+                self._log_to_file("API CALL FAILED\n")
+                self._log_to_file("-" * 50 + "\n")
+                
             return "I'm not sure what to say at this moment."
     
     def _print_game_summary(self) -> None:
@@ -415,3 +447,35 @@ class Game:
             print(f"{player.name}: {player.role} ({status})")
         
         print("\nThank you for playing Werewolf!")
+        
+    def _log_to_file(self, content: str) -> None:
+        """Log content to the log file.
+        
+        Args:
+            content: The content to log
+        """
+        try:
+            with open("logs.txt", "a") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {content}")
+        except Exception as e:
+            if self.config.verbose:
+                print(f"Error writing to log file: {e}")
+                
+    def _initialize_log_file(self) -> None:
+        """Initialize the log file with game configuration information."""
+        if not self.config.log_to_file:
+            return
+            
+        try:
+            with open("logs.txt", "w") as f:
+                f.write(f"=== Werewolf Game Log - {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+                f.write(f"Players: {self.config.total_players}, ")
+                f.write(f"Werewolves: {self.config.num_werewolves}, ")
+                f.write(f"Seers: {self.config.num_seers}, ")
+                f.write(f"Villagers: {self.config.num_villagers}\n")
+                f.write(f"API Type: {self.config.api_type}\n")
+                f.write(f"Model: {self.config.model_name}\n")
+                f.write("=" * 50 + "\n\n")
+        except Exception as e:
+            if self.config.verbose:
+                print(f"Error initializing log file: {e}")

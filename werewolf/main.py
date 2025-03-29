@@ -50,6 +50,7 @@ def main():
     
     parser.add_argument("--model", type=str, help="Model to use (defaults based on API choice)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
+    parser.add_argument("--log-to-file", action="store_true", help="Log detailed prompts and responses to logs.txt")
     args = parser.parse_args()
     
     # Determine API type based on which key file was provided
@@ -79,7 +80,8 @@ def main():
         anthropic_api_key=anthropic_api_key,
         api_type=api_type,
         model_name=args.model if args.model else None,  # Will use default if None
-        verbose=args.verbose
+        verbose=args.verbose,
+        log_to_file=args.log_to_file
     )
     
     # Set default model if none provided

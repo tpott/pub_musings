@@ -18,6 +18,7 @@ class GameConfig:
     
     # Other settings
     verbose: bool = False
+    log_to_file: bool = False  # Whether to log detailed prompts and responses to logs.txt
     max_turns: int = 20  # Max number of day/night cycles before force ending
     
     @property
