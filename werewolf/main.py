@@ -39,8 +39,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Run a Werewolf game with AI players")
-    parser.add_argument("--players", type=int, default=6, help="Number of players (default: 6)")
-    parser.add_argument("--werewolves", type=int, default=1, help="Number of werewolves (default: 1)")
+    parser.add_argument("--players", type=int, default=7, help="Number of players (default: 7)")
+    parser.add_argument("--werewolves", type=int, default=2, help="Number of werewolves (default: 2)")
     parser.add_argument("--seers", type=int, default=1, help="Number of seers (default: 1)")
     
     # API options - only one should be provided
@@ -49,6 +49,7 @@ def main():
     api_group.add_argument("--anthropic-key-file", type=str, help="File containing Anthropic API key")
     
     parser.add_argument("--model", type=str, help="Model to use (defaults based on API choice)")
+    parser.add_argument("--max-words", type=int, default=100, help="Maximum number of words per AI response (default: 100)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     parser.add_argument("--log-to-file", action="store_true", help="Log detailed prompts and responses to logs.txt")
     args = parser.parse_args()
@@ -81,7 +82,8 @@ def main():
         api_type=api_type,
         model_name=args.model if args.model else None,  # Will use default if None
         verbose=args.verbose,
-        log_to_file=args.log_to_file
+        log_to_file=args.log_to_file,
+        max_words=args.max_words
     )
     
     # Set default model if none provided

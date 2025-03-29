@@ -394,7 +394,7 @@ class Game:
         # Add instruction to keep responses brief
         system_content = (
             "You are playing a role in a game of Werewolf. Respond in character as described in the prompt. "
-            "Keep your responses brief (1-2 sentences maximum) and direct."
+            f"Keep your responses brief and direct, using no more than {self.config.max_words} words."
         )
         
         messages = [
@@ -410,10 +410,10 @@ class Game:
         response = self.ai.complete(messages)
         
         if response:
-            # Limit response length if needed (max ~100 words)
+            # Limit response length based on config
             words = response.split()
-            if len(words) > 40:
-                truncated_response = ' '.join(words[:40]) + "..."
+            if len(words) > self.config.max_words:
+                truncated_response = ' '.join(words[:self.config.max_words]) + "..."
             else:
                 truncated_response = response
                 
@@ -475,6 +475,7 @@ class Game:
                 f.write(f"Villagers: {self.config.num_villagers}\n")
                 f.write(f"API Type: {self.config.api_type}\n")
                 f.write(f"Model: {self.config.model_name}\n")
+                f.write(f"Max Words Per Response: {self.config.max_words}\n")
                 f.write("=" * 50 + "\n\n")
         except Exception as e:
             if self.config.verbose:

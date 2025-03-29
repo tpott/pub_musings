@@ -6,8 +6,8 @@ class GameConfig:
     """Configuration for a Werewolf game."""
     
     # Game parameters
-    total_players: int = 6
-    num_werewolves: int = 1
+    total_players: int = 7
+    num_werewolves: int = 2
     num_seers: int = 1
     
     # API parameters
@@ -20,6 +20,7 @@ class GameConfig:
     verbose: bool = False
     log_to_file: bool = False  # Whether to log detailed prompts and responses to logs.txt
     max_turns: int = 20  # Max number of day/night cycles before force ending
+    max_words: int = 100  # Maximum number of words per AI response
     
     @property
     def num_villagers(self) -> int:
