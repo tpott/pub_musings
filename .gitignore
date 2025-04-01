@@ -2,3 +2,8 @@
 *.swp
 .mypy_cache/
 a.out
+.DS_Store
+cert.*
+*.mp3
+*.mp4
+*.wav
