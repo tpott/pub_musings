@@ -20,7 +20,7 @@ class GameConfig:
     verbose: bool = False
     log_to_file: bool = False  # Whether to log detailed prompts and responses to logs.txt
     max_turns: int = 20  # Max number of day/night cycles before force ending
-    max_words: int = 100  # Maximum number of words per AI response
+    max_words: int = 80  # Maximum number of words per AI response
     
     @property
     def num_villagers(self) -> int:

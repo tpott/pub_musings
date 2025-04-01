@@ -49,13 +49,9 @@ def create_day_discussion_prompt(player: Player, state: GameState) -> str:
     
     # Add recent discussion history
     village_channel = state.channels["village"]
-    recent_history = village_channel.format_recent_history(20)  # Last 20 messages
     
     prompt = f"{context}\n\n"
     prompt += "It is day time in the village. The players are discussing who might be a Werewolf.\n"
-    
-    if recent_history:
-        prompt += f"Recent conversation in the village:\n{recent_history}\n\n"
     
     prompt += "What would you like to say to the village? Express your thoughts, suspicions, or defend yourself if needed."
     
@@ -81,14 +77,10 @@ def create_day_voting_prompt(player: Player, state: GameState) -> str:
     
     # Add recent discussion history
     village_channel = state.channels["village"]
-    recent_history = village_channel.format_recent_history(10)  # Last 10 messages
     
     prompt = f"{context}\n\n"
     prompt += "It is time to vote on who to eliminate from the village.\n"
-    
-    if recent_history:
-        prompt += f"Recent conversation in the village:\n{recent_history}\n\n"
-    
+
     # List living players except self
     living_players = [p for p in state.get_living_players() if p.name != player.name]
     player_list = ", ".join(p.name for p in living_players)

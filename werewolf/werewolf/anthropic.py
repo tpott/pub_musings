@@ -25,6 +25,26 @@ class AnthropicClient(AIClient):
             "anthropic-version": "2023-06-01"
         }
     
+    def _get_retry_time_from_header(self, response: requests.Response) -> float:
+        """Extract retry time from response headers.
+        
+        Args:
+            response: The HTTP response object
+            
+        Returns:
+            The number of seconds to wait before retrying
+        """
+        retry_after = response.headers.get('retry-after')
+        if retry_after is None:
+            return 1.0
+            
+        try:
+            wait_time = float(retry_after)
+            print(f"Rate limited. Waiting for {wait_time} seconds as specified by retry-after header.")
+            return wait_time
+        except (ValueError, TypeError):
+            return 1.0
+    
     def complete(self, messages: List[Dict[str, str]], temperature: float = 0.7, 
                 max_tokens: int = 500) -> Optional[str]:
         """Send a completion request to the Anthropic API.
@@ -65,6 +85,7 @@ class AnthropicClient(AIClient):
         retry_delay = 1  # Initial delay in seconds
         
         for attempt in range(max_retries):
+            # Make the API request
             try:
                 response = requests.post(
                     self.API_URL,
@@ -72,22 +93,60 @@ class AnthropicClient(AIClient):
                     json=payload,
                     timeout=30
                 )
+            except requests.exceptions.RequestException as e:
+                print(f"Request error (attempt {attempt+1}/{max_retries}): {str(e)}")
                 
-                response.raise_for_status()
+                # Don't retry on the last attempt
+                if attempt == max_retries - 1:
+                    break
+                    
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+                
+            # Check response status
+            if response.status_code == 429:
+                print(f"Rate limit exceeded (attempt {attempt+1}/{max_retries})")
+                
+                # Don't retry on the last attempt
+                if attempt == max_retries - 1:
+                    break
+                    
+                # Get retry time from headers
+                wait_time = self._get_retry_time_from_header(response)
+                time.sleep(wait_time)
+                continue
+                
+            # Handle other error status codes
+            if response.status_code != 200:
+                print(f"HTTP error (attempt {attempt+1}/{max_retries}): Status {response.status_code}")
+                
+                # Don't retry on the last attempt
+                if attempt == max_retries - 1:
+                    break
+                    
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            
+            # Parse the JSON response
+            try:
                 result = response.json()
-                
-                if "content" in result and len(result["content"]) > 0:
-                    # Get the text from the content (first block of type 'text')
-                    for block in result["content"]:
-                        if block["type"] == "text":
-                            return block["text"]
+            except ValueError as e:
+                print(f"JSON parsing error: {str(e)}")
                 return None
                 
-            except requests.exceptions.RequestException as e:
-                print(f"API request error (attempt {attempt+1}/{max_retries}): {str(e)}")
-                if attempt < max_retries - 1:  # Don't sleep on the last attempt
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
+            # Extract the text from the response
+            if "content" not in result or not result["content"]:
+                return None
+                
+            # Get the first text block
+            for block in result["content"]:
+                if block["type"] == "text":
+                    return block["text"]
+                    
+            # No text blocks found
+            return None
         
         print("Maximum retry attempts reached. API request failed.")
         return None

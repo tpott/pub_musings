@@ -49,7 +49,7 @@ def main():
     api_group.add_argument("--anthropic-key-file", type=str, help="File containing Anthropic API key")
     
     parser.add_argument("--model", type=str, help="Model to use (defaults based on API choice)")
-    parser.add_argument("--max-words", type=int, default=100, help="Maximum number of words per AI response (default: 100)")
+    parser.add_argument("--max-words", type=int, default=80, help="Maximum number of words per AI response (default: 80)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     parser.add_argument("--log-to-file", action="store_true", help="Log detailed prompts and responses to logs.txt")
     args = parser.parse_args()

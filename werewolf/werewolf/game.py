@@ -391,10 +391,13 @@ class Game:
         Returns:
             The AI's response
         """
-        # Add instruction to keep responses brief
+        # Add instruction to keep responses varied in length
         system_content = (
             "You are playing a role in a game of Werewolf. Respond in character as described in the prompt. "
-            f"Keep your responses brief and direct, using no more than {self.config.max_words} words."
+            f"Keep your responses naturally varied in length - sometimes brief (10-30 words), sometimes moderate (30-60 words), "
+            f"and occasionally longer (60-{self.config.max_words} words) depending on the situation. "
+            f"Never exceed {self.config.max_words} words. Use a length that feels most natural and appropriate "
+            "for what your character would say in this specific moment."
         )
         
         messages = [
@@ -409,11 +412,11 @@ class Game:
         # Get response from AI
         response = self.ai.complete(messages)
         
-        if response:
+        if response is not None:
             # Limit response length based on config
             words = response.split()
-            if len(words) > self.config.max_words:
-                truncated_response = ' '.join(words[:self.config.max_words]) + "..."
+            if len(words) > self.config.max_words * 1.2:
+                truncated_response = ' '.join(words[:int(self.config.max_words * 1.2)]) + "..."
             else:
                 truncated_response = response
                 
