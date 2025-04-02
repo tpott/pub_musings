@@ -127,10 +127,8 @@ The verbose flag will show you player roles at the start of the game and additio
 You can specify different Claude models using the `--model` parameter:
 
 - `claude-3-7-sonnet-20250219` (default): A balanced model with strong reasoning at an affordable price
+- `claude-3-5-haiku-20241022`: Fast, efficient AI model balancing speed and intelligence perfectly
 - `claude-3-opus-20240229`: Most capable model for complex tasks, highest quality
-- `claude-3-sonnet-20240229`: Good balance of intelligence and speed
-- `claude-3-haiku-20240307`: Fastest and most compact model, best for simple tasks
-- `claude-3-5-sonnet-20240620`: Previous generation high-quality model
 
 Example:
 ```bash

@@ -153,7 +153,7 @@ class Game:
     def _run_day_voting_phase(self) -> None:
         """Run the day voting phase."""
         day_num = self.state.turn + 1
-        print(f"\n=== Day {day_name}: Voting Phase ===\n")
+        print(f"\n=== Day {day_num}: Voting Phase ===\n")
 
         # Narrator announces voting
         voting_message = create_narrator_day_voting_message(self.state)
