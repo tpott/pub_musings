@@ -7,6 +7,11 @@ setup(
     install_requires=[
         "requests>=2.25.0",
     ],
+    extras_require={
+        "dev": [
+            "black>=23.1.0",
+        ],
+    },
     entry_points={
         "console_scripts": [
             "werewolf=main:main",

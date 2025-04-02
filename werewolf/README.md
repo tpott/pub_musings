@@ -16,6 +16,7 @@ A Python implementation of the social deduction game Werewolf (also known as Maf
 
 - Python 3.8+
 - Requests library (for API communication)
+- Black (for code formatting, development only)
 
 ## Installation
 
