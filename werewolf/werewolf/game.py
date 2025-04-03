@@ -226,7 +226,7 @@ class Game:
     def _run_night_phase(self) -> None:
         """Run the night phase of the game."""
         day_num = self.state.turn + 1
-        print("\n=== Day {day_num}: Night Phase ===\n")
+        print(f"\n=== Day {day_num}: Night Phase ===\n")
 
         # Narrator starts the night
         night_start_message = create_narrator_night_start_message(self.state)

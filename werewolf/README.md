@@ -81,6 +81,8 @@ python main.py --anthropic-key-file anthropic_key.txt --model claude-3-opus-2024
 
 ## Testing
 
+### Running Manual Tests
+
 To test the game with a smaller configuration (to save API costs):
 
 ```bash
@@ -88,6 +90,24 @@ python main.py --anthropic-key-file anthropic_key.txt --players 4 --werewolves 1
 ```
 
 The verbose flag will show you player roles at the start of the game and additional information during gameplay, which is helpful for verifying that the game mechanics work correctly.
+
+### Running Automated Tests
+
+The project includes unit tests to verify game logic and state transitions. To run the tests:
+
+```bash
+# Activate your virtual environment first
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Run all tests
+python -m unittest discover
+```
+
+You can also run specific test files:
+
+```bash
+python -m unittest tests/test_game_state.py
+```
 
 ## Game Mechanics
 
