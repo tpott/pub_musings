@@ -238,11 +238,13 @@ class GameState:
         # Handle tie (random selection)
         if len(max_voted_players) > 1:
             # Print verbose message about the tie if verbosity is enabled
-            if hasattr(self.config, 'verbose') and self.config.verbose:
+            if hasattr(self.config, "verbose") and self.config.verbose:
                 tied_players = ", ".join(max_voted_players)
-                print(f"There is a tie between {tied_players} with {max_votes} votes each.")
+                print(
+                    f"There is a tie between {tied_players} with {max_votes} votes each."
+                )
                 print(f"Randomly selecting one player to eliminate...")
-                
+
             selected = random.choice(max_voted_players)
             return self.get_player_by_name(selected), vote_counts
         elif max_voted_players:

@@ -42,6 +42,12 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+### Formatting
+
+```bash
+black *.py werewolf/*.py
+```
+
 ## Usage
 
 1. Create a file containing your Anthropic API key with secure permissions:

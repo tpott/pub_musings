@@ -24,7 +24,7 @@ class GameConfig:
     )
     max_turns: int = 20  # Max number of day/night cycles before force ending
     max_words: int = 80  # Maximum number of words per AI response
-    
+
     # Timing configuration (in seconds)
     day_phase_duration_minutes: int = 5
     voting_phase_duration_seconds: int = 60

@@ -127,73 +127,79 @@ class Game:
 
         # Get living players
         living_players = self.state.get_living_players()
-        
+
         # Initialize simulation time variables
         start_time = time.time()  # Real start time
         current_sim_time = 0.0  # Simulated time in seconds
         day_duration_seconds = self.config.day_phase_duration_minutes * 60
-        
+
         # Initialize action queue
         # Queue format: (execution_time, player, action)
         action_queue = []
-        
+
         # Get initial actions from all players
         for player in living_players:
             # Generate action
             prompt = create_day_discussion_prompt(player, self.state)
             response = self._get_ai_response(prompt)
-            
+
             # Parse the JSON action
             action_data = self._parse_json_action(response)
-            
+
             # If parsing failed or action is invalid, default to OBSERVE
-            if not action_data or not self._validate_action(action_data, player, GamePhase.DAY_DISCUSSION):
+            if not action_data or not self._validate_action(
+                action_data, player, GamePhase.DAY_DISCUSSION
+            ):
                 action_data = {"action_type": "OBSERVE"}
-                
+
             # Schedule the action with a random delay between 5-20 seconds
             execution_time = random.uniform(5, 20)
             heapq.heappush(action_queue, (execution_time, player, action_data))
-            
+
         # Process actions in time order until time expires
         while current_sim_time < day_duration_seconds and action_queue:
             # Get the next action
             execution_time, player, action = heapq.heappop(action_queue)
-            
+
             # Update the simulation time
             current_sim_time = execution_time
-            
+
             # Check if we've exceeded the day duration
             if current_sim_time >= day_duration_seconds:
                 break
-                
+
             # Execute the action and update simulation time
-            current_sim_time = self._execute_player_action(player, action, current_sim_time)
-            
+            current_sim_time = self._execute_player_action(
+                player, action, current_sim_time
+            )
+
             # Small real-time delay to avoid API rate limits and make the simulation feel more natural
             time.sleep(0.5)
-            
+
             # Schedule next action for this player if they're still alive
             if player.alive:
                 # Determine the next prompt based on what just happened
                 prompt = create_day_reaction_prompt(player, self.state)
                 response = self._get_ai_response(prompt)
-                
+
                 # Parse the JSON action
                 action_data = self._parse_json_action(response)
-                
+
                 # If parsing failed or action is invalid, default to OBSERVE
-                if not action_data or not self._validate_action(action_data, player, GamePhase.DAY_DISCUSSION):
+                if not action_data or not self._validate_action(
+                    action_data, player, GamePhase.DAY_DISCUSSION
+                ):
                     action_data = {"action_type": "OBSERVE"}
-                    
+
                 # Schedule the next action with a random delay between 20-40 seconds
                 next_execution_time = current_sim_time + random.uniform(20, 40)
                 heapq.heappush(action_queue, (next_execution_time, player, action_data))
-                
+
         # Announce the end of the discussion phase
         end_message = "The sun begins to set. It's time for the village to vote on who to eliminate."
         print(f"\nNarrator: {end_message}\n")
         self.state.channels["village"].add_narrator_message(end_message)
-        
+
         # Advance to voting phase
         self.state.advance_phase()
 
@@ -210,21 +216,23 @@ class Game:
         # Initialize simulation time variables
         current_sim_time = 0.0  # Simulated time in seconds
         voting_duration_seconds = self.config.voting_phase_duration_seconds
-        
+
         # Initialize action queue for voting
         action_queue = []
-        
+
         # Each living player submits a vote with a random delay
         living_players = self.state.get_living_players()
         for player in living_players:
             prompt = create_day_voting_prompt(player, self.state)
             response = self._get_ai_response(prompt)
-            
+
             # Parse the JSON action
             action_data = self._parse_json_action(response)
-            
+
             # If parsing failed or action is invalid, create a random valid vote
-            if not action_data or not self._validate_action(action_data, player, GamePhase.DAY_VOTING):
+            if not action_data or not self._validate_action(
+                action_data, player, GamePhase.DAY_VOTING
+            ):
                 # Create a random vote for a living player other than self
                 potential_targets = [p for p in living_players if p.name != player.name]
                 if potential_targets:
@@ -233,29 +241,31 @@ class Game:
                 else:
                     # Edge case: if no valid targets (shouldn't happen), skip this player
                     continue
-            
+
             # Schedule the vote with a random delay between 5-55 seconds
             execution_time = random.uniform(5, min(55, voting_duration_seconds - 5))
             heapq.heappush(action_queue, (execution_time, player, action_data))
-            
+
         # Process votes in time order
         while current_sim_time < voting_duration_seconds and action_queue:
             # Get the next vote
             execution_time, player, action = heapq.heappop(action_queue)
-            
+
             # Update the simulation time
             current_sim_time = execution_time
-            
+
             # Check if we've exceeded the voting duration
             if current_sim_time >= voting_duration_seconds:
                 break
-                
+
             # Execute the vote and update simulation time
-            current_sim_time = self._execute_player_action(player, action, current_sim_time)
-            
+            current_sim_time = self._execute_player_action(
+                player, action, current_sim_time
+            )
+
             # Small real-time delay to avoid API rate limits
             time.sleep(0.5)
-            
+
         # Count votes and eliminate player if applicable
         eliminated_player, vote_counts = self.state.count_votes()
 
@@ -296,111 +306,144 @@ class Game:
         # Initialize simulation time variables
         current_sim_time = 0.0  # Simulated time in seconds
         night_duration_seconds = self.config.night_phase_duration_seconds
-        
+
         # Initialize action queue
         action_queue = []
-        
+
         # Get actions from all werewolves
         living_werewolves = self.state.get_living_werewolves()
         for werewolf in living_werewolves:
             prompt = create_werewolf_night_prompt(werewolf, self.state)
             response = self._get_ai_response(prompt)
-            
+
             # Parse the JSON action
             action_data = self._parse_json_action(response)
-            
+
             # If parsing failed or action is invalid, default to a reasonable action
-            if not action_data or not self._validate_action(action_data, werewolf, GamePhase.NIGHT):
+            if not action_data or not self._validate_action(
+                action_data, werewolf, GamePhase.NIGHT
+            ):
                 if len(living_werewolves) > 1:
                     # Default to werewolf chat
                     action_data = {
-                        "action_type": "WEREWOLF_CHAT", 
-                        "message": "We need to decide who to eliminate tonight."
+                        "action_type": "WEREWOLF_CHAT",
+                        "message": "We need to decide who to eliminate tonight.",
                     }
                 else:
                     # Default to a random kill target for lone werewolf
                     potential_victims = self.state.get_living_villagers()
                     if potential_victims:
                         random_victim = random.choice(potential_victims)
-                        action_data = {"action_type": "KILL", "target": random_victim.name}
+                        action_data = {
+                            "action_type": "KILL",
+                            "target": random_victim.name,
+                        }
                     else:
                         # Edge case: no valid targets
-                        action_data = {"action_type": "WEREWOLF_CHAT", "message": "No targets available."}
-            
+                        action_data = {
+                            "action_type": "WEREWOLF_CHAT",
+                            "message": "No targets available.",
+                        }
+
             # Schedule the action
             # Werewolf chat happens early, kill votes happen later
             if action_data.get("action_type", "").upper() == "WEREWOLF_CHAT":
                 execution_time = random.uniform(5, 30)
             else:
                 execution_time = random.uniform(60, night_duration_seconds - 30)
-                
+
             heapq.heappush(action_queue, (execution_time, werewolf, action_data))
-            
+
         # Get actions from all seers
-        living_seers = [p for p in self.state.get_living_players() if p.role == Role.SEER]
+        living_seers = [
+            p for p in self.state.get_living_players() if p.role == Role.SEER
+        ]
         for seer in living_seers:
             prompt = create_seer_night_prompt(seer, self.state)
             response = self._get_ai_response(prompt)
-            
+
             # Parse the JSON action
             action_data = self._parse_json_action(response)
-            
+
             # If parsing failed or action is invalid, create a random valid investigation
-            if not action_data or not self._validate_action(action_data, seer, GamePhase.NIGHT):
+            if not action_data or not self._validate_action(
+                action_data, seer, GamePhase.NIGHT
+            ):
                 # Choose random player to investigate
-                potential_targets = [p for p in self.state.get_living_players() if p != seer]
+                potential_targets = [
+                    p for p in self.state.get_living_players() if p != seer
+                ]
                 if potential_targets:
                     random_target = random.choice(potential_targets)
-                    action_data = {"action_type": "INVESTIGATE", "target": random_target.name}
+                    action_data = {
+                        "action_type": "INVESTIGATE",
+                        "target": random_target.name,
+                    }
                 else:
                     # Edge case: no valid targets
                     continue
-                    
+
             # Schedule the seer action in the middle of the night
             execution_time = random.uniform(30, 60)
             heapq.heappush(action_queue, (execution_time, seer, action_data))
-            
+
         # Process actions in time order
-        while current_sim_time is None or current_sim_time < night_duration_seconds and action_queue:
+        while (
+            current_sim_time is None
+            or current_sim_time < night_duration_seconds
+            and action_queue
+        ):
             # Get the next action
             execution_time, player, action = heapq.heappop(action_queue)
-            
+
             # Update the simulation time
             current_sim_time = execution_time
-            
+
             # Check if we've exceeded the night duration
             if current_sim_time >= night_duration_seconds:
                 break
-                
+
             # Execute the action and update simulation time
-            current_sim_time = self._execute_player_action(player, action, current_sim_time)
-            
+            current_sim_time = self._execute_player_action(
+                player, action, current_sim_time
+            )
+
             # For werewolf chat, potentially schedule another chat message
-            if player.role == Role.WEREWOLF and action.get("action_type", "").upper() == "WEREWOLF_CHAT":
+            if (
+                player.role == Role.WEREWOLF
+                and action.get("action_type", "").upper() == "WEREWOLF_CHAT"
+            ):
                 # Only schedule another chat if we're still in the first half of the night
-                if current_sim_time is None or current_sim_time < night_duration_seconds / 2:
+                if (
+                    current_sim_time is None
+                    or current_sim_time < night_duration_seconds / 2
+                ):
                     prompt = create_werewolf_night_prompt(player, self.state)
                     response = self._get_ai_response(prompt)
-                    
+
                     # Parse the JSON action
                     action_data = self._parse_json_action(response)
-                    
+
                     # Only schedule if it's another chat message or a kill action
-                    if action_data and self._validate_action(action_data, player, GamePhase.NIGHT):
+                    if action_data and self._validate_action(
+                        action_data, player, GamePhase.NIGHT
+                    ):
                         # Schedule the next action with a reasonable delay
                         next_execution_time = current_sim_time + random.uniform(15, 30)
                         if next_execution_time < night_duration_seconds - 10:
-                            heapq.heappush(action_queue, (next_execution_time, player, action_data))
-            
+                            heapq.heappush(
+                                action_queue, (next_execution_time, player, action_data)
+                            )
+
             # Small real-time delay to avoid API rate limits
             time.sleep(0.5)
-            
+
         # Process the werewolf kill
         killed_player = self._process_werewolf_kill()
         if killed_player:
             # Mark the player as eliminated, but don't announce it until morning
             self.state.eliminate_player(killed_player)
-            
+
         # Narrator ends the night
         end_message = "The long night comes to an end, and dawn approaches. The village begins to stir."
         print(f"\nNarrator: {end_message}\n")
@@ -415,10 +458,10 @@ class Game:
 
     # These methods are maintained for backwards compatibility with tests
     # In the actual game flow, we now use _execute_player_action instead
-    
+
     def _process_werewolf_actions(self, werewolves: List[Player]) -> None:
         """Process the werewolf discussion and killing.
-        
+
         This method is kept for backward compatibility with tests.
         In actual gameplay, we use the new action system.
 
@@ -428,19 +471,22 @@ class Game:
         # Create a simple implementation for test compatibility
         sim_time = 0.0
         for werewolf in werewolves:
-            action_data = {"action_type": "WEREWOLF_CHAT", "message": "Test werewolf chat"}
+            action_data = {
+                "action_type": "WEREWOLF_CHAT",
+                "message": "Test werewolf chat",
+            }
             sim_time = self._execute_player_action(werewolf, action_data, sim_time)
-            
+
         # Add a random kill action
         if werewolves:
             potential_victims = self.state.get_living_villagers()
             if potential_victims:
                 target = random.choice(potential_victims)
                 self.state.night_actions["werewolf_kill"] = target.name
-    
+
     def _process_seer_action(self, seer: Player) -> None:
         """Process a seer's night action.
-        
+
         This method is kept for backward compatibility with tests.
         In actual gameplay, we use the new action system.
 
@@ -448,15 +494,19 @@ class Game:
             seer: The seer player
         """
         # Create a simple implementation for test compatibility
-        potential_targets = [p for p in self.state.get_living_players() if p.name != seer.name]
+        potential_targets = [
+            p for p in self.state.get_living_players() if p.name != seer.name
+        ]
         if potential_targets:
             target = random.choice(potential_targets)
             self.state.night_actions[f"seer_{seer.name}"] = target.name
-            
+
             # Add seer memory
             is_werewolf = target.role == Role.WEREWOLF
             result = "a Werewolf" if is_werewolf else "not a Werewolf"
-            seer.add_memory(f"Night {self.state.turn + 1}: You investigated {target.name} and discovered they are {result}.")
+            seer.add_memory(
+                f"Night {self.state.turn + 1}: You investigated {target.name} and discovered they are {result}."
+            )
 
     def _process_werewolf_kill(self) -> Optional[Player]:
         """Process the werewolf kill action.
@@ -491,16 +541,16 @@ class Game:
             The matching player, or None if no good match found
         """
         # If input is a JSON string, try to extract the target
-        if name.strip().startswith('{') and name.strip().endswith('}'):
+        if name.strip().startswith("{") and name.strip().endswith("}"):
             try:
                 data = json.loads(name)
-                if 'target' in data:
-                    name = data['target']
-                elif 'name' in data:
-                    name = data['name']
+                if "target" in data:
+                    name = data["target"]
+                elif "name" in data:
+                    name = data["name"]
             except:
                 pass  # Continue with original name if JSON parsing fails
-                
+
         name = name.lower()
 
         # Try exact match first
@@ -628,20 +678,20 @@ class Game:
         except Exception as e:
             if self.config.verbose:
                 print(f"Error initializing log file: {e}")
-                
+
     def get_player_to_left(self, player: Player) -> Player:
         """Return the player to the left of the given player in the circle.
-        
+
         Args:
             player: The reference player
-            
+
         Returns:
             The player to the left in the circle
         """
         living_players = self.state.get_living_players()
         if len(living_players) <= 1:
             return player
-            
+
         # Find player's index in the list
         try:
             idx = living_players.index(player)
@@ -650,20 +700,20 @@ class Game:
         except ValueError:
             # If player not found (shouldn't happen), return the first living player
             return living_players[0]
-    
+
     def get_player_to_right(self, player: Player) -> Player:
         """Return the player to the right of the given player in the circle.
-        
+
         Args:
             player: The reference player
-            
+
         Returns:
             The player to the right in the circle
         """
         living_players = self.state.get_living_players()
         if len(living_players) <= 1:
             return player
-            
+
         # Find player's index in the list
         try:
             idx = living_players.index(player)
@@ -672,23 +722,23 @@ class Game:
         except ValueError:
             # If player not found (shouldn't happen), return the first living player
             return living_players[0]
-            
+
     def _parse_json_action(self, response_text: str) -> Dict[str, Any]:
         """Parse a JSON action from a text response.
-        
+
         Args:
             response_text: The text response from the AI
-            
+
         Returns:
             A dictionary containing the parsed action, or an empty dict if parsing failed
         """
         # Try to find JSON content inside the response
-        json_start = response_text.find('{')
-        json_end = response_text.rfind('}')
-        
+        json_start = response_text.find("{")
+        json_end = response_text.rfind("}")
+
         if json_start >= 0 and json_end > json_start:
             # Extract the JSON content
-            json_content = response_text[json_start:json_end+1]
+            json_content = response_text[json_start : json_end + 1]
             try:
                 action_data = json.loads(json_content)
                 return action_data
@@ -696,296 +746,334 @@ class Game:
                 if self.config.verbose:
                     print(f"Failed to parse JSON action: {json_content}")
                 return {}
-                
+
         # If we couldn't find valid JSON, return an empty dict
         return {}
-        
-    def _validate_action(self, action_data: Dict[str, Any], player: Player, phase: GamePhase) -> bool:
+
+    def _validate_action(
+        self, action_data: Dict[str, Any], player: Player, phase: GamePhase
+    ) -> bool:
         """Validate a player action based on action type and game phase.
-        
+
         Args:
             action_data: The action data to validate
             player: The player performing the action
             phase: The current game phase
-            
+
         Returns:
             True if the action is valid, False otherwise
         """
         # Check for required fields
         if "action_type" not in action_data:
             return False
-            
+
         action_type = action_data.get("action_type", "").upper()
-        
+
         # Validate action types by phase
         if phase == GamePhase.DAY_DISCUSSION:
             valid_actions = ["SPEAK", "WHISPER", "OBSERVE"]
             if action_type not in valid_actions:
                 return False
-                
+
             # Validate whisper targets (must be neighbors)
             if action_type == "WHISPER":
                 if "target" not in action_data:
                     return False
-                    
+
                 target_name = action_data["target"]
                 target_player = self.state.get_player_by_name(target_name)
-                
+
                 if not target_player or not target_player.alive:
                     return False
-                    
+
                 # Check if target is a neighbor
                 left_player = self.get_player_to_left(player)
                 right_player = self.get_player_to_right(player)
                 if target_player != left_player and target_player != right_player:
                     return False
-        
+
         elif phase == GamePhase.DAY_VOTING:
             if action_type != "VOTE":
                 return False
-                
+
             # Validate vote target
             if "target" not in action_data:
                 return False
-                
+
             target_name = action_data["target"]
             target_player = self.state.get_player_by_name(target_name)
-            
+
             if not target_player or not target_player.alive or target_player == player:
                 return False
-                
+
         elif phase == GamePhase.NIGHT:
             # Different valid actions depending on role
             if player.role == Role.WEREWOLF:
                 valid_actions = ["WEREWOLF_CHAT", "KILL"]
                 if action_type not in valid_actions:
                     return False
-                    
+
                 # Validate kill target
                 if action_type == "KILL" and "target" not in action_data:
                     return False
-                    
+
                 if action_type == "KILL":
                     target_name = action_data["target"]
                     target_player = self.state.get_player_by_name(target_name)
-                    
-                    if not target_player or not target_player.alive or target_player.role == Role.WEREWOLF:
+
+                    if (
+                        not target_player
+                        or not target_player.alive
+                        or target_player.role == Role.WEREWOLF
+                    ):
                         return False
-                        
+
             elif player.role == Role.SEER:
                 if action_type != "INVESTIGATE":
                     return False
-                    
+
                 # Validate investigate target
                 if "target" not in action_data:
                     return False
-                    
+
                 target_name = action_data["target"]
                 target_player = self.state.get_player_by_name(target_name)
-                
-                if not target_player or not target_player.alive or target_player == player:
+
+                if (
+                    not target_player
+                    or not target_player.alive
+                    or target_player == player
+                ):
                     return False
-            
+
             else:  # Villager
                 # Villagers can't do anything at night
                 return False
-        
+
         # If we got here, the action is valid
         return True
-        
-    def _execute_player_action(self, player: Player, action: Dict[str, Any], current_time: float) -> float:
+
+    def _execute_player_action(
+        self, player: Player, action: Dict[str, Any], current_time: float
+    ) -> float:
         """Execute a player's action based on type (SPEAK, WHISPER, OBSERVE).
-        
+
         Args:
             player: The player performing the action
             action: The action data
             current_time: The current simulated time
-            
+
         Returns:
             The updated simulation time after the action is executed
         """
         action_type = action.get("action_type", "").upper()
         message = action.get("message", "")
-        
+
         # Format time for display
         time_str = time.strftime("%H:%M:%S", time.gmtime(current_time))
-        
+
         if action_type == "SPEAK":
             # Add message to village channel
             self.state.channels["village"].add_message(player, message)
-            
+
             # Print message
             print(f"[{time_str}] {player.name}: {message}\n")
-            
+
             # Add to player's memory
-            player.add_memory(f"Day {self.state.turn + 1}: You said to the village: \"{message}\"")
-            
+            player.add_memory(
+                f'Day {self.state.turn + 1}: You said to the village: "{message}"'
+            )
+
             # Add to other players' memories (just the fact that they spoke)
             for other_player in self.state.get_living_players():
                 if other_player != player:
-                    other_player.add_memory(f"Day {self.state.turn + 1}: {player.name} spoke to the village.")
-            
+                    other_player.add_memory(
+                        f"Day {self.state.turn + 1}: {player.name} spoke to the village."
+                    )
+
             # Increment simulation time based on speech length (2 seconds per word)
             word_count = len(message.split())
             return current_time + (word_count * 2.0)
-            
+
         elif action_type == "WHISPER":
             target_name = action.get("target", "")
             target_player = self.state.get_player_by_name(target_name)
-            
+
             if not target_player or not target_player.alive:
                 return current_time
-                
+
             # Create a whisper channel key
             whisper_key = f"whisper_{min(player.name, target_player.name)}_{max(player.name, target_player.name)}"
-            
+
             # Create the channel if it doesn't exist
             if whisper_key not in self.state.channels:
                 whisper_channel = Channel(
                     f"Whispers between {player.name} and {target_player.name}",
                     f"Private whispers between {player.name} and {target_player.name}",
-                    [player, target_player]
+                    [player, target_player],
                 )
                 self.state.channels[whisper_key] = whisper_channel
-                
+
             # Add message to whisper channel
             self.state.channels[whisper_key].add_message(player, message)
-            
+
             # Print message (if verbose)
             if self.config.verbose:
-                print(f"[{time_str}] {player.name} whispers to {target_player.name}: {message}\n")
-                
+                print(
+                    f"[{time_str}] {player.name} whispers to {target_player.name}: {message}\n"
+                )
+
             # Add to memories
-            player.add_memory(f"Day {self.state.turn + 1}: You whispered to {target_player.name}: \"{message}\"")
-            target_player.add_memory(f"Day {self.state.turn + 1}: {player.name} whispered to you: \"{message}\"")
-            
+            player.add_memory(
+                f'Day {self.state.turn + 1}: You whispered to {target_player.name}: "{message}"'
+            )
+            target_player.add_memory(
+                f'Day {self.state.turn + 1}: {player.name} whispered to you: "{message}"'
+            )
+
             # Whispers take less time than speaking (1 second per word)
             word_count = len(message.split())
             return current_time + (word_count * 1.0)
-            
+
         elif action_type == "OBSERVE":
             # This is a passive action just to observe without speaking
             if self.config.verbose:
                 print(f"[{time_str}] {player.name} observes the village silently\n")
-                
+
             # Add to player's memory
-            player.add_memory(f"Day {self.state.turn + 1}: You observed the village silently.")
-            
+            player.add_memory(
+                f"Day {self.state.turn + 1}: You observed the village silently."
+            )
+
             # Observation takes a fixed amount of time (5 seconds)
             return current_time + 5.0
-            
+
         elif action_type == "VOTE":
             target_name = action.get("target", "")
             target_player = self.state.get_player_by_name(target_name)
-            
+
             if not target_player or not target_player.alive:
                 return current_time
-                
+
             # Record the vote
             self.state.votes[player.name] = target_player.name
-            
+
             # Print the vote
             print(f"[{time_str}] {player.name} votes for {target_player.name}")
-            
+
             # Add to memories
-            player.add_memory(f"Day {self.state.turn + 1}: You voted to eliminate {target_player.name}.")
-            
+            player.add_memory(
+                f"Day {self.state.turn + 1}: You voted to eliminate {target_player.name}."
+            )
+
             # Voting is a brief action (10 seconds)
             return current_time + 10.0
-            
+
         elif action_type == "WEREWOLF_CHAT":
             # Add message to werewolf channel
             werewolf_channel = self.state.channels["werewolf"]
             werewolf_channel.add_message(player, message)
-            
+
             # Print message (if verbose)
             if self.config.verbose:
                 print(f"[{time_str}] [Werewolf Chat] {player.name}: {message}")
-                
+
             # Add to werewolf memories
             for werewolf in self.state.get_living_werewolves():
                 if werewolf != player:
-                    werewolf.add_memory(f"Night {self.state.turn + 1}: {player.name} said to the werewolves: \"{message}\"")
-                    
-            player.add_memory(f"Night {self.state.turn + 1}: You said to the werewolves: \"{message}\"")
-            
+                    werewolf.add_memory(
+                        f'Night {self.state.turn + 1}: {player.name} said to the werewolves: "{message}"'
+                    )
+
+            player.add_memory(
+                f'Night {self.state.turn + 1}: You said to the werewolves: "{message}"'
+            )
+
             # Werewolf chat uses same timing as speech (2 seconds per word)
             word_count = len(message.split())
             return current_time + (word_count * 2.0)
-            
+
         elif action_type == "KILL":
             target_name = action.get("target", "")
             target_player = self.state.get_player_by_name(target_name)
-            
+
             if not target_player or not target_player.alive:
                 return current_time
-                
+
             # Record the werewolf kill vote
             werewolf_votes = self.state.night_actions.get("werewolf_votes", {})
-            werewolf_votes[target_player.name] = werewolf_votes.get(target_player.name, 0) + 1
+            werewolf_votes[target_player.name] = (
+                werewolf_votes.get(target_player.name, 0) + 1
+            )
             self.state.night_actions["werewolf_votes"] = werewolf_votes
-            
+
             # Calculate the current target based on votes
             max_votes = 0
             max_voted_players = []
-            
+
             for name, count in werewolf_votes.items():
                 if count > max_votes:
                     max_votes = count
                     max_voted_players = [name]
                 elif count == max_votes:
                     max_voted_players.append(name)
-                    
+
             # If we have a target, set it
             if max_voted_players:
                 # Break ties randomly
                 chosen_target = random.choice(max_voted_players)
                 self.state.night_actions["werewolf_kill"] = chosen_target
-                
+
             # Print the vote (if verbose)
             if self.config.verbose:
                 print(f"[{time_str}] {player.name} votes to kill {target_player.name}")
-                print(f"Current werewolf target: {self.state.night_actions.get('werewolf_kill', 'undecided')}")
-                
+                print(
+                    f"Current werewolf target: {self.state.night_actions.get('werewolf_kill', 'undecided')}"
+                )
+
             # Add to werewolf memories
-            player.add_memory(f"Night {self.state.turn + 1}: You voted to kill {target_player.name}.")
-            
+            player.add_memory(
+                f"Night {self.state.turn + 1}: You voted to kill {target_player.name}."
+            )
+
             # Kill vote is a quick action (15 seconds)
             return current_time + 15.0
-            
+
         elif action_type == "INVESTIGATE":
             target_name = action.get("target", "")
             target_player = self.state.get_player_by_name(target_name)
-            
+
             if not target_player or not target_player.alive:
                 return current_time
-                
+
             # Record the seer's action
             self.state.night_actions[f"seer_{player.name}"] = target_player.name
-            
+
             # Determine if the target is a werewolf and tell the seer
             is_werewolf = target_player.role == Role.WEREWOLF
             result = "a Werewolf" if is_werewolf else "not a Werewolf"
-            
+
             # Add to seer's memory
             player.add_memory(
                 f"Night {self.state.turn + 1}: You investigated {target_player.name} "
                 f"and discovered they are {result}."
             )
-            
+
             # Also add to seer's action channel
             action_channel = self.state.channels[f"action_{player.name}"]
             action_channel.add_narrator_message(
                 f"You focus your powers on {target_player.name} and receive a vision. "
                 f"You see that they are {result}."
             )
-            
+
             # Print the investigation (if verbose)
             if self.config.verbose:
-                print(f"[{time_str}] Seer {player.name} investigates {target_player.name} and learns they are {result}")
-            
+                print(
+                    f"[{time_str}] Seer {player.name} investigates {target_player.name} and learns they are {result}"
+                )
+
             # Investigation is a lengthy action (30 seconds)
             return current_time + 30.0
-            
+
         # If we reach here, it's an unknown action type, so don't modify time
         return current_time
