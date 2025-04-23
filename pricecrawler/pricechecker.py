@@ -14,7 +14,33 @@ from chatgpt import chatCompletitions
 
 # note the keys get passed as values of an enum to chatgpt
 # target urls should be sorted with approximate prices ascending
+
+# kind div --> find a div, usually by id
+# this should be the top level HTML DOM element that contains all the products on that page
+# it will ultimately be passed to bsoup.find(...)
 targets = {
+    "3.2v lifepo cells": [
+        # class product-list--collection, class product-list, class boost-pfs-filter-products
+        # all seemed like possible options
+        {"url": "https://www.18650batterystore.com/collections/lifepo4-prismatic-cells", "kind": "div", "class": "product-list--collection"},
+    ],
+    "12v lifepo batteries": [
+        # TODO find a url for dumfume besides amazon
+        # https://camelcamelcamel.com/product/B0DLGNJH8P?context=search
+        {"url": "https://www.wattcycle.com/collections/12v-batteries?sort_by=price-ascending", "kind": "div", "id": "filter-results"},
+        {"url": "https://www.litime.com/collections/12v-batteries", "kind": "div", "id": "CollectionProductGrid"},
+    ],
+    "48v lifepo batteries": [
+        {"url": "https://www.litime.com/collections/48v-batteries", "kind": "div", "id": "CollectionProductGrid"},
+        {"url": "https://signaturesolar.com/all-products/batteries/?sort=priceasc", "kind": "div", "id": "product-listing-container"},
+    ],
+    # TODO chatgpt requires pupeteer
+    "openai api": [
+        # {"url": "https://openai.com/api/pricing/", "kind": "main", "id": "main"},
+        # {"url": "https://openai.com/api/pricing/", "kind": "div", "class": "flex"},
+        # {"url": "https://platform.openai.com/docs/pricing", "kind": "class", "class": "mb-8"},
+        {"url": "https://platform.openai.com/docs/pricing"},
+    ],
     "ecoflow river": [
         {"url": "https://us.ecoflow.com/collections/river-series", "kind": "div", "id": "Collection"},
     ],
@@ -27,21 +53,6 @@ targets = {
             "kind": "div",
             "id": "product-listing-container",
         },
-    ],
-    # TODO chatgpt requires pupeteer
-    # "chatgpt": [
-        # {"url": "https://openai.com/api/pricing/", "kind": "main", "id": "main"},
-        # {"url": "https://openai.com/api/pricing/", "kind": "div", "class": "flex"},
-    # ],
-    "12v lifepo batteries": [
-        # TODO find a url for dumfume besides amazon
-        # https://camelcamelcamel.com/product/B0DLGNJH8P?context=search
-        {"url": "https://www.wattcycle.com/collections/12v-batteries?sort_by=price-ascending", "kind": "div", "id": "filter-results"},
-        {"url": "https://www.litime.com/collections/12v-batteries", "kind": "div", "id": "CollectionProductGrid"},
-    ],
-    "48v lifepo batteries": [
-        {"url": "https://www.litime.com/collections/48v-batteries", "kind": "div", "id": "CollectionProductGrid"},
-        {"url": "https://signaturesolar.com/all-products/batteries/?sort=priceasc", "kind": "div", "id": "product-listing-container"},
     ],
     "priority bicycles": [
         {"url": "https://www.prioritybicycles.com/collections/bicycles-1", "kind": "div", "class": "collection-grid_products"},
@@ -69,7 +80,7 @@ async def fetch_all(target, target_obj):
         return await asyncio.gather(*tasks)
 
 
-def priceSummaries(user_input):
+def priceSummaries(user_input, model):
     """Return a price summary object given a user message asking about a price target.
     The summary object will contain a summaries list. One object for each crawled URL."""
     ret = {'user_input': user_input}
@@ -83,7 +94,8 @@ def priceSummaries(user_input):
         {"role": "system", "content": f"Which of the price targets is the user asking about. Only respond with exactly one of the following price targets: {joined_targets}"},
         {"role": "user", "content": user_input}
     ]
-    target = chatCompletitions(messages)
+    # gpt-4.1-mini is 1/5 the price of gpt-4.1
+    target = chatCompletitions(messages, model if model is not None else "gpt-4.1-mini")
     if target not in targets:
         ret['error'] = f"Did not find one of {price_targets}, ChatGPT response: {target}\n"
         return ret
@@ -104,8 +116,12 @@ def priceSummaries(user_input):
 
         soup = BeautifulSoup(content, "html.parser")
 
+        url = None
+        if "url" in target_obj:
+            url = target_obj["url"]
+
         if "kind" not in target_obj:
-            print(f"Target: {target} doesn't have dom element kind (type)\n")
+            print(f"Target: {target} doesn't have dom element kind (type), maybe just url {url}\n")
             continue
 
         kind = target_obj["kind"]
@@ -135,12 +151,12 @@ def priceSummaries(user_input):
             {"role": "system", "content": f"Please summarize the products listed in this HTML. Include their prices (prefer sales price over real price or regular price). Please sort the products with prices ascending. Please do not repeat products."},
             {"role": "user", "content": output_text}
         ]
-        summarized = chatCompletitions(messages)
+        summarized = chatCompletitions(messages, model)
         print(f"Summarized products: {summarized}\n")
         print(f"End URL: {url}\n")
         ret['summaries'].append({
             'summary_text': summarized,
-			'target': target,
+            'target': target,
             'url': url,
         })
     return ret
