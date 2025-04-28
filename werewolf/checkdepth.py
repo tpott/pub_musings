@@ -5,11 +5,12 @@ import sys
 
 # Visitor to track nesting depths
 class NestingVisitor(ast.NodeVisitor):
-    def __init__(self):
+    def __init__(self, max_depth):
         self.current_path = []
         self.max_depth_seen = 0
         self.current_function = None
         self.problematic_nodes = []
+        self.max_depth = max_depth
 
     def visit_FunctionDef(self, node):
         old_function = self.current_function
@@ -24,7 +25,7 @@ class NestingVisitor(ast.NodeVisitor):
         if nesting_depth > self.max_depth_seen:
             self.max_depth_seen = nesting_depth
 
-        if nesting_depth > max_depth and self.current_function:
+        if nesting_depth > self.max_depth and self.current_function:
             if self.current_function not in [p[0] for p in self.problematic_nodes]:
                 self.problematic_nodes.append(
                     (self.current_function, nesting_depth, node.lineno)
@@ -60,16 +61,18 @@ def check_nesting_depth(code, max_depth=3):
     parsed = ast.parse(code)
     result = {"excessive_nesting": False, "problematic_functions": []}
 
-    visitor = NestingVisitor()
+    visitor = NestingVisitor(max_depth=max_depth)
     visitor.visit(parsed)
 
     # Format results
-    if visitor.problematic_nodes:
-        result["excessive_nesting"] = True
-        for func_name, depth, line_no in visitor.problematic_nodes:
-            result["problematic_functions"].append(
-                {"function": func_name, "max_depth": depth, "line_number": line_no}
-            )
+    if not visitor.problematic_nodes:
+        return result
+
+    result["excessive_nesting"] = True
+    for func_name, depth, line_no in visitor.problematic_nodes:
+        result["problematic_functions"].append(
+            {"function": func_name, "max_depth": depth, "line_number": line_no}
+        )
 
     return result
 

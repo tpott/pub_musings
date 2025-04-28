@@ -114,7 +114,7 @@ class Game:
         # Get the last eliminated player in night phase (if any)
         eliminated_player = None
         night_actions = self.state.night_actions
-        if night_actions and "werewolf_kill" in night_actions:
+        if night_actions is not None and "werewolf_kill" in night_actions:
             victim_name = night_actions["werewolf_kill"]
             eliminated_player = self.state.get_player_by_name(victim_name)
 
@@ -478,11 +478,13 @@ class Game:
             sim_time = self._execute_player_action(werewolf, action_data, sim_time)
 
         # Add a random kill action
-        if werewolves:
-            potential_victims = self.state.get_living_villagers()
-            if potential_victims:
-                target = random.choice(potential_victims)
-                self.state.night_actions["werewolf_kill"] = target.name
+        if len(werewolves) == 0:
+            return None
+
+        potential_victims = self.state.get_living_villagers()
+        if potential_victims:
+            target = random.choice(potential_victims)
+            self.state.night_actions["werewolf_kill"] = target.name
 
     def _process_seer_action(self, seer: Player) -> None:
         """Process a seer's night action.
