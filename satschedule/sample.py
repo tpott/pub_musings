@@ -1,3 +1,7 @@
+# written with claude 3.7 sonnet web UI with the following prompt:
+# Give an example input for the SMT solver Z3 that highlights how it can be used
+# for scheduling/planning a large software and hardware project?
+
 from z3 import *
 
 # Create a solver instance
