@@ -38,6 +38,8 @@ Then I tried running https://github.com/Z3Prover/z3/blob/master/examples/python/
 Note that I added `black` to `requirements.txt`. This makes running `black *.py`
 easier.
 
+### Running
+
 If you run
 ```
 python sample2.py
@@ -47,3 +49,10 @@ then you will currently see:
 ```
 No solution found. Cannot reschedule meetings to accommodate any of the proposals.
 ```
+
+I was able to run
+```
+python -m pdb sample2.py
+```
+
+and set a breakpoint in line 332.

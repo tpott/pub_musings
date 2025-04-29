@@ -6,6 +6,8 @@
 # you can find a different time (during regular working hours for requester and
 # requestee) for that meeting.
 
+import sys
+
 from z3 import *
 
 # Create a Z3 solver
@@ -327,115 +329,120 @@ solver.add(
 )  # Not Meeting B's slot
 
 # Check if there is a solution
-if solver.check() == sat:
-    model = solver.model()
-
-    # Helper function to safely evaluate boolean expressions
-    def is_true(expr):
-        result = model.evaluate(expr)
-        return result == True
-
-    # See which proposal was accepted
-    proposal_accepted = None
-    if is_true(use_proposal_1):
-        proposal_accepted = "Proposal 1 (Tuesday 10am)"
-    elif is_true(use_proposal_2):
-        proposal_accepted = "Proposal 2 (Wednesday 10am)"
-    elif is_true(use_proposal_3):
-        proposal_accepted = "Proposal 3 (Thursday 1pm)"
-
-    print(f"Solution found! Accepting: {proposal_accepted}")
-
-    # Helper function to convert Z3 values to Python integers
-    def get_int_value(expr):
-        val = model.evaluate(expr)
-        if hasattr(val, "as_long"):
-            return val.as_long()
-        return val
-
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-
-    # See which meeting was moved
-    if is_true(meeting_a_moved):
-        new_day = get_int_value(meeting_a_new_day)
-        new_hour = get_int_value(meeting_a_new_hour)
-        print(
-            f"Meeting A moved from Tuesday 10am to {day_names[new_day]} {new_hour+WORKING_HOURS_START}:00"
-        )
-    elif is_true(meeting_b_moved):
-        new_day = get_int_value(meeting_b_new_day)
-        new_hour = get_int_value(meeting_b_new_hour)
-        print(
-            f"Meeting B moved from Wednesday 10am to {day_names[new_day]} {new_hour+WORKING_HOURS_START}:00"
-        )
-    elif is_true(meeting_c_moved):
-        new_day = get_int_value(meeting_c_new_day)
-        new_hour = get_int_value(meeting_c_new_hour)
-        print(
-            f"Meeting C moved from Thursday 1pm to {day_names[new_day]} {new_hour+WORKING_HOURS_START}:00"
-        )
-
-    # Print a visual representation of the new schedule
-    print("\nSchedule after rescheduling:")
-    print("---------------------------")
-    for d in range(DAYS):
-        print(f"{day_names[d]}:")
-        for h in range(TIME_SLOTS):
-            hour_str = f"{h+WORKING_HOURS_START}:00"
-            status = "FREE"
-
-            # Check your original meetings
-            if model.evaluate(your_calendar[d][h]) == True:
-                # Skip the meeting that was moved
-                if (
-                    d == 1 and h == 1 and model.evaluate(meeting_a_moved) == True
-                ):  # Meeting A
-                    pass
-                elif (
-                    d == 2 and h == 1 and model.evaluate(meeting_b_moved) == True
-                ):  # Meeting B
-                    pass
-                elif (
-                    d == 3 and h == 4 and model.evaluate(meeting_c_moved) == True
-                ):  # Meeting C
-                    pass
-                else:
-                    status = "BUSY"
-
-            # Check if this is the new meeting with the requester
-            if (
-                (d == 1 and h == 1 and model.evaluate(use_proposal_1) == True)
-                or (d == 2 and h == 1 and model.evaluate(use_proposal_2) == True)
-                or (d == 3 and h == 4 and model.evaluate(use_proposal_3) == True)
-            ):
-                status = "NEW MEETING"
-
-            # Check if this is where one of the moved meetings was rescheduled
-            moved_a = model.evaluate(meeting_a_moved) == True
-            moved_b = model.evaluate(meeting_b_moved) == True
-            moved_c = model.evaluate(meeting_c_moved) == True
-
-            if (
-                moved_a
-                and get_int_value(meeting_a_new_day) == d
-                and get_int_value(meeting_a_new_hour) == h
-            ):
-                status = "MOVED A"
-            elif (
-                moved_b
-                and get_int_value(meeting_b_new_day) == d
-                and get_int_value(meeting_b_new_hour) == h
-            ):
-                status = "MOVED B"
-            elif (
-                moved_c
-                and get_int_value(meeting_c_new_day) == d
-                and get_int_value(meeting_c_new_hour) == h
-            ):
-                status = "MOVED C"
-
-            print(f"  {hour_str}: {status}")
-else:
+if solver.check() != sat:
     print(
         "No solution found. Cannot reschedule meetings to accommodate any of the proposals."
     )
+    sys.exit(1)
+
+model = solver.model()
+
+
+# Helper function to safely evaluate boolean expressions
+def is_true(expr):
+    result = model.evaluate(expr)
+    return result == True
+
+
+# See which proposal was accepted
+proposal_accepted = None
+if is_true(use_proposal_1):
+    proposal_accepted = "Proposal 1 (Tuesday 10am)"
+elif is_true(use_proposal_2):
+    proposal_accepted = "Proposal 2 (Wednesday 10am)"
+elif is_true(use_proposal_3):
+    proposal_accepted = "Proposal 3 (Thursday 1pm)"
+
+print(f"Solution found! Accepting: {proposal_accepted}")
+
+
+# Helper function to convert Z3 values to Python integers
+def get_int_value(expr):
+    val = model.evaluate(expr)
+    if hasattr(val, "as_long"):
+        return val.as_long()
+    return val
+
+
+day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+# See which meeting was moved
+if is_true(meeting_a_moved):
+    new_day = get_int_value(meeting_a_new_day)
+    new_hour = get_int_value(meeting_a_new_hour)
+    print(
+        f"Meeting A moved from Tuesday 10am to {day_names[new_day]} {new_hour+WORKING_HOURS_START}:00"
+    )
+elif is_true(meeting_b_moved):
+    new_day = get_int_value(meeting_b_new_day)
+    new_hour = get_int_value(meeting_b_new_hour)
+    print(
+        f"Meeting B moved from Wednesday 10am to {day_names[new_day]} {new_hour+WORKING_HOURS_START}:00"
+    )
+elif is_true(meeting_c_moved):
+    new_day = get_int_value(meeting_c_new_day)
+    new_hour = get_int_value(meeting_c_new_hour)
+    print(
+        f"Meeting C moved from Thursday 1pm to {day_names[new_day]} {new_hour+WORKING_HOURS_START}:00"
+    )
+
+# Print a visual representation of the new schedule
+print("\nSchedule after rescheduling:")
+print("---------------------------")
+for d in range(DAYS):
+    print(f"{day_names[d]}:")
+    for h in range(TIME_SLOTS):
+        hour_str = f"{h+WORKING_HOURS_START}:00"
+        status = "FREE"
+
+        # Check your original meetings
+        if model.evaluate(your_calendar[d][h]) == True:
+            # Skip the meeting that was moved
+            if (
+                d == 1 and h == 1 and model.evaluate(meeting_a_moved) == True
+            ):  # Meeting A
+                pass
+            elif (
+                d == 2 and h == 1 and model.evaluate(meeting_b_moved) == True
+            ):  # Meeting B
+                pass
+            elif (
+                d == 3 and h == 4 and model.evaluate(meeting_c_moved) == True
+            ):  # Meeting C
+                pass
+            else:
+                status = "BUSY"
+
+        # Check if this is the new meeting with the requester
+        if (
+            (d == 1 and h == 1 and model.evaluate(use_proposal_1) == True)
+            or (d == 2 and h == 1 and model.evaluate(use_proposal_2) == True)
+            or (d == 3 and h == 4 and model.evaluate(use_proposal_3) == True)
+        ):
+            status = "NEW MEETING"
+
+        # Check if this is where one of the moved meetings was rescheduled
+        moved_a = model.evaluate(meeting_a_moved) == True
+        moved_b = model.evaluate(meeting_b_moved) == True
+        moved_c = model.evaluate(meeting_c_moved) == True
+
+        if (
+            moved_a
+            and get_int_value(meeting_a_new_day) == d
+            and get_int_value(meeting_a_new_hour) == h
+        ):
+            status = "MOVED A"
+        elif (
+            moved_b
+            and get_int_value(meeting_b_new_day) == d
+            and get_int_value(meeting_b_new_hour) == h
+        ):
+            status = "MOVED B"
+        elif (
+            moved_c
+            and get_int_value(meeting_c_new_day) == d
+            and get_int_value(meeting_c_new_hour) == h
+        ):
+            status = "MOVED C"
+
+        print(f"  {hour_str}: {status}")
