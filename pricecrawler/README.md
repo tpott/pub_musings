@@ -42,10 +42,9 @@ Each price target should have multiple URLs. Each URL can return multiple produc
 
 Setup
 ```
-mkdir -p tmp
-python3 -m venv tmp
-source tmp/bin/activate
-python3 -m pip install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 And
@@ -71,6 +70,9 @@ deactivate
 * I then ran `python3 webhooks.py 8443 cert.crt cert.key` in order to verify ownership with facebook
 * I used the graph API explorer to figure out my app scoped page ID https://developers.facebook.com/tools/explorer/ by calling `/me` with a page token
 * I was then able to plug everything together with `WEBHOOK_CERT_FILE=cert.crt WEBHOOK_KEY_FILE=cert.key OPENAI_API_KEY_FILE=/tmp/key LAST_RUN_FILE=/tmp/last_run_file PAGE_ID=506755539197493 PAGE_TOKEN_FILE=/tmp/page_token_file python3 facebook_loop.py`
+  * `/tmp/key` originally came from https://platform.openai.com/settings/organization/api-keys
+  * but openai doesn't allow for re-downloading the key more than once
+  * I saved it in lastpass
 * I haven't gotten webhooks to work yet though... If it just triggers the loop, then it will work, so I literally just need any webhook.
 
 # Saturday Fun
@@ -105,3 +107,17 @@ out of context. But I re-state the entire prompt every time so that it doesn't f
 out of context.
 
 Moving to scavengerhunt/
+
+# Operationalize
+
+Skip the above saturday fun... it's quite different from base pricechecker
+
+I started in the [Notes](/#Notes) section, but that required me to run [Commands](#Commands).
+
+I logged into cloudflare.com, clicked "Zero Trust" on the left, then "Networks", then "Tunnels".
+I found my `prices1` tunnel still running o.O but `brew services list` and 
+`brew services info cloudflared` didn't show it as running. I tried `sudo cloudflared service install ...`
+but it failed because it was already running (?). So I ran `sudo cloudflared service uninstall` and
+tried again, and that worked.
+
+I had to add `model='gpt-4.1'` to my `priceSummaries(...)` call in `facebook_loop.py`.

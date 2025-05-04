@@ -102,7 +102,7 @@ def runOnce() -> None:
 
         # call openai and post the message it generates
         # TODO utilize more of historical message context
-        summary_obj = priceSummaries(context_messages[-1]['content'])
+        summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-4.1')
         if len(summary_obj['summaries']) == 0 and 'error' in summary_obj:
             postMessage(page_id, page_token_file, conv, summary_obj['error'])
             continue
