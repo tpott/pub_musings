@@ -148,7 +148,7 @@ def priceSummaries(user_input, model):
         # TODO how to associate `summarized` with `user_input`?
         # future `user_input` could be questions about previous `summarized`
         messages = [
-            {"role": "system", "content": f"Please summarize the products listed in this HTML. Include their prices (prefer sales price over real price or regular price). Please sort the products with prices ascending. Please do not repeat products."},
+            {"role": "system", "content": f"Please summarize the products listed in this HTML. Include their prices (prefer sales price over real price or regular price). Please SORT the products with prices ASCENDING. Please DO NOT REPEAT products. Please keep your summary SHORT."},
             {"role": "user", "content": output_text}
         ]
         summarized = chatCompletitions(messages, model)
