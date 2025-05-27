@@ -121,3 +121,38 @@ but it failed because it was already running (?). So I ran `sudo cloudflared ser
 tried again, and that worked.
 
 I had to add `model='gpt-4.1'` to my `priceSummaries(...)` call in `facebook_loop.py`.
+
+# Extending FB access tokens
+
+I added `https://localhost:8443/trigger-callback` to work around FB's webhooks not working.
+
+## Starting with a user token
+
+Get a long lived user token:
+```
+curl -X GET "https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=$APP_ID&client_secret=$APP_SECRET&fb_exchange_token=$SHORT_LIVED_USER_TOKEN"
+```
+
+Then get a never expiring page token:
+```
+curl -X GET "https://graph.facebook.com/$PAGE_ID?fields=access_token&access_token=$LONG_LIVED_USER_TOKEN"
+```
+
+## Starting with a page token
+
+Get a long lived page token:
+```
+curl -X GET "https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=$APP_ID&client_secret=$APP_SECRET&fb_exchange_token=$SHORT_LIVED_PAGE_TOKEN"
+```
+
+## Verify
+
+You can verify qualities of your token with:
+```
+curl -X GET "https://graph.facebook.com/debug_token?input_token=$YOUR_TOKEN&access_token=$APP_ID|$APP_SECRET"
+```
+
+And just check your page ID:
+```
+curl -X GET "https://graph.facebook.com/me/accounts?access_token=$USER_TOKEN"
+```

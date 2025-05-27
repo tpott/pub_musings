@@ -90,6 +90,16 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     if request.path == '/status':
       self.getStatusPage()
       return
+    if request.path == '/trigger-callback':
+      if self.callback is not None:
+        self.callback()
+      s = b'Callback triggered'
+      self.send_response(http.server.HTTPStatus.OK)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/html; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+      return
     s = b'Unknown page'
     self.send_response(http.server.HTTPStatus.NOT_FOUND)
     self.send_header('Content-Length', len(s))
