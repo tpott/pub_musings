@@ -1,0 +1,53 @@
+PRIVACY POLICY
+
+Last updated: May 27, 2025
+
+This Privacy Policy describes how this price crawler application collects, uses, and protects your information.
+
+INFORMATION WE COLLECT
+
+1. Facebook Graph API Data
+   - We use the Facebook Graph API for basic chat functions
+   - We only access the minimal data necessary for chat functionality
+   - No personal messages or profile data is stored permanently
+
+2. AI API Usage
+   - We use OpenAI or Anthropic AI APIs to parse price targets from messages
+   - Text sent to AI services is processed solely for price parsing purposes
+   - No personal information is intentionally sent to AI services
+
+3. Web Requests
+   - This application may make web requests to third-party websites to access current pricing information
+   - These requests are made solely to retrieve publicly available price data
+   - No personal information is transmitted in these requests
+
+DATA USAGE
+
+- Information is used solely for the purpose of providing price tracking and comparison services
+- We do not sell, trade, or transfer your information to third parties
+- Data is processed only as necessary to fulfill the application's core functionality
+
+DATA RETENTION
+
+- Chat data is processed in real-time and not permanently stored
+- Price data may be temporarily cached for performance purposes
+- No long-term storage of personal information occurs
+
+THIRD-PARTY SERVICES
+
+This application integrates with:
+- Facebook Graph API (for chat functionality)
+- OpenAI/Anthropic APIs (for text parsing)
+- Various websites (for price data retrieval)
+
+Each service has its own privacy policy governing their handling of data.
+
+SECURITY
+
+We implement appropriate technical measures to protect data during transmission and processing.
+
+CONTACT
+
+For questions about this privacy policy, please contact the application administrator.
+
+This policy may be updated from time to time. Continued use of the application constitutes acceptance of any changes.

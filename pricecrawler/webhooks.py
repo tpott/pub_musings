@@ -77,6 +77,28 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.wfile.write(s)
     return
 
+  def getPrivacyPolicy(self):
+    content = None
+    try:
+      with open('privacy-policy.txt', 'r', encoding='utf-8') as f:
+        content = f.read()
+    except FileNotFoundError:
+      s = b'Privacy policy file not found'
+      self.send_response(http.server.HTTPStatus.NOT_FOUND)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/plain; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+    
+    s = content.encode('utf-8')
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/plain; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s)
+    return
+
   def getHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
@@ -89,6 +111,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       return
     if request.path == '/status':
       self.getStatusPage()
+      return
+    if request.path == '/privacy-policy':
+      self.getPrivacyPolicy()
       return
     if request.path == '/trigger-callback':
       if self.callback is not None:
