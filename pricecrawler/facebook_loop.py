@@ -124,7 +124,6 @@ def runOnce() -> None:
 def runLoop(sleep_time: seconds) -> None:
     while True:
         runOnce()
-        break # TODO remove
         time.sleep(sleep_time)
 
 
@@ -138,8 +137,8 @@ def main() -> None:
         # TODO async call loop with a 1 min sleep, just as a fallback
         # in case webhooks stop working
     else:
-        print('will run in a loop, every 5 seconds')
-        runLoop(seconds(5))
+        print('will run in a loop, every 15 seconds')
+        runLoop(seconds(15))
 
 
 if __name__ == '__main__':
