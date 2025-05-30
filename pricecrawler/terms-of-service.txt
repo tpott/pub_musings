@@ -1,0 +1,102 @@
+# TERMS OF SERVICE
+
+**Effective Date:** 2025-05-30
+
+## 1. ACCEPTANCE OF TERMS
+
+By accessing or using our Facebook Messenger automated price inquiry service (the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.
+
+## 2. DESCRIPTION OF SERVICE
+
+Our Service provides automated responses to product price inquiries through Facebook Messenger. The Service is designed to help users obtain pricing information for various products through automated messaging.
+
+## 3. ELIGIBILITY
+
+You must be at least 13 years of age to use this Service, in compliance with Facebook's age requirements. By using the Service, you represent and warrant that you meet this age requirement and have the legal capacity to enter into these Terms.
+
+## 4. ACCOUNT REQUIREMENTS
+
+To use the Service, you must:
+- Have a valid Facebook account in good standing
+- Have access to Facebook Messenger
+- Comply with Facebook's Terms of Service and Messenger Platform Policy at all times
+
+## 5. ACCEPTABLE USE
+
+You agree to use the Service only for its intended purpose of obtaining product price information. You agree NOT to:
+- Use the Service for spamming, harassment, or sending unsolicited messages
+- Use the Service in connection with illegal products or services
+- Violate Facebook's community standards or platform policies
+- Attempt to reverse engineer, hack, or interfere with the Service
+- Use the Service in any manner that could damage, disable, or impair the Service
+
+## 6. PRICING INFORMATION DISCLAIMER
+
+**IMPORTANT: PRICING ACCURACY NOTICE**
+
+THE PRICES DISPLAYED BY THE SERVICE ARE ESTIMATES ONLY AND MAY NOT REFLECT ACTUAL CURRENT PRICES. YOU ACKNOWLEDGE AND AGREE THAT:
+
+- Actual prices may be higher or lower than those displayed by the Service
+- Pricing may vary based on your purchase history, account status, location, or other factors on external platforms
+- Prices are subject to change without notice
+- You are responsible for verifying actual pricing through official channels before making any purchase decisions
+- We make no representations or warranties regarding the accuracy, completeness, or timeliness of pricing information
+
+## 7. DATA AND PRIVACY
+
+- You retain ownership of any data you provide to the Service
+- We may store necessary data to provide and improve the Service
+- The Service processes messages through Facebook's platform and is subject to Facebook's privacy policies
+- By using the Service, you consent to data processing as described in our Privacy Policy [if applicable]
+
+## 8. SERVICE AVAILABILITY
+
+- The Service is provided "AS IS" and "AS AVAILABLE" without warranties of any kind
+- We do not guarantee continuous, uninterrupted access to the Service
+- The Service depends on Facebook's Messenger platform and API availability
+- We reserve the right to modify, suspend, or discontinue the Service at any time with or without notice
+- We are not responsible for Facebook platform outages or changes to Facebook's policies that may affect the Service
+
+## 9. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW:
+
+- WE SHALL NOT BE LIABLE FOR ANY CUSTOMER DISPUTES, PRICE DISCREPANCIES, OR EXPECTATIONS BASED ON DISPLAYED PRICES
+- OUR TOTAL LIABILITY TO YOU SHALL NOT EXCEED THE AMOUNT YOU PAID FOR THE SERVICE IN THE PRECEDING 12 MONTHS
+- WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES
+- WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+
+## 10. INDEMNIFICATION
+
+You agree to indemnify, defend, and hold harmless our company, its officers, directors, employees, and agents from any claims, damages, losses, or expenses arising from your use of the Service or violation of these Terms.
+
+## 11. THIRD-PARTY DEPENDENCIES
+
+The Service relies on Facebook's Messenger platform and APIs. Changes to Facebook's platform, policies, or API may affect the functionality or availability of the Service. We are not responsible for such third-party changes or their impact on the Service.
+
+## 12. TERMINATION
+
+- Either party may terminate these Terms at any time
+- We may immediately suspend or terminate your access for violations of these Terms or Facebook's policies
+- Upon termination, your right to use the Service ceases immediately
+- Sections regarding liability, indemnification, and governing law shall survive termination
+
+## 13. MODIFICATIONS TO TERMS
+
+We reserve the right to modify these Terms at any time. We will notify users of material changes by posting the updated Terms with a new effective date. Your continued use of the Service after such changes constitutes acceptance of the modified Terms.
+
+## 14. GOVERNING LAW AND DISPUTE RESOLUTION
+
+These Terms are governed by the laws of the State of Washington, United States, without regard to conflict of law principles. Any disputes arising from these Terms or use of the Service shall be resolved exclusively in the state or federal courts located in King County, Washington. You consent to the personal jurisdiction of such courts.
+
+## 15. SEVERABILITY
+
+If any provision of these Terms is found to be unenforceable or invalid, the remaining provisions shall remain in full force and effect.
+
+## 16. ENTIRE AGREEMENT
+
+These Terms constitute the entire agreement between you and us regarding the Service and supersede all prior agreements and understandings.
+
+---
+
+**Last Updated:** 2025-05-30

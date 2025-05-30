@@ -102,24 +102,24 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
   def getPrivacyPolicy(self):
     self.getTextFile('privacy-policy.txt', 'Privacy policy file not found')
 
+  def getTermsOfService(self):
+    self.getTextFile('terms-of-service.txt', 'Terms of service file not found')
+
   def getHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
     # TODO move this check after the status check
-    if request.path == '/validation':
-      # TODO utilize x-hub-signature to ensure webhook integrity
-      # print(self.rfile.read(int(self.headers['Content-Length'])))
-      # print(self.headers.get('X-Hub-Signature-256'))
-      self.getValidation(request.query)
-      return
-    if request.path == '/status':
-      self.getStatusPage()
-      return
     if request.path == '/privacy-policy':
       self.getPrivacyPolicy()
       return
     if request.path == '/robots.txt':
       self.getTextFile('robots.txt', 'Robots file not found')
+      return
+    if request.path == '/status':
+      self.getStatusPage()
+      return
+    if request.path == '/terms':
+      self.getTermsOfService()
       return
     if request.path == '/trigger-callback':
       if self.callback is not None:
@@ -130,6 +130,12 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       self.send_header('Content-Type', 'text/html; charset=utf-8')
       self.end_headers()
       self.wfile.write(s)
+      return
+    if request.path == '/validation':
+      # TODO utilize x-hub-signature to ensure webhook integrity
+      # print(self.rfile.read(int(self.headers['Content-Length'])))
+      # print(self.headers.get('X-Hub-Signature-256'))
+      self.getValidation(request.query)
       return
     s = b'Unknown page'
     self.send_response(http.server.HTTPStatus.NOT_FOUND)
