@@ -2,10 +2,17 @@
 # Inspired from https://gist.github.com/SeanPesce/af5f6b7665305b4c45941634ff725b7a
 # and https://github.com/tpott/pub_musings/blob/trunk/subtitler/utterance_server.py
 
+import base64
 import getpass
+import hashlib
+import hmac
 import http.server
+import json
+import os
+import secrets
 import socketserver
 import ssl
+import string
 import sys
 import traceback
 import urllib
@@ -105,6 +112,53 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
   def getTermsOfService(self):
     self.getTextFile('terms-of-service.txt', 'Terms of service file not found')
 
+  def getDeleted(self, query):
+    params = urllib.parse.parse_qs(query)
+    confirmation_code = params.get('id', [''])[0]
+    
+    if confirmation_code is None:
+      s = b'No confirmation code provided'
+      self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/plain; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+    
+    # TODO: handle deletion if we ever add data retention in the future
+    s = f'SUCCESS {confirmation_code}'.encode('utf-8')
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'text/plain; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s)
+    return
+
+  def verify_facebook_signature(self, body, signature, app_secret_file):
+    if app_secret_file is None:
+      return False
+    
+    try:
+      with open(app_secret_file, 'r') as f:
+        app_secret = f.read().strip()
+    except (FileNotFoundError, IOError):
+      return False
+    
+    expected_signature = hmac.new(
+      app_secret.encode('utf-8'),
+      body,
+      hashlib.sha256
+    ).hexdigest()
+    
+    if signature.startswith('sha256='):
+      signature = signature[7:]
+    
+    return hmac.compare_digest(expected_signature, signature)
+
+  def generate_confirmation_code(self):
+    alphabet = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(8))
+
   def getHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
@@ -136,6 +190,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       # print(self.rfile.read(int(self.headers['Content-Length'])))
       # print(self.headers.get('X-Hub-Signature-256'))
       self.getValidation(request.query)
+      return
+    if request.path == '/deleted':
+      self.getDeleted(request.query)
       return
     s = b'Unknown page'
     self.send_response(http.server.HTTPStatus.NOT_FOUND)
@@ -172,8 +229,12 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
   def postHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
+    if request.path == '/delete-me':
+      self.handleDeleteMe()
+      return
     # TODO move this check after the status check
     if request.path == '/validation':
+      # 2025-05-30 Why does this say it's a GET request?
       # https://developers.facebook.com/docs/graph-api/webhooks/getting-started#verification-requests
       s = b'This is a GET only request'
       self.send_response(http.server.HTTPStatus.NOT_FOUND)
@@ -188,6 +249,70 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.send_header('Content-Type', 'text/html; charset=utf-8')
     self.end_headers()
     self.wfile.write(s)
+    return
+
+  def handleDeleteMe(self):
+    content_length = int(self.headers.get('Content-Length', 0))
+    if content_length == 0:
+      s = b'No request body provided'
+      self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'application/json')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+    
+    body = self.rfile.read(content_length)
+    signature = self.headers.get('X-Hub-Signature-256', '')
+    facebook_app_secret_filename = os.environ.get('FACEBOOK_APP_SECRET_FILE')
+    
+    if not self.verify_facebook_signature(body, signature, facebook_app_secret_filename):
+      s = b'{"error": "Invalid signature"}'
+      self.send_response(http.server.HTTPStatus.UNAUTHORIZED)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'application/json')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+    
+    try:
+      data = json.loads(body.decode('utf-8'))
+    except json.JSONDecodeError:
+      s = b'{"error": "Invalid JSON in request body"}'
+      self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'application/json')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+    
+    user_id = data.get('user_id')
+    
+    if user_id is None or len(user_id) == 0:
+      s = b'{"error": "Missing user_id field"}'
+      self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'application/json')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+    
+    confirmation_code = self.generate_confirmation_code()
+    print(f'Received verified deletion request for user_id: {user_id}, confirmation_code: {confirmation_code}')
+    # TODO: handle deletion if we ever add data retention in the future
+    
+    hostname_and_maybe_port = self.headers.get('Host', 'localhost')
+    response_data = {
+      "url": f"https://{hostname_and_maybe_port}/deleted?id={confirmation_code}",
+      "confirmation_code": confirmation_code
+    }
+    
+    response_json = json.dumps(response_data).encode('utf-8')
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(response_json))
+    self.send_header('Content-Type', 'application/json')
+    self.end_headers()
+    self.wfile.write(response_json)
     return
 
   def do_POST(self):

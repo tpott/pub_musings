@@ -156,3 +156,26 @@ And just check your page ID:
 ```
 curl -X GET "https://graph.facebook.com/me/accounts?access_token=$USER_TOKEN"
 ```
+
+## Adding deletion
+
+```
+OPENAI_API_KEY_FILE=/tmp/openai LAST_RUN_FILE=/tmp/last_run_file PAGE_TOKEN_FILE=/tmp/page_token python3 facebook_loop.py
+```
+
+runs in a loop, so it avoids the whole broken Facebook webhooks issue. Ideally I would be running
+
+```
+WEBHOOK_CERT_FILE=cert.crt WEBHOOK_KEY_FILE=cert.key OPENAI_API_KEY_FILE=/tmp/openai LAST_RUN_FILE=/tmp/last_run_file PAGE_TOKEN_FILE=/tmp/page_token python3 facebook_loop.py
+```
+
+I need to test:
+```
+SIGNATURE="sha256=$(echo -n '{"user_id": "test_user_123"}' | openssl dgst -sha256 -hmac "$(cat $FACEBOOK_APP_SECRET_FILE)" | cut -d' ' -f2)"
+curl -X POST -k -H "Content-Type: application/json" -H "X-Hub-Signature-256: $SIGNATURE" -d '{"user_id": "test_user_123"}' "https://localhost:8443/delete-me"
+```
+
+I set a debugger breakpoint with:
+```
+FACEBOOK_APP_ID=4040664086219677 FACEBOOK_APP_SECRET_FILE=/tmp/facebook WEBHOOK_CERT_FILE=cert.crt WEBHOOK_KEY_FILE=cert.key OPENAI_API_KEY_FILE=/tmp/openai LAST_RUN_FILE=/tmp/last_run_file PAGE_TOKEN_FILE=/tmp/page_token2 python3 -m pdb facebook_loop.py
+```
