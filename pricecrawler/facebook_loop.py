@@ -28,6 +28,9 @@ def getPageId(page_token_file: str) -> str:
     access_token = open(page_token_file).read().strip()
     resp = requests.get(f'https://graph.facebook.com/me?fields=id&access_token={access_token}')
     results = resp.json()
+    if 'error' in results:
+      print(results['error'])
+      return None
     return results['id']
 
 
@@ -87,6 +90,7 @@ def runOnce() -> None:
     page_token_file = os.environ.get('PAGE_TOKEN_FILE')
     assert page_token_file is not None, "Missing env var: PAGE_TOKEN_FILE"
     page_id = getPageId(page_token_file)
+    assert page_id is not None, "Failed to load page ID"
 
     # loop over recent conversations
     conversations = getRecentConversations(page_id, page_token_file, last_run_file)
