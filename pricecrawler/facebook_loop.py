@@ -73,10 +73,18 @@ def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[s
 
 
 def postMessage(page_id, page_token_file, conv, resp) -> None:
-    # Replace newlines and tabs because the graph API doesnt like them
+    # Replace newlines and tabs because the graph API doesnt like them if
+    # you try copy-pasting this printed URL. Rely on requests.post(json=...)
+    # formatting, because it more reliably encodes the data correctly
     resp_text = resp.replace('\n', '\\n').replace('\t', '\\t').replace('"', '\\"')
     print(f'POST to https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp_text}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read().strip()}')
-    result = requests.post(f'https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp_text}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read().strip()}')
+    params = {
+        'recipient': {'id': str(conv[1])},
+        'message': {'text': resp},
+        'messaging_type': 'RESPONSE',
+        'access_token': open(page_token_file).read().strip(),
+    }
+    result = requests.post(f'https://graph.facebook.com/{page_id}/messages', json=params)
     print(result)
     if 400 <= result.status_code and result.status_code < 600:
         print(f'{result.status_code} error post to graph.facebook.com/{page_id}/messages')
