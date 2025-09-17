@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 import json
 import os
+import threading
 import time
 from typing import (Any, Dict, List, NewType, Tuple)
 
@@ -109,7 +110,7 @@ def runOnce() -> None:
         # call openai and post the message it generates
         # TODO utilize more of historical message context
         summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-4.1')
-        if len(summary_obj['summaries']) == 0 and 'error' in summary_obj:
+        if len(summary_obj.get('summaries', [])) == 0 and 'error' in summary_obj:
             postMessage(page_id, page_token_file, conv, summary_obj['error'])
             continue
         for summary in summary_obj['summaries']:
@@ -132,10 +133,14 @@ def main() -> None:
     privkey_path = os.environ.get('WEBHOOK_KEY_FILE')
     if cert_path is not None or privkey_path is not None:
         runOnce()
-        print('will now serve webhooks from port 8443')
+        print('will now serve webhooks from port 8443 and run loop every 15 seconds in parallel')
+
+        # Start the loop thread
+        loop_thread = threading.Thread(target=runLoop, args=(seconds(15),), daemon=True)
+        loop_thread.start()
+
+        # Run the server in the main thread
         serve('0.0.0.0', 8443, cert_path, privkey_path, runOnce)
-        # TODO async call loop with a 1 min sleep, just as a fallback
-        # in case webhooks stop working
     else:
         print('will run in a loop, every 15 seconds')
         runLoop(seconds(15))
