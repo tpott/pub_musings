@@ -179,3 +179,31 @@ I set a debugger breakpoint with:
 ```
 FACEBOOK_APP_ID=4040664086219677 FACEBOOK_APP_SECRET_FILE=/tmp/facebook WEBHOOK_CERT_FILE=cert.crt WEBHOOK_KEY_FILE=cert.key OPENAI_API_KEY_FILE=/tmp/openai LAST_RUN_FILE=/tmp/last_run_file PAGE_TOKEN_FILE=/tmp/page_token2 python3 -m pdb facebook_loop.py
 ```
+
+## State of affairs
+
+GET Request Handlers (in getHandler() method in webhooks.py):
+
+1. /privacy-policy - serves privacy policy text file
+2. /robots.txt - serves robots.txt file
+3. /status - returns "1-AM-ALIVE" status response
+4. /terms - serves terms of service text file
+5. /trigger-callback - triggers a callback function if set
+6. /validation - handles Facebook webhook validation
+7. /deleted - handles deletion confirmation requests
+8. Default handler for unknown pages - returns "Unknown page" 404
+
+POST Request Handlers (in postHandler() method):
+
+9. /delete-me - handles user deletion requests with signature verification
+10. /validation - returns error for POST requests (validation should be GET only)
+11. Default handler for unknown POST pages - returns "Unknown page" 404
+
+I don't actually receive any webhooks, even test ones, because the app isn't yet published.
+To publish the app, I need to take it through App Review. I don't know if I need to add a
+static web page (ex: /setup-page) so that I can authorize other pages to leverage the app?
+This would mean replacing all uses of PAGE_TOKEN_FILE to use a dynamic page token... Do I
+want/need to add another static web page that enables people to pay (ex: /pay?id=abcd)?
+https://developers.facebook.com/docs/games_payments looks reasonable. Based on
+https://developers.facebook.com/docs/games_payments/taking-payments#setting_up I think the
+static web page needs to define the "product" that the customer is paying for. 
