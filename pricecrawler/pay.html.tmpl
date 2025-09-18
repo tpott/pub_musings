@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <title>Pay for using price checker</title>
+  </head>
+  <body>
+    <script>
+function callback(res) {{
+  console.log('Got a dialog callback', res);
+}}
+
+window.fbAsyncInit = function() {{
+  FB.init({{
+    appId            : '{YOUR_APP_ID}',
+    xfbml            : true,
+    version          : 'v23.0'
+  }});
+
+  FB.ui({{
+      method: 'pay',
+      action: 'purchaseitem',
+      product: window.location.origin + '/og/price-checker',
+      // TODO randomize request ID based on how /pay is loaded in webhooks.py
+      request_id: 'YOUR_REQUEST_ID_1' // optional, must be unique for each payment
+    }},
+    callback
+  );
+}};
+    </script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+  </body>
+</html>

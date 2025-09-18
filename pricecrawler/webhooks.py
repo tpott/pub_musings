@@ -106,6 +106,29 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.wfile.write(s)
     return
 
+  def getTemplateFile(self, filename, not_found_message, data):
+    content = None
+    try:
+      with open(filename, 'r', encoding='utf-8') as f:
+        content = f.read()
+    except FileNotFoundError:
+      s = not_found_message.encode('utf-8')
+      self.send_response(http.server.HTTPStatus.NOT_FOUND)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/plain; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+
+    s = content.format(**data).encode('utf-8')
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(s))
+    # self.send_header('Content-Type', 'text/plain; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(s)
+    return
+
+
   def getBinaryFile(self, filename, not_found_message):
     content = None
     try:
@@ -132,6 +155,11 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
   def getOgPriceChecker(self):
     self.getTextFile('product-price-checker.html', 'Product price checker file not found')
+
+  def getPayPage(self):
+    self.getTemplateFile('pay.html.tmpl', 'Pay template file not found', {
+      'YOUR_APP_ID': os.environ.get('FACEBOOK_APP_ID'),
+    })
 
   def getPrivacyPolicy(self):
     self.getTextFile('privacy-policy.txt', 'Privacy policy file not found')
@@ -201,6 +229,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       return
     if request.path == '/og/price-checker':
       self.getOgPriceChecker()
+      return
+    if request.path == '/pay':
+      self.getPayPage()
       return
     if request.path == '/privacy-policy':
       self.getPrivacyPolicy()
