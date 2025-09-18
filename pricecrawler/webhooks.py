@@ -190,6 +190,12 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
     # TODO move this check after the status check
+    if request.path == '/app-validation':
+      # TODO utilize x-hub-signature to ensure webhook integrity
+      # print(self.rfile.read(int(self.headers['Content-Length'])))
+      # print(self.headers.get('X-Hub-Signature-256'))
+      self.getValidation(request.query)
+      return
     if request.path == '/barcode_scanner.webp':
       self.getBarcodeScannerImage()
       return
@@ -262,6 +268,16 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
   def postHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
+    if request.path == '/app-validation':
+      # 2025-05-30 Why does this say it's a GET request?
+      # https://developers.facebook.com/docs/graph-api/webhooks/getting-started#verification-requests
+      s = b'This is a GET only request'
+      self.send_response(http.server.HTTPStatus.NOT_FOUND)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/html; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+      return
     if request.path == '/delete-me':
       self.handleDeleteMe()
       return
