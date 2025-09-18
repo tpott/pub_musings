@@ -207,3 +207,13 @@ want/need to add another static web page that enables people to pay (ex: /pay?id
 https://developers.facebook.com/docs/games_payments looks reasonable. Based on
 https://developers.facebook.com/docs/games_payments/taking-payments#setting_up I think the
 static web page needs to define the "product" that the customer is paying for. 
+
+The app does NOT include
+* arbitrary Pages to use the app. I would need to remove the PAGE_TOKEN_FILE and add support
+  for multiple pages to use the app simultaneously.
+* messages to be sent outside of FB Messenger. I would need to add my own account and
+  authentication options (for which https://developers.facebook.com/docs/facebook-login is
+  an option).
+
+These would both require some additinal static webpages, for which, I'm not interested in
+building at this time.

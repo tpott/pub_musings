@@ -106,6 +106,33 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.wfile.write(s)
     return
 
+  def getBinaryFile(self, filename, not_found_message):
+    content = None
+    try:
+      with open(filename, 'rb') as f:
+        content = f.read()
+    except FileNotFoundError:
+      s = not_found_message.encode('utf-8')
+      self.send_response(http.server.HTTPStatus.NOT_FOUND)
+      self.send_header('Content-Length', len(s))
+      self.send_header('Content-Type', 'text/plain; charset=utf-8')
+      self.end_headers()
+      self.wfile.write(s)
+      return
+
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(content))
+    # self.send_header('Content-Type', 'text/plain; charset=utf-8')
+    self.end_headers()
+    self.wfile.write(content)
+    return
+
+  def getBarcodeScannerImage(self):
+    self.getBinaryFile('barcode_scanner.webp', 'Barcode scanner image file not found')
+
+  def getOgPriceChecker(self):
+    self.getTextFile('product-price-checker.html', 'Product price checker file not found')
+
   def getPrivacyPolicy(self):
     self.getTextFile('privacy-policy.txt', 'Privacy policy file not found')
 
@@ -163,6 +190,12 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
     # TODO move this check after the status check
+    if request.path == '/barcode_scanner.webp':
+      self.getBarcodeScannerImage()
+      return
+    if request.path == '/og/price-checker':
+      self.getOgPriceChecker()
+      return
     if request.path == '/privacy-policy':
       self.getPrivacyPolicy()
       return
