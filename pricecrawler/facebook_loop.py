@@ -26,12 +26,64 @@ SECONDS_IN_DAY = seconds(86400)
 
 def getPageId(page_token_file: str) -> str:
     access_token = open(page_token_file).read().strip()
-    resp = requests.get(f'https://graph.facebook.com/me?fields=id&access_token={access_token}')
+    resp = requests.get(f'https://graph.facebook.com/me?metadata=true&access_token={access_token}')
     results = resp.json()
     if 'error' in results:
       print(results['error'])
       return None
+    metadata = results.get('metadata', {})
+    if 'type' not in metadata:
+      print(f"Results didnt contain metadata, keys={list(results.keys())}")
+      return None
+    if metadata.get('type') != 'page':
+      print(f"Expected page type, got: {metadata.get('type')}")
+      return None
     return results['id']
+
+
+def checkTokenExpiry(page_token_file: str, app_id: str, app_secret: str) -> int:
+    access_token = open(page_token_file).read().strip()
+    resp = requests.get(f'https://graph.facebook.com/debug_token?input_token={access_token}&access_token={app_id}|{app_secret}')
+    results = resp.json()
+    if 'error' in results:
+        print(results['error'])
+        return 0
+    data = results.get('data', {})
+    expires_at = data.get('expires_at', 0)
+    return expires_at
+
+
+def maybeRefreshToNonExpiringToken(app_id: str, app_secret: str, page_token_file: str) -> str:
+    # Check if token expires, if not return early
+    expires_at = checkTokenExpiry(page_token_file, app_id, app_secret)
+    if expires_at == 0:
+        print("Token already non-expiring")
+        return page_token_file
+
+    print(f"Token expires at {expires_at}, refreshing to non-expiring token")
+    access_token = open(page_token_file).read().strip()
+    resp = requests.get(f'https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id={app_id}&client_secret={app_secret}&fb_exchange_token={access_token}')
+    results = resp.json()
+    if 'error' in results:
+        print(results['error'])
+        return page_token_file
+
+    new_access_token = results.get('access_token')
+    if new_access_token is None:
+        print("No access_token in refresh response")
+        return page_token_file
+
+    # Create new token file with _nonexpiring suffix
+    token_dir = os.path.dirname(page_token_file)
+    token_basename = os.path.basename(page_token_file)
+    new_token_file = os.path.join(token_dir, f"{token_basename}_nonexpiring")
+
+    # Write new token with minimal permissions
+    with open(new_token_file, 'w') as f:
+        f.write(new_access_token)
+    os.chmod(new_token_file, 0o600)
+
+    return new_token_file
 
 
 def getRecentConversations(
@@ -43,7 +95,7 @@ def getRecentConversations(
     last_run_time = 0
     if last_run_str != "":
         last_run_time = int(last_run_str)
-    print(last_run_time)
+    print(f"last_run_time = {last_run_time}")
     access_token = open(page_token_file).read().strip()
     resp = requests.get(f'https://graph.facebook.com/{page_id}/conversations?fields=participants,updated_time&access_token={access_token}')
     results = resp.json()
@@ -97,8 +149,17 @@ def runOnce() -> None:
     assert last_run_file is not None, "Missing env var: LAST_RUN_FILE"
     page_token_file = os.environ.get('PAGE_TOKEN_FILE')
     assert page_token_file is not None, "Missing env var: PAGE_TOKEN_FILE"
+    app_id = os.environ.get('FACEBOOK_APP_ID')
+    assert app_id is not None, "Missing env var: FACEBOOK_APP_ID"
+    app_secret_file = os.environ.get('FACEBOOK_APP_SECRET_FILE')
+    assert app_secret_file is not None, "Missing env var: FACEBOOK_APP_SECRET_FILE"
+    app_secret = open(app_secret_file).read().strip()
+
     page_id = getPageId(page_token_file)
     assert page_id is not None, "Failed to load page ID"
+
+    page_token_file = maybeRefreshToNonExpiringToken(app_id, app_secret, page_token_file)
+    os.environ['PAGE_TOKEN_FILE'] = page_token_file
 
     # loop over recent conversations
     conversations = getRecentConversations(page_id, page_token_file, last_run_file)
