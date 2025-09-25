@@ -1,6 +1,8 @@
 {
   "type": "module",
   "dependencies": {
+    "@roamhq/wrtc": "^0.9.1",
+    "@vdoninja/sdk": "^1.3.13",
     "puppeteer": "^24.22.3"
   }
 }
