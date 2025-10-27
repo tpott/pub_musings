@@ -11,6 +11,7 @@ import requests
 
 from chatgpt import chatCompletitions
 from pricechecker import priceSummaries
+from serve_config import getConfig, saveConfig
 from webhooks import serve
 
 
@@ -24,9 +25,8 @@ conversation = NewType('conversation', Tuple[t_id, u_id])
 SECONDS_IN_DAY = seconds(86400)
 
 
-def getPageId(page_token_file: str) -> str:
-    access_token = open(page_token_file).read().strip()
-    resp = requests.get(f'https://graph.facebook.com/me?metadata=true&access_token={access_token}')
+def getMyId(page_token: str) -> str:
+    resp = requests.get(f'https://graph.facebook.com/me?metadata=true&access_token={page_token}')
     results = resp.json()
     if 'error' in results:
       print(results['error'])
@@ -41,9 +41,8 @@ def getPageId(page_token_file: str) -> str:
     return results['id']
 
 
-def checkTokenExpiry(page_token_file: str, app_id: str, app_secret: str) -> int:
-    access_token = open(page_token_file).read().strip()
-    resp = requests.get(f'https://graph.facebook.com/debug_token?input_token={access_token}&access_token={app_id}|{app_secret}')
+def checkTokenExpiry(page_token: str, app_id: str, app_secret: str) -> int:
+    resp = requests.get(f'https://graph.facebook.com/debug_token?input_token={page_token}&access_token={app_id}|{app_secret}')
     results = resp.json()
     if 'error' in results:
         print(results['error'])
@@ -53,51 +52,35 @@ def checkTokenExpiry(page_token_file: str, app_id: str, app_secret: str) -> int:
     return expires_at
 
 
-def maybeRefreshToNonExpiringToken(app_id: str, app_secret: str, page_token_file: str) -> str:
+def maybeRefreshToNonExpiringToken(app_id: str, app_secret: str, page_token: str) -> str:
     # Check if token expires, if not return early
-    expires_at = checkTokenExpiry(page_token_file, app_id, app_secret)
+    expires_at = checkTokenExpiry(page_token, app_id, app_secret)
     if expires_at == 0:
         print("Token already non-expiring")
-        return page_token_file
+        return page_token
 
     print(f"Token expires at {expires_at}, refreshing to non-expiring token")
-    access_token = open(page_token_file).read().strip()
-    resp = requests.get(f'https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id={app_id}&client_secret={app_secret}&fb_exchange_token={access_token}')
+    resp = requests.get(f'https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id={app_id}&client_secret={app_secret}&fb_exchange_token={page_token}')
     results = resp.json()
     if 'error' in results:
         print(results['error'])
-        return page_token_file
+        return page_token
 
     new_access_token = results.get('access_token')
     if new_access_token is None:
         print("No access_token in refresh response")
-        return page_token_file
+        return page_token
 
-    # Create new token file with _nonexpiring suffix
-    token_dir = os.path.dirname(page_token_file)
-    token_basename = os.path.basename(page_token_file)
-    new_token_file = os.path.join(token_dir, f"{token_basename}_nonexpiring")
-
-    # Write new token with minimal permissions
-    with open(new_token_file, 'w') as f:
-        f.write(new_access_token)
-    os.chmod(new_token_file, 0o600)
-
-    return new_token_file
+    return new_access_token
 
 
 def getRecentConversations(
     page_id: str,
-    page_token_file: str,
-    last_run_file: str,
+    page_token: str,
+    last_run_time: int,
 ) -> List[conversation]:
-    last_run_str = open(last_run_file).read().strip()
-    last_run_time = 0
-    if last_run_str != "":
-        last_run_time = int(last_run_str)
     print(f"last_run_time = {last_run_time}")
-    access_token = open(page_token_file).read().strip()
-    resp = requests.get(f'https://graph.facebook.com/{page_id}/conversations?fields=participants,updated_time&access_token={access_token}')
+    resp = requests.get(f'https://graph.facebook.com/{page_id}/conversations?fields=participants,updated_time&access_token={page_token}')
     results = resp.json()
     print(results)
     filtered = []
@@ -113,9 +96,8 @@ def getRecentConversations(
     return list(map(lambda x: conversation((t_id(x['id']), u_id(x['other']))), filtered))
 
 
-def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[str, Any]]:
-    access_token = open(page_token_file).read().strip()
-    resp = requests.get(f'https://graph.facebook.com/{conversation_id}?fields=messages{{message,created_time,from}}&access_token={access_token}')
+def getRecentMessages(conversation_id: str, page_token: str) -> List[Dict[str, Any]]:
+    resp = requests.get(f'https://graph.facebook.com/{conversation_id}?fields=messages{{message,created_time,from}}&access_token={page_token}')
     results = resp.json()
     print(results)
     # TODO this doesn't filter nor sort for "recent"
@@ -124,17 +106,17 @@ def getRecentMessages(conversation_id: str, page_token_file: str) -> List[Dict[s
     return sorted(results['messages']['data'], key=lambda x: x['created_time'])
 
 
-def postMessage(page_id, page_token_file, conv, resp) -> None:
+def postMessage(page_id, page_token, conv, resp) -> None:
     # Replace newlines and tabs because the graph API doesnt like them if
     # you try copy-pasting this printed URL. Rely on requests.post(json=...)
     # formatting, because it more reliably encodes the data correctly
     resp_text = resp.replace('\n', '\\n').replace('\t', '\\t').replace('"', '\\"')
-    print(f'POST to https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp_text}"}}&messaging_type=RESPONSE&access_token={open(page_token_file).read().strip()}')
+    print(f'POST to https://graph.facebook.com/{page_id}/messages?recipient={{id:{conv[1]}}}&message={{text:"{resp_text}"}}&messaging_type=RESPONSE&access_token={page_token}')
     params = {
         'recipient': {'id': str(conv[1])},
         'message': {'text': resp},
         'messaging_type': 'RESPONSE',
-        'access_token': open(page_token_file).read().strip(),
+        'access_token': page_token,
     }
     result = requests.post(f'https://graph.facebook.com/{page_id}/messages', json=params)
     print(result)
@@ -144,55 +126,63 @@ def postMessage(page_id, page_token_file, conv, resp) -> None:
 
 
 def runOnce() -> None:
-    # get env vars
-    last_run_file = os.environ.get('LAST_RUN_FILE')
-    assert last_run_file is not None, "Missing env var: LAST_RUN_FILE"
-    page_token_file = os.environ.get('PAGE_TOKEN_FILE')
-    assert page_token_file is not None, "Missing env var: PAGE_TOKEN_FILE"
-    app_id = os.environ.get('FACEBOOK_APP_ID')
-    assert app_id is not None, "Missing env var: FACEBOOK_APP_ID"
-    app_secret_file = os.environ.get('FACEBOOK_APP_SECRET_FILE')
-    assert app_secret_file is not None, "Missing env var: FACEBOOK_APP_SECRET_FILE"
-    app_secret = open(app_secret_file).read().strip()
+    # Get config
+    config = getConfig()
+    app_id = config['facebook_app_id']
+    app_secret = config['facebook_app_secret']
 
-    page_id = getPageId(page_token_file)
-    assert page_id is not None, "Failed to load page ID"
+    # Loop through all pages
+    for page_config in config['pages']:
+        page_id = page_config['page_id']
+        page_token = page_config['page_token']
+        last_run_time = page_config['last_run']
 
-    page_token_file = maybeRefreshToNonExpiringToken(app_id, app_secret, page_token_file)
-    os.environ['PAGE_TOKEN_FILE'] = page_token_file
+        print(f"Processing page {page_id}")
 
-    # loop over recent conversations
-    conversations = getRecentConversations(page_id, page_token_file, last_run_file)
-    for conv in conversations:
-        messages = getRecentMessages(conv[0], page_token_file)
-        # skip if the last message was from the bot
-        if messages[-1]['from']['id'] == page_id:
-            print(f'skipping conversation t_id {conv[0]} with {conv[1]}')
-            continue 
+        # Refresh to non-expiring token if needed
+        new_token = maybeRefreshToNonExpiringToken(app_id, app_secret, page_token)
+        if new_token != page_token:
+            print(f"Token was refreshed for page {page_id}")
+            page_config['page_token'] = new_token
+            page_token = new_token
 
-        # construct our messages for calling openai for chatgpt
-        context_messages = []
-        for msg in messages:
-            if msg['from']['id'] == page_id:
-                context_messages.append({"role": "assistant", "content": msg['message']})
-            else:
-                context_messages.append({"role": "user", "content": msg['message']})
-            print(context_messages[-1])
-            # end for loop over messages
+        # Loop over recent conversations
+        conversations = getRecentConversations(page_id, page_token, last_run_time)
+        for conv in conversations:
+            messages = getRecentMessages(conv[0], page_token)
+            # skip if the last message was from the bot
+            if messages[-1]['from']['id'] == page_id:
+                print(f'skipping conversation t_id {conv[0]} with {conv[1]}')
+                continue
 
-        # call openai and post the message it generates
-        # TODO utilize more of historical message context
-        summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-4.1')
-        if len(summary_obj.get('summaries', [])) == 0 and 'error' in summary_obj:
-            postMessage(page_id, page_token_file, conv, summary_obj['error'])
-            continue
-        for summary in summary_obj['summaries']:
-            target = summary['target']
-            summary_text = summary['summary_text']
-            url = summary['url']
-            postMessage(page_id, page_token_file, conv, f"{target}\n{summary_text}\nURL: {url}")
-        # end for loop over conversations
-    open(last_run_file, 'w').write(str(int(time.time())))
+            # construct our messages for calling openai for chatgpt
+            context_messages = []
+            for msg in messages:
+                if msg['from']['id'] == page_id:
+                    context_messages.append({"role": "assistant", "content": msg['message']})
+                else:
+                    context_messages.append({"role": "user", "content": msg['message']})
+                print(context_messages[-1])
+                # end for loop over messages
+
+            # call openai and post the message it generates
+            # TODO utilize more of historical message context
+            summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-4.1')
+            if len(summary_obj.get('summaries', [])) == 0 and 'error' in summary_obj:
+                postMessage(page_id, page_token, conv, summary_obj['error'])
+                continue
+            for summary in summary_obj['summaries']:
+                target = summary['target']
+                summary_text = summary['summary_text']
+                url = summary['url']
+                postMessage(page_id, page_token, conv, f"{target}\n{summary_text}\nURL: {url}")
+            # end for loop over conversations
+
+        # Update last_run for this page
+        page_config['last_run'] = int(time.time())
+
+    # Save updated config
+    saveConfig(config)
 
 
 def runLoop(sleep_time: seconds) -> None:
@@ -202,8 +192,9 @@ def runLoop(sleep_time: seconds) -> None:
 
 
 def main() -> None:
-    cert_path = os.environ.get('WEBHOOK_CERT_FILE')
-    privkey_path = os.environ.get('WEBHOOK_KEY_FILE')
+    config = getConfig()
+    cert_path = config.get('webhook_cert_file')
+    privkey_path = config.get('webhook_key_file')
     if cert_path is not None or privkey_path is not None:
         runOnce()
         print('will now serve webhooks from port 8443 and run loop every 15 seconds in parallel')

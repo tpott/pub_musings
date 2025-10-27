@@ -17,6 +17,8 @@ import sys
 import traceback
 import urllib
 
+from serve_config import getConfig
+
 
 # This class is necessary to use the below syntax of `with Server(..) as ..`
 class TCPServer(socketserver.TCPServer):
@@ -157,8 +159,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.getTextFile('product-price-checker.html', 'Product price checker file not found')
 
   def getPayPage(self):
+    config = getConfig()
     self.getTemplateFile('pay.html.tmpl', 'Pay template file not found', {
-      'YOUR_APP_ID': os.environ.get('FACEBOOK_APP_ID'),
+      'YOUR_APP_ID': config['facebook_app_id'],
     })
 
   def getPrivacyPolicy(self):
@@ -189,25 +192,19 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.wfile.write(s)
     return
 
-  def verify_facebook_signature(self, body, signature, app_secret_file):
-    if app_secret_file is None:
+  def verify_facebook_signature(self, body, signature, app_secret):
+    if app_secret is None:
       return False
-    
-    try:
-      with open(app_secret_file, 'r') as f:
-        app_secret = f.read().strip()
-    except (FileNotFoundError, IOError):
-      return False
-    
+
     expected_signature = hmac.new(
       app_secret.encode('utf-8'),
       body,
       hashlib.sha256
     ).hexdigest()
-    
+
     if signature.startswith('sha256='):
       signature = signature[7:]
-    
+
     return hmac.compare_digest(expected_signature, signature)
 
   def generate_confirmation_code(self):
@@ -341,12 +338,13 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       self.end_headers()
       self.wfile.write(s)
       return
-    
+
     body = self.rfile.read(content_length)
     signature = self.headers.get('X-Hub-Signature-256', '')
-    facebook_app_secret_filename = os.environ.get('FACEBOOK_APP_SECRET_FILE')
-    
-    if not self.verify_facebook_signature(body, signature, facebook_app_secret_filename):
+    config = getConfig()
+    facebook_app_secret = config['facebook_app_secret']
+
+    if not self.verify_facebook_signature(body, signature, facebook_app_secret):
       s = b'{"error": "Invalid signature"}'
       self.send_response(http.server.HTTPStatus.UNAUTHORIZED)
       self.send_header('Content-Length', len(s))

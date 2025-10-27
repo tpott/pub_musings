@@ -6,6 +6,8 @@ from typing import (Dict, List)
 
 import requests
 
+from serve_config import getConfig
+
 
 # Price per million tokens in USD (as of April 2025)
 MODEL_PRICING = {
@@ -24,9 +26,8 @@ def chatCompletitions(messages: List[Dict[str, str]], model: str | None) -> str:
     if model is None:
         model = "gpt-4.1"
 
-    api_key_file = os.environ.get("OPENAI_API_KEY_FILE")
-    assert api_key_file is not None, "Missing env var: OPENAI_API_KEY_FILE"
-    openai_api_key = open(api_key_file).read().strip()
+    config = getConfig()
+    openai_api_key = config['open_api_key']
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {openai_api_key}",

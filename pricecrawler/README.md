@@ -217,3 +217,7 @@ The app does NOT include
 
 These would both require some additinal static webpages, for which, I'm not interested in
 building at this time.
+
+# Productionize
+
+I refactored the config and env vars so now the command is just: `SERVE_CONFIG=/tmp/prices/config.json python3 facebook_loop.py`
