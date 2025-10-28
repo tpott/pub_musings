@@ -10,8 +10,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="ChatGPT price checker interactive loop")
     parser.add_argument(
         "-m", "--model",
-        default="gpt-4.1",
-        help="Specify the OpenAI model to use (e.g., gpt-4o, gpt-4.1, gpt-4o-mini)"
+        default="gpt-5",
+        help="Specify the OpenAI model to use (e.g., gpt-5, gpt-4o, gpt-4.1, gpt-4o-mini)"
     )
     return parser.parse_args()
 

@@ -11,20 +11,22 @@ from serve_config import getConfig
 
 # Price per million tokens in USD (as of April 2025)
 MODEL_PRICING = {
-    "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
     "gpt-4o": {"input": 2.50, "output": 10.00},
-    "gpt-4o-mini": {"input": 0.60, "output": 2.40},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    "gpt-5": {"input": 1.25, "output": 10.00},
+    "gpt-5-mini": {"input": 0.25, "output": 2.00},
 }
 
 
 # gpt-4o was the default as of 2025-03-01
 # gpt-4.1 was the default for writing tools/agents as of 2025-04-22
+# gpt-5 was the default as of 2025-10-28
 def chatCompletitions(messages: List[Dict[str, str]], model: str | None) -> str:
-    # default to gpt-4.1, or $2 / 1M tokens
+    # default to gpt-5, or $1.25 / 1M tokens
     if model is None:
-        model = "gpt-4.1"
+        model = "gpt-5"
 
     config = getConfig()
     openai_api_key = config['open_api_key']

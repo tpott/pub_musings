@@ -94,8 +94,8 @@ def priceSummaries(user_input, model):
         {"role": "system", "content": f"Which of the price targets is the user asking about. Only respond with exactly one of the following price targets: {joined_targets}"},
         {"role": "user", "content": user_input}
     ]
-    # gpt-4.1-mini is 1/5 the price of gpt-4.1
-    target = chatCompletitions(messages, model if model is not None else "gpt-4.1-mini")
+    # gpt-5-mini is 1/5 the price of gpt-5
+    target = chatCompletitions(messages, model if model is not None else "gpt-5-mini")
     if target not in targets:
         ret['error'] = f"Did not find one of {price_targets}, ChatGPT response: {target}\n"
         return ret
@@ -122,6 +122,11 @@ def priceSummaries(user_input, model):
 
         if "kind" not in target_obj:
             print(f"Target: {target} doesn't have dom element kind (type), maybe just url {url}\n")
+            ret['summaries'].append({
+                'summary_text': 'I wasn\'t able to fetch prices. Please try again later',
+                'target': target,
+                'url': url,
+            })
             continue
 
         kind = target_obj["kind"]

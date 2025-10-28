@@ -167,14 +167,18 @@ def runOnce() -> None:
 
             # call openai and post the message it generates
             # TODO utilize more of historical message context
-            summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-4.1')
-            if len(summary_obj.get('summaries', [])) == 0 and 'error' in summary_obj:
+            summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-5')
+            if 'error' in summary_obj:
                 postMessage(page_id, page_token, conv, summary_obj['error'])
                 continue
             for summary in summary_obj['summaries']:
                 target = summary['target']
-                summary_text = summary['summary_text']
                 url = summary['url']
+                # some targets don't have <div> element attributes configured
+                if 'summary_text' not in summary:
+                    postMessage(page_id, page_token, conv, f"{target}\nURL: {url}")
+                    continue
+                summary_text = summary['summary_text']
                 postMessage(page_id, page_token, conv, f"{target}\n{summary_text}\nURL: {url}")
             # end for loop over conversations
 

@@ -221,3 +221,9 @@ building at this time.
 # Productionize
 
 I refactored the config and env vars so now the command is just: `SERVE_CONFIG=/tmp/prices/config.json python3 facebook_loop.py`
+
+I (re-)learned that the message content is primarily generated in chatgpt.py. But the crawling
+`{target}` and configured `URL: {url}` get added in facebook_loopy.py. And pricechecker.py
+needs to correctly format the response from chatgpt into the `ret` array of `summaries`
+dicts. They must have a target and URL to end up getting POSTed to facebook, but I added
+an error handling case asking the user to 'Please try again later'.
