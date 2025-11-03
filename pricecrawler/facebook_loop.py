@@ -84,7 +84,12 @@ def getRecentConversations(
     results = resp.json()
     print(results)
     filtered = []
-    for res in results['data']:
+    if 'data' not in results:
+        print(f'No conversations at all for page {page_id}')
+        return []
+    conversations = results['data']
+    for res in conversations:
+        # TODO taking `[0]` assumes conversations are always 1-1
         # 'participants': {'data': [{'name': 'Trevor Pottinger', 'email': '6397427050373172@facebook.com', 'id': '6397427050373172'}, {'name': 'Agent Dale Cooper', 'email': '108420048810326@facebook.com', 'id': '108420048810326'}]}
         res['other'] = list(filter(lambda x: x['id'] != page_id, res['participants']['data']))[0]['id']
         # updated_time like "2023-07-21T06:15:35+0000"
@@ -92,7 +97,7 @@ def getRecentConversations(
         if last_run_time - updated_time < SECONDS_IN_DAY:
             filtered.append(res)
     # TODO we aren't using the paging cursors
-    print(f'returning {len(filtered)} recent conversations')
+    print(f'returning recent conversations {len(filtered)} / {len(conversations)}')
     return list(map(lambda x: conversation((t_id(x['id']), u_id(x['other']))), filtered))
 
 
