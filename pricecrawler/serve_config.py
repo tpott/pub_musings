@@ -5,6 +5,9 @@ import os
 from typing import Any, Dict
 
 
+PAYMENT_LINK_EXPIRY_HOURS = 24
+
+
 def getConfig() -> Dict[str, Any]:
     """
     Load and return the server configuration from the SERVE_CONFIG environment variable.
@@ -52,6 +55,12 @@ def getConfig() -> Dict[str, Any]:
         assert 'page_id' in page, f"Config pages[{i}] missing required field: page_id"
         assert 'page_token' in page, f"Config pages[{i}] missing required field: page_token"
         assert 'last_run' in page, f"Config pages[{i}] missing required field: last_run"
+
+    # Validate payment session fields
+    assert 'webhook_hostname' in config, "Config missing required field: webhook_hostname"
+    assert 'payment_sessions_dir' in config, "Config missing required field: payment_sessions_dir"
+    assert 'users_dir' in config, "Config missing required field: users_dir"
+    assert 'conversations_dir' in config, "Config missing required field: conversations_dir"
 
     return config
 

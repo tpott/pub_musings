@@ -12,6 +12,11 @@ import requests
 from chatgpt import chatCompletitions
 from pricechecker import priceSummaries
 from serve_config import getConfig, saveConfig
+from session_storage import (
+    create_payment_session,
+    update_conversation_status,
+    cache_messages
+)
 from webhooks import serve
 
 
@@ -78,7 +83,7 @@ def getRecentConversations(
     page_id: str,
     page_token: str,
     last_run_time: int,
-) -> List[conversation]:
+) -> List[Dict[str, Any]]:
     print(f"last_run_time = {last_run_time}")
     resp = requests.get(f'https://graph.facebook.com/{page_id}/conversations?fields=participants,updated_time&access_token={page_token}')
     results = resp.json()
@@ -91,14 +96,21 @@ def getRecentConversations(
     for res in conversations:
         # TODO taking `[0]` assumes conversations are always 1-1
         # 'participants': {'data': [{'name': 'Trevor Pottinger', 'email': '6397427050373172@facebook.com', 'id': '6397427050373172'}, {'name': 'Agent Dale Cooper', 'email': '108420048810326@facebook.com', 'id': '108420048810326'}]}
-        res['other'] = list(filter(lambda x: x['id'] != page_id, res['participants']['data']))[0]['id']
+        other_participant = list(filter(lambda x: x['id'] != page_id, res['participants']['data']))[0]
+        res['other'] = other_participant['id']
+        res['other_name'] = other_participant.get('name')
         # updated_time like "2023-07-21T06:15:35+0000"
         updated_time = datetime.strptime(res['updated_time'], '%Y-%m-%dT%H:%M:%S%z').astimezone(timezone.utc).timestamp()
         if last_run_time - updated_time < SECONDS_IN_DAY:
             filtered.append(res)
     # TODO we aren't using the paging cursors
     print(f'returning recent conversations {len(filtered)} / {len(conversations)}')
-    return list(map(lambda x: conversation((t_id(x['id']), u_id(x['other']))), filtered))
+    return list(map(lambda x: {
+        'conversation_id': x['id'],
+        'user_id': x['other'],
+        'user_name': x['other_name'],
+        'participants': x['participants']['data']
+    }, filtered))
 
 
 def getRecentMessages(conversation_id: str, page_token: str) -> List[Dict[str, Any]]:
@@ -108,7 +120,12 @@ def getRecentMessages(conversation_id: str, page_token: str) -> List[Dict[str, A
     # TODO this doesn't filter nor sort for "recent"
     # TODO we aren't using the paging cursors
     # created_time like "2023-01-12T03:24:13+0000"
-    return sorted(results['messages']['data'], key=lambda x: x['created_time'])
+    messages = sorted(results['messages']['data'], key=lambda x: x['created_time'])
+
+    # Cache messages
+    cache_messages(conversation_id, messages)
+
+    return messages
 
 
 def postMessage(page_id, page_token, conv, resp) -> None:
@@ -135,6 +152,7 @@ def runOnce() -> None:
     config = getConfig()
     app_id = config['facebook_app_id']
     app_secret = config['facebook_app_secret']
+    webhook_hostname = config['webhook_hostname']
 
     # Loop through all pages
     for page_config in config['pages']:
@@ -154,10 +172,55 @@ def runOnce() -> None:
         # Loop over recent conversations
         conversations = getRecentConversations(page_id, page_token, last_run_time)
         for conv in conversations:
-            messages = getRecentMessages(conv[0], page_token)
+            conversation_id = conv['conversation_id']
+            user_id = conv['user_id']
+            user_name = conv['user_name']
+
+            messages = getRecentMessages(conversation_id, page_token)
+
             # skip if the last message was from the bot
             if messages[-1]['from']['id'] == page_id:
-                print(f'skipping conversation t_id {conv[0]} with {conv[1]}')
+                print(f'skipping conversation t_id {conversation_id} with {user_id}')
+                continue
+
+            # Update conversation participants with user name
+            participants = [user_id]
+            update_conversation_status(conversation_id, None, participants)
+
+            # Check payment status for all participants
+            unpaid_users = []
+            for participant in conv['participants']:
+                participant_id = participant['id']
+                # Skip the page itself
+                if participant_id == page_id:
+                    continue
+
+                # Check user status
+                user_dir = os.path.join(config['users_dir'], participant_id)
+                status_path = os.path.join(user_dir, 'status.json')
+
+                if os.path.exists(status_path):
+                    with open(status_path, 'r') as f:
+                        user_status = json.load(f)
+                        payment_status = user_status.get('payment', 'pending')
+                        if payment_status != 'completed':
+                            unpaid_users.append({
+                                'id': participant_id,
+                                'name': participant.get('name', participant_id)
+                            })
+                else:
+                    # No status file means no payment
+                    unpaid_users.append({
+                        'id': participant_id,
+                        'name': participant.get('name', participant_id)
+                    })
+
+            # If any user hasn't paid, post payment message
+            if len(unpaid_users) > 0:
+                for unpaid_user in unpaid_users:
+                    session_id = create_payment_session(unpaid_user['id'], conversation_id, unpaid_user['name'])
+                    payment_url = f"https://{webhook_hostname}/pay?r={session_id}"
+                    postMessage(page_id, page_token, (conversation_id, user_id), f"@{unpaid_user['name']} in order to use price checker, please complete payment at {payment_url}")
                 continue
 
             # construct our messages for calling openai for chatgpt
@@ -174,17 +237,17 @@ def runOnce() -> None:
             # TODO utilize more of historical message context
             summary_obj = priceSummaries(context_messages[-1]['content'], model='gpt-5')
             if 'error' in summary_obj:
-                postMessage(page_id, page_token, conv, summary_obj['error'])
+                postMessage(page_id, page_token, (conversation_id, user_id), summary_obj['error'])
                 continue
             for summary in summary_obj['summaries']:
                 target = summary['target']
                 url = summary['url']
                 # some targets don't have <div> element attributes configured
                 if 'summary_text' not in summary:
-                    postMessage(page_id, page_token, conv, f"{target}\nURL: {url}")
+                    postMessage(page_id, page_token, (conversation_id, user_id), f"{target}\nURL: {url}")
                     continue
                 summary_text = summary['summary_text']
-                postMessage(page_id, page_token, conv, f"{target}\n{summary_text}\nURL: {url}")
+                postMessage(page_id, page_token, (conversation_id, user_id), f"{target}\n{summary_text}\nURL: {url}")
             # end for loop over conversations
 
         # Update last_run for this page

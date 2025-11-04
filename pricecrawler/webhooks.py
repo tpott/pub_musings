@@ -18,6 +18,7 @@ import traceback
 import urllib
 
 from serve_config import getConfig
+from session_storage import get_payment_session, complete_payment_session, delete_user_data, mark_user_payment_completed
 
 
 # This class is necessary to use the below syntax of `with Server(..) as ..`
@@ -160,8 +161,25 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
 
   def getPayPage(self):
     config = getConfig()
+
+    # Parse query parameter
+    request = urllib.parse.urlparse(self.path)
+    params = urllib.parse.parse_qs(request.query)
+    session_id = params.get('r', [None])[0]
+
+    # Get session if session_id provided
+    session = None
+    status = None
+    if session_id:
+        session = get_payment_session(session_id)
+        if session:
+            status = session['status']
+
+    # Render template
     self.getTemplateFile('pay.html.tmpl', 'Pay template file not found', {
-      'YOUR_APP_ID': config['facebook_app_id'],
+        'YOUR_APP_ID': config['facebook_app_id'],
+        'YOUR_REQUEST_ID': session_id if session is not None else 'null',
+        'YOUR_STATUS': status if status is not None else 'null',
     })
 
   def getPrivacyPolicy(self):
@@ -191,6 +209,75 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.end_headers()
     self.wfile.write(s)
     return
+
+  def postPaymentCallback(self):
+    content_length = int(self.headers.get('Content-Length', 0))
+    if content_length == 0:
+        s = b'{"error": "No request body provided"}'
+        self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+        self.send_header('Content-Length', len(s))
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(s)
+        return
+
+    body = self.rfile.read(content_length)
+
+    try:
+        data = json.loads(body.decode('utf-8'))
+    except json.JSONDecodeError:
+        s = b'{"error": "Invalid JSON in request body"}'
+        self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+        self.send_header('Content-Length', len(s))
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(s)
+        return
+
+    session_id = data.get('session_id')
+    facebook_response = data.get('facebook_response')
+
+    if not session_id or not facebook_response:
+        s = b'{"error": "Missing session_id or facebook_response"}'
+        self.send_response(http.server.HTTPStatus.BAD_REQUEST)
+        self.send_header('Content-Length', len(s))
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(s)
+        return
+
+    # Get session to retrieve user_id before completing it
+    session = get_payment_session(session_id)
+    if not session:
+        s = b'{"error": "Session not found"}'
+        self.send_response(http.server.HTTPStatus.NOT_FOUND)
+        self.send_header('Content-Length', len(s))
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(s)
+        return
+
+    success = complete_payment_session(session_id, facebook_response)
+
+    if not success:
+        s = b'{"error": "Failed to complete payment session"}'
+        self.send_response(http.server.HTTPStatus.INTERNAL_SERVER_ERROR)
+        self.send_header('Content-Length', len(s))
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(s)
+        return
+
+    # Mark user payment as completed
+    user_id = session['user_id']
+    mark_user_payment_completed(user_id)
+
+    s = b'{"status": "ok"}'
+    self.send_response(http.server.HTTPStatus.OK)
+    self.send_header('Content-Length', len(s))
+    self.send_header('Content-Type', 'application/json')
+    self.end_headers()
+    self.wfile.write(s)
 
   def verify_facebook_signature(self, body, signature, app_secret):
     if app_secret is None:
@@ -296,6 +383,9 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
   def postHandler(self):
     request = urllib.parse.urlparse(self.path)
     # path in {'/' => 'start button', '/label' => 'image + audio'}
+    if request.path == '/payment-callback':
+      self.postPaymentCallback()
+      return
     if request.path == '/app-validation':
       # 2025-05-30 Why does this say it's a GET request?
       # https://developers.facebook.com/docs/graph-api/webhooks/getting-started#verification-requests
@@ -365,7 +455,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       return
     
     user_id = data.get('user_id')
-    
+
     if user_id is None or len(user_id) == 0:
       s = b'{"error": "Missing user_id field"}'
       self.send_response(http.server.HTTPStatus.BAD_REQUEST)
@@ -374,10 +464,14 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
       self.end_headers()
       self.wfile.write(s)
       return
-    
+
+    # Delete all user data
+    delete_user_data(user_id)
+
     confirmation_code = self.generate_confirmation_code()
     print(f'Received verified deletion request for user_id: {user_id}, confirmation_code: {confirmation_code}')
-    # TODO: handle deletion if we ever add data retention in the future
+
+    # Maybe we should record users_dir/{user_id}/status.json status = deleted?
     
     hostname_and_maybe_port = self.headers.get('Host', 'localhost')
     response_data = {
