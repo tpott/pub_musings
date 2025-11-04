@@ -157,7 +157,11 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
     self.getBinaryFile('barcode_scanner.webp', 'Barcode scanner image file not found')
 
   def getOgPriceChecker(self):
-    self.getTextFile('product-price-checker.html', 'Product price checker file not found')
+    config = getConfig()
+
+    self.getTemplateFile('product-price-checker.html.tmpl', 'Product price checker file not found', {
+        'YOUR_APP_ID': config['facebook_app_id'],
+    })
 
   def getPayPage(self):
     config = getConfig()
