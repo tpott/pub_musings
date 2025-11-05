@@ -57,9 +57,20 @@ def checkTokenExpiry(page_token: str, app_id: str, app_secret: str) -> int:
     return expires_at
 
 
-def maybeRefreshToNonExpiringToken(app_id: str, app_secret: str, page_token: str) -> str:
+def maybeRefreshToNonExpiringToken(app_id: str, app_secret: str, page_token: str, token_expiry_cache: Dict[str, int]) -> str:
+    # Check cache first
+    if page_token in token_expiry_cache:
+        cached_expiry = token_expiry_cache[page_token]
+        if cached_expiry == 0:
+            print("Token already non-expiring (cached)")
+            return page_token
+
     # Check if token expires, if not return early
     expires_at = checkTokenExpiry(page_token, app_id, app_secret)
+
+    # Cache the expiry time
+    token_expiry_cache[page_token] = expires_at
+
     if expires_at == 0:
         print("Token already non-expiring")
         return page_token
@@ -75,6 +86,9 @@ def maybeRefreshToNonExpiringToken(app_id: str, app_secret: str, page_token: str
     if new_access_token is None:
         print("No access_token in refresh response")
         return page_token
+
+    # Cache the new token as non-expiring
+    token_expiry_cache[new_access_token] = 0
 
     return new_access_token
 
@@ -147,7 +161,9 @@ def postMessage(page_id, page_token, conv, resp) -> None:
         print(result.headers)
 
 
-def runOnce() -> None:
+def runOnce(token_expiry_cache: Dict[str, int] = None) -> None:
+    if token_expiry_cache is None:
+        token_expiry_cache = {}
     # Get config
     config = getConfig()
     app_id = config['facebook_app_id']
@@ -163,7 +179,7 @@ def runOnce() -> None:
         print(f"Processing page {page_id}")
 
         # Refresh to non-expiring token if needed
-        new_token = maybeRefreshToNonExpiringToken(app_id, app_secret, page_token)
+        new_token = maybeRefreshToNonExpiringToken(app_id, app_secret, page_token, token_expiry_cache)
         if new_token != page_token:
             print(f"Token was refreshed for page {page_id}")
             page_config['page_token'] = new_token
@@ -258,8 +274,9 @@ def runOnce() -> None:
 
 
 def runLoop(sleep_time: seconds) -> None:
+    token_expiry_cache = {}
     while True:
-        runOnce()
+        runOnce(token_expiry_cache)
         time.sleep(sleep_time)
 
 
@@ -268,7 +285,8 @@ def main() -> None:
     cert_path = config.get('webhook_cert_file')
     privkey_path = config.get('webhook_key_file')
     if cert_path is not None or privkey_path is not None:
-        runOnce()
+        token_expiry_cache = {}
+        runOnce(token_expiry_cache)
         print('will now serve webhooks from port 8443 and run loop every 15 seconds in parallel')
 
         # Start the loop thread
@@ -276,7 +294,7 @@ def main() -> None:
         loop_thread.start()
 
         # Run the server in the main thread
-        serve('0.0.0.0', 8443, cert_path, privkey_path, runOnce)
+        serve('0.0.0.0', 8443, cert_path, privkey_path, lambda: runOnce(token_expiry_cache))
     else:
         print('will run in a loop, every 15 seconds')
         runLoop(seconds(15))
