@@ -12,7 +12,7 @@ A Simon Says-style memory game built with React where players must memorize and 
 - **Web Audio API** - Sound effects and background music
 
 ### Build Tools
-- **Vite** or **Create React App** - Development server and bundling
+- **Vite** - Development server and bundling
 - **ESLint** - Code linting
 - **Prettier** - Code formatting
 
@@ -250,7 +250,7 @@ const getRandomColor = (): Color => {
 
 ### Phase 3: Audio System
 - [ ] Set up audio context and hooks
-- [ ] Implement button sounds (Web Audio API or audio files)
+- [ ] Implement button sounds (Web Audio API)
 - [ ] Add background music playback
 - [ ] Implement volume and mute controls
 - [ ] Add countdown beeps and "uh oh" sound

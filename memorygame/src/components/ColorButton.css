@@ -1,0 +1,52 @@
+.color-button {
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  outline: none;
+}
+
+.color-button:disabled {
+  cursor: not-allowed;
+}
+
+.color-button:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.color-button--red {
+  background-color: #ff4444;
+}
+
+.color-button--green {
+  background-color: #44ff44;
+}
+
+.color-button--yellow {
+  background-color: #ffff44;
+}
+
+.color-button--blue {
+  background-color: #4444ff;
+}
+
+.color-button--active {
+  filter: brightness(1.5);
+  transform: scale(1.05);
+}
+
+.color-button--red.color-button--active {
+  background-color: #ff6666;
+}
+
+.color-button--green.color-button--active {
+  background-color: #66ff66;
+}
+
+.color-button--yellow.color-button--active {
+  background-color: #ffff66;
+}
+
+.color-button--blue.color-button--active {
+  background-color: #6666ff;
+}
