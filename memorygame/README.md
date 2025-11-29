@@ -18,3 +18,16 @@ the "Playback" phase, the player will tap each colored button in the order that 
 remember. After each button press the game will play the corresponding color sound. If
 one color button does not match the memorized sequence from the "Recording" phase then
 there will be "uh oh" sound and the game will end.
+
+## Running Instructions
+
+If not done yet, `sudo apt-get install npm` or install nvm to manage npm
+
+`npm run dev -- --host` or similar. Default will open on port `:5173`
+
+If running on a separate domain, then update `vite.config.js` to include the following:
+```
+server: {
+  allowedHosts: ['{your domain here}']
+}
+```
