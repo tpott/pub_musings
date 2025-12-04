@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Puppeteer user data
+chrome-user-data/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
