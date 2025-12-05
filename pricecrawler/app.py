@@ -6,7 +6,7 @@ import hmac
 import secrets
 import string
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
+from typing import Optional
 
 import asyncio
 from fastapi import FastAPI, Request, Header, HTTPException, Query
@@ -44,18 +44,17 @@ app = FastAPI(lifespan=lifespan)
 
 # Helper functions
 
+
 def verify_facebook_signature(body: bytes, signature: str, app_secret: str) -> bool:
     """Verify Facebook webhook signature using HMAC SHA256."""
     if app_secret is None:
         return False
 
     expected_signature = hmac.new(
-        app_secret.encode('utf-8'),
-        body,
-        hashlib.sha256
+        app_secret.encode("utf-8"), body, hashlib.sha256
     ).hexdigest()
 
-    if signature.startswith('sha256='):
+    if signature.startswith("sha256="):
         signature = signature[7:]
 
     return hmac.compare_digest(expected_signature, signature)
@@ -64,10 +63,11 @@ def verify_facebook_signature(body: bytes, signature: str, app_secret: str) -> b
 def generate_confirmation_code() -> str:
     """Generate a random 8-character confirmation code."""
     alphabet = string.ascii_uppercase + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(8))
+    return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
 # Routes
+
 
 @app.get("/status")
 async def status():
@@ -110,7 +110,7 @@ async def pay_page(request: Request, r: Optional[str] = Query(None)):
     if r is not None:
         session = get_payment_session(r)
         if session is not None:
-            status = session['status']
+            status = session["status"]
 
     # Render template
     try:
@@ -118,10 +118,10 @@ async def pay_page(request: Request, r: Optional[str] = Query(None)):
             "pay.html.tmpl",
             {
                 "request": request,
-                "YOUR_APP_ID": config['facebook_app_id'],
-                "YOUR_REQUEST_ID": r if session is not None else 'null',
-                "YOUR_STATUS": status if status is not None else 'null',
-            }
+                "YOUR_APP_ID": config["facebook_app_id"],
+                "YOUR_REQUEST_ID": r if session is not None else "null",
+                "YOUR_STATUS": status if status is not None else "null",
+            },
         )
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Pay template file not found: {e}")
@@ -178,7 +178,9 @@ async def barcode_scanner_image():
     try:
         return FileResponse("barcode_scanner.webp", media_type="image/webp")
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Barcode scanner image file not found")
+        raise HTTPException(
+            status_code=404, detail="Barcode scanner image file not found"
+        )
 
 
 @app.get("/og/price-checker")
@@ -191,11 +193,13 @@ async def og_price_checker(request: Request):
             "product-price-checker.html.tmpl",
             {
                 "request": request,
-                "YOUR_APP_ID": config['facebook_app_id'],
-            }
+                "YOUR_APP_ID": config["facebook_app_id"],
+            },
         )
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Product price checker file not found: {e}")
+        raise HTTPException(
+            status_code=404, detail=f"Product price checker file not found: {e}"
+        )
 
 
 @app.post("/payment-callback")
@@ -206,11 +210,13 @@ async def payment_callback(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON in request body")
 
-    session_id = data.get('session_id')
-    facebook_response = data.get('facebook_response')
+    session_id = data.get("session_id")
+    facebook_response = data.get("facebook_response")
 
     if not session_id or not facebook_response:
-        raise HTTPException(status_code=400, detail="Missing session_id or facebook_response")
+        raise HTTPException(
+            status_code=400, detail="Missing session_id or facebook_response"
+        )
 
     # Get session to retrieve user_id before completing it
     session = get_payment_session(session_id)
@@ -220,10 +226,12 @@ async def payment_callback(request: Request):
     success = complete_payment_session(session_id, facebook_response)
 
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to complete payment session")
+        raise HTTPException(
+            status_code=500, detail="Failed to complete payment session"
+        )
 
     # Mark user payment as completed
-    user_id = session['user_id']
+    user_id = session["user_id"]
     mark_user_payment_completed(user_id)
 
     return JSONResponse({"status": "ok"})
@@ -232,7 +240,7 @@ async def payment_callback(request: Request):
 @app.post("/delete-me")
 async def delete_me(
     request: Request,
-    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256")
+    x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
 ):
     """Handle user data deletion request with Facebook signature verification."""
     if not x_hub_signature_256:
@@ -240,7 +248,7 @@ async def delete_me(
 
     body = await request.body()
     config = getConfig()
-    facebook_app_secret = config['facebook_app_secret']
+    facebook_app_secret = config["facebook_app_secret"]
 
     if not verify_facebook_signature(body, x_hub_signature_256, facebook_app_secret):
         raise HTTPException(status_code=401, detail="Invalid signature")
@@ -250,7 +258,7 @@ async def delete_me(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON in request body")
 
-    user_id = data.get('user_id')
+    user_id = data.get("user_id")
 
     if user_id is None or len(user_id) == 0:
         raise HTTPException(status_code=400, detail="Missing user_id field")
@@ -259,14 +267,16 @@ async def delete_me(
     delete_user_data(user_id)
 
     confirmation_code = generate_confirmation_code()
-    print(f'Received verified deletion request for user_id: {user_id}, confirmation_code: {confirmation_code}')
+    print(
+        f"Received verified deletion request for user_id: {user_id}, confirmation_code: {confirmation_code}"
+    )
 
     # Get hostname from request
-    hostname_and_maybe_port = request.headers.get('Host', 'localhost')
+    hostname_and_maybe_port = request.headers.get("Host", "localhost")
 
     response_data = {
         "url": f"https://{hostname_and_maybe_port}/deleted?id={confirmation_code}",
-        "confirmation_code": confirmation_code
+        "confirmation_code": confirmation_code,
     }
 
     return JSONResponse(response_data)
@@ -278,6 +288,6 @@ if __name__ == "__main__":
         "app:app",
         host="0.0.0.0",
         port=8443,
-        ssl_keyfile=config.get('webhook_key_file'),
-        ssl_certfile=config.get('webhook_cert_file'),
+        ssl_keyfile=config.get("webhook_key_file"),
+        ssl_certfile=config.get("webhook_cert_file"),
     )

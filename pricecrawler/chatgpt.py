@@ -21,6 +21,7 @@ MODEL_PRICING = {
 
 class CompletionResult(TypedDict):
     """Structured return type for chat completions."""
+
     content: str
     usage: Dict[str, int]
     cost: Dict[str, float]
@@ -30,8 +31,7 @@ class CompletionResult(TypedDict):
 # gpt-4.1 was the default for writing tools/agents as of 2025-04-22
 # gpt-5 was the default as of 2025-10-28
 async def chat_completions(
-    messages: List[Dict[str, str]],
-    model: Optional[str] = None
+    messages: List[Dict[str, str]], model: Optional[str] = None
 ) -> CompletionResult:
     """Get chat completions from OpenAI with cost tracking."""
     # default to gpt-5, or $1.25 / 1M tokens
@@ -39,47 +39,52 @@ async def chat_completions(
         model = "gpt-5"
 
     config = getConfig()
-    client = AsyncOpenAI(api_key=config['open_api_key'])
+    client = AsyncOpenAI(api_key=config["open_api_key"])
 
-    response = await client.chat.completions.create(
-        model=model,
-        messages=messages
-    )
+    response = await client.chat.completions.create(model=model, messages=messages)
 
     # Extract usage from response object
     usage = {
-        'prompt_tokens': response.usage.prompt_tokens,
-        'completion_tokens': response.usage.completion_tokens,
-        'total_tokens': response.usage.total_tokens,
+        "prompt_tokens": response.usage.prompt_tokens,
+        "completion_tokens": response.usage.completion_tokens,
+        "total_tokens": response.usage.total_tokens,
     }
 
     # Calculate cost: divide by 1e6 (1M) because the price is $ / 1M tokens
-    model_pricing = MODEL_PRICING.get(model, {"input": 2.00, "output": 8.00})  # Default to gpt-4.1 pricing
-    input_cost = usage['prompt_tokens'] * model_pricing["input"] / 1e6
-    output_cost = usage['completion_tokens'] * model_pricing["output"] / 1e6
+    model_pricing = MODEL_PRICING.get(
+        model, {"input": 2.00, "output": 8.00}
+    )  # Default to gpt-4.1 pricing
+    input_cost = usage["prompt_tokens"] * model_pricing["input"] / 1e6
+    output_cost = usage["completion_tokens"] * model_pricing["output"] / 1e6
 
     cost = {
-        'input_cost': input_cost,
-        'output_cost': output_cost,
-        'total_cost': input_cost + output_cost,
+        "input_cost": input_cost,
+        "output_cost": output_cost,
+        "total_cost": input_cost + output_cost,
     }
 
     # Preserve logging
-    print(f"Usage: {usage['prompt_tokens']} prompt tokens, {usage['completion_tokens']} completion tokens, {usage['total_tokens']} total tokens")
-    print(f"Estimated cost: ${cost['total_cost']:.6f} (input: ${cost['input_cost']:.6f}, output: ${cost['output_cost']:.6f})")
+    print(
+        f"Usage: {usage['prompt_tokens']} prompt tokens, {usage['completion_tokens']} completion tokens, {usage['total_tokens']} total tokens"
+    )
+    print(
+        f"Estimated cost: ${cost['total_cost']:.6f} (input: ${cost['input_cost']:.6f}, output: ${cost['output_cost']:.6f})"
+    )
 
     return {
-        'content': response.choices[0].message.content,
-        'usage': usage,
-        'cost': cost,
+        "content": response.choices[0].message.content,
+        "usage": usage,
+        "cost": cost,
     }
 
 
 async def main() -> None:
-    result = await chat_completions([
-        {"role": "user", "content": "Say this is a test!"},
-    ])
-    print(result['content'])
+    result = await chat_completions(
+        [
+            {"role": "user", "content": "Say this is a test!"},
+        ]
+    )
+    print(result["content"])
 
 
 if __name__ == "__main__":
