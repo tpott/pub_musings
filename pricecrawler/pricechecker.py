@@ -4,12 +4,13 @@
 from email.utils import formatdate
 import re
 import time
+from typing import Dict, Any, Optional, List, Tuple
 
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 
-from chatgpt import chatCompletitions
+from chatgpt import chat_completions
 
 
 # note the keys get passed as values of an enum to chatgpt
@@ -63,24 +64,34 @@ targets = {
 }
 
 
-async def fetch_url(target, session, target_obj):
+async def fetch_url(
+    target: str,
+    session: aiohttp.ClientSession,
+    target_obj: Dict[str, Any]
+) -> Tuple[str, Dict[str, Any], int, str]:
     """Fetch URL using async HTTP request."""
     try:
         async with session.get(target_obj["url"], timeout=10) as response:
             text = await response.text()
             return target, target_obj, response.status, text
     except Exception as e:
-        return url, None, str(e)
+        return target, target_obj, 0, str(e)
 
 
-async def fetch_all(target, target_obj):
+async def fetch_all(
+    target: str,
+    target_obj: List[Dict[str, Any]]
+) -> List[Tuple[str, Dict[str, Any], int, str]]:
     """Fetch multiple URLs asynchronously."""
     async with aiohttp.ClientSession() as session:
         tasks = [fetch_url(target, session, obj) for obj in target_obj]
         return await asyncio.gather(*tasks)
 
 
-def priceSummaries(user_input, model):
+async def price_summaries(
+    user_input: str,
+    model: Optional[str]
+) -> Dict[str, Any]:
     """Return a price summary object given a user message asking about a price target.
     The summary object will contain a summaries list. One object for each crawled URL."""
     ret = {'user_input': user_input}
@@ -95,7 +106,8 @@ def priceSummaries(user_input, model):
         {"role": "user", "content": user_input}
     ]
     # gpt-5-mini is 1/5 the price of gpt-5
-    target = chatCompletitions(messages, model if model is not None else "gpt-5-mini")
+    result = await chat_completions(messages, model if model is not None else "gpt-5-mini")
+    target = result['content']
     if target not in targets:
         ret['error'] = f"Did not find one of {price_targets}, ChatGPT response: {target}\n"
         return ret
@@ -105,7 +117,7 @@ def priceSummaries(user_input, model):
     print(f"ChatGPT recognized: {target}\n")
     # targets[target] is a list of []{url, kind, id}
     # TODO sort results by the order of urls from targets[target]
-    results = asyncio.run(fetch_all(target, targets[target]))
+    results = await fetch_all(target, targets[target])
     for target, target_obj, status, content in results:
         url = target_obj["url"]
         print(f"Start URL: {url}")
@@ -156,7 +168,8 @@ def priceSummaries(user_input, model):
             {"role": "system", "content": f"Please summarize the products listed in this HTML. Include their prices (prefer sales price over real price or regular price). Please SORT the products with prices ASCENDING. Please DO NOT REPEAT products. Please keep your summary SHORT."},
             {"role": "user", "content": output_text}
         ]
-        summarized = chatCompletitions(messages, model)
+        result = await chat_completions(messages, model)
+        summarized = result['content']
         print(f"Summarized products: {summarized}\n")
         print(f"End URL: {url}\n")
         ret['summaries'].append({
