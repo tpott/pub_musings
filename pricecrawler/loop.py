@@ -2,7 +2,10 @@
 # Mon Feb 24 20:44:17 PST 2025
 
 import argparse
-from pricechecker import priceSummaries
+
+import asyncio
+
+from pricechecker import price_summaries
 
 
 def parse_args():
@@ -19,7 +22,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+async def main():
     """Loop to continuously prompt the user, query ChatGPT, and process responses."""
     args = parse_args()
     print(f"ChatGPT Interactive using model: {args.model} (type 'exit' to quit)\n")
@@ -37,8 +40,8 @@ def main():
             print("Goodbye!")
             break
 
-        priceSumary = priceSummaries(user_input, model=args.model)
+        price_summary = await price_summaries(user_input, model=args.model)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -73,7 +73,7 @@ targets = {
         {
             "url": "https://us.ecoflow.com/collections/delta-series",
             "kind": "div",
-            "id": "Collection",
+            "class": "Collection-wrapper",
         },
     ],
     "inverters": [
