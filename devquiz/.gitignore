@@ -1,0 +1,11 @@
+# Runtime data
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+*.env
