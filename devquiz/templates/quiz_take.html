@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ quiz.title }} - Taking Quiz{% endblock %}
+
+{% block content %}
+<div class="quiz-taking">
+    <div class="quiz-header">
+        <h1>{{ quiz.title }}</h1>
+        <div class="progress-info">
+            <span id="current-question">1</span> of {{ questions|length }}
+        </div>
+    </div>
+
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width: {{ (1 / questions|length) * 100 }}%"></div>
+    </div>
+
+    <form action="/quiz/{{ quiz.id }}/submit/{{ submission_id }}" method="POST" id="quiz-form">
+        {% for question in questions %}
+        <div class="question-slide {% if loop.first %}active{% endif %}" data-question="{{ loop.index }}">
+            <div class="question-number">Question {{ loop.index }}</div>
+            <h2 class="question-text">{{ question.text }}</h2>
+
+            <div class="choices">
+                {% for choice in question.choices %}
+                <label class="choice-option">
+                    <input type="radio" name="q_{{ question.id }}" value="{{ choice.id }}">
+                    <span class="choice-text">{{ choice.text }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="quiz-navigation">
+            <button type="button" class="btn" id="prev-btn" disabled>&larr; Previous</button>
+            <button type="button" class="btn btn-primary" id="next-btn">Next &rarr;</button>
+            <button type="submit" class="btn btn-success" id="submit-btn" style="display: none;">Submit Quiz</button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const slides = document.querySelectorAll('.question-slide');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const progressFill = document.getElementById('progress-fill');
+    const currentQuestion = document.getElementById('current-question');
+    let current = 0;
+
+    function showSlide(index) {
+        slides.forEach((slide, i) => {
+            slide.classList.toggle('active', i === index);
+        });
+
+        currentQuestion.textContent = index + 1;
+        progressFill.style.width = ((index + 1) / slides.length * 100) + '%';
+
+        prevBtn.disabled = index === 0;
+
+        if (index === slides.length - 1) {
+            nextBtn.style.display = 'none';
+            submitBtn.style.display = 'inline-block';
+        } else {
+            nextBtn.style.display = 'inline-block';
+            submitBtn.style.display = 'none';
+        }
+    }
+
+    prevBtn.addEventListener('click', function() {
+        if (current > 0) {
+            current--;
+            showSlide(current);
+        }
+    });
+
+    nextBtn.addEventListener('click', function() {
+        if (current < slides.length - 1) {
+            current++;
+            showSlide(current);
+        }
+    });
+
+    // Allow clicking on choice label to select
+    document.querySelectorAll('.choice-option').forEach(option => {
+        option.addEventListener('click', function() {
+            const radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+        });
+    });
+});
+</script>
+{% endblock %}

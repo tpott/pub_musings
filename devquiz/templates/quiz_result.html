@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz Results - {{ results.quiz_title }}{% endblock %}
+
+{% block content %}
+<div class="quiz-results">
+    <div class="results-header">
+        <h1>Quiz Complete!</h1>
+        <h2>{{ results.quiz_title }}</h2>
+        {% if results.taker_name %}
+        <p class="taker-name">Completed by: {{ results.taker_name }}</p>
+        {% endif %}
+    </div>
+
+    <div class="score-card {% if results.percentage >= 70 %}pass{% else %}needs-work{% endif %}">
+        <div class="score-main">
+            <span class="score-number">{{ results.score }}</span>
+            <span class="score-divider">/</span>
+            <span class="score-total">{{ results.total }}</span>
+        </div>
+        <div class="score-percentage">{{ "%.0f"|format(results.percentage) }}%</div>
+        <div class="score-label">
+            {% if results.percentage >= 90 %}
+                Excellent!
+            {% elif results.percentage >= 70 %}
+                Good job!
+            {% elif results.percentage >= 50 %}
+                Keep practicing!
+            {% else %}
+                Room for improvement
+            {% endif %}
+        </div>
+        {% if results.time_taken %}
+        <div class="time-taken">Time: {{ (results.time_taken // 60) }}m {{ results.time_taken % 60 }}s</div>
+        {% endif %}
+    </div>
+
+    {% if results.show_correct_answers %}
+    <div class="questions-review">
+        <h3>Question Review</h3>
+        {% for q in results.questions %}
+        <div class="review-item {% if q.is_correct %}correct{% else %}incorrect{% endif %}">
+            <div class="review-status">
+                {% if q.is_correct %}&#10004;{% else %}&#10008;{% endif %}
+            </div>
+            <div class="review-content">
+                <div class="review-question">{{ q.question }}</div>
+                <div class="review-answer">
+                    <strong>Your answer:</strong> {{ q.selected }}
+                </div>
+                {% if not q.is_correct %}
+                <div class="review-correct">
+                    <strong>Correct answer:</strong> {{ q.correct }}
+                </div>
+                {% endif %}
+                {% if q.explanation %}
+                <div class="review-explanation">
+                    <strong>Explanation:</strong> {{ q.explanation }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="results-actions">
+        <a href="/quiz/{{ quiz_id }}" class="btn btn-primary">Take Again</a>
+        <a href="/" class="btn">Back to Quizzes</a>
+    </div>
+</div>
+{% endblock %}

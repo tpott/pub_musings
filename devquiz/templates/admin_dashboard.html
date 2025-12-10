@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - DevQuiz{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1>Admin Dashboard</h1>
+    <div class="admin-actions">
+        <span>Welcome, {{ admin.username }}</span>
+        <a href="/admin/logout" class="btn btn-small">Logout</a>
+    </div>
+</div>
+
+<section class="admin-section">
+    <div class="section-header">
+        <h2>Quizzes</h2>
+        <a href="/admin/quiz/new" class="btn btn-primary">+ Create Quiz</a>
+    </div>
+
+    {% if quiz_stats %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Questions</th>
+                <th>Submissions</th>
+                <th>Avg Score</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in quiz_stats %}
+            <tr>
+                <td>{{ stat.quiz.title }}</td>
+                <td><span class="badge">{{ stat.quiz.quiz_type }}</span></td>
+                <td>{{ stat.quiz.questions|length if stat.quiz.questions else 0 }}</td>
+                <td>{{ stat.submission_count }}</td>
+                <td>{{ stat.avg_score }}%</td>
+                <td>
+                    {% if stat.quiz.is_active %}
+                    <span class="status-active">Active</span>
+                    {% else %}
+                    <span class="status-inactive">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="actions">
+                    <a href="/admin/quiz/{{ stat.quiz.id }}/results" class="btn btn-small">Results</a>
+                    <form action="/admin/quiz/{{ stat.quiz.id }}/toggle" method="POST" style="display:inline">
+                        <button type="submit" class="btn btn-small">
+                            {% if stat.quiz.is_active %}Disable{% else %}Enable{% endif %}
+                        </button>
+                    </form>
+                    <a href="/quiz/{{ stat.quiz.id }}" class="btn btn-small" target="_blank">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-message">No quizzes yet. Create your first quiz!</p>
+    {% endif %}
+</section>
+
+<section class="admin-section">
+    <div class="section-header">
+        <h2>Question Banks</h2>
+        <a href="/admin/bank/new" class="btn btn-primary">+ New Bank</a>
+    </div>
+
+    {% if banks %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Questions</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bank in banks %}
+            <tr>
+                <td>{{ bank.name }}</td>
+                <td>{{ bank.description or '-' }}</td>
+                <td>{{ bank.questions|length }}</td>
+                <td>
+                    <a href="/admin/bank/{{ bank.id }}" class="btn btn-small">Edit</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-message">No question banks yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Results: {{ quiz.title }} - DevQuiz{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1>Results: {{ quiz.title }}</h1>
+    <a href="/admin" class="btn">&larr; Back to Dashboard</a>
+</div>
+
+<div class="results-summary">
+    <div class="summary-stat">
+        <span class="stat-number">{{ submissions|length }}</span>
+        <span class="stat-label">Total Submissions</span>
+    </div>
+    {% if submissions %}
+    <div class="summary-stat">
+        <span class="stat-number">{{ "%.1f"|format(submissions|map(attribute='percentage')|list|sum / submissions|length) }}%</span>
+        <span class="stat-label">Average Score</span>
+    </div>
+    {% endif %}
+</div>
+
+{% if submissions %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Score</th>
+            <th>Percentage</th>
+            <th>Time Taken</th>
+            <th>Submitted</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sub in submissions %}
+        <tr>
+            <td>{{ sub.taker_name or 'Anonymous' }}</td>
+            <td>{{ sub.score }} / {{ sub.total_questions }}</td>
+            <td>
+                <span class="score-badge {% if sub.percentage >= 70 %}good{% else %}low{% endif %}">
+                    {{ "%.0f"|format(sub.percentage) }}%
+                </span>
+            </td>
+            <td>{{ (sub.time_taken_seconds // 60) }}m {{ sub.time_taken_seconds % 60 }}s</td>
+            <td>{{ sub.submitted_at.strftime('%Y-%m-%d %H:%M') if sub.submitted_at else '-' }}</td>
+            <td>
+                <a href="/quiz/{{ quiz.id }}/result/{{ sub.id }}" class="btn btn-small" target="_blank">View Details</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty-message">No submissions yet for this quiz.</p>
+{% endif %}
+{% endblock %}

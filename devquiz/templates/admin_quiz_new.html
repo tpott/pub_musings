@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Create Quiz - DevQuiz{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1>Create New Quiz</h1>
+    <a href="/admin" class="btn">&larr; Back to Dashboard</a>
+</div>
+
+<form action="/admin/quiz/create" method="POST" class="admin-form">
+    <div class="form-group">
+        <label for="title">Quiz Title *</label>
+        <input type="text" id="title" name="title" required placeholder="e.g., JavaScript Fundamentals">
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="Describe what this quiz covers..."></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="question_bank_id">Question Bank *</label>
+        <select id="question_bank_id" name="question_bank_id" required>
+            <option value="">Select a question bank</option>
+            {% for bank in banks %}
+            <option value="{{ bank.id }}">{{ bank.name }} ({{ bank.questions|length }} questions)</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="quiz_type">Quiz Type</label>
+        <select id="quiz_type" name="quiz_type">
+            <option value="generated">Generated (random selection)</option>
+            <option value="static">Static (all questions from bank)</option>
+        </select>
+    </div>
+
+    <div class="form-group" id="question_count_group">
+        <label for="question_count">Number of Questions</label>
+        <input type="number" id="question_count" name="question_count" value="5" min="1" max="100">
+    </div>
+
+    <div class="form-row">
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="shuffle_questions" value="true">
+                Shuffle questions
+            </label>
+        </div>
+
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="show_correct_answers" value="true" checked>
+                Show correct answers after submission
+            </label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create Quiz</button>
+        <a href="/admin" class="btn">Cancel</a>
+    </div>
+</form>
+
+<script>
+document.getElementById('quiz_type').addEventListener('change', function() {
+    const countGroup = document.getElementById('question_count_group');
+    countGroup.style.display = this.value === 'generated' ? 'block' : 'none';
+});
+</script>
+{% endblock %}

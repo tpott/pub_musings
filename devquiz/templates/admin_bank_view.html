@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{{ bank.name }} - DevQuiz{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <h1>{{ bank.name }}</h1>
+    <a href="/admin" class="btn">&larr; Back to Dashboard</a>
+</div>
+
+{% if bank.description %}
+<p class="bank-description">{{ bank.description }}</p>
+{% endif %}
+
+<section class="admin-section">
+    <h2>Questions ({{ bank.questions|length }})</h2>
+
+    {% if bank.questions %}
+    <div class="questions-list">
+        {% for q in bank.questions %}
+        <div class="question-item">
+            <div class="question-header">
+                <span class="question-number">#{{ loop.index }}</span>
+                {% if q.difficulty %}
+                <span class="badge badge-{{ q.difficulty }}">{{ q.difficulty }}</span>
+                {% endif %}
+            </div>
+            <div class="question-text">{{ q.text }}</div>
+            <div class="question-choices">
+                {% for c in q.choices %}
+                <div class="choice {% if c.id == q.correct_answer_id %}correct{% endif %}">
+                    {% if c.id == q.correct_answer_id %}&#10004;{% endif %}
+                    {{ c.text }}
+                </div>
+                {% endfor %}
+            </div>
+            {% if q.explanation %}
+            <div class="question-explanation"><strong>Explanation:</strong> {{ q.explanation }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-message">No questions yet. Add your first question below.</p>
+    {% endif %}
+</section>
+
+<section class="admin-section">
+    <h2>Add Question</h2>
+
+    <form action="/admin/bank/{{ bank.id }}/add-question" method="POST" class="admin-form">
+        <div class="form-group">
+            <label for="question_text">Question *</label>
+            <textarea id="question_text" name="question_text" rows="2" required placeholder="Enter your question..."></textarea>
+        </div>
+
+        <div class="choices-input">
+            <div class="form-group">
+                <label for="choice_1">Choice 1 *</label>
+                <div class="choice-row">
+                    <input type="radio" name="correct_choice" value="1" checked>
+                    <input type="text" id="choice_1" name="choice_1" required placeholder="First choice">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="choice_2">Choice 2 *</label>
+                <div class="choice-row">
+                    <input type="radio" name="correct_choice" value="2">
+                    <input type="text" id="choice_2" name="choice_2" required placeholder="Second choice">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="choice_3">Choice 3</label>
+                <div class="choice-row">
+                    <input type="radio" name="correct_choice" value="3">
+                    <input type="text" id="choice_3" name="choice_3" placeholder="Third choice (optional)">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="choice_4">Choice 4</label>
+                <div class="choice-row">
+                    <input type="radio" name="correct_choice" value="4">
+                    <input type="text" id="choice_4" name="choice_4" placeholder="Fourth choice (optional)">
+                </div>
+            </div>
+        </div>
+
+        <p class="form-hint">Select the radio button next to the correct answer.</p>
+
+        <div class="form-group">
+            <label for="explanation">Explanation (optional)</label>
+            <textarea id="explanation" name="explanation" rows="2" placeholder="Explain why the answer is correct..."></textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add Question</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

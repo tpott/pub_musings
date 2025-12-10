@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}DevQuiz - Available Quizzes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Available Quizzes</h1>
+    <p>Select a quiz to test your knowledge</p>
+</div>
+
+{% if quizzes %}
+<div class="quiz-grid">
+    {% for quiz in quizzes %}
+    <div class="quiz-card">
+        <h3>{{ quiz.title }}</h3>
+        {% if quiz.description %}
+        <p>{{ quiz.description }}</p>
+        {% endif %}
+        <div class="quiz-meta">
+            <span>{{ quiz.questions|length if quiz.questions else 0 }} questions</span>
+            <span class="badge">{{ quiz.quiz_type }}</span>
+        </div>
+        <a href="/quiz/{{ quiz.id }}" class="btn btn-primary">Start Quiz</a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No quizzes available yet.</p>
+    <a href="/admin" class="btn">Admin Dashboard</a>
+</div>
+{% endif %}
+{% endblock %}
