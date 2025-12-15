@@ -40,7 +40,9 @@ def get_config() -> Dict[str, Any]:
         config = json.load(f)
 
     # Validate required fields for Anthropic/DevAgent mode
-    assert "anthropic_api_key" in config, "Config missing required field: anthropic_api_key"
+    assert "anthropic_api_key" in config, (
+        "Config missing required field: anthropic_api_key"
+    )
 
     return config
 

@@ -5,7 +5,7 @@ import argparse
 import asyncio
 import time
 import traceback
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from dev_agent import DevAgent
 from serve_config import get_config
@@ -44,7 +44,9 @@ class ConversationManager:
 
 def parse_args():
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description="DevAgent - Claude-powered developer assistant")
+    parser = argparse.ArgumentParser(
+        description="DevAgent - Claude-powered developer assistant"
+    )
     parser.add_argument(
         "-m",
         "--model",
@@ -71,7 +73,9 @@ async def main():
     manager.context["verbose"] = args.verbose
 
     _ = get_config()  # Assert that we can load config
-    print(f"DevAgent Interactive using model: {args.model} (type 'exit' or '/help' for commands)\n")
+    print(
+        f"DevAgent Interactive using model: {args.model} (type 'exit' or '/help' for commands)\n"
+    )
 
     while True:
         # Get user input

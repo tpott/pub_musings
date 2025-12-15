@@ -1,9 +1,9 @@
 # dev_agent.py
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from anthropic_client import anthropic_completion, anthropic_tool_result
+from anthropic_client import anthropic_completion
 from session_manager import SessionManager
 from ssh_proxy import SSHProxy
 
@@ -162,9 +162,7 @@ class DevAgent:
                 return result["content"]
 
             # Execute the tool
-            tool_result = await self._execute_tool(
-                tool_use["name"], tool_use["input"]
-            )
+            tool_result = await self._execute_tool(tool_use["name"], tool_use["input"])
 
             if self.context["verbose"] > 0:
                 print(f"Tool {tool_use}, result={tool_result}")
@@ -200,7 +198,6 @@ class DevAgent:
 
             # Continue the loop to get next response
             continue
-
 
         return "Error: Agent loop exceeded maximum iterations"
 
@@ -347,7 +344,7 @@ class DevAgent:
         )
 
         # Update session with new message_id for resume
-        if result.message_id:
+        if result.message_id is not None:
             self.session_manager.update_session(
                 session_name, last_message_id=result.message_id
             )
@@ -399,7 +396,11 @@ class DevAgent:
         session_name = tool_input.get("session_name")
         info = self.session_manager.get_session_info(session_name)
         if not info:
-            return f"Session '{session_name}' not found" if session_name else "No current session"
+            return (
+                f"Session '{session_name}' not found"
+                if session_name
+                else "No current session"
+            )
         return json.dumps(info, default=str)
 
     def _tool_get_hosts(self) -> str:
@@ -426,9 +427,7 @@ class DevAgent:
     async def _generate_summary(self, messages: List[Dict[str, Any]]) -> str:
         """Generate a summary of messages using local Claude."""
         # Build a prompt for summarization
-        conversation = "\n".join(
-            f"{msg['role']}: {msg['content']}" for msg in messages
-        )
+        conversation = "\n".join(f"{msg['role']}: {msg['content']}" for msg in messages)
 
         result = anthropic_completion(
             messages=[

@@ -72,9 +72,16 @@ class SSHProxy:
             )
 
         # Build the remote command with proper escaping
-        remote_cmd_parts = ["claude", "--print", "--output-format", "stream-json", "--verbose"]
+        remote_cmd_parts = [
+            "claude",
+            "--print",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            # "--dangerously-skip-permissions",
+        ]
 
-        if resume_id:
+        if resume_id is not None:
             remote_cmd_parts.extend(["--resume", resume_id])
 
         # Add the message as the final argument
@@ -137,41 +144,43 @@ class SSHProxy:
             try:
                 data = json.loads(line)
 
-                # Handle different message types
-                msg_type = data.get("type")
-
-                if msg_type == "init":
-                    session_id = data.get("session_id")
-
-                elif msg_type == "content_block_delta":
-                    delta = data.get("delta", {})
-                    if "text" in delta:
-                        content_parts.append(delta["text"])
-
-                elif msg_type == "result":
-                    message_id = data.get("message_id")
-
-                elif msg_type == "message":
-                    # Alternative format - full message
-                    if "content" in data:
-                        for block in data.get("content", []):
-                            if isinstance(block, dict) and "text" in block:
-                                content_parts.append(block["text"])
-
-                elif msg_type == "assistant":
-                    # Direct assistant message format
-                    if "message" in data:
-                        message_id = data.get("message", {}).get("id")
-                    if "content" in data:
-                        content_parts.append(data["content"])
-
             except json.JSONDecodeError:
                 # Not JSON - might be plain text output
                 content_parts.append(line)
 
+            # Handle different message types
+            msg_type = data.get("type")
+
+            if msg_type == "init":
+                session_id = data.get("session_id")
+
+            elif msg_type == "content_block_delta":
+                delta = data.get("delta", {})
+                if "text" in delta:
+                    content_parts.append(delta["text"])
+
+            elif msg_type == "result":
+                message_id = data.get("message_id")
+                content_parts.append(data.get("result"))
+
+            elif msg_type == "message":
+                # Alternative format - full message
+                if "content" not in data:
+                    continue
+                for block in data.get("content", []):
+                    if isinstance(block, dict) and "text" in block:
+                        content_parts.append(block["text"])
+
+            elif msg_type == "assistant":
+                # Direct assistant message format
+                if "message" in data:
+                    message_id = data.get("message", {}).get("id")
+                if "content" in data:
+                    content_parts.append(data["content"])
+
         content = "".join(content_parts)
 
-        if not content:
+        if len(content) == 0:
             return ProxyResult(
                 success=False,
                 content="",

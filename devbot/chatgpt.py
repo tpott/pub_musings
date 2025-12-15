@@ -22,6 +22,7 @@ MODEL_PRICING = {
 
 class CompletionResult(TypedDict):
     """Structured return type for chat completions."""
+
     content: str
     usage: dict[str, int]
     cost: dict[str, float]
@@ -30,6 +31,7 @@ class CompletionResult(TypedDict):
 class Context(TypedDict):
     model: Optional[str]
     verbose: int
+
 
 # gpt-4o was the default as of 2025-03-01
 # gpt-4.1 was the default for writing tools/agents as of 2025-04-22

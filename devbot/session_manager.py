@@ -199,7 +199,9 @@ class SessionManager:
 
         return messages[-n:]
 
-    def get_all_messages(self, session_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_all_messages(
+        self, session_name: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get all messages from a session's history."""
         if session_name is None:
             session_name = self.get_current_session_name()
