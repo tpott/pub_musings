@@ -30,13 +30,13 @@ class TestParseStreamOutput(unittest.TestCase):
     def setUp(self):
         self.proxy = create_test_proxy()
 
-    def test_parse_init_message(self):
-        """Test parsing init message extracts session_id."""
-        output = '{"type":"init","session_id":"sess_abc123"}\n{"type":"result","result":"Hello","message_id":"msg_1"}'
+    def test_parse_session_id_from_user_message(self):
+        """Test parsing session_id from user message."""
+        output = '{"session_id":"321ce679-2ded-4569-9e97-ff371c245fea","type":"user","message":{"role":"user","content":"Hello"},"uuid":"abc123"}'
         result = self.proxy._parse_stream_output(output)
 
         self.assertTrue(result.success)
-        self.assertEqual(result.session_id, "sess_abc123")
+        self.assertEqual(result.session_id, "321ce679-2ded-4569-9e97-ff371c245fea")
 
     def test_parse_content_block_delta(self):
         """Test parsing content_block_delta extracts text."""
@@ -46,13 +46,13 @@ class TestParseStreamOutput(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.content, "Hello world")
 
-    def test_parse_result_message(self):
-        """Test parsing result message extracts message_id and result."""
-        output = '{"type":"result","message_id":"msg_xyz789","result":"Final response"}'
+    def test_parse_assistant_message_extracts_message_id(self):
+        """Test parsing assistant message extracts message.id."""
+        output = '{"session_id":"sess123","type":"assistant","message":{"id":"msg_01RM95F7jmGwDEVqEzAN7KXU","role":"assistant","content":[{"type":"text","text":"Final response"}]},"uuid":"xyz789"}'
         result = self.proxy._parse_stream_output(output)
 
         self.assertTrue(result.success)
-        self.assertEqual(result.message_id, "msg_xyz789")
+        self.assertEqual(result.message_id, "msg_01RM95F7jmGwDEVqEzAN7KXU")
         self.assertIn("Final response", result.content)
 
     def test_parse_message_format(self):
@@ -64,14 +64,15 @@ class TestParseStreamOutput(unittest.TestCase):
         self.assertIn("Block 1", result.content)
         self.assertIn("Block 2", result.content)
 
-    def test_parse_assistant_format(self):
-        """Test parsing assistant format with message.id and content."""
-        output = '{"type":"assistant","message":{"id":"msg_asst123"},"content":"Assistant response"}'
+    def test_parse_assistant_with_content_array(self):
+        """Test parsing assistant message with content array."""
+        output = '{"session_id":"sess123","type":"assistant","message":{"id":"msg_asst123","role":"assistant","content":[{"type":"text","text":"Part 1"},{"type":"text","text":"Part 2"}]},"uuid":"uuid123"}'
         result = self.proxy._parse_stream_output(output)
 
         self.assertTrue(result.success)
         self.assertEqual(result.message_id, "msg_asst123")
-        self.assertIn("Assistant response", result.content)
+        self.assertIn("Part 1", result.content)
+        self.assertIn("Part 2", result.content)
 
     def test_parse_multiple_deltas(self):
         """Test that multiple content_block_delta messages are concatenated."""
@@ -103,26 +104,22 @@ class TestParseStreamOutput(unittest.TestCase):
         self.assertIn("No content", result.error)
 
     def test_parse_mixed_format(self):
-        """Test parsing realistic output with multiple message types."""
+        """Test parsing realistic output with user and assistant messages."""
         output = (
-            '{"type":"init","session_id":"sess_abc123"}\n'
-            '{"type":"content_block_delta","delta":{"text":"Hello"}}\n'
-            '{"type":"content_block_delta","delta":{"text":" world"}}\n'
-            '{"type":"result","message_id":"msg_xyz789","result":"!"}'
+            '{"session_id":"321ce679-2ded-4569-9e97-ff371c245fea","type":"user","message":{"role":"user","content":"Hello world"},"uuid":"user123"}\n'
+            '{"session_id":"321ce679-2ded-4569-9e97-ff371c245fea","type":"assistant","message":{"id":"msg_xyz789","role":"assistant","content":[{"type":"text","text":"Response text"}]},"uuid":"asst123"}'
         )
         result = self.proxy._parse_stream_output(output)
 
         self.assertTrue(result.success)
-        self.assertEqual(result.session_id, "sess_abc123")
+        self.assertEqual(result.session_id, "321ce679-2ded-4569-9e97-ff371c245fea")
         self.assertEqual(result.message_id, "msg_xyz789")
-        # Content should include all parts
-        self.assertIn("Hello", result.content)
-        self.assertIn("world", result.content)
+        self.assertIn("Response text", result.content)
 
     def test_parse_output_with_trailing_garbage_bytes(self):
         """Test parsing output that has random trailing bytes (e.g., from SSH terminal)."""
         # Simulate SSH output with valid JSON followed by random terminal garbage
-        valid_json = '{"type":"result","message_id":"msg_1","result":"Valid response"}'
+        valid_json = '{"session_id":"sess123","type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"text","text":"Valid response"}]},"uuid":"uuid1"}'
         # Random trailing bytes that might come from SSH pseudo-terminal
         garbage_suffix = "\x1b[0m\x81\xfd\xfe\xff"
         output = valid_json + "\n" + garbage_suffix
@@ -206,13 +203,13 @@ class TestSSHProxyExecute(unittest.TestCase):
     @patch("asyncio.create_subprocess_exec")
     def test_execute_success(self, mock_subprocess):
         """Test successful SSH execution with valid stream-json output."""
-        # Mock subprocess
+        # Mock subprocess with real Claude CLI format
         mock_process = AsyncMock()
         mock_process.returncode = 0
         mock_process.communicate = AsyncMock(
             return_value=(
-                b'{"type":"init","session_id":"sess_123"}\n'
-                b'{"type":"result","message_id":"msg_456","result":"Success"}',
+                b'{"session_id":"sess_123","type":"user","message":{"role":"user","content":"Hello Claude"},"uuid":"user1"}\n'
+                b'{"session_id":"sess_123","type":"assistant","message":{"id":"msg_456","role":"assistant","content":[{"type":"text","text":"Success"}]},"uuid":"asst1"}',
                 b"",
             )
         )
@@ -234,7 +231,7 @@ class TestSSHProxyExecute(unittest.TestCase):
         mock_process.returncode = 0
         mock_process.communicate = AsyncMock(
             return_value=(
-                b'{"type":"result","message_id":"msg_1","result":"Resumed"}',
+                b'{"session_id":"prev_msg_123","type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"text","text":"Resumed"}]},"uuid":"asst1"}',
                 b"",
             )
         )
@@ -311,7 +308,7 @@ class TestSSHProxyExecute(unittest.TestCase):
         mock_process.returncode = 0
         mock_process.communicate = AsyncMock(
             return_value=(
-                b'{"type":"result","message_id":"msg_1","result":"OK"}',
+                b'{"session_id":"sess1","type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"text","text":"OK"}]},"uuid":"asst1"}',
                 b"",
             )
         )
@@ -350,8 +347,8 @@ class TestSSHProxyExecute(unittest.TestCase):
         mock_process.returncode = 0
         # Valid JSON followed by random binary garbage (terminal escape codes, etc.)
         stdout_with_garbage = (
-            b'{"type":"init","session_id":"sess_123"}\n'
-            b'{"type":"result","message_id":"msg_456","result":"Response"}\n'
+            b'{"session_id":"sess_123","type":"user","message":{"role":"user","content":"test"},"uuid":"user1"}\n'
+            b'{"session_id":"sess_123","type":"assistant","message":{"id":"msg_456","role":"assistant","content":[{"type":"text","text":"Response"}]},"uuid":"asst1"}\n'
             b'\x1b[0m\x81\xfd\xfe\xff\r\n'
         )
         mock_process.communicate = AsyncMock(

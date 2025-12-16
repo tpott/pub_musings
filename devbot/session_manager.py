@@ -70,7 +70,8 @@ class SessionManager:
         session = {
             "hostname": hostname,
             "last_message_id": None,
-            "session_id": session_id,
+            "claude_session_id": None,  # Claude CLI session ID for --resume
+            "session_id": session_id,  # Local UUID (not Claude CLI ID)
             "created_at": now,
             "updated_at": now,
             "message_count": 0,

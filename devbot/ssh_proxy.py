@@ -152,35 +152,52 @@ class SSHProxy:
                 content_parts.append(line)
                 continue
 
+            # Extract session_id from top level
+            if "session_id" in data and session_id is None:
+                session_id = data.get("session_id")
+
             # Handle different message types
             msg_type = data.get("type")
 
-            if msg_type == "init":
-                session_id = data.get("session_id")
-
-            elif msg_type == "content_block_delta":
+            if msg_type == "content_block_delta":
+                # Streaming delta format
                 delta = data.get("delta", {})
                 if "text" in delta:
                     content_parts.append(delta["text"])
 
-            elif msg_type == "result":
-                message_id = data.get("message_id")
-                content_parts.append(data.get("result"))
-
             elif msg_type == "message":
-                # Alternative format - full message
+                # Alternative format - full message with content array
                 if "content" not in data:
                     continue
                 for block in data.get("content", []):
                     if isinstance(block, dict) and "text" in block:
                         content_parts.append(block["text"])
 
+            elif msg_type == "user":
+                # User message format - content can be string or array
+                msg_obj = data.get("message", {})
+                msg_content = msg_obj.get("content", "")
+                if isinstance(msg_content, str):
+                    content_parts.append(msg_content)
+                elif isinstance(msg_content, list):
+                    for block in msg_content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            content_parts.append(block.get("text", ""))
+
             elif msg_type == "assistant":
-                # Direct assistant message format
-                if "message" in data:
-                    message_id = data.get("message", {}).get("id")
-                if "content" in data:
-                    content_parts.append(data["content"])
+                # Real Claude CLI assistant message format
+                msg_obj = data.get("message", {})
+                if msg_obj.get("id"):
+                    message_id = msg_obj.get("id")
+                # Content is in message.content array
+                msg_content = msg_obj.get("content", [])
+                if isinstance(msg_content, list):
+                    for block in msg_content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            content_parts.append(block.get("text", ""))
+                elif isinstance(msg_content, str):
+                    # Fallback for string content
+                    content_parts.append(msg_content)
 
         content = "".join(content_parts)
 

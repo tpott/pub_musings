@@ -294,7 +294,8 @@ class DevAgent:
             lines = [f"Session: {info['name']}"]
             lines.append(f"  Host: {info.get('hostname', 'unknown')}")
             lines.append(f"  Messages: {info.get('message_count', 0)}")
-            lines.append(f"  Session ID: {info.get('session_id', 'N/A')}")
+            lines.append(f"  Local Session ID: {info.get('session_id', 'N/A')}")
+            lines.append(f"  Claude Session ID: {info.get('claude_session_id', 'N/A')}")
             lines.append(f"  Last message ID: {info.get('last_message_id', 'N/A')}")
             return "\n".join(lines)
 
@@ -358,7 +359,8 @@ class DevAgent:
         if not hostname:
             return "Error: No hostname configured for current session"
 
-        resume_id = session.get("last_message_id")
+        # Use claude_session_id for --resume (this is the actual Claude CLI session ID)
+        resume_id = session.get("claude_session_id")
 
         # Execute SSH proxy
         result = await self.ssh_proxy.execute(
@@ -377,7 +379,13 @@ class DevAgent:
             "assistant", result.content, remote_message_id=result.message_id
         )
 
-        # Update session with new message_id for resume
+        # Update session with Claude CLI session_id for future --resume calls
+        if result.session_id is not None:
+            self.session_manager.update_session(
+                session_name, claude_session_id=result.session_id
+            )
+
+        # Also track message_id as metadata (optional, for debugging)
         if result.message_id is not None:
             self.session_manager.update_session(
                 session_name, last_message_id=result.message_id
