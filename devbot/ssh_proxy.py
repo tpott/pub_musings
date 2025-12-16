@@ -92,9 +92,11 @@ class SSHProxy:
 
         # Build SSH command (shell=False for security)
         ssh_target = f"{host_info['user']}@{host_info['hostname']}"
-        # ssh -t forces psuedo-terminal creation
+        # ssh -t forces psuedo-terminal creation, but note it means stdout may receive some
+        # terminal escape sequences and MUST be handled in _parse_stream_output
         cmd = ["ssh", "-t", ssh_target, remote_cmd]
-        print(f"executing: {cmd}")
+        if self.config.get("verbose", 0) > 0:
+            print(f"Executing: {cmd}")
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -116,7 +118,8 @@ class SSHProxy:
                 )
 
             # Parse streaming JSON output
-            return self._parse_stream_output(stdout.decode("utf-8"))
+            # Use errors="replace" to handle invalid UTF-8 bytes from SSH terminal
+            return self._parse_stream_output(stdout.decode("utf-8", errors="replace"))
 
         except asyncio.TimeoutError:
             return ProxyResult(
@@ -145,8 +148,9 @@ class SSHProxy:
                 data = json.loads(line)
 
             except json.JSONDecodeError:
-                # Not JSON - might be plain text output
+                # Not JSON - might be plain text output or terminal garbage
                 content_parts.append(line)
+                continue
 
             # Handle different message types
             msg_type = data.get("type")

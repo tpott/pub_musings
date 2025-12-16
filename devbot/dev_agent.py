@@ -164,7 +164,7 @@ class DevAgent:
             # Execute the tool
             tool_result = await self._execute_tool(tool_use["name"], tool_use["input"])
 
-            if self.context["verbose"] > 0:
+            if self.context["verbose"] > 1:
                 print(f"Tool {tool_use}, result={tool_result}")
 
             # Add assistant message with tool_use to messages
