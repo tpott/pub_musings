@@ -8,6 +8,11 @@ from session_manager import SessionManager
 from ssh_proxy import SSHProxy
 
 
+# Context window management
+MAX_CONTEXT_TOKENS = 200000  # Claude's context window
+CONTEXT_WARNING_THRESHOLD = 0.85  # Warn at 85% usage
+CHARS_PER_TOKEN_ESTIMATE = 4  # Rough approximation
+
 SYSTEM_PROMPT = """You are a developer assistant managing remote Claude sessions.
 By default, proxy all development messages to the current session using the proxy_message tool.
 Use session tools when user explicitly mentions sessions, switching, hosts, or session management.
@@ -132,6 +137,7 @@ class DevAgent:
             "verbose": config.get("verbose", 0),
             "model": config.get("model", "claude-sonnet-4-5-20250929"),
         }
+        self._context_warning = None
 
     async def process_input(self, user_input: str) -> str:
         """
@@ -159,7 +165,11 @@ class DevAgent:
             tool_use = result.get("tool_use")
             if not tool_use or result.get("stop_reason") != "tool_use":
                 # No tool call, we have the final response
-                return result["content"]
+                response = result["content"]
+                if self._context_warning is not None:
+                    response += self._context_warning
+                    self._context_warning = None
+                return response
 
             # Execute the tool
             tool_result = await self._execute_tool(tool_use["name"], tool_use["input"])
@@ -202,10 +212,34 @@ class DevAgent:
         return "Error: Agent loop exceeded maximum iterations"
 
     def _build_messages(self, user_input: str) -> List[Dict[str, Any]]:
-        """Build the messages list for the API call."""
-        # For now, just the current user message
-        # Later could include recent history from session
-        return [{"role": "user", "content": user_input}]
+        """Build the messages list for the API call, including session history."""
+        messages = []
+
+        # Get all messages from current session history
+        history = self.session_manager.get_all_messages()
+
+        for msg in history:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            # TODO: Handle "system" role messages (compacted summaries) specially.
+            # The Anthropic API doesn't accept "system" as a message role, only in
+            # the system_prompt parameter. Options: convert to user/assistant pair,
+            # prepend to system prompt, or inject as user context message.
+            messages.append({"role": role, "content": content})
+
+        # Add the current user input
+        messages.append({"role": "user", "content": user_input})
+
+        # Estimate token usage and check if near limit
+        total_chars = sum(len(m.get("content", "")) for m in messages)
+        total_chars += len(SYSTEM_PROMPT)
+        estimated_tokens = total_chars // CHARS_PER_TOKEN_ESTIMATE
+
+        if estimated_tokens > MAX_CONTEXT_TOKENS * CONTEXT_WARNING_THRESHOLD:
+            usage_pct = int((estimated_tokens / MAX_CONTEXT_TOKENS) * 100)
+            self._context_warning = f"\n\n⚠️ Context window is at ~{usage_pct}% capacity. Please run /compact soon to avoid overflow."
+
+        return messages
 
     async def _handle_slash_command(self, command: str) -> str:
         """Handle slash commands directly without LLM."""

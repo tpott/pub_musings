@@ -384,6 +384,125 @@ class TestDevAgentProcessInput(unittest.TestCase):
         self.assertEqual(mock_completion.call_count, 2)
 
 
+class TestDevAgentBuildMessages(unittest.TestCase):
+    """Test _build_messages with session history integration."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "anthropic_api_key": "test-key",
+            "default_host": "testhost",
+            "hosts": {
+                "testhost": {"hostname": "test.example.com", "user": "testuser"},
+            },
+            "verbose": 0,
+        }
+        self.agent = create_test_agent(self.temp_dir, self.config)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_build_messages_empty_history(self):
+        """Test _build_messages with no session history."""
+        self.agent.session_manager.create_session("empty-test")
+
+        messages = self.agent._build_messages("Hello")
+
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]["role"], "user")
+        self.assertEqual(messages[0]["content"], "Hello")
+
+    def test_build_messages_includes_history(self):
+        """Test _build_messages includes previous session messages."""
+        self.agent.session_manager.create_session("history-test")
+
+        # Add some history
+        self.agent.session_manager.add_message("user", "First question about the repo")
+        self.agent.session_manager.add_message("assistant", "Here is info about the repo")
+        self.agent.session_manager.add_message("user", "Second question")
+        self.agent.session_manager.add_message("assistant", "Second answer")
+
+        messages = self.agent._build_messages("Follow-up question")
+
+        # Should have 4 history messages + 1 current = 5
+        self.assertEqual(len(messages), 5)
+        self.assertEqual(messages[0]["content"], "First question about the repo")
+        self.assertEqual(messages[1]["content"], "Here is info about the repo")
+        self.assertEqual(messages[2]["content"], "Second question")
+        self.assertEqual(messages[3]["content"], "Second answer")
+        self.assertEqual(messages[4]["content"], "Follow-up question")
+
+    def test_build_messages_context_warning_not_set_for_small(self):
+        """Test that context warning is not set for small conversations."""
+        self.agent.session_manager.create_session("small-test")
+        self.agent.session_manager.add_message("user", "Short message")
+        self.agent.session_manager.add_message("assistant", "Short reply")
+
+        self.agent._build_messages("Another short message")
+
+        self.assertIsNone(self.agent._context_warning)
+
+    def test_build_messages_context_warning_set_for_large(self):
+        """Test that context warning is set when approaching context limit."""
+        self.agent.session_manager.create_session("large-test")
+
+        # Add enough content to exceed 85% of context window
+        # MAX_CONTEXT_TOKENS = 200000, CHARS_PER_TOKEN_ESTIMATE = 4
+        # So we need ~200000 * 4 * 0.85 = 680000 chars to trigger warning
+        large_content = "x" * 700000
+        self.agent.session_manager.add_message("user", large_content)
+
+        self.agent._build_messages("test")
+
+        self.assertIsNotNone(self.agent._context_warning)
+        self.assertIn("Context window", self.agent._context_warning)
+        self.assertIn("/compact", self.agent._context_warning)
+
+    @patch("dev_agent.anthropic_completion")
+    def test_process_input_appends_context_warning(self, mock_completion):
+        """Test that process_input appends context warning to response."""
+        self.agent.session_manager.create_session("warning-test")
+
+        # Add large content to trigger warning
+        large_content = "x" * 700000
+        self.agent.session_manager.add_message("user", large_content)
+
+        mock_completion.return_value = {
+            "content": "Here is my response",
+            "tool_use": None,
+            "stop_reason": "end_turn",
+        }
+
+        result = asyncio.run(self.agent.process_input("test"))
+
+        self.assertIn("Here is my response", result)
+        self.assertIn("Context window", result)
+        self.assertIn("/compact", result)
+
+    @patch("dev_agent.anthropic_completion")
+    def test_process_input_clears_context_warning(self, mock_completion):
+        """Test that context warning is cleared after being appended."""
+        self.agent.session_manager.create_session("clear-test")
+
+        large_content = "x" * 700000
+        self.agent.session_manager.add_message("user", large_content)
+
+        mock_completion.return_value = {
+            "content": "Response",
+            "tool_use": None,
+            "stop_reason": "end_turn",
+        }
+
+        asyncio.run(self.agent.process_input("test"))
+
+        # Warning should be cleared after first call
+        self.assertIsNone(self.agent._context_warning)
+
+    def test_context_warning_initialized_to_none(self):
+        """Test that _context_warning is initialized to None in __init__."""
+        self.assertIsNone(self.agent._context_warning)
+
+
 class TestDevAgentSystemPrompt(unittest.TestCase):
     """Test system prompt and tool definitions."""
 
