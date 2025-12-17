@@ -61,6 +61,9 @@ def anthropic_completion(
     client = Anthropic(api_key=config["anthropic_api_key"])
     model = context.get("model", DEFAULT_MODEL)
 
+    # TODO update messages with cache_control. See the docs:
+    # https://platform.claude.com/docs/en/build-with-claude/prompt-caching
+
     # Build request kwargs
     kwargs: Dict[str, Any] = {
         "model": model,

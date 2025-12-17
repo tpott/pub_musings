@@ -92,6 +92,7 @@ class SSHProxy:
 
         # Build SSH command (shell=False for security)
         ssh_target = f"{host_info['user']}@{host_info['hostname']}"
+        # ssh -A forwards the ssh-agent, which is useful/necessary for github authentication
         # ssh -t forces psuedo-terminal creation, but note it means stdout may receive some
         # terminal escape sequences and MUST be handled in _parse_stream_output
         cmd = ["ssh", "-t", ssh_target, remote_cmd]
