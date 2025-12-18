@@ -143,21 +143,21 @@ class MatrixBot:
         if not room:
             return
 
-        for user_id in room.users:
-            for device_id, device in self.client.device_store.active_user_devices(user_id):
+        # Include bot's own user_id in case it has other devices
+        user_ids = set(room.users)
+        user_ids.add(self.client.user_id)
+
+        for user_id in user_ids:
+            for device in self.client.device_store.active_user_devices(user_id):
                 if self.client.olm.is_device_verified(device):
                     continue  # Already verified
 
-                # Check if device is cross-signed by a trusted user
-                if hasattr(self.client.olm, 'is_device_cross_signed') and \
-                   self.client.olm.is_device_cross_signed(device):
-                    # Device is signed by user's self-signing key
-                    self.client.verify_device(device)
-                    print(f"Auto-trusted cross-signed device {device_id} for {user_id}")
-                else:
-                    # Fall back to trusting unverified devices (TOFU for bots)
-                    self.client.verify_device(device)
-                    print(f"TOFU-trusted device {device_id} for {user_id}")
+                # Trust the device via olm machine
+                try:
+                    self.client.olm.verify_device(device)
+                    print(f"Trusted device {device.device_id} for {user_id}")
+                except Exception as e:
+                    print(f"Failed to trust device {device.device_id}: {e}")
 
     async def _message_callback(
         self, room: MatrixRoom, event: RoomMessageText
