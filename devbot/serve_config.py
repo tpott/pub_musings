@@ -83,3 +83,25 @@ def saveConfig(config: Dict[str, Any]) -> None:
 
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
+
+
+def get_matrix_credentials_path() -> Path:
+    """Return the path to the Matrix credentials file."""
+    return get_data_dir() / "matrix_credentials.json"
+
+
+def get_matrix_store_path() -> Path:
+    """Return the path to the Matrix E2E encryption key store directory."""
+    return get_data_dir() / "matrix_store"
+
+
+def get_matrix_room_sessions_path() -> Path:
+    """Return the path to the Matrix room-to-session mapping file."""
+    return get_data_dir() / "matrix_room_sessions.json"
+
+
+def get_matrix_config(config: Optional[Dict] = None) -> Dict:
+    """Return the matrix config section from the main config."""
+    if config is None:
+        config = get_config()
+    return config.get("matrix", {})
