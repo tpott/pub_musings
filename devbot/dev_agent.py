@@ -144,6 +144,10 @@ class DevAgent:
         Process user input through the agent.
         Returns the final response to display.
         """
+        # Normalize double slashes to single slash
+        if user_input.startswith("//"):
+            user_input = user_input[1:]  # Remove first slash
+
         # Check for slash commands (bypass LLM)
         if user_input.startswith("/"):
             return await self._handle_slash_command(user_input)
