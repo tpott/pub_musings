@@ -9,3 +9,6 @@ chrome-user-data/
 
 # OS files
 .DS_Store
+
+# Job crawler data
+data/

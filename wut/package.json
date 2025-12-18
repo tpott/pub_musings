@@ -7,10 +7,12 @@
     "start": "bun run schwab-login.ts"
   },
   "dependencies": {
-    "puppeteer": "^23.10.4"
+    "puppeteer": "^23.10.4",
+    "turndown": "^7.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "@types/turndown": "^5.0.5",
     "bun-types": "^1.1.38"
   },
   "engines": {
