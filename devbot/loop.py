@@ -60,6 +60,12 @@ def parse_args():
         default=0,
         help="Increase output verbosity (can be specified multiple times for more detail)",
     )
+    parser.add_argument(
+        "-p",
+        "--prompt",
+        type=str,
+        help="Execute a single prompt and exit (instead of interactive mode)",
+    )
     return parser.parse_args()
 
 
@@ -73,6 +79,19 @@ async def main():
     manager.context["verbose"] = args.verbose
 
     _ = get_config()  # Assert that we can load config
+
+    # Single prompt mode: execute and exit
+    if args.prompt:
+        try:
+            res = await manager.process_input(args.prompt)
+            print(res)
+        except Exception as e:
+            print(f"Error: {e}")
+            if args.verbose > 0:
+                traceback.print_exc()
+        return
+
+    # Interactive mode
     print(
         f"DevAgent Interactive using model: {args.model} (type 'exit' or '/help' for commands)\n"
     )
