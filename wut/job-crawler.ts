@@ -230,6 +230,79 @@ function detectJobBoard(url: string): JobBoardPattern {
   return JOB_BOARD_PATTERNS.generic;
 }
 
+// Detect job board pattern from page content (URLs, iframes, classes)
+async function detectPatternFromContent(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    // Pattern identifiers to look for in URLs and content
+    const patternChecks: Array<{ name: string; urlPatterns: RegExp[]; classPatterns: RegExp[] }> = [
+      {
+        name: 'ashby',
+        urlPatterns: [/ashbyhq\.com/, /ashby/i],
+        classPatterns: [/ashby/i],
+      },
+      {
+        name: 'greenhouse',
+        urlPatterns: [/greenhouse\.io/, /boards\.greenhouse/],
+        classPatterns: [/greenhouse/i],
+      },
+      {
+        name: 'lever',
+        urlPatterns: [/lever\.co/, /jobs\.lever/],
+        classPatterns: [/lever/i],
+      },
+      {
+        name: 'workday',
+        urlPatterns: [/myworkdayjobs\.com/, /workday/i],
+        classPatterns: [/workday/i, /WJLV/],
+      },
+    ];
+
+    // Check all links on the page
+    const allLinks = Array.from(document.querySelectorAll('a[href]'));
+    const allUrls = allLinks.map((a) => a.getAttribute('href') || '');
+
+    // Check iframes
+    const iframes = Array.from(document.querySelectorAll('iframe'));
+    const iframeUrls = iframes.map((iframe) => iframe.src || iframe.getAttribute('data-src') || '');
+    allUrls.push(...iframeUrls);
+
+    // Check scripts (some embed job boards via script)
+    const scripts = Array.from(document.querySelectorAll('script[src]'));
+    const scriptUrls = scripts.map((s) => s.getAttribute('src') || '');
+    allUrls.push(...scriptUrls);
+
+    // Collect all class names
+    const allElements = document.querySelectorAll('[class]');
+    const allClasses: string[] = [];
+    allElements.forEach((el) => {
+      const classes = el.getAttribute('class') || '';
+      allClasses.push(classes);
+    });
+
+    for (const check of patternChecks) {
+      // Check URLs
+      for (const url of allUrls) {
+        for (const pattern of check.urlPatterns) {
+          if (pattern.test(url)) {
+            return check.name;
+          }
+        }
+      }
+
+      // Check class names
+      for (const className of allClasses) {
+        for (const pattern of check.classPatterns) {
+          if (pattern.test(className)) {
+            return check.name;
+          }
+        }
+      }
+    }
+
+    return null;
+  });
+}
+
 // Detect job board iframes and return the iframe URL if found
 async function findJobBoardIframeUrl(page: Page): Promise<string | null> {
   const iframeUrls = await page.evaluate(() => {
@@ -478,6 +551,19 @@ async function crawlJobPage(
     console.log(`  Warning: Page load timed out, continuing anyway...`);
   }
 
+  // Check for job board iframe in job detail page
+  const iframeUrl = await findJobBoardIframeUrl(page);
+  if (iframeUrl !== null) {
+    console.log(`  Detected job board iframe, navigating to: ${iframeUrl}`);
+    try {
+      await page.goto(iframeUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    } catch (error) {
+      console.log(`  Warning: Iframe page load timed out, continuing anyway...`);
+    }
+    pattern = detectJobBoard(iframeUrl);
+    console.log(`  Using pattern for iframe: ${pattern.name}`);
+  }
+
   const harLog = await harRecorder.stop();
 
   // Save HAR file
@@ -632,12 +718,46 @@ async function crawlJobPage(
     }
 
     console.log('Extracting job listings...');
-    const listings = await extractJobListings(page, pattern);
+    let listings = await extractJobListings(page, pattern);
 
-    if (listings.length === 0) {
+    // If no listings found, allow user to navigate and retry
+    while (listings.length === 0) {
       console.log('\nNo job listings found. Try a different pattern or check the URL.');
       console.log('Available patterns: greenhouse, lever, workday, ashby, generic');
-      return;
+      console.log('\nYou can navigate in the browser, scroll, or adjust filters.');
+
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+
+      const answer = await new Promise<string>((resolve) => {
+        rl.question('Enter "r" to refresh/retry extraction, "q" to quit: ', resolve);
+      });
+      rl.close();
+
+      const trimmed = answer.toLowerCase().trim();
+      if (trimmed === 'q' || trimmed === 'quit') {
+        console.log('Exiting.');
+        return;
+      }
+
+      if (trimmed === 'r' || trimmed === 'refresh') {
+        console.log('\nRe-extracting job listings from current page state...');
+        listings = await extractJobListings(page, pattern);
+        if (listings.length > 0) {
+          break;
+        }
+      }
+    }
+
+    // If using generic pattern, check if page content suggests a known pattern
+    if (pattern.name === 'Generic') {
+      const detectedPattern = await detectPatternFromContent(page);
+      if (detectedPattern !== null) {
+        console.log(`\nNote: Page content appears to match the '${detectedPattern}' pattern.`);
+        console.log(`Re-run with: bun run job-crawler.ts "${careersUrl}" ${detectedPattern}`);
+      }
     }
 
     console.log(`\nFound ${listings.length} job listing(s).`);
