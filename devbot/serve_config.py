@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 PAYMENT_LINK_EXPIRY_HOURS = 24
 
 
+# TODO update get_config result to be a TypedDict or NamedTuple
 def get_config() -> Dict[str, Any]:
     """
     Load and return the server configuration from the SERVE_CONFIG environment variable.
@@ -22,7 +23,12 @@ def get_config() -> Dict[str, Any]:
         "devbox": {"hostname": "devbox.example.com", "user": "trevor"},
         "prod": {"hostname": "prod.example.com", "user": "deploy"}
       },
-      "default_host": "devbox"
+      "default_host": "devbox",
+      "matrix": {
+        "allowed_users": [ ... ],
+        "max_room_size": 2
+      },
+      "dangerously-skip-permissions": false
     }
 
     Returns:

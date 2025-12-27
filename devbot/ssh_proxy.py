@@ -78,8 +78,10 @@ class SSHProxy:
             "--output-format",
             "stream-json",
             "--verbose",
-            # "--dangerously-skip-permissions",
         ]
+
+        if self.config.get("dangerously-skip-permissions", False):
+            remote_cmd_parts.append("--dangerously-skip-permissions")
 
         if resume_id is not None:
             remote_cmd_parts.extend(["--resume", resume_id])
