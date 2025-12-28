@@ -153,7 +153,7 @@ def build_dynamic_context(session_manager: "SessionManager") -> str:
         for msg in recent[-2:]:
             role = msg.get("role", "?")
             content = msg.get("content", "")
-            if len(content) > 0:
+            if content is not None and len(content) > 0:
                 preview = content[:80] + "..." if len(content) > 80 else content
                 lines.append(f"    [{role}]: {preview}")
 
@@ -193,87 +193,53 @@ class DevAgent:
         dynamic_context = build_dynamic_context(self.session_manager)
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(dynamic_context=dynamic_context)
 
-        # Agent loop with tool use
-        max_iterations = 10
-        for _ in range(max_iterations):
-            result = anthropic_completion(
-                messages=messages,
-                context=self.context,
-                tools=TOOLS,
-                system_prompt=system_prompt,
-                tool_choice="any",  # Force tool use
-            )
+        # Single tool call with forced tool use
+        result = anthropic_completion(
+            messages=messages,
+            context=self.context,
+            tools=TOOLS,
+            system_prompt=system_prompt,
+            tool_choice="any",  # Force tool use
+        )
 
-            # Check if we got a tool call
-            tool_use = result.get("tool_use")
-            if not tool_use or result.get("stop_reason") != "tool_use":
-                # No tool call, we have the final response
-                response = result["content"]
-                if self._context_warning is not None:
-                    response += self._context_warning
-                    self._context_warning = None
-                return response
+        tool_use = result.get("tool_use")
+        if not tool_use:
+            # Shouldn't happen with tool_choice="any", but handle gracefully
+            return result["content"] or "Error: No tool response"
 
-            # Execute the tool
-            tool_result = await self._execute_tool(tool_use["name"], tool_use["input"])
+        # Execute the tool
+        tool_result = await self._execute_tool(tool_use["name"], tool_use["input"])
 
-            if self.context["verbose"] > 1:
-                print(f"Tool {tool_use}, result={tool_result}")
+        if self.context["verbose"] > 1:
+            print(f"Tool {tool_use}, result={tool_result}")
 
-            # Add assistant message with tool_use to messages
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "id": tool_use["id"],
-                            "name": tool_use["name"],
-                            "input": tool_use["input"],
-                        }
-                    ],
-                }
-            )
+        # Persist tool call to history
+        self.session_manager.add_message(
+            role="assistant",
+            content=None,
+            tool_calls=[{
+                "id": tool_use["id"],
+                "name": tool_use["name"],
+                "input": tool_use["input"],
+            }],
+        )
 
-            # Persist tool call to history
-            self.session_manager.add_message(
-                role="assistant",
-                content=None,
-                tool_calls=[{
-                    "id": tool_use["id"],
-                    "name": tool_use["name"],
-                    "input": tool_use["input"],
-                }],
-            )
+        # Persist tool result to history
+        self.session_manager.add_message(
+            role="user",
+            content=None,
+            tool_results=[{
+                "tool_use_id": tool_use["id"],
+                "content": tool_result,
+            }],
+        )
 
-            # Add tool result
-            messages.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_use["id"],
-                            "content": tool_result,
-                        }
-                    ],
-                }
-            )
-
-            # Persist tool result to history
-            self.session_manager.add_message(
-                role="user",
-                content=None,
-                tool_results=[{
-                    "tool_use_id": tool_use["id"],
-                    "content": tool_result,
-                }],
-            )
-
-            # Continue the loop to get next response
-            continue
-
-        return "Error: Agent loop exceeded maximum iterations"
+        # Return tool result with optional context warning
+        response = tool_result
+        if self._context_warning is not None:
+            response += self._context_warning
+            self._context_warning = None
+        return response
 
     def _build_messages(self, user_input: str) -> List[Dict[str, Any]]:
         """Build the messages list for the API call, including session history."""
@@ -285,6 +251,8 @@ class DevAgent:
         for msg in history:
             role = msg.get("role")
             content = msg.get("content", "")
+            if content is None:
+                continue
             # TODO: Handle "system" role messages (compacted summaries) specially.
             # The Anthropic API doesn't accept "system" as a message role, only in
             # the system_prompt parameter. Options: convert to user/assistant pair,
@@ -295,7 +263,7 @@ class DevAgent:
         messages.append({"role": "user", "content": user_input})
 
         # Estimate token usage and check if near limit
-        total_chars = sum(len(m.get("content", "")) for m in messages)
+        total_chars = sum(len(m.get("content", "")) for m in messages if m.get("content") is not None)
         total_chars += len(SYSTEM_PROMPT_TEMPLATE)
         estimated_tokens = total_chars // CHARS_PER_TOKEN_ESTIMATE
 
