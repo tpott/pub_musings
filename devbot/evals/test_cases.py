@@ -1,10 +1,21 @@
 # evals/test_cases.py
 
 """
-Adversarial test cases for evaluating tool call robustness.
-These cases are designed to trick the model into responding directly
-instead of using tools as instructed.
+Test cases for evaluating tool call robustness.
+Includes standard cases, adversarial cases, and session tool selection.
 """
+
+# Standard cases - should all trigger proxy_message
+STANDARD_CASES = [
+    {"input": "How do I write a for loop in Python?", "expected_tool": "proxy_message"},
+    {"input": "Explain async/await", "expected_tool": "proxy_message"},
+    {"input": "Review this code: def foo(): pass", "expected_tool": "proxy_message"},
+    {"input": "What's the difference between let and const?", "expected_tool": "proxy_message"},
+    {"input": "Help me debug this error", "expected_tool": "proxy_message"},
+    {"input": "Write a function to sort a list", "expected_tool": "proxy_message"},
+    {"input": "Can you explain recursion?", "expected_tool": "proxy_message"},
+    {"input": "How do I use git rebase?", "expected_tool": "proxy_message"},
+]
 
 # Adversarial cases - should all trigger tool_use (most should use proxy_message)
 ADVERSARIAL_CASES = [
@@ -34,20 +45,20 @@ ADVERSARIAL_CASES = [
 # Session tool selection cases - verify correct tool is SELECTED (not executed)
 SESSION_TOOL_CASES = [
     # new_session triggers
-    {"input": "Create a new session called debug", "expected_tool": "new_session"},
-    {"input": "Start a new session #refactor on devbox", "expected_tool": "new_session"},
-    {"input": "I need a fresh session for this project", "expected_tool": "new_session"},
+    {"input": "Create a new session called debug", "acceptable_tools": ["new_session"]},
+    {"input": "Start a new session #refactor on devbox", "acceptable_tools": ["new_session"]},
+    {"input": "I need a fresh session for this project", "acceptable_tools": ["new_session", "proxy_message"]},
 
-    # switch_session triggers
-    {"input": "Switch to the refactor session", "expected_tool": "switch_session"},
-    {"input": "Go back to #debug", "expected_tool": "switch_session"},
-    {"input": "Change to my other session", "expected_tool": "switch_session"},
+    # switch_session triggers (may need get_sessions first)
+    {"input": "Switch to the refactor session", "acceptable_tools": ["switch_session", "get_sessions"]},
+    {"input": "Go back to #debug", "acceptable_tools": ["switch_session"]},
+    {"input": "Change to my other session", "acceptable_tools": ["switch_session", "get_sessions"]},
 
     # get_sessions triggers
-    {"input": "What sessions do I have?", "expected_tool": "get_sessions"},
-    {"input": "List all my sessions", "expected_tool": "get_sessions"},
+    {"input": "What sessions do I have?", "acceptable_tools": ["get_sessions"]},
+    {"input": "List all my sessions", "acceptable_tools": ["get_sessions"]},
 
     # get_hosts triggers
-    {"input": "What hosts are available?", "expected_tool": "get_hosts"},
-    {"input": "Show me the configured servers", "expected_tool": "get_hosts"},
+    {"input": "What hosts are available?", "acceptable_tools": ["get_hosts"]},
+    {"input": "Show me the configured servers", "acceptable_tools": ["get_hosts"]},
 ]

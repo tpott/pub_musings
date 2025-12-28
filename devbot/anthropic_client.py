@@ -52,6 +52,7 @@ def anthropic_completion(
     context: Dict[str, Any],
     tools: Optional[List[Dict]] = None,
     system_prompt: Optional[str] = None,
+    tool_choice: Optional[str] = None,
 ) -> CompletionResult:
     """
     Call Anthropic API with token tracking.
@@ -76,6 +77,8 @@ def anthropic_completion(
 
     if tools:
         kwargs["tools"] = tools
+    if tool_choice is not None and tools is not None:
+        kwargs["tool_choice"] = {"type": tool_choice}  # "any", "auto", or "tool"
 
     response = client.messages.create(**kwargs)
 

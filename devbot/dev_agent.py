@@ -13,12 +13,17 @@ MAX_CONTEXT_TOKENS = 200000  # Claude's context window
 CONTEXT_WARNING_THRESHOLD = 0.85  # Warn at 85% usage
 CHARS_PER_TOKEN_ESTIMATE = 4  # Rough approximation
 
-SYSTEM_PROMPT = """You are a developer assistant managing remote Claude sessions.
-By default, proxy all development messages to the current session using the proxy_message tool.
-Use session tools when user explicitly mentions sessions, switching, hosts, or session management.
+SYSTEM_PROMPT_TEMPLATE = """You are a developer assistant managing remote Claude sessions.
+
+CRITICAL: You MUST use a tool for every response. NEVER respond with text alone.
+- For development questions, coding help, or any unclear request: use proxy_message
+- For session management (create/switch/list): use the appropriate session tool
+- When in doubt, use proxy_message to forward to the current session
+
+{dynamic_context}
 
 Available tools:
-- proxy_message: Forward a message to the current session's remote Claude CLI
+- proxy_message: Forward ANY message to the current session's remote Claude CLI
 - get_sessions: List all active sessions with their stats
 - switch_session: Switch to a different session by hashtag name
 - new_session: Create a new session (optionally specify hostname)
@@ -26,7 +31,7 @@ Available tools:
 - get_hosts: List configured remote hosts
 - compact_session: Summarize the last N messages into a single context summary
 
-When the user asks development questions, writes code, or needs coding assistance, always use proxy_message to forward to the remote Claude."""
+ALWAYS call a tool. Direct text responses are NOT allowed."""
 
 
 TOOLS = [
@@ -126,6 +131,35 @@ TOOLS = [
 ]
 
 
+def build_dynamic_context(session_manager: "SessionManager") -> str:
+    """Build dynamic context including sessions and recent messages."""
+    current = session_manager.get_current_session_name()
+    sessions = session_manager.list_sessions()
+
+    lines = [f"Current session: {current}"]
+
+    if len(sessions) > 0:
+        lines.append("\nActive sessions:")
+    for name, info in sessions.items():
+        marker = " (current)" if name == current else ""
+        hostname = info.get("hostname", "unknown")
+        msg_count = info.get("message_count", 0)
+        lines.append(f"  {name}{marker}: {hostname} ({msg_count} msgs)")
+
+        # Include last 1-2 messages for context
+        recent = session_manager.get_recent_messages(2, name)
+        if len(recent) == 0:
+            continue
+        for msg in recent[-2:]:
+            role = msg.get("role", "?")
+            content = msg.get("content", "")
+            if len(content) > 0:
+                preview = content[:80] + "..." if len(content) > 80 else content
+                lines.append(f"    [{role}]: {preview}")
+
+    return "\n".join(lines)
+
+
 class DevAgent:
     """Main agent class with tool use for managing remote Claude sessions."""
 
@@ -155,6 +189,10 @@ class DevAgent:
         # Build messages for LLM
         messages = self._build_messages(user_input)
 
+        # Build dynamic system prompt
+        dynamic_context = build_dynamic_context(self.session_manager)
+        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(dynamic_context=dynamic_context)
+
         # Agent loop with tool use
         max_iterations = 10
         for _ in range(max_iterations):
@@ -162,7 +200,8 @@ class DevAgent:
                 messages=messages,
                 context=self.context,
                 tools=TOOLS,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=system_prompt,
+                tool_choice="any",  # Force tool use
             )
 
             # Check if we got a tool call
@@ -257,7 +296,7 @@ class DevAgent:
 
         # Estimate token usage and check if near limit
         total_chars = sum(len(m.get("content", "")) for m in messages)
-        total_chars += len(SYSTEM_PROMPT)
+        total_chars += len(SYSTEM_PROMPT_TEMPLATE)
         estimated_tokens = total_chars // CHARS_PER_TOKEN_ESTIMATE
 
         if estimated_tokens > MAX_CONTEXT_TOKENS * CONTEXT_WARNING_THRESHOLD:

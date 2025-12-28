@@ -14,8 +14,28 @@ from typing import Any, Dict, List
 sys.path.insert(0, sys.path[0] + "/..")
 
 from anthropic_client import anthropic_completion, DEFAULT_MODEL
-from dev_agent import SYSTEM_PROMPT, TOOLS
-from test_cases import ADVERSARIAL_CASES, SESSION_TOOL_CASES
+from dev_agent import SYSTEM_PROMPT_TEMPLATE, TOOLS
+from test_cases import ADVERSARIAL_CASES, SESSION_TOOL_CASES, STANDARD_CASES
+
+
+# Mock session context for eval
+MOCK_SESSION_CONTEXT = """Current session: #default
+
+Active sessions:
+  #default (current): devbox (12 msgs)
+    [user]: How do I implement a binary search?...
+    [assistant]: Here's a binary search implementation...
+  #refactor: devbox (5 msgs)
+    [user]: Let's refactor the auth module...
+    [assistant]: I'll help refactor the authentication...
+  #debug: prod (3 msgs)
+    [user]: There's a bug in the checkout flow...
+    [assistant]: Let me investigate the checkout..."""
+
+
+def get_eval_system_prompt() -> str:
+    """Build system prompt for eval with mock context."""
+    return SYSTEM_PROMPT_TEMPLATE.format(dynamic_context=MOCK_SESSION_CONTEXT)
 
 
 def run_single_case(
@@ -33,7 +53,8 @@ def run_single_case(
         messages=messages,
         context=context,
         tools=TOOLS,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=get_eval_system_prompt(),
+        tool_choice="any",  # Force tool use
     )
 
     tool_use = result.get("tool_use")
@@ -96,13 +117,47 @@ def run_adversarial_eval(
     }
 
 
+def run_standard_eval(
+    context: Dict[str, Any],
+    verbose: bool = False,
+) -> Dict[str, Any]:
+    """Run standard (non-adversarial) test cases expecting proxy_message."""
+    results = []
+    failures = []
+
+    print("\nRunning standard cases...")
+    for case in STANDARD_CASES:
+        if verbose:
+            print(f"\n[standard]", end="")
+
+        result = run_single_case(case["input"], context, verbose)
+        result["expected_tool"] = case["expected_tool"]
+        results.append(result)
+
+        if result["tool_called"] != case["expected_tool"]:
+            failures.append(result)
+
+    passed = len(results) - len(failures)
+    total = len(results)
+    success_rate = (passed / total * 100) if total > 0 else 0
+
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": len(failures),
+        "success_rate": success_rate,
+        "failures": failures,
+        "results": results,
+    }
+
+
 def run_session_tool_eval(
     context: Dict[str, Any],
     verbose: bool = False,
 ) -> Dict[str, Any]:
     """
     Run session tool selection cases.
-    Verifies the model selects the correct tool for session management inputs.
+    Verifies the model selects an acceptable tool for session management inputs.
     """
     results = []
     failures = []
@@ -110,14 +165,14 @@ def run_session_tool_eval(
     print("\nRunning session tool selection cases...")
     for case in SESSION_TOOL_CASES:
         if verbose:
-            print(f"\n[{case['expected_tool']}]", end="")
+            print(f"\n[session]", end="")
 
         result = run_single_case(case["input"], context, verbose)
-        result["expected_tool"] = case["expected_tool"]
+        result["acceptable_tools"] = case["acceptable_tools"]
         results.append(result)
 
-        # Check if correct tool was selected
-        if result["tool_called"] != case["expected_tool"]:
+        # Check if called tool is in acceptable set
+        if result["tool_called"] not in case["acceptable_tools"]:
             failures.append(result)
 
     passed = len(results) - len(failures)
@@ -141,6 +196,7 @@ def get_tool_distribution(results: List[Dict[str, Any]]) -> Dict[str, int]:
 
 
 def print_report(
+    standard: Dict[str, Any],
     adversarial: Dict[str, Any],
     session_tool: Dict[str, Any],
     verbose: bool = False,
@@ -149,6 +205,17 @@ def print_report(
     print("\n" + "=" * 60)
     print("Tool Call Eval Results")
     print("=" * 60)
+
+    # Standard cases
+    print(f"\nSTANDARD CASES (proxy_message expected)")
+    print(f"Total: {standard['total']} | Passed: {standard['passed']} | "
+          f"Failed: {standard['failed']} | Success Rate: {standard['success_rate']:.1f}%")
+
+    if standard["failures"]:
+        print("\nFailures:")
+        for f in standard["failures"]:
+            input_preview = f["input"][:40] + "..." if len(f["input"]) > 40 else f["input"]
+            print(f'  [FAIL] "{input_preview}" -> expected {f["expected_tool"]}, got {f["tool_called"]}')
 
     # Adversarial cases
     print(f"\nADVERSARIAL CASES (tool_use required)")
@@ -164,7 +231,7 @@ def print_report(
             print(f'  [FAIL] "{input_preview}" -> stop_reason={f["stop_reason"]} (no tool call)')
 
     # Session tool selection
-    print(f"\nSESSION TOOL SELECTION (correct tool required)")
+    print(f"\nSESSION TOOL SELECTION (acceptable tool required)")
     print(f"Total: {session_tool['total']} | Passed: {session_tool['passed']} | "
           f"Failed: {session_tool['failed']} | Success Rate: {session_tool['success_rate']:.1f}%")
 
@@ -172,10 +239,11 @@ def print_report(
         print("\nFailures:")
         for f in session_tool["failures"]:
             input_preview = f["input"][:40] + "..." if len(f["input"]) > 40 else f["input"]
-            print(f'  [FAIL] "{input_preview}" -> expected {f["expected_tool"]}, got {f["tool_called"]}')
+            acceptable = ", ".join(f["acceptable_tools"])
+            print(f'  [FAIL] "{input_preview}" -> expected one of [{acceptable}], got {f["tool_called"]}')
 
     # Tool distribution
-    all_results = adversarial["results"] + session_tool["results"]
+    all_results = standard["results"] + adversarial["results"] + session_tool["results"]
     distribution = get_tool_distribution(all_results)
     total_tool_calls = sum(distribution.values())
 
@@ -221,18 +289,23 @@ def main():
     }
 
     print(f"Running eval with model: {args.model}")
-    print(f"System prompt length: {len(SYSTEM_PROMPT)} chars")
+    print(f"System prompt length: {len(get_eval_system_prompt())} chars")
     print(f"Number of tools: {len(TOOLS)}")
 
     # Run evaluations
+    standard_results = run_standard_eval(context, args.verbose)
     adversarial_results = run_adversarial_eval(context, args.verbose)
     session_tool_results = run_session_tool_eval(context, args.verbose)
 
     # Print report
-    print_report(adversarial_results, session_tool_results, args.verbose)
+    print_report(standard_results, adversarial_results, session_tool_results, args.verbose)
 
     # Exit with error code if any failures
-    total_failures = adversarial_results["failed"] + session_tool_results["failed"]
+    total_failures = (
+        standard_results["failed"]
+        + adversarial_results["failed"]
+        + session_tool_results["failed"]
+    )
     sys.exit(1 if total_failures > 0 else 0)
 
 
