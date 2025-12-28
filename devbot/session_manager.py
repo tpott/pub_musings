@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from serve_config import get_data_dir, get_default_host
 
@@ -13,7 +13,7 @@ from serve_config import get_data_dir, get_default_host
 class SessionManager:
     """Manages session state and message history persistence."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self.data_dir = get_data_dir()
         self.sessions_file = self.data_dir / "sessions.json"
@@ -27,7 +27,7 @@ class SessionManager:
         # Load or initialize sessions
         self._sessions_data = self._load_sessions()
 
-    def _load_sessions(self) -> Dict[str, Any]:
+    def _load_sessions(self) -> dict[str, Any]:
         """Load sessions from file with file locking."""
         if not self.sessions_file.exists():
             return {"sessions": {}, "current_session": "#default"}
@@ -56,7 +56,7 @@ class SessionManager:
 
     def create_session(
         self, name: str, hostname: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a new session."""
         if not name.startswith("#"):
             name = f"#{name}"
@@ -83,7 +83,7 @@ class SessionManager:
 
         return session
 
-    def switch_session(self, name: str) -> Optional[Dict[str, Any]]:
+    def switch_session(self, name: str) -> Optional[dict[str, Any]]:
         """Switch to an existing session."""
         if not name.startswith("#"):
             name = f"#{name}"
@@ -95,7 +95,7 @@ class SessionManager:
         self._save_sessions()
         return self._sessions_data["sessions"][name]
 
-    def get_current_session(self) -> Dict[str, Any]:
+    def get_current_session(self) -> dict[str, Any]:
         """Get the current session, creating #default if needed."""
         current_name = self._sessions_data.get("current_session", "#default")
 
@@ -121,16 +121,18 @@ class SessionManager:
     def add_message(
         self,
         role: str,
-        content: str,
+        content: Optional[str],
         proxied: bool = False,
         remote_message_id: Optional[str] = None,
         compacted_count: Optional[int] = None,
+        tool_calls: Optional[list[dict[str, Any]]] = None,
+        tool_results: Optional[list[dict[str, Any]]] = None,
     ) -> None:
         """Add a message to the current session's history."""
         session_name = self.get_current_session_name()
         history_file = self._get_history_file(session_name)
 
-        message: Dict[str, Any] = {
+        message: dict[str, Any] = {
             "role": role,
             "content": content,
             "timestamp": time.time(),
@@ -138,10 +140,14 @@ class SessionManager:
 
         if proxied:
             message["proxied"] = True
-        if remote_message_id:
+        if remote_message_id is not None:
             message["remote_message_id"] = remote_message_id
-        if compacted_count:
+        if compacted_count is not None:
             message["compacted_count"] = compacted_count
+        if tool_calls is not None:
+            message["tool_calls"] = tool_calls
+        if tool_results is not None:
+            message["tool_results"] = tool_results
 
         with open(history_file, "a") as f:
             f.write(json.dumps(message) + "\n")
@@ -154,11 +160,11 @@ class SessionManager:
         self._sessions_data["sessions"][session_name] = session
         self._save_sessions()
 
-    def list_sessions(self) -> Dict[str, Dict[str, Any]]:
-        """List all sessions with their metadata."""
+    def list_sessions(self) -> dict[str, dict[str, Any]]:
+        """list all sessions with their metadata."""
         return self._sessions_data["sessions"]
 
-    def get_session_info(self, name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_session_info(self, name: Optional[str] = None) -> Optional[dict[str, Any]]:
         """Get detailed info for a session."""
         if name is None:
             name = self.get_current_session_name()
@@ -183,7 +189,7 @@ class SessionManager:
 
     def get_recent_messages(
         self, n: int = 10, session_name: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get the last N messages from a session's history."""
         if session_name is None:
             session_name = self.get_current_session_name()
@@ -202,7 +208,7 @@ class SessionManager:
 
     def get_all_messages(
         self, session_name: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get all messages from a session's history."""
         if session_name is None:
             session_name = self.get_current_session_name()

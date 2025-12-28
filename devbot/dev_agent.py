@@ -196,6 +196,17 @@ class DevAgent:
                 }
             )
 
+            # Persist tool call to history
+            self.session_manager.add_message(
+                role="assistant",
+                content=None,
+                tool_calls=[{
+                    "id": tool_use["id"],
+                    "name": tool_use["name"],
+                    "input": tool_use["input"],
+                }],
+            )
+
             # Add tool result
             messages.append(
                 {
@@ -208,6 +219,16 @@ class DevAgent:
                         }
                     ],
                 }
+            )
+
+            # Persist tool result to history
+            self.session_manager.add_message(
+                role="user",
+                content=None,
+                tool_results=[{
+                    "tool_use_id": tool_use["id"],
+                    "content": tool_result,
+                }],
             )
 
             # Continue the loop to get next response

@@ -186,9 +186,8 @@ class MatrixBot:
             f"\n[{room.display_name}] {room.user_name(event.sender)}: {event.body}"
         )
 
-        # Get or create session for this room
-        session_name = self._get_or_create_room_session(room.room_id)
-        self.session_manager.switch_session(session_name)
+        # Get or create session for this room (but don't force switch - allow /switch to persist)
+        self._get_or_create_room_session(room.room_id)
 
         # Also update DevAgent's session_manager reference to use same session
         self.dev_agent.session_manager = self.session_manager
