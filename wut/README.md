@@ -63,6 +63,12 @@ The script will:
 5. Automatically search for and click on the specified account
 6. Keep the browser open for further use
 
+### Job crawling
+
+```bash
+bun run job-crawler.ts "{url}"
+```
+
 ## Project Structure
 
 - `schwab-login.ts` - Main script (TypeScript)
