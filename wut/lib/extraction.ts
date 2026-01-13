@@ -11,14 +11,19 @@ export async function extractJobListings(page: Page, pattern: JobBoardPattern): 
     try {
       const elements = await page.$$(selector);
       for (const element of elements) {
-        const href = await element.evaluate((el) => el.getAttribute('href'));
-        // Look for heading elements inside the anchor first (e.g., OpenAI uses <h2> for job titles)
-        // Fall back to anchor's innerText if no heading found
+        const href = await element.evaluate((el) =>
+          el.getAttribute('href') || el.getAttribute('data-link')
+        );
+        // Look for job-title class first (SoFi pattern), then heading elements, then innerText
         const text = await element.evaluate((el) => {
+          // Check for job-title class first (SoFi pattern)
+          const jobTitle = el.querySelector('.job-title');
+          if (jobTitle) return (jobTitle.textContent || '').replace(/\s+/g, ' ').trim();
+
+          // Fall back to heading tags (e.g., OpenAI uses <h2> for job titles)
           const heading = el.querySelector('h1, h2, h3, h4, h5, h6');
-          if (heading) {
-            return (heading.textContent || '').replace(/\s+/g, ' ').trim();
-          }
+          if (heading) return (heading.textContent || '').replace(/\s+/g, ' ').trim();
+
           return ((el as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim();
         });
 

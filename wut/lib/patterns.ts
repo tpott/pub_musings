@@ -13,6 +13,17 @@ export const JOB_BOARD_PATTERNS: Record<string, JobBoardPattern> = {
     ],
     contentSelector: '#content, .content, main, article, .job-post',
   },
+  'greenhouse-embed': {
+    name: 'Greenhouse Embed',
+    urlPattern: /gh_jid=/,  // Detect pages with Greenhouse job IDs
+    selectors: [
+      'a[data-link*="gh_jid="]',     // SoFi-style: data-link attribute
+      '.listing a[data-link]',       // Jobs in .listing containers
+      'a[href*="gh_jid="]',          // Standard href with gh_jid
+      'a[href*="/careers/job/"]',    // Common careers path pattern
+    ],
+    contentSelector: '[jd-content], .job-description, main, article, .content, #content',
+  },
   lever: {
     name: 'Lever',
     urlPattern: /jobs\.lever\.co/,
@@ -87,6 +98,11 @@ export async function detectPatternFromContent(page: Page): Promise<string | nul
         name: 'ashby',
         urlPatterns: [/ashbyhq\.com/, /ashby/i],
         classPatterns: [/ashby/i],
+      },
+      {
+        name: 'greenhouse-embed',
+        urlPatterns: [/gh_jid=/, /\/careers\/job\//],
+        classPatterns: [],
       },
       {
         name: 'greenhouse',

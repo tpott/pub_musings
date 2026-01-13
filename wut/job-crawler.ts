@@ -39,16 +39,40 @@ async function crawlJobPage(
   }
 
   // Check for job board iframe in job detail page
-  const iframeUrl = await findJobBoardIframeUrl(page);
-  if (iframeUrl !== null) {
-    console.log(`  Detected job board iframe, navigating to: ${iframeUrl}`);
-    try {
-      await page.goto(iframeUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    } catch (error) {
-      console.log(`  Warning: Iframe page load timed out, continuing anyway...`);
+  // Skip iframe navigation for embedded patterns (content is on parent page, not iframe)
+  if (pattern.name !== 'Greenhouse Embed') {
+    const iframeUrl = await findJobBoardIframeUrl(page);
+    if (iframeUrl !== null) {
+      console.log(`  Detected job board iframe, navigating to: ${iframeUrl}`);
+      try {
+        await page.goto(iframeUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      } catch (error) {
+        console.log(`  Warning: Iframe page load timed out, continuing anyway...`);
+      }
+      pattern = detectJobBoard(iframeUrl);
+      console.log(`  Using pattern for iframe: ${pattern.name}`);
     }
-    pattern = detectJobBoard(iframeUrl);
-    console.log(`  Using pattern for iframe: ${pattern.name}`);
+  }
+
+  // Wait for client-side rendered content to load
+  const contentSelectors = pattern.contentSelector.split(',').map((s) => s.trim());
+  try {
+    await page.waitForFunction(
+      (selectors: string[]) => {
+        for (const selector of selectors) {
+          const el = document.querySelector(selector);
+          if (el && el.textContent && el.textContent.trim().length > 100) {
+            return true;
+          }
+        }
+        return false;
+      },
+      { timeout: 10000 },
+      contentSelectors
+    );
+    console.log(`  Content loaded.`);
+  } catch {
+    console.log(`  Warning: Timed out waiting for content, continuing anyway...`);
   }
 
   const harLog = await harRecorder.stop();
