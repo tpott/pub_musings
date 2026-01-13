@@ -1,0 +1,67 @@
+---
+const currentPath = Astro.url.pathname;
+
+const navItems = [
+  { href: '/', label: 'About' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+
+<header>
+  <nav>
+    <a href="/" class="logo">Trevor Pottinger</a>
+    <ul>
+      {navItems.map(({ href, label }) => (
+        <li>
+          <a
+            href={href}
+            class:list={[{ active: currentPath === href || (href !== '/' && currentPath.startsWith(href)) }]}
+          >
+            {label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</header>
+
+<style>
+  header {
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--spacing-md) 0;
+  }
+
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .logo {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--color-text);
+  }
+
+  .logo:hover {
+    text-decoration: none;
+    color: var(--color-primary);
+  }
+
+  ul {
+    display: flex;
+    gap: var(--spacing-lg);
+    list-style: none;
+  }
+
+  a {
+    color: var(--color-text-muted);
+    transition: color 0.2s;
+  }
+
+  a:hover, a.active {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+</style>

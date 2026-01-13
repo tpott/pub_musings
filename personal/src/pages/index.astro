@@ -1,0 +1,56 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Trevor Pottinger - About">
+  <section class="hero">
+    <h1>Hi, I'm Trevor</h1>
+    <p class="tagline">Software engineer, tinkerer, and lifelong learner.</p>
+  </section>
+
+  <section class="about">
+    <h2>About Me</h2>
+    <p>
+      Welcome to my corner of the internet. I'm a software engineer who enjoys building
+      things and exploring new technologies.
+    </p>
+    <p>
+      This site is where I share my thoughts, projects, and musings on various topics
+      that interest me.
+    </p>
+  </section>
+
+  <section class="links">
+    <h2>Find Me Online</h2>
+    <ul>
+      <li><a href="https://github.com/tpott" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+    </ul>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding: var(--spacing-xl) 0;
+    text-align: center;
+  }
+
+  .hero h1 {
+    font-size: 2.5rem;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .tagline {
+    font-size: 1.25rem;
+    color: var(--color-text-muted);
+  }
+
+  .about, .links {
+    margin-bottom: var(--spacing-xl);
+  }
+
+  .links ul {
+    list-style: none;
+    display: flex;
+    gap: var(--spacing-lg);
+  }
+</style>

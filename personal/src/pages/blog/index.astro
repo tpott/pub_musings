@@ -1,0 +1,84 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection, type CollectionEntry } from 'astro:content';
+
+type BlogPost = CollectionEntry<'blog'>;
+
+const posts = (await getCollection('blog'))
+  .sort((a: BlogPost, b: BlogPost) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<BaseLayout title="Blog - Trevor Pottinger" description="My blog posts and writings">
+  <h1>Blog</h1>
+
+  {posts.length === 0 ? (
+    <p class="empty">No posts yet. Check back soon!</p>
+  ) : (
+    <ul class="posts">
+      {posts.map((post: BlogPost) => (
+        <li>
+          <article>
+            <a href={`/blog/${post.slug}`}>
+              <h2>{post.data.title}</h2>
+              <time datetime={post.data.pubDate.toISOString()}>
+                {post.data.pubDate.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </time>
+              {post.data.description && <p>{post.data.description}</p>}
+            </a>
+          </article>
+        </li>
+      ))}
+    </ul>
+  )}
+</BaseLayout>
+
+<style>
+  h1 {
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .empty {
+    color: var(--color-text-muted);
+  }
+
+  .posts {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+  }
+
+  article a {
+    display: block;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: inherit;
+    transition: border-color 0.2s;
+  }
+
+  article a:hover {
+    border-color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  article h2 {
+    font-size: 1.25rem;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  time {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+
+  article p {
+    margin-top: var(--spacing-sm);
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+  }
+</style>

@@ -1,0 +1,36 @@
+---
+// GA4 Analytics component
+// Only loads gtag.js after user consent via CookieConsent component
+const GA4_ID = import.meta.env.PUBLIC_GA4_ID;
+---
+
+{GA4_ID && (
+  <script is:inline define:vars={{ GA4_ID }}>
+    // Listen for consent event from CookieConsent component
+    window.addEventListener('cookie-consent-accepted', function loadGA4() {
+      // Only load once
+      window.removeEventListener('cookie-consent-accepted', loadGA4);
+
+      // Load gtag.js
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
+      document.head.appendChild(script);
+
+      script.onload = function() {
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', GA4_ID, {
+          // IP anonymization is default in GA4
+          send_page_view: true
+        });
+      };
+    });
+
+    // Check if consent was already given (on page load/navigation)
+    if (localStorage.getItem('cookie-consent') === 'accepted') {
+      window.dispatchEvent(new CustomEvent('cookie-consent-accepted'));
+    }
+  </script>
+)}

@@ -1,0 +1,22 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ContactForm from '../components/ContactForm';
+---
+
+<BaseLayout title="Contact - Trevor Pottinger" description="Get in touch with me">
+  <h1>Contact</h1>
+  <p>Have a question or want to get in touch? Fill out the form below and I'll get back to you.</p>
+
+  <ContactForm client:load />
+</BaseLayout>
+
+<style>
+  h1 {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-lg);
+  }
+</style>
