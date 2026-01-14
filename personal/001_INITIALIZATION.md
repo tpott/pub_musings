@@ -145,6 +145,7 @@ RESEND_API_KEY: "re_xxxxx"
 EMAIL_FROM: "contact@pottingers.us"
 EMAIL_TO: "your-email@example.com"
 ALLOWED_ORIGIN: "https://t.pottingers.us"
+SITE_PATH: "/home/trevor/pub_musings/personal"
 PUBLIC_GA4_ID: "G-XXXXXXX"
 PUBLIC_API_URL: "https://webhook.pottingers.us"
 PUBLIC_SITE_URL: "https://t.pottingers.us"
@@ -165,7 +166,7 @@ scp ~/.config/sops/age/keys.txt trevor@vm:~/.config/sops/age/keys.txt
 # Decrypt secrets for webhook-deployer
 cd ~/pub_musings
 sops -d secrets.enc.yaml | \
-  grep -E "^(WEBHOOK_SECRET|RESEND_API_KEY|EMAIL_FROM|EMAIL_TO|ALLOWED_ORIGIN):" | \
+  grep -E "^(WEBHOOK_SECRET|RESEND_API_KEY|EMAIL_FROM|EMAIL_TO|ALLOWED_ORIGIN|SITE_PATH):" | \
   sed 's/: /=/' | sed 's/"//g' > webhook-deployer/.env
 
 # Decrypt secrets for personal Astro app
@@ -174,7 +175,7 @@ sops -d secrets.enc.yaml | \
   sed 's/: /=/' | sed 's/"//g' > personal/.env
 
 # Verify the files
-cat webhook-deployer/.env  # Should show WEBHOOK_SECRET, RESEND_API_KEY, etc.
+cat webhook-deployer/.env  # Should show WEBHOOK_SECRET, RESEND_API_KEY, SITE_PATH, etc.
 cat personal/.env          # Should show PUBLIC_GA4_ID, PUBLIC_API_URL, PUBLIC_SITE_URL
 ```
 
@@ -186,6 +187,7 @@ RESEND_API_KEY=re_xxxxx
 EMAIL_FROM=contact@pottingers.us
 EMAIL_TO=your-email@example.com
 ALLOWED_ORIGIN=https://t.pottingers.us
+SITE_PATH=/home/trevor/pub_musings/personal
 
 # personal/.env format:
 PUBLIC_GA4_ID=G-XXXXXXX
@@ -207,6 +209,7 @@ PUBLIC_SITE_URL=https://t.pottingers.us
 | `EMAIL_FROM` | webhook-deployer | Sender email address for contact form |
 | `EMAIL_TO` | webhook-deployer | Recipient email address for contact form |
 | `ALLOWED_ORIGIN` | webhook-deployer | CORS allowed origin (e.g., https://t.pottingers.us) |
+| `SITE_PATH` | webhook-deployer | Path to the personal site directory on the server |
 | `PUBLIC_GA4_ID` | Astro frontend | Google Analytics tracking ID |
 | `PUBLIC_API_URL` | Astro frontend | Backend API URL (e.g., https://webhook.pottingers.us) |
 | `PUBLIC_SITE_URL` | Astro frontend | Site base URL (e.g., https://t.pottingers.us) |
@@ -382,7 +385,6 @@ Location: `pub_musings/webhook-deployer/`
    WorkingDirectory=/home/trevor
    ExecStart=/home/trevor/pub_musings/webhook-deployer/webhook-deployer
    EnvironmentFile=/home/trevor/pub_musings/webhook-deployer/.env
-   Environment=SITE_PATH=/home/trevor/pub_musings/personal
    Restart=always
 
    [Install]
