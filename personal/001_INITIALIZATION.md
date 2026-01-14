@@ -142,7 +142,13 @@ creation_rules:
 cat > secrets.yaml << 'EOF'
 WEBHOOK_SECRET: "your-github-webhook-secret"
 RESEND_API_KEY: "re_xxxxx"
+EMAIL_FROM: "contact@pottingers.us"
+EMAIL_TO: "your-email@example.com"
+ALLOWED_ORIGIN: "https://t.pottingers.us"
+SITE_PATH: "/home/trevor/pub_musings/personal"
 PUBLIC_GA4_ID: "G-XXXXXXX"
+PUBLIC_API_URL: "https://webhook.pottingers.us"
+PUBLIC_SITE_URL: "https://t.pottingers.us"
 EOF
 
 # Encrypt it
@@ -157,9 +163,36 @@ rm secrets.yaml  # delete plaintext
 # Copy age key to VM (one-time, secure transfer)
 scp ~/.config/sops/age/keys.txt trevor@vm:~/.config/sops/age/keys.txt
 
-# Decrypt to .env for use by services
-cd ~/pub_musings/personal
-sops -d secrets.enc.yaml > .env
+# Decrypt secrets for webhook-deployer
+cd ~/pub_musings
+sops -d secrets.enc.yaml | \
+  grep -E "^(WEBHOOK_SECRET|RESEND_API_KEY|EMAIL_FROM|EMAIL_TO|ALLOWED_ORIGIN|SITE_PATH):" | \
+  sed 's/: /=/' | sed 's/"//g' > webhook-deployer/.env
+
+# Decrypt secrets for personal Astro app
+sops -d secrets.enc.yaml | \
+  grep -E "^(PUBLIC_GA4_ID|PUBLIC_API_URL|PUBLIC_SITE_URL):" | \
+  sed 's/: /=/' | sed 's/"//g' > personal/.env
+
+# Verify the files
+cat webhook-deployer/.env  # Should show WEBHOOK_SECRET, RESEND_API_KEY, SITE_PATH, etc.
+cat personal/.env          # Should show PUBLIC_GA4_ID, PUBLIC_API_URL, PUBLIC_SITE_URL
+```
+
+**Note:** The `.env` files should use `KEY=value` format without quotes (unless the value contains spaces):
+```bash
+# webhook-deployer/.env format:
+WEBHOOK_SECRET=your-secret-here
+RESEND_API_KEY=re_xxxxx
+EMAIL_FROM=contact@pottingers.us
+EMAIL_TO=your-email@example.com
+ALLOWED_ORIGIN=https://t.pottingers.us
+SITE_PATH=/home/trevor/pub_musings/personal
+
+# personal/.env format:
+PUBLIC_GA4_ID=G-XXXXXXX
+PUBLIC_API_URL=https://webhook.pottingers.us
+PUBLIC_SITE_URL=https://t.pottingers.us
 ```
 
 #### Key backup
@@ -173,7 +206,13 @@ sops -d secrets.enc.yaml > .env
 |--------|---------|---------|
 | `WEBHOOK_SECRET` | webhook-deployer | Validate GitHub webhook signatures |
 | `RESEND_API_KEY` | webhook-deployer | Send emails from contact form |
+| `EMAIL_FROM` | webhook-deployer | Sender email address for contact form |
+| `EMAIL_TO` | webhook-deployer | Recipient email address for contact form |
+| `ALLOWED_ORIGIN` | webhook-deployer | CORS allowed origin (e.g., https://t.pottingers.us) |
+| `SITE_PATH` | webhook-deployer | Path to the personal site directory on the server |
 | `PUBLIC_GA4_ID` | Astro frontend | Google Analytics tracking ID |
+| `PUBLIC_API_URL` | Astro frontend | Backend API URL (e.g., https://webhook.pottingers.us) |
+| `PUBLIC_SITE_URL` | Astro frontend | Site base URL (e.g., https://t.pottingers.us) |
 
 ## Implementation Steps
 
@@ -345,15 +384,26 @@ Location: `pub_musings/webhook-deployer/`
    User=trevor
    WorkingDirectory=/home/trevor
    ExecStart=/home/trevor/pub_musings/webhook-deployer/webhook-deployer
-   EnvironmentFile=/home/trevor/pub_musings/personal/.env
-   Environment=SITE_PATH=/home/trevor/pub_musings/personal
+   EnvironmentFile=/home/trevor/pub_musings/webhook-deployer/.env
    Restart=always
 
    [Install]
    WantedBy=multi-user.target
    ```
 
-   The `.env` file (decrypted from sops) contains `WEBHOOK_SECRET` and `RESEND_API_KEY`.
+   **Important:** The `.env` file must be located at `/home/trevor/pub_musings/webhook-deployer/.env` (not in `personal/`) and must be readable by the `trevor` user:
+   ```bash
+   chmod 600 ~/pub_musings/webhook-deployer/.env
+   chown trevor:trevor ~/pub_musings/webhook-deployer/.env
+   ```
+
+   After creating or modifying the service file:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable webhook-deployer
+   sudo systemctl start webhook-deployer
+   sudo systemctl status webhook-deployer
+   ```
 
 ### Phase 6: Caddy Configuration
 
@@ -395,18 +445,37 @@ Location: `pub_musings/webhook-deployer/`
 
 ### Phase 7: Cloudflare Tunnel
 
-1. **Add tunnel routes** (requires DNS zone in Cloudflare):
+1. **Install cloudflared on Ubuntu**:
    ```bash
-   cloudflared tunnel route dns <tunnel-name> t.pottingers.us
-   cloudflared tunnel route dns <tunnel-name> webhook.pottingers.us
+   # Download and install
+   wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+   sudo dpkg -i cloudflared-linux-amd64.deb
+   ```
+
+2. **Create and configure tunnel**:
+   ```bash
+   # Login to Cloudflare (opens browser for authentication)
+   cloudflared tunnel login
+
+   # Create a new tunnel
+   cloudflared tunnel create pottingers-us
+
+   # Note the tunnel ID from output (e.g., "Created tunnel pottingers-us with id abc123...")
+   # This creates ~/.cloudflared/<tunnel-id>.json credentials file
+   ```
+
+3. **Add tunnel routes** (requires DNS zone in Cloudflare):
+   ```bash
+   cloudflared tunnel route dns pottingers-us t.pottingers.us
+   cloudflared tunnel route dns pottingers-us webhook.pottingers.us
    ```
 
    This creates CNAME records pointing to the tunnel.
 
-2. **Update tunnel config** (`~/.cloudflared/config.yml`):
+4. **Update tunnel config** (`/etc/cloudflared/config.yml`):
    ```yaml
    tunnel: <tunnel-id>
-   credentials-file: ~/.cloudflared/<tunnel-id>.json
+   credentials-file: /home/trevor/.cloudflared/<tunnel-id>.json
 
    ingress:
      - hostname: t.pottingers.us
@@ -416,7 +485,15 @@ Location: `pub_musings/webhook-deployer/`
      - service: http_status:404
    ```
 
-3. **Restart cloudflared**: `sudo systemctl restart cloudflared`
+   Replace `<tunnel-id>` with your actual tunnel ID from step 2.
+
+5. **Install and start cloudflared as a service**:
+   ```bash
+   sudo cloudflared service install
+   sudo systemctl start cloudflared
+   sudo systemctl enable cloudflared
+   sudo systemctl status cloudflared
+   ```
 
 ## Verification & Testing
 
@@ -431,12 +508,44 @@ npm run preview      # Preview built site
 ```
 
 ### On the VM
+
+**Before testing, build the site first:**
+```bash
+cd ~/pub_musings/personal
+npm ci
+npm run build
+# Verify dist directory exists
+ls -la dist/
+```
+
+**If you get permission errors with Caddy:**
+```bash
+# 1. First, test if caddy user can access the dist directory
+sudo -u caddy ls ~/pub_musings/personal/dist/
+
+# 2. If that fails, find which directory in the path is problematic
+sudo -u caddy namei -l ~/pub_musings/personal/dist/
+
+# 3. Fix permissions on the problematic directory:
+# If the issue is with your home directory (~):
+chmod o+x ~
+# Or if the issue is with the dist directory itself:
+chmod -R +rx ~/pub_musings/personal/dist/
+```
+
 1. **Test Caddy serves files**: `curl http://localhost:8080`
+   - **Expected**: HTML output from `dist/index.html`
+   - **If 403 error**: The `dist/` directory doesn't exist or is empty. Build the site first (see above).
+   - **If permission denied**: Check directory permissions (see above).
+
 2. **Test tunnel**: `curl https://t.pottingers.us` from external network
+
 3. **Test webhook**: Send test payload from GitHub webhook settings (URL: `https://webhook.pottingers.us/webhook`)
+
 4. **Monitor logs**:
    - `journalctl -u caddy -f`
    - `journalctl -u webhook-deployer -f`
+   - `journalctl -u cloudflared -f`
 
 ### CI Testing (optional GitHub Actions)
 - Run `npm run test:all` on every PR
@@ -479,6 +588,6 @@ npm run preview      # Preview built site
 ### On the VM (not in repo):
 - [ ] `/etc/caddy/Caddyfile`
 - [ ] `/etc/systemd/system/webhook-deployer.service`
-- [ ] `~/.cloudflared/config.yml` — tunnel config with t.pottingers.us and webhook.pottingers.us
+- [ ] `/etc/cloudflared/config.yml` — tunnel config with t.pottingers.us and webhook.pottingers.us
 - [ ] `~/.config/sops/age/keys.txt` — age private key (copied securely)
 - [ ] `/home/trevor/pub_musings/personal/.env` — decrypted secrets
