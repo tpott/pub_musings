@@ -520,10 +520,17 @@ ls -la dist/
 
 **If you get permission errors with Caddy:**
 ```bash
-# Ensure caddy user can read the dist directory
-chmod -R +rx ~/pub_musings/personal/dist/
-# Test access as caddy user
+# 1. First, test if caddy user can access the dist directory
 sudo -u caddy ls ~/pub_musings/personal/dist/
+
+# 2. If that fails, find which directory in the path is problematic
+sudo -u caddy namei -l ~/pub_musings/personal/dist/
+
+# 3. Fix permissions on the problematic directory:
+# If the issue is with your home directory (~):
+chmod o+x ~
+# Or if the issue is with the dist directory itself:
+chmod -R +rx ~/pub_musings/personal/dist/
 ```
 
 1. **Test Caddy serves files**: `curl http://localhost:8080`
