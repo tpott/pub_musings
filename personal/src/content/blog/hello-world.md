@@ -1,7 +1,7 @@
 ---
 title: "Hello, World!"
 description: "Welcome to my new blog. A brief introduction to what you can expect here."
-pubDate: 2026-01-13
+pubDate: 2026-01-12
 tags: ["meta", "introduction"]
 ---
 

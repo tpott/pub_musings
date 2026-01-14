@@ -1,7 +1,7 @@
 ---
 title: "Day Two"
 description: "I can't believe its been almost 12 hours since I started down this path"
-pubDate: 2026-01-14
+pubDate: 2026-01-13
 tags: ["time"]
 ---
 
