@@ -472,7 +472,7 @@ Location: `pub_musings/webhook-deployer/`
 
    This creates CNAME records pointing to the tunnel.
 
-4. **Update tunnel config** (`~/.cloudflared/config.yml`):
+4. **Update tunnel config** (`/etc/cloudflared/config.yml`):
    ```yaml
    tunnel: <tunnel-id>
    credentials-file: /home/trevor/.cloudflared/<tunnel-id>.json
@@ -588,6 +588,6 @@ chmod -R +rx ~/pub_musings/personal/dist/
 ### On the VM (not in repo):
 - [ ] `/etc/caddy/Caddyfile`
 - [ ] `/etc/systemd/system/webhook-deployer.service`
-- [ ] `~/.cloudflared/config.yml` — tunnel config with t.pottingers.us and webhook.pottingers.us
+- [ ] `/etc/cloudflared/config.yml` — tunnel config with t.pottingers.us and webhook.pottingers.us
 - [ ] `~/.config/sops/age/keys.txt` — age private key (copied securely)
 - [ ] `/home/trevor/pub_musings/personal/.env` — decrypted secrets
