@@ -65,9 +65,13 @@ cd backend && /home/trevor/go/bin/go run ./cmd/server
 ```bash
 # Backend unit tests
 cd backend && /home/trevor/go/bin/go test ./internal/config -v
+cd backend && /home/trevor/go/bin/go test ./internal/storage -v
 
-# Run all tests (short mode, skips integration tests)
+# Run all backend tests (short mode, skips integration tests)
 cd backend && /home/trevor/go/bin/go test ./... -short
+
+# Backend upload endpoint tests
+cd backend && /home/trevor/go/bin/go test ./cmd/server -v
 ```
 
 ### Integration Tests
@@ -76,6 +80,15 @@ cd backend && /home/trevor/go/bin/go test ./... -short
 cd backend && /home/trevor/go/bin/go test ./internal/transcribe -v
 
 # See INTEGRATION_TESTS.md for more details
+```
+
+### Frontend Tests
+```bash
+# Playwright tests (requires frontend and backend to be running)
+cd frontend && npm test
+
+# Run Playwright tests in headed mode (visible browser)
+cd frontend && npm run test:headed
 ```
 
 ## Documentation

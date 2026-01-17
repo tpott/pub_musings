@@ -1,6 +1,6 @@
 {"id": 1, "name": "Initialize project structure", "done_when": "cd frontend && npm run dev shows Astro running; cd backend && go build ./cmd/server succeeds", "status": "complete"}
 {"id": 2, "name": "Implement whisper.cpp integration", "done_when": "cd backend && go test ./internal/transcribe/... passes with whisper.cpp transcription test", "status": "complete"}
-{"id": 3, "name": "Basic file upload UI", "done_when": "Open localhost:3000, select a file, submit form; browser network tab shows multipart POST to backend", "status": "todo"}
+{"id": 3, "name": "Basic file upload UI", "done_when": "Open localhost:3000, select a file, submit form; browser network tab shows multipart POST to backend", "status": "complete"}
 {"id": 4, "name": "Basic transcription endpoint", "done_when": "curl -F 'file=@test.mp3' localhost:8080/api/transcribe returns SRT content", "status": "todo"}
 {"id": 5, "name": "Database setup", "done_when": "cd backend && go run ./cmd/migrate creates subtitler.db with users and jobs tables", "status": "todo"}
 {"id": 6, "name": "Email and password authentication", "done_when": "curl -X POST localhost:8080/api/register -d '{\"email\":\"test@test.com\",\"password\":\"pass\"}' returns 200; subsequent login returns session token", "status": "todo"}
