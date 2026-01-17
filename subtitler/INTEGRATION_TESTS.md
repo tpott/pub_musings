@@ -27,6 +27,10 @@ See [INSTALL.md](INSTALL.md) for setup instructions.
 ```bash
 cd backend
 /home/trevor/go/bin/go test ./internal/transcribe -v
+
+# Also test the transcribe endpoint
+cd backend
+/home/trevor/go/bin/go test ./cmd/server -v -run TestHandleTranscribe_Integration
 ```
 
 ### Run Specific Test
@@ -201,15 +205,46 @@ When adding new integration tests to `transcribe_test.go`:
    - Expected output
    - Approximate runtime
 
+### TestHandleTranscribe_Integration (Task 4 - Completed)
+
+Tests the `/api/transcribe` endpoint with real whisper.cpp integration.
+
+**Location:** `backend/cmd/server/transcribe_test.go`
+
+**What it tests:**
+- Starting transcription service
+- Uploading audio file to `/api/transcribe` endpoint
+- Processing with whisper.cpp
+- Receiving SRT-formatted response
+- Verifying transcript contains expected content ("ask not")
+- Verifying SRT format (contains `-->` timestamps)
+
+**Expected output:**
+- HTTP 200 status
+- JSON response with `success: true`
+- `transcript` field containing valid SRT format
+- `format` field set to "srt"
+- Transcript contains "ask not" from JFK speech
+
+**Runtime:** ~30-60 seconds (depends on CPU and model)
+
+**Example run:**
+```bash
+cd backend
+/home/trevor/go/bin/go test ./cmd/server -v -run TestHandleTranscribe_Integration
+```
+
+### Other Endpoint Tests (Task 4 - Completed)
+
+Additional tests in `backend/cmd/server/transcribe_test.go`:
+- `TestHandleTranscribe_MethodNotAllowed`: Verifies non-POST requests are rejected
+- `TestHandleTranscribe_MissingFile`: Verifies requests without files are rejected
+- `TestHandleTranscribe_InvalidFormat`: Verifies invalid file formats are rejected
+- `TestHandleTranscribe_ServiceNotInitialized`: Verifies behavior when service isn't started
+
 ## Future Test Scenarios
 
 As more features are implemented, integration tests will expand to cover:
-
-### End-to-End Upload and Transcription (Task 4)
-- Upload an audio file via API
-- Wait for background processing
-- Download SRT output
-- Verify SRT format and content
 
 ### Authentication Flow (Task 6)
 - Register new user

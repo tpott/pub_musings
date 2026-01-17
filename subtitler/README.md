@@ -59,6 +59,44 @@ cd frontend && npm install && npm run dev
 cd backend && /home/trevor/go/bin/go run ./cmd/server
 ```
 
+## API Endpoints
+
+### POST /api/upload
+Upload a file to the server for validation.
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/upload \
+  -F "file=@/path/to/audio.mp3"
+```
+
+### POST /api/transcribe
+Upload an audio/video file and receive SRT-formatted subtitles.
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/transcribe \
+  -F "file=@~/Github/whisper.cpp/samples/jfk.wav" \
+  -o output.srt
+```
+
+**Response format (JSON):**
+```json
+{
+  "success": true,
+  "message": "Transcription completed successfully",
+  "transcript": "1\n00:00:00,000 --> 00:00:05,000\nAnd so my fellow Americans...",
+  "filename": "jfk.wav",
+  "format": "srt",
+  "duration": 15.5
+}
+```
+
+**Supported formats:**
+- Audio: mp3, wav, m4a, ogg, flac
+- Video: mp4, webm, mkv, avi, mov
+- Max file size: 200MB
+
 ## Running Tests
 
 ### Unit Tests
@@ -70,8 +108,11 @@ cd backend && /home/trevor/go/bin/go test ./internal/storage -v
 # Run all backend tests (short mode, skips integration tests)
 cd backend && /home/trevor/go/bin/go test ./... -short
 
-# Backend upload endpoint tests
+# Backend server endpoint tests
 cd backend && /home/trevor/go/bin/go test ./cmd/server -v
+
+# Test transcribe endpoint specifically (integration test, requires whisper.cpp)
+cd backend && /home/trevor/go/bin/go test ./cmd/server -v -run TestHandleTranscribe_Integration
 ```
 
 ### Integration Tests

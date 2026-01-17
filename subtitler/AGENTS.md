@@ -73,11 +73,12 @@ The backend uses the following default configuration for whisper.cpp integration
 Override via environment variables if needed.
 
 **How it works:**
-- The backend starts whisper-server as a subprocess when the transcription service starts
+- The backend starts whisper-server as a subprocess when the transcription service starts (in `main()`)
 - whisper-server loads the model once at startup
 - Transcription requests are sent to whisper-server via HTTP (localhost:9090)
 - whisper-server handles audio format conversion using ffmpeg
 - The subprocess is stopped gracefully when the service shuts down
+- **Important:** The backend server MUST have the transcription service started to use `/api/transcribe`
 
 ## Commands
 
@@ -101,7 +102,37 @@ cd backend && /home/trevor/go/bin/go test ./... -short
 
 # Integration tests (requires whisper.cpp)
 cd backend && /home/trevor/go/bin/go test ./internal/transcribe -v
+
+# Test transcribe endpoint (integration test, requires whisper.cpp)
+cd backend && /home/trevor/go/bin/go test ./cmd/server -v -run TestHandleTranscribe_Integration
+
+# Playwright E2E tests
+cd frontend && npm test
 ```
+
+## API Endpoints (Task 4 - Complete)
+
+### POST /api/transcribe
+Accepts audio/video file upload and returns SRT-formatted subtitles.
+
+**Key implementation details:**
+- Uses global `transcribeService` initialized in `main()`
+- Saves uploaded file to temporary directory (`./tmp/transcribe/`)
+- Calls `transcribeService.TranscribeFile()` with SRT format
+- Cleans up temporary file after processing (using `defer os.Remove()`)
+- Returns JSON response with transcript, filename, format, and duration
+- Synchronous processing (user waits for transcription to complete)
+
+**Temporary file handling:**
+- Directory: `./tmp/transcribe/`
+- Pattern: `audio-<random>.<ext>` (e.g., `audio-123456.wav`)
+- Cleanup: Automatic via `defer os.Remove(tmpPath)`
+- Files are deleted immediately after transcription completes
+
+**Testing:**
+- Unit tests in `backend/cmd/server/transcribe_test.go`
+- Integration test: `TestHandleTranscribe_Integration` (requires whisper.cpp)
+- Playwright test: `frontend/tests/transcribe.spec.ts`
 
 ## Reference
 
