@@ -62,18 +62,38 @@ export async function cleanDom(page: Page): Promise<void> {
 }
 
 // Extract HTML content from the page using the pattern's content selector
+// Tries each selector individually and picks the one with the most content
 export async function extractContent(page: Page, pattern: JobBoardPattern): Promise<string> {
-  let html = '';
+  const selectors = pattern.contentSelector.split(',').map((s) => s.trim());
+
   try {
-    const contentElement = await page.$(pattern.contentSelector);
-    if (contentElement !== null) {
-      html = await contentElement.evaluate((el) => el.innerHTML);
-    } else {
-      // Fallback to body
-      html = await page.evaluate(() => document.body.innerHTML);
-    }
+    // Try each selector and find the one with the most text content
+    const result = await page.evaluate((sels: string[]) => {
+      let bestHtml = '';
+      let bestLength = 0;
+
+      for (const selector of sels) {
+        const el = document.querySelector(selector);
+        if (!el) continue;
+
+        const text = el.textContent || '';
+        // Prefer elements with more text content
+        if (text.length > bestLength) {
+          bestLength = text.length;
+          bestHtml = el.innerHTML;
+        }
+      }
+
+      // Fallback to body if nothing found
+      if (!bestHtml) {
+        bestHtml = document.body.innerHTML;
+      }
+
+      return bestHtml;
+    }, selectors);
+
+    return result;
   } catch {
-    html = await page.evaluate(() => document.body.innerHTML);
+    return page.evaluate(() => document.body.innerHTML);
   }
-  return html;
 }

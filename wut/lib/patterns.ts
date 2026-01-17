@@ -74,7 +74,8 @@ export const JOB_BOARD_PATTERNS: Record<string, JobBoardPattern> = {
       '[class*="job"] a',
       '[class*="career"] a',
     ],
-    contentSelector: 'main, article, .content, #content, .job-description, [class*="job"]',
+    // More specific selectors first, wildcard [class*="job"] last (matches first DOM element)
+    contentSelector: 'main, article, .content, #content, .job-description, .job-detail, .job-content, .job-posting, .job-info, [class*="job"]',
   },
 };
 

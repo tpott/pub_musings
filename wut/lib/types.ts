@@ -3,11 +3,13 @@
 export interface CliArgs {
   careersUrl: string;
   pattern?: string;
-  // New non-interactive flags
-  list?: boolean;      // --list: List jobs only (no crawling)
-  all?: boolean;       // --all: Select all and crawl
-  first?: number;      // --first N: Select first N jobs
-  dryRun?: boolean;    // --dry-run: Show what would be crawled
+  // Non-interactive flags
+  list?: boolean;         // --list: List jobs only (no crawling)
+  all?: boolean;          // --all: Select all and crawl
+  first?: number;         // --first N: Select first N jobs
+  select?: number[];      // --select "N,M,...": Select specific job indices
+  dryRun?: boolean;       // --dry-run: Show what would be crawled
+  followIframe?: boolean; // --follow-iframe/--no-follow-iframe: Control iframe navigation
 }
 
 export interface JobListing {

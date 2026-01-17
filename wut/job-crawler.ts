@@ -24,7 +24,8 @@ async function crawlJobPage(
   page: Page,
   job: JobListing,
   pattern: JobBoardPattern,
-  turndown: TurndownService
+  turndown: TurndownService,
+  followIframe?: boolean
 ): Promise<void> {
   console.log(`\nCrawling: ${job.title}`);
   console.log(`URL: ${job.url}`);
@@ -39,8 +40,9 @@ async function crawlJobPage(
   }
 
   // Check for job board iframe in job detail page
-  // Skip iframe navigation for embedded patterns (content is on parent page, not iframe)
-  if (pattern.name !== 'Greenhouse Embed') {
+  // Skip iframe navigation if explicitly disabled or using embedded pattern
+  const shouldFollowIframe = followIframe ?? (pattern.name !== 'Greenhouse Embed');
+  if (shouldFollowIframe) {
     const iframeUrl = await findJobBoardIframeUrl(page);
     if (iframeUrl !== null) {
       console.log(`  Detected job board iframe, navigating to: ${iframeUrl}`);
@@ -114,7 +116,7 @@ async function crawlJobPage(
 
 // Main IIFE
 (async (): Promise<void> => {
-  const { careersUrl, pattern: patternName, list, all, first, dryRun } = parseArgs();
+  const { careersUrl, pattern: patternName, list, all, first, select, dryRun, followIframe } = parseArgs();
 
   // Determine which pattern to use
   let pattern: JobBoardPattern;
@@ -153,12 +155,16 @@ async function crawlJobPage(
     await page.goto(careersUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
     // Check for job board iframe and redirect if found
-    const iframeUrl = await findJobBoardIframeUrl(page);
-    if (iframeUrl !== null) {
-      console.log(`\nDetected job board iframe, redirecting to: ${iframeUrl}`);
-      await page.goto(iframeUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-      pattern = detectJobBoard(iframeUrl);
-      console.log(`Using pattern for iframe: ${pattern.name}`);
+    // Skip iframe navigation if explicitly disabled or using embedded pattern
+    const shouldFollowIframe = followIframe ?? (pattern.name !== 'Greenhouse Embed');
+    if (shouldFollowIframe) {
+      const iframeUrl = await findJobBoardIframeUrl(page);
+      if (iframeUrl !== null) {
+        console.log(`\nDetected job board iframe, redirecting to: ${iframeUrl}`);
+        await page.goto(iframeUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+        pattern = detectJobBoard(iframeUrl);
+        console.log(`Using pattern for iframe: ${pattern.name}`);
+      }
     }
 
     console.log('Extracting job listings...');
@@ -170,7 +176,7 @@ async function crawlJobPage(
       console.log('Available patterns: greenhouse, lever, workday, ashby, generic');
 
       // In non-interactive mode, exit
-      if (list || all || first !== undefined) {
+      if (list || all || first !== undefined || select !== undefined) {
         console.log('\nExiting (non-interactive mode).');
         return;
       }
@@ -232,6 +238,15 @@ async function crawlJobPage(
       const count = Math.min(first, listings.length);
       selectedIndices = listings.slice(0, count).map((job) => job.index);
       console.log(`Selected first ${count} job(s).`);
+    } else if (select !== undefined) {
+      // --select "N,M,..." flag: select specific job indices
+      const validIndices = select.filter(idx => listings.some(j => j.index === idx));
+      selectedIndices = validIndices;
+      if (validIndices.length < select.length) {
+        const invalid = select.filter(idx => !validIndices.includes(idx));
+        console.log(`Warning: Invalid indices ignored: ${invalid.join(', ')}`);
+      }
+      console.log(`Selected ${selectedIndices.length} job(s) by index.`);
     } else {
       // Interactive mode
       selectedIndices = await promptForSelection(listings, page, pattern);
@@ -261,7 +276,7 @@ async function crawlJobPage(
       if (job === undefined) continue;
 
       try {
-        await crawlJobPage(page, job, pattern, turndown);
+        await crawlJobPage(page, job, pattern, turndown, followIframe);
       } catch (error) {
         console.error(`  Error crawling ${job.title}:`, error);
         console.log('  Continuing to next job...');
