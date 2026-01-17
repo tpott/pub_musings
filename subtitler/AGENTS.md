@@ -55,6 +55,30 @@ export PATH=$PATH:/home/trevor/go/bin
 ### Node/npm
 Frontend uses Node.js with npm. Version 18.x or higher required.
 
+### whisper.cpp Installation
+whisper.cpp is installed at `~/Github/whisper.cpp/`.
+
+**Key paths:**
+- whisper-server binary: `~/Github/whisper.cpp/build/bin/whisper-server`
+- Medium model: `~/Github/whisper.cpp/models/ggml-medium.bin`
+- Sample audio: `~/Github/whisper.cpp/samples/jfk.wav`
+
+**Configuration:**
+The backend uses the following default configuration for whisper.cpp integration (see `internal/config/config.go`):
+- `WHISPER_SERVER_PATH`: `$HOME/Github/whisper.cpp/build/bin/whisper-server`
+- `WHISPER_MODEL_PATH`: `$HOME/Github/whisper.cpp/models/ggml-medium.bin`
+- `WHISPER_SERVER_PORT`: 9090
+- `WHISPER_THREADS`: 4
+
+Override via environment variables if needed.
+
+**How it works:**
+- The backend starts whisper-server as a subprocess when the transcription service starts
+- whisper-server loads the model once at startup
+- Transcription requests are sent to whisper-server via HTTP (localhost:9090)
+- whisper-server handles audio format conversion using ffmpeg
+- The subprocess is stopped gracefully when the service shuts down
+
 ## Commands
 
 ```bash
@@ -69,9 +93,14 @@ cd backend && /home/trevor/go/bin/go run ./cmd/server  # Runs on http://localhos
 # Build backend
 cd backend && /home/trevor/go/bin/go build ./cmd/server
 
-# Tests (when implemented)
-cd frontend && npm test
-cd backend && /home/trevor/go/bin/go test ./...
+# Tests
+cd frontend && npm test  # (when implemented)
+
+# Unit tests (fast)
+cd backend && /home/trevor/go/bin/go test ./... -short
+
+# Integration tests (requires whisper.cpp)
+cd backend && /home/trevor/go/bin/go test ./internal/transcribe -v
 ```
 
 ## Reference

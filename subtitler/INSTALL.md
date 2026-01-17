@@ -18,9 +18,9 @@ This guide covers setting up the Subtitler development environment.
    - If Go is not in system PATH, it may be installed at `/home/trevor/go/bin/go`
 
 3. **whisper.cpp** (for transcription)
-   - Required for Task 2 and beyond
+   - Required for transcription functionality
    - Clone from: https://github.com/ggerganov/whisper.cpp
-   - Build instructions: See Task 2 plan when implemented
+   - Build instructions below
 
 4. **ffmpeg** (for video processing)
    - Required for subtitle embedding
@@ -77,7 +77,66 @@ curl http://localhost:8080/health
 # Should return: OK
 ```
 
-### 4. Verify Structure
+### 4. whisper.cpp Setup
+
+The transcription feature requires whisper.cpp with whisper-server built and the medium model downloaded.
+
+#### Install whisper.cpp
+
+```bash
+# Clone whisper.cpp repository
+cd ~/Github
+git clone https://github.com/ggerganov/whisper.cpp
+cd whisper.cpp
+
+# Build whisper.cpp (requires CMake)
+mkdir build
+cd build
+cmake ..
+make -j4
+
+# Verify whisper-server was built
+ls bin/whisper-server
+```
+
+Expected location: `~/Github/whisper.cpp/build/bin/whisper-server`
+
+#### Download Models
+
+Download the medium model (recommended for accuracy/speed balance):
+
+```bash
+cd ~/Github/whisper.cpp
+bash ./models/download-ggml-model.sh medium
+```
+
+Expected location: `~/Github/whisper.cpp/models/ggml-medium.bin`
+
+Other available models:
+- `tiny` - Fastest, least accurate
+- `base` - Faster, less accurate
+- `small` - Balanced
+- `medium` - Recommended (default)
+- `large` - Most accurate, slowest
+
+#### Configure Environment Variables (Optional)
+
+If whisper.cpp is installed in a different location, set environment variables:
+
+```bash
+export WHISPER_SERVER_PATH="/path/to/whisper-server"
+export WHISPER_MODEL_PATH="/path/to/models/ggml-medium.bin"
+export WHISPER_SERVER_PORT=9090
+export WHISPER_THREADS=4
+```
+
+Default values:
+- `WHISPER_SERVER_PATH`: `$HOME/Github/whisper.cpp/build/bin/whisper-server`
+- `WHISPER_MODEL_PATH`: `$HOME/Github/whisper.cpp/models/ggml-medium.bin`
+- `WHISPER_SERVER_PORT`: 9090
+- `WHISPER_THREADS`: 4
+
+### 5. Verify Structure
 
 After setup, your directory should look like:
 
