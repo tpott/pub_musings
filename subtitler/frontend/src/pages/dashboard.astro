@@ -271,6 +271,11 @@
 		</div>
 
 		<script>
+			import { trackPageView, trackEvent } from '../lib/analytics';
+
+			// Track page view on load
+			trackPageView();
+
 			const API_BASE = 'http://localhost:8080';
 			const POLL_INTERVAL = 5000; // 5 seconds
 			let pollTimer = null;
@@ -364,7 +369,7 @@
 				const jobsHTML = jobs.map(job => {
 					const statusClass = `status-${job.status}`;
 					const downloadBtn = job.status === 'completed'
-						? `<a href="${API_BASE}/api/jobs/${job.id}/download" class="download-btn" download>Download Transcript</a>`
+						? `<a href="${API_BASE}/api/jobs/${job.id}/download" class="download-btn" download data-job-id="${job.id}" data-format="${job.output_format}">Download Transcript</a>`
 						: `<button class="download-btn" disabled>Download Transcript</button>`;
 
 					const errorMsg = job.error_message
@@ -400,6 +405,19 @@
 				}).join('');
 
 				content.innerHTML = `<div class="jobs-list">${jobsHTML}</div>`;
+
+				// Add download tracking
+				const downloadButtons = content.querySelectorAll('.download-btn[data-job-id]');
+				downloadButtons.forEach(btn => {
+					btn.addEventListener('click', () => {
+						const jobId = btn.getAttribute('data-job-id');
+						const format = btn.getAttribute('data-format');
+						trackEvent('download_completed', {
+							job_id: parseInt(jobId),
+							format: format
+						});
+					});
+				});
 
 				// Start or stop polling based on pending jobs
 				if (hasPendingJobs(jobs)) {

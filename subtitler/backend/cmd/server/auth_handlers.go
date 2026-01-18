@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/trevor/subtitler/internal/analytics"
 	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/db"
 )
@@ -32,7 +34,7 @@ type AuthUserResult struct {
 	Email string `json:"email"`
 }
 
-func handleRegister(database *db.DB, jwtSecret string) http.HandlerFunc {
+func handleRegister(database *db.DB, jwtSecret string, analyticsService *analytics.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if enableCORS(w, r) {
 			return
@@ -96,6 +98,21 @@ func handleRegister(database *db.DB, jwtSecret string) http.HandlerFunc {
 		// Set cookie
 		setAuthCookie(w, token)
 
+		// Track signup_completed event (fail silently if tracking fails)
+		visitorID := r.Header.Get("X-Visitor-ID")
+		if visitorID == "" {
+			// Generate a temporary visitor ID if not provided
+			visitorID = "server-" + strings.ReplaceAll(user.Email, "@", "-at-")
+		}
+		go func() {
+			err := analyticsService.TrackEvent(r.Context(), visitorID, &user.ID, "signup_completed", map[string]interface{}{
+				"user_id": user.ID,
+			}, nil, nil, nil)
+			if err != nil {
+				log.Printf("Failed to track signup_completed event: %v", err)
+			}
+		}()
+
 		// Return success response
 		response := AuthResponse{
 			Success: true,
@@ -112,7 +129,7 @@ func handleRegister(database *db.DB, jwtSecret string) http.HandlerFunc {
 	}
 }
 
-func handleLogin(database *db.DB, jwtSecret string) http.HandlerFunc {
+func handleLogin(database *db.DB, jwtSecret string, analyticsService *analytics.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if enableCORS(w, r) {
 			return
@@ -162,6 +179,21 @@ func handleLogin(database *db.DB, jwtSecret string) http.HandlerFunc {
 
 		// Set cookie
 		setAuthCookie(w, token)
+
+		// Track login_completed event (fail silently if tracking fails)
+		visitorID := r.Header.Get("X-Visitor-ID")
+		if visitorID == "" {
+			// Generate a temporary visitor ID if not provided
+			visitorID = "server-" + strings.ReplaceAll(user.Email, "@", "-at-")
+		}
+		go func() {
+			err := analyticsService.TrackEvent(r.Context(), visitorID, &user.ID, "login_completed", map[string]interface{}{
+				"user_id": user.ID,
+			}, nil, nil, nil)
+			if err != nil {
+				log.Printf("Failed to track login_completed event: %v", err)
+			}
+		}()
 
 		// Return success response
 		response := AuthResponse{

@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/trevor/subtitler/internal/analytics"
 	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/db"
 	"github.com/trevor/subtitler/internal/storage"
@@ -24,7 +26,7 @@ type JobUploadResponse struct {
 // handleUpload handles file upload and job creation
 // POST /api/upload
 // Requires authentication
-func handleUpload(database *db.DB, workerPool *worker.WorkerPool) http.HandlerFunc {
+func handleUpload(database *db.DB, workerPool *worker.WorkerPool, analyticsService *analytics.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Authenticate user
 		userID, err := auth.GetUserIDFromRequest(r)
@@ -168,6 +170,28 @@ func handleUpload(database *db.DB, workerPool *worker.WorkerPool) http.HandlerFu
 		}
 
 		log.Printf("Job %d created for user %d: %s (%d bytes)", job.ID, userID, header.Filename, header.Size)
+
+		// Track upload_completed event (fail silently if tracking fails)
+		visitorID := r.Header.Get("X-Visitor-ID")
+		if visitorID == "" {
+			// Generate a temporary visitor ID for server-side tracking
+			user, _ := database.GetUserByID(userID)
+			if user != nil {
+				visitorID = "server-" + strings.ReplaceAll(user.Email, "@", "-at-")
+			}
+		}
+		if visitorID != "" {
+			go func() {
+				err := analyticsService.TrackEvent(r.Context(), visitorID, &userID, "upload_completed", map[string]interface{}{
+					"job_id":        job.ID,
+					"file_size":     header.Size,
+					"output_format": formatStr,
+				}, nil, nil, nil)
+				if err != nil {
+					log.Printf("Failed to track upload_completed event: %v", err)
+				}
+			}()
+		}
 
 		respondJSON(w, http.StatusCreated, JobUploadResponse{
 			Success: true,

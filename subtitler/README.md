@@ -367,6 +367,100 @@ curl -X GET http://localhost:8080/api/jobs/1/download \
 
 Returns the transcript file as an attachment. Only works for completed jobs.
 
+### POST /api/analytics/events
+Track an analytics event (public endpoint, no authentication required).
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/analytics/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "visitor_id": "550e8400-e29b-41d4-a716-446655440000",
+    "event_name": "page_view",
+    "properties": {"page": "/"},
+    "utm_source": "reddit",
+    "utm_medium": "organic"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Tracked events:**
+- `page_view` - User visits a page
+- `signup_completed` - User completes registration
+- `login_completed` - User logs in
+- `upload_completed` - User uploads a file
+- `job_completed` - Background worker completes transcription
+- `download_completed` - User downloads a transcript
+
+### GET /api/analytics/funnel
+Get conversion funnel data (protected endpoint, requires authentication).
+
+**Example:**
+```bash
+curl -X GET "http://localhost:8080/api/analytics/funnel?start=2026-01-01&end=2026-01-31" \
+  -H "Cookie: subtitler_token=YOUR_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "period": {
+    "start": "2026-01-01T00:00:00Z",
+    "end": "2026-01-31T23:59:59Z"
+  },
+  "funnel": [
+    {"stage": "visitors", "count": 1000},
+    {"stage": "signups", "count": 150},
+    {"stage": "uploads", "count": 100},
+    {"stage": "downloads", "count": 85}
+  ],
+  "conversion_rates": {
+    "visitor_to_signup": 0.15,
+    "signup_to_upload": 0.67,
+    "upload_to_download": 0.85
+  }
+}
+```
+
+### GET /api/analytics/experiments/{id}
+Get A/B test results for a specific experiment (public endpoint).
+
+**Example:**
+```bash
+curl -X GET "http://localhost:8080/api/analytics/experiments/EXP001?start=2026-01-01&end=2026-01-31"
+```
+
+**Response:**
+```json
+{
+  "experiment_id": "EXP001",
+  "period": {
+    "start": "2026-01-01T00:00:00Z",
+    "end": "2026-01-31T23:59:59Z"
+  },
+  "variants": [
+    {
+      "variant": "A",
+      "visitors": 300,
+      "conversions": 45,
+      "conversion_rate": 0.15
+    },
+    {
+      "variant": "B",
+      "visitors": 310,
+      "conversions": 55,
+      "conversion_rate": 0.177
+    }
+  ]
+}
+```
+
 ## User Interface
 
 ### Dashboard (/dashboard)
@@ -468,12 +562,44 @@ FRONTEND_URL=https://subtitler.yourdomain.com
 PUBLIC_API_URL=https://api.subtitler.yourdomain.com
 ```
 
+## Analytics
+
+Subtitler includes a built-in analytics system for tracking user behavior and running A/B tests. The system is privacy-first and stores all data locally in SQLite.
+
+**Key features:**
+- Event tracking (page views, signups, uploads, downloads)
+- Conversion funnel analysis
+- A/B test variant assignment and results
+- Anonymous visitor IDs (no third-party services)
+- UTM parameter tracking for marketing campaigns
+
+**Frontend integration:**
+```typescript
+import { trackEvent, trackPageView } from '../lib/analytics';
+
+// Track page view
+trackPageView();
+
+// Track custom event
+trackEvent('button_clicked', { button_id: 'signup' });
+```
+
+**Database tables:**
+- `analytics_visitors` - Tracks anonymous visitors with UTM parameters
+- `analytics_events` - Stores all tracked events with JSON properties
+- `analytics_experiments` - A/B test variant assignments
+
+See [010_ANALYTICS_INTEGRATION.md](010_ANALYTICS_INTEGRATION.md) and [EXPERIMENTATION_PLAN.md](EXPERIMENTATION_PLAN.md) for detailed documentation.
+
 ## Documentation
 
 - [INSTALL.md](INSTALL.md) - Setup and installation guide
 - [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md) - Integration test documentation
 - [001_RALPH_SUBTITLER.md](001_RALPH_SUBTITLER.md) - Architecture and planning
 - [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) - Cloudflare Tunnel setup guide
+- [010_ANALYTICS_INTEGRATION.md](010_ANALYTICS_INTEGRATION.md) - Analytics implementation
+- [EXPERIMENTATION_PLAN.md](EXPERIMENTATION_PLAN.md) - A/B testing framework
+- [MARKETING_PLAN.md](MARKETING_PLAN.md) - Marketing strategy
 - [TASKS.jsonl](TASKS.jsonl) - Task tracking
 
 ## Development

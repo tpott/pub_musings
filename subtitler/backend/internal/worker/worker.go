@@ -1,13 +1,16 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/trevor/subtitler/internal/analytics"
 	"github.com/trevor/subtitler/internal/db"
 	"github.com/trevor/subtitler/internal/email"
 	"github.com/trevor/subtitler/internal/transcribe"
@@ -23,18 +26,20 @@ type WorkerPool struct {
 	db                *db.DB
 	transcribeService *transcribe.Service
 	emailClient       *email.Client
+	analyticsService  *analytics.Service
 	wg                sync.WaitGroup
 	stopChan          chan struct{}
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(numWorkers int, queueSize int, database *db.DB, transcribeService *transcribe.Service, emailClient *email.Client) *WorkerPool {
+func NewWorkerPool(numWorkers int, queueSize int, database *db.DB, transcribeService *transcribe.Service, emailClient *email.Client, analyticsService *analytics.Service) *WorkerPool {
 	return &WorkerPool{
 		numWorkers:        numWorkers,
 		queue:             make(JobQueue, queueSize),
 		db:                database,
 		transcribeService: transcribeService,
 		emailClient:       emailClient,
+		analyticsService:  analyticsService,
 		stopChan:          make(chan struct{}),
 	}
 }
@@ -179,6 +184,9 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	duration := time.Since(startTime)
 	wp.sendSuccessEmail(job, duration)
 
+	// Track job_completed event (fail silently if tracking fails)
+	go wp.trackJobCompleted(job, duration)
+
 	log.Printf("Worker %d: Job %d completed successfully", workerID, jobID)
 }
 
@@ -209,6 +217,33 @@ func (wp *WorkerPool) buildResultPath(job *db.Job) (string, error) {
 	)
 
 	return transcriptPath, nil
+}
+
+// trackJobCompleted tracks the job_completed analytics event
+func (wp *WorkerPool) trackJobCompleted(job *db.Job, duration time.Duration) {
+	if wp.analyticsService == nil {
+		return
+	}
+
+	// Get user email for visitor ID
+	user, err := wp.db.GetUserByID(job.UserID)
+	if err != nil {
+		log.Printf("Failed to get user %d for analytics tracking: %v", job.UserID, err)
+		return
+	}
+
+	// Generate visitor ID from email
+	visitorID := "server-" + strings.ReplaceAll(user.Email, "@", "-at-")
+
+	// Track event
+	err = wp.analyticsService.TrackEvent(context.Background(), visitorID, &job.UserID, "job_completed", map[string]interface{}{
+		"job_id":          job.ID,
+		"duration_seconds": int(duration.Seconds()),
+		"output_format":    job.OutputFormat,
+	}, nil, nil, nil)
+	if err != nil {
+		log.Printf("Failed to track job_completed event for job %d: %v", job.ID, err)
+	}
 }
 
 // sendSuccessEmail sends a success notification email to the user
@@ -334,6 +369,9 @@ func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 	// Send success email
 	duration := time.Since(startTime)
 	wp.sendSuccessEmail(job, duration)
+
+	// Track job_completed event (fail silently if tracking fails)
+	go wp.trackJobCompleted(job, duration)
 
 	log.Printf("Worker %d: Job %d completed successfully with embedded subtitles", workerID, job.ID)
 }

@@ -326,7 +326,7 @@ func main() {
 
 	// Initialize worker pool for background job processing
 	log.Println("Starting worker pool...")
-	workerPool := worker.NewWorkerPool(4, 100, database, transcribeService, emailClient)
+	workerPool := worker.NewWorkerPool(4, 100, database, transcribeService, emailClient, analyticsService)
 	workerPool.Start()
 	defer workerPool.Stop()
 	log.Println("Worker pool started with 4 workers")
@@ -355,14 +355,14 @@ func main() {
 	http.HandleFunc("/api/upload-old", handleUploadOld)
 
 	// New /api/upload endpoint (with auth and job queue)
-	http.Handle("/api/upload", auth.AuthMiddleware(cfg.JWTSecret)(handleUpload(database, workerPool)))
+	http.Handle("/api/upload", auth.AuthMiddleware(cfg.JWTSecret)(handleUpload(database, workerPool, analyticsService)))
 
 	// Keep /api/transcribe for backward compatibility (synchronous)
 	http.HandleFunc("/api/transcribe", handleTranscribe)
 
 	// Auth endpoints
-	http.HandleFunc("/api/register", handleRegister(database, cfg.JWTSecret))
-	http.HandleFunc("/api/login", handleLogin(database, cfg.JWTSecret))
+	http.HandleFunc("/api/register", handleRegister(database, cfg.JWTSecret, analyticsService))
+	http.HandleFunc("/api/login", handleLogin(database, cfg.JWTSecret, analyticsService))
 	http.HandleFunc("/api/logout", handleLogout)
 	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(handleMe)))
 
