@@ -9,6 +9,43 @@ This file captures lessons learned, failed approaches, and decisions made during
 
 ---
 
+## Task 16: Analytics Integration (2026-01-18)
+
+**Status:** In progress - foundation complete
+
+**What was completed:**
+- Database schema (migration 002) with 3 tables: visitors, events, experiments
+- Analytics service in `internal/analytics/` with tracking and query functions
+- API endpoints: POST /api/analytics/events, GET /api/analytics/funnel, GET /api/analytics/experiments/{id}
+- Frontend tracking client in `frontend/src/lib/analytics.ts`
+- Page view tracking on index.astro
+- Created comprehensive implementation plan in `010_ANALYTICS_INTEGRATION.md`
+
+**Key decisions:**
+- **Privacy-first design:** Anonymous visitor IDs in localStorage, no third-party services, minimal PII
+- **Flexible event format:** JSON properties blob for extensibility without schema changes
+- **Public tracking endpoint:** /api/analytics/events is public (no auth) to track anonymous visitors
+- **Protected analysis:** Funnel and experiment result endpoints require authentication
+- **SQLite storage:** Keep it simple, all data local, proper indexes for query performance
+
+**Architectural patterns:**
+- **Handler pattern:** Followed project convention of returning `http.HandlerFunc` with dependencies as parameters (not application struct with methods)
+- **Database access:** DB struct embeds `*sql.DB`, access via `database.DB` field directly
+- **Claims extraction:** Used `auth.GetClaims(r)` helper instead of accessing context directly
+
+**What's next:**
+- Add event tracking throughout the app (signup, login, upload, download)
+- Write unit tests for analytics service
+- Update README.md with analytics API documentation
+- Verify full funnel with manual testing
+
+**For next iteration:**
+- Consider adding basic analytics dashboard page (Astro page with charts)
+- May want to add cleanup job to delete events older than 1 year (data retention)
+- Experiment framework is ready for actual A/B tests once we have traffic
+
+---
+
 ## Task 11: Cloudflare Tunnel Setup (2026-01-18)
 
 **Status:** Blocked - requires human intervention
