@@ -21,24 +21,54 @@ type Job struct {
 	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
 
-// CreateJob creates a new job record
-func (db *DB) CreateJob(userID int64, originalFilename string, filePath string, fileSize int64, outputFormat string) (*Job, error) {
+// CreateJob creates a new job record (accepts a Job struct)
+func (db *DB) CreateJob(job *Job) error {
 	query := `
 		INSERT INTO jobs (user_id, status, original_filename, file_path, file_size, output_format)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	result, err := db.Exec(query, userID, "pending", originalFilename, filePath, fileSize, outputFormat)
+	// Set default status if not provided
+	if job.Status == "" {
+		job.Status = "pending"
+	}
+
+	result, err := db.Exec(query, job.UserID, job.Status, job.OriginalFilename, job.FilePath, job.FileSize, job.OutputFormat)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return db.GetJobByID(id)
+	// Update job with the new ID
+	job.ID = id
+
+	// Fetch the created job to populate timestamps
+	createdJob, err := db.GetJobByID(id)
+	if err != nil {
+		return err
+	}
+
+	// Copy timestamps back
+	job.CreatedAt = createdJob.CreatedAt
+	job.UpdatedAt = createdJob.UpdatedAt
+
+	return nil
+}
+
+// UpdateJobFilePath updates a job's file path
+func (db *DB) UpdateJobFilePath(id int64, filePath string) error {
+	query := `
+		UPDATE jobs
+		SET file_path = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`
+
+	_, err := db.Exec(query, filePath, id)
+	return err
 }
 
 // GetJobByID retrieves a job by ID

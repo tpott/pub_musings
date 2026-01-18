@@ -35,7 +35,14 @@ func TestCreateJob(t *testing.T) {
 	}
 
 	// Create a job
-	job, err := tmpDB.CreateJob(user.ID, "test.mp3", "/path/to/test.mp3", 1024, "srt")
+	job := &Job{
+		UserID:           user.ID,
+		OriginalFilename: "test.mp3",
+		FilePath:         "/path/to/test.mp3",
+		FileSize:         1024,
+		OutputFormat:     "srt",
+	}
+	err = tmpDB.CreateJob(job)
 	if err != nil {
 		t.Fatalf("Failed to create job: %v", err)
 	}
@@ -63,7 +70,14 @@ func TestGetJobByID(t *testing.T) {
 
 	// Create test user and job
 	user, _ := tmpDB.CreateUser("test@example.com", "hash")
-	job, _ := tmpDB.CreateJob(user.ID, "test.mp3", "/path/to/test.mp3", 1024, "srt")
+	job := &Job{
+		UserID:           user.ID,
+		OriginalFilename: "test.mp3",
+		FilePath:         "/path/to/test.mp3",
+		FileSize:         1024,
+		OutputFormat:     "srt",
+	}
+	tmpDB.CreateJob(job)
 
 	// Retrieve the job
 	retrieved, err := tmpDB.GetJobByID(job.ID)
@@ -100,11 +114,11 @@ func TestGetJobsByUserID(t *testing.T) {
 	user2, _ := tmpDB.CreateUser("user2@example.com", "hash2")
 
 	// Create jobs for user1
-	tmpDB.CreateJob(user1.ID, "file1.mp3", "/path/to/file1.mp3", 1024, "srt")
-	tmpDB.CreateJob(user1.ID, "file2.mp3", "/path/to/file2.mp3", 2048, "vtt")
+	tmpDB.CreateJob(&Job{UserID: user1.ID, OriginalFilename: "file1.mp3", FilePath: "/path/to/file1.mp3", FileSize: 1024, OutputFormat: "srt"})
+	tmpDB.CreateJob(&Job{UserID: user1.ID, OriginalFilename: "file2.mp3", FilePath: "/path/to/file2.mp3", FileSize: 2048, OutputFormat: "vtt"})
 
 	// Create job for user2
-	tmpDB.CreateJob(user2.ID, "file3.mp3", "/path/to/file3.mp3", 512, "srt")
+	tmpDB.CreateJob(&Job{UserID: user2.ID, OriginalFilename: "file3.mp3", FilePath: "/path/to/file3.mp3", FileSize: 512, OutputFormat: "srt"})
 
 	// Get jobs for user1
 	jobs, err := tmpDB.GetJobsByUserID(user1.ID)
@@ -160,7 +174,8 @@ func TestUpdateJobStatus(t *testing.T) {
 	defer tmpDB.Close()
 
 	user, _ := tmpDB.CreateUser("test@example.com", "hash")
-	job, _ := tmpDB.CreateJob(user.ID, "test.mp3", "/path/to/test.mp3", 1024, "srt")
+	job := &Job{UserID: user.ID, OriginalFilename: "test.mp3", FilePath: "/path/to/test.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(job)
 
 	// Update status
 	err := tmpDB.UpdateJobStatus(job.ID, "processing")
@@ -180,7 +195,8 @@ func TestUpdateJobCompleted(t *testing.T) {
 	defer tmpDB.Close()
 
 	user, _ := tmpDB.CreateUser("test@example.com", "hash")
-	job, _ := tmpDB.CreateJob(user.ID, "test.mp3", "/path/to/test.mp3", 1024, "srt")
+	job := &Job{UserID: user.ID, OriginalFilename: "test.mp3", FilePath: "/path/to/test.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(job)
 
 	// Mark as completed
 	transcriptPath := "/path/to/transcript.srt"
@@ -207,7 +223,8 @@ func TestUpdateJobFailed(t *testing.T) {
 	defer tmpDB.Close()
 
 	user, _ := tmpDB.CreateUser("test@example.com", "hash")
-	job, _ := tmpDB.CreateJob(user.ID, "test.mp3", "/path/to/test.mp3", 1024, "srt")
+	job := &Job{UserID: user.ID, OriginalFilename: "test.mp3", FilePath: "/path/to/test.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(job)
 
 	// Mark as failed
 	errorMsg := "Transcription failed: invalid format"

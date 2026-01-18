@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -39,6 +40,15 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 func GetClaims(r *http.Request) (*Claims, bool) {
 	claims, ok := r.Context().Value(claimsContextKey).(*Claims)
 	return claims, ok
+}
+
+// GetUserIDFromRequest extracts the user ID from the request context
+func GetUserIDFromRequest(r *http.Request) (int64, error) {
+	claims, ok := GetClaims(r)
+	if !ok {
+		return 0, fmt.Errorf("no claims in request context")
+	}
+	return claims.UserID, nil
 }
 
 // writeError sends a JSON error response

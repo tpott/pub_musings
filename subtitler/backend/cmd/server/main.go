@@ -16,6 +16,7 @@ import (
 	"github.com/trevor/subtitler/internal/db"
 	"github.com/trevor/subtitler/internal/storage"
 	"github.com/trevor/subtitler/internal/transcribe"
+	"github.com/trevor/subtitler/internal/worker"
 )
 
 const (
@@ -63,7 +64,7 @@ func enableCORS(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func handleUpload(w http.ResponseWriter, r *http.Request) {
+func handleUploadOld(w http.ResponseWriter, r *http.Request) {
 	if enableCORS(w, r) {
 		return
 	}
@@ -279,6 +280,13 @@ func main() {
 	}()
 	log.Println("Transcription service started successfully")
 
+	// Initialize worker pool for background job processing
+	log.Println("Starting worker pool...")
+	workerPool := worker.NewWorkerPool(4, 100, database, transcribeService)
+	workerPool.Start()
+	defer workerPool.Stop()
+	log.Println("Worker pool started with 4 workers")
+
 	// Basic HTTP server placeholder
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Subtitler API Server")
@@ -289,7 +297,13 @@ func main() {
 		fmt.Fprintf(w, "OK")
 	})
 
-	http.HandleFunc("/api/upload", handleUpload)
+	// Old /api/upload endpoint (kept for backward compatibility, no auth)
+	http.HandleFunc("/api/upload-old", handleUploadOld)
+
+	// New /api/upload endpoint (with auth and job queue)
+	http.Handle("/api/upload", auth.AuthMiddleware(cfg.JWTSecret)(handleUpload(database, workerPool)))
+
+	// Keep /api/transcribe for backward compatibility (synchronous)
 	http.HandleFunc("/api/transcribe", handleTranscribe)
 
 	// Auth endpoints
