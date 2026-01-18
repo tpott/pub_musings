@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/trevor/subtitler/internal/analytics"
 	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/config"
 	"github.com/trevor/subtitler/internal/db"
@@ -85,8 +86,11 @@ func TestWorkerIntegration(t *testing.T) {
 	// Initialize email client (disabled for testing)
 	emailClient := email.NewClient("", "", false)
 
+	// Initialize analytics service
+	analyticsService := analytics.NewService(database.DB)
+
 	// Start worker pool with just 1 worker for testing
-	workerPool := worker.NewWorkerPool(1, 10, database, transcribeService, emailClient)
+	workerPool := worker.NewWorkerPool(1, 10, database, transcribeService, emailClient, analyticsService)
 	workerPool.Start()
 	defer workerPool.Stop()
 
@@ -151,7 +155,7 @@ func TestWorkerIntegration(t *testing.T) {
 
 	// Send upload request
 	rr := httptest.NewRecorder()
-	handler := handleUpload(database, workerPool)
+	handler := handleUpload(database, workerPool, analyticsService)
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusCreated {

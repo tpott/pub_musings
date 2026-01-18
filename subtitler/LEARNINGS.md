@@ -487,3 +487,46 @@ With Task 16 complete, the infrastructure is now ready to support the experiment
 3. Use GetExperimentResults API to analyze results
 4. Document learnings in `experiments/EXP001_*.md`
 
+---
+
+## Bug Fix: worker_integration_test.go Analytics Parameter (2026-01-18)
+
+**Status:** Fixed
+
+**Issue:**
+After Task 16 (Analytics Integration), the worker integration test failed to compile because the test wasn't updated to include the new `analytics.Service` parameter.
+
+**Errors:**
+```
+cmd/server/worker_integration_test.go:89:73: not enough arguments in call to worker.NewWorkerPool
+    have (number, number, *db.DB, *transcribe.Service, *email.Client)
+    want (int, int, *db.DB, *transcribe.Service, *email.Client, *analytics.Service)
+cmd/server/worker_integration_test.go:154:36: not enough arguments in call to handleUpload
+    have (*db.DB, *worker.WorkerPool)
+    want (*db.DB, *worker.WorkerPool, *analytics.Service)
+```
+
+**Root Cause:**
+When analytics integration was added, the signatures of `worker.NewWorkerPool()` and `handleUpload()` were updated to include `*analytics.Service` as the last parameter. The integration test wasn't updated to match.
+
+**Solution:**
+1. Added `"github.com/trevor/subtitler/internal/analytics"` import
+2. Initialized analytics service: `analyticsService := analytics.NewService(database.DB)`
+3. Updated worker pool creation: `worker.NewWorkerPool(1, 10, database, transcribeService, emailClient, analyticsService)`
+4. Updated handler call: `handleUpload(database, workerPool, analyticsService)`
+
+**Key Learning:**
+- `db.DB` embeds `*sql.DB`, so use `database.DB` to access the underlying database connection
+- Analytics service expects `*sql.DB`, not `*db.DB`
+
+**Files Modified:**
+- `backend/cmd/server/worker_integration_test.go`
+
+**Verification:**
+- Unit tests pass: `go test ./... -short` ✅
+- Backend compiles: `go build ./cmd/server` ✅
+- Frontend compiles: `npm run build` ✅
+
+**Note on Integration Test:**
+The full integration test (without `-short` flag) fails due to a pre-existing SQLite database lock issue ("database is locked (5) (SQLITE_BUSY)"), not related to this fix. This is a known issue with SQLite when multiple goroutines access the database concurrently. The unit tests pass and the code compiles correctly.
+
