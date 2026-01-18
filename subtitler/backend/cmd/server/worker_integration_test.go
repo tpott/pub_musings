@@ -14,6 +14,7 @@ import (
 	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/config"
 	"github.com/trevor/subtitler/internal/db"
+	"github.com/trevor/subtitler/internal/email"
 	"github.com/trevor/subtitler/internal/transcribe"
 	"github.com/trevor/subtitler/internal/worker"
 )
@@ -81,8 +82,11 @@ func TestWorkerIntegration(t *testing.T) {
 	// Wait for whisper-server to be ready
 	time.Sleep(2 * time.Second)
 
+	// Initialize email client (disabled for testing)
+	emailClient := email.NewClient("", "", false)
+
 	// Start worker pool with just 1 worker for testing
-	workerPool := worker.NewWorkerPool(1, 10, database, transcribeService)
+	workerPool := worker.NewWorkerPool(1, 10, database, transcribeService, emailClient)
 	workerPool.Start()
 	defer workerPool.Stop()
 

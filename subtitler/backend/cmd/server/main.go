@@ -51,8 +51,10 @@ type TranscribeResponse struct {
 	Duration   float64 `json:"duration,omitempty"`
 }
 
+var allowedOrigin string
+
 func enableCORS(w http.ResponseWriter, r *http.Request) bool {
-	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:4321")
+	w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -267,6 +269,10 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Set CORS allowed origin from config
+	allowedOrigin = cfg.FrontendURL
+	log.Printf("CORS configured for origin: %s", allowedOrigin)
+
 	// Initialize database
 	log.Println("Initializing database...")
 	migrationsDir := filepath.Join("internal", "db", "migrations")
@@ -327,6 +333,16 @@ func main() {
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
+	})
+
+	// Health check endpoint for tunnel verification
+	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Service is healthy",
+			"version": "1.0.0",
+		})
 	})
 
 	// Old /api/upload endpoint (kept for backward compatibility, no auth)

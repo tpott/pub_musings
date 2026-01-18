@@ -1,8 +1,75 @@
 # Progress Report
 
-## Current Status: Task 10 Complete - Job Status and Notifications
+## Current Status: Task 11 In Progress - Cloudflare Tunnel Setup
 
-**Task 10 Complete:** Real-time job status updates and email notifications implemented.
+**Task 11 In Progress:** Setting up Cloudflare Tunnel to expose the service publicly.
+
+### Completed Components:
+1. ✅ Health check endpoint (`/api/health`)
+   - Returns JSON with service status, message, and version
+   - Used for tunnel verification and monitoring
+   - Test coverage in `backend/cmd/server/health_test.go`
+
+2. ✅ CORS configuration for production
+   - Added `FRONTEND_URL` config parameter
+   - Backend reads from environment variable (default: `http://localhost:4321`)
+   - Configurable for production tunnel domains
+   - All tests updated and passing
+
+3. ✅ Implementation plan (`009_CLOUDFLARE_TUNNEL.md`)
+   - Complete step-by-step tunnel setup instructions
+   - DNS configuration guidance
+   - Security considerations
+   - Troubleshooting guide
+
+4. ✅ Documentation updates
+   - README.md updated with deployment section
+   - Health endpoint documented
+   - FRONTEND_URL configuration documented
+   - Production configuration guidance
+
+### Files Created/Modified:
+- `backend/cmd/server/main.go` - Added `/api/health` endpoint and configurable CORS
+- `backend/cmd/server/health_test.go` - Test coverage for health endpoint
+- `backend/cmd/server/upload_test.go` - Fixed CORS initialization in tests
+- `backend/cmd/server/worker_integration_test.go` - Fixed email client parameter
+- `backend/internal/config/config.go` - Added `FRONTEND_URL` configuration
+- `009_CLOUDFLARE_TUNNEL.md` - Complete tunnel setup plan
+- `README.md` - Added deployment, health endpoint, and CORS documentation
+- `PROGRESS.md`, `TASKS.jsonl` - Status updates
+
+### Next Steps (requires human intervention):
+The implementation is complete and ready for deployment. The following steps require human action on the target VM:
+
+1. **Install cloudflared** on Ubuntu VM
+2. **Authenticate** with Cloudflare account
+3. **Create tunnel** and note tunnel ID
+4. **Configure DNS** routes (requires domain decision)
+5. **Create config file** at `/etc/cloudflared/config.yml`
+6. **Install and start** systemd service
+
+### Domain Decision Required:
+Before completing tunnel setup, need to decide on:
+- Domain name for the service (e.g., `subtitler.yourdomain.com`)
+- API subdomain (e.g., `api.subtitler.yourdomain.com`)
+
+Once domain is configured, verify with:
+```bash
+curl https://api.subtitler.yourdomain.com/api/health
+# Expected: {"success":true,"message":"Service is healthy","version":"1.0.0"}
+```
+
+### Local Verification (completed):
+```bash
+# Build succeeds
+cd backend && go build ./cmd/server ✅
+
+# All tests pass
+cd backend && go test ./cmd/server -short ✅
+
+# Health endpoint test passes
+cd backend && go test ./cmd/server -v -run TestHealthEndpoint ✅
+```
 
 ## Task 10 Implementation Summary
 

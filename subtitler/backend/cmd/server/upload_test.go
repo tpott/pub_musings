@@ -11,6 +11,9 @@ import (
 )
 
 func TestHandleUpload(t *testing.T) {
+	// Initialize CORS origin for tests
+	allowedOrigin = "http://localhost:4321"
+
 	// Ensure uploads directory exists
 	defer os.RemoveAll("./uploads")
 

@@ -80,6 +80,7 @@ ENABLE_EMAIL=false              # Set to true to enable email notifications
 - `DATA_DIR` - Data directory path (default: `./data`)
 - `JWT_SECRET` - JWT signing secret (default: `dev-secret-change-in-production`)
 - `SERVER_PORT` - Server port (default: `8080`)
+- `FRONTEND_URL` - Frontend URL for CORS (default: `http://localhost:4321`)
 - `WHISPER_MODEL_PATH` - Path to whisper model (default: `$HOME/Github/whisper.cpp/models/ggml-medium.bin`)
 - `WHISPER_SERVER_PATH` - Path to whisper-server binary (default: `$HOME/Github/whisper.cpp/build/bin/whisper-server`)
 
@@ -103,6 +104,23 @@ To enable email notifications:
 **Note:** Resend free tier includes 100 emails/day, 3000 emails/month.
 
 ## API Endpoints
+
+### GET /api/health
+Health check endpoint for monitoring and tunnel verification.
+
+**Example:**
+```bash
+curl http://localhost:8080/api/health
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Service is healthy",
+  "version": "1.0.0"
+}
+```
 
 ### POST /api/upload (Protected)
 Upload a file for background transcription. Requires authentication.
@@ -411,11 +429,51 @@ cd frontend && npm run test:headed
 cd frontend && npx playwright test tests/dashboard.spec.ts
 ```
 
+## Deployment
+
+### Cloudflare Tunnel Setup
+
+The service can be exposed publicly using Cloudflare Tunnel. See [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) for detailed setup instructions.
+
+**Quick overview:**
+1. Install `cloudflared` on your server
+2. Create a tunnel: `cloudflared tunnel create subtitler`
+3. Configure DNS routes for frontend and API domains
+4. Create tunnel config at `/etc/cloudflared/config.yml`
+5. Install as systemd service: `sudo cloudflared service install`
+
+**Verify tunnel setup:**
+```bash
+# Check service status
+sudo systemctl status cloudflared
+
+# Test health endpoint
+curl https://api.subtitler.yourdomain.com/api/health
+# Expected: {"success":true,"message":"Service is healthy","version":"1.0.0"}
+```
+
+### Production Configuration
+
+For production deployments, set these environment variables:
+
+```bash
+# Backend
+JWT_SECRET=<generate-secure-random-secret>
+RESEND_API_KEY=<your-resend-api-key>
+EMAIL_FROM=noreply@yourdomain.com
+ENABLE_EMAIL=true
+FRONTEND_URL=https://subtitler.yourdomain.com
+
+# Frontend
+PUBLIC_API_URL=https://api.subtitler.yourdomain.com
+```
+
 ## Documentation
 
 - [INSTALL.md](INSTALL.md) - Setup and installation guide
 - [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md) - Integration test documentation
 - [001_RALPH_SUBTITLER.md](001_RALPH_SUBTITLER.md) - Architecture and planning
+- [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) - Cloudflare Tunnel setup guide
 - [TASKS.jsonl](TASKS.jsonl) - Task tracking
 
 ## Development

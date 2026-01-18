@@ -28,6 +28,9 @@ type Config struct {
 	ResendAPIKey          string
 	EmailFrom             string
 	EnableEmail           bool
+
+	// CORS configuration
+	FrontendURL           string
 }
 
 // Load returns a Config with values from environment variables or defaults
@@ -45,6 +48,7 @@ func Load() *Config {
 		ResendAPIKey:      getEnv("RESEND_API_KEY", ""),
 		EmailFrom:         getEnv("EMAIL_FROM", "noreply@subtitler.example.com"),
 		EnableEmail:       getEnvBool("ENABLE_EMAIL", false),
+		FrontendURL:       getEnv("FRONTEND_URL", "http://localhost:4321"),
 	}
 }
 
