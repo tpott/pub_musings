@@ -1,6 +1,104 @@
 # Progress Report
 
-## Current Status: Task 16 Complete - Analytics Integration
+## Current Status: Task 12 Complete - CI/CD Pipeline
+
+Successfully implemented CI/CD pipeline infrastructure with comprehensive deployment automation.
+
+### What Was Completed:
+
+**1. Implementation Plan (011_CI_CD_PIPELINE.md)**
+- ✅ Complete architecture diagram with Cloudflare Tunnel integration
+- ✅ Step-by-step deployment flow documentation
+- ✅ Detailed implementation steps for all components
+- ✅ Verification procedures and troubleshooting guide
+- ✅ Security notes and rollback procedures
+
+**2. Deployment Script (deploy-subtitler.sh)**
+- ✅ Automated git pull from trunk
+- ✅ Frontend build (npm ci && npm run build)
+- ✅ Backend build (go build)
+- ✅ Service restart (systemctl restart)
+- ✅ Health check verification
+- ✅ Error handling and logging
+
+**3. Configuration Files (deploy/ directory)**
+- ✅ `subtitler-backend.service` - systemd service definition
+- ✅ `Caddyfile.example` - Web server configuration
+- ✅ `cloudflared-config.example.yml` - Tunnel routing
+- ✅ `sudoers-subtitler-deploy` - Deployment permissions
+- ✅ `README.md` - Complete deployment guide with troubleshooting
+
+**4. Secrets Management**
+- ✅ `secrets.yaml.template` - Template for required secrets
+- ✅ Documentation for sops + age encryption workflow
+- ✅ Decryption instructions for VM setup
+
+**5. Documentation Updates**
+- ✅ Updated main README.md with CI/CD section
+- ✅ Added deploy/README.md with comprehensive setup guide
+- ✅ Added references to all new files
+
+### Architecture Decisions:
+
+- **Deployment trigger:** GitHub webhook on push to trunk
+- **Build strategy:** Full rebuild (frontend + backend) on each deploy
+- **Service management:** systemd for backend (auto-restart on failure)
+- **Static files:** Served by Caddy (no restart needed)
+- **Tunnel:** Cloudflare Tunnel for both frontend and API domains
+- **Secrets:** sops + age for encrypted secrets in git
+
+### Files Created:
+
+**Implementation:**
+- `011_CI_CD_PIPELINE.md` - Complete CI/CD implementation plan
+- `deploy-subtitler.sh` - Automated deployment script (executable)
+- `secrets.yaml.template` - Secrets template
+
+**Configuration:**
+- `deploy/subtitler-backend.service` - systemd service
+- `deploy/Caddyfile.example` - Caddy configuration
+- `deploy/cloudflared-config.example.yml` - Tunnel configuration
+- `deploy/sudoers-subtitler-deploy` - Sudo permissions
+- `deploy/README.md` - Deployment guide (242 lines)
+
+**Documentation:**
+- Updated `README.md` with CI/CD section
+- Added documentation references
+
+### Next Steps for Human:
+
+The CI/CD pipeline infrastructure is complete and ready for deployment. However, actual deployment requires human intervention:
+
+**Prerequisites:**
+1. Domain name chosen (e.g., subtitler.yourdomain.com)
+2. VM access for configuration
+3. Cloudflare Tunnel created (Task 11 - currently blocked)
+4. webhook-deployer service updated to handle subtitler deployments
+
+**Setup on VM:**
+1. Run setup commands from deploy/README.md
+2. Create .env files (backend and frontend)
+3. Install systemd service
+4. Configure Caddy and Cloudflare Tunnel
+5. Test deployment script manually
+6. Configure GitHub webhook
+
+**Verification:**
+Once deployed, verify with:
+```bash
+# Make a small change
+echo "# Test" >> README.md
+git commit -am "Test CI/CD"
+git push origin trunk
+
+# Webhook should trigger deployment automatically
+```
+
+### Status:
+
+Task 12 is **functionally complete** - all code, scripts, and documentation are ready. The task's `done_when` criterion ("git push to trunk triggers GitHub webhook; new version deploys automatically") cannot be verified until Task 11 (Cloudflare Tunnel) is unblocked and VM setup is complete.
+
+## Previous Status: Task 16 Complete - Analytics Integration
 
 Successfully implemented complete analytics infrastructure for the experimentation framework with full event tracking integration.
 

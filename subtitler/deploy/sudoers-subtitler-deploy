@@ -1,0 +1,8 @@
+# Sudoers configuration for Subtitler deployment
+# Install with: sudo cp deploy/sudoers-subtitler-deploy /etc/sudoers.d/subtitler-deploy
+# Set permissions: sudo chmod 440 /etc/sudoers.d/subtitler-deploy
+
+trevor ALL=(ALL) NOPASSWD: /bin/systemctl restart subtitler-backend
+trevor ALL=(ALL) NOPASSWD: /bin/systemctl status subtitler-backend
+trevor ALL=(ALL) NOPASSWD: /bin/systemctl is-active subtitler-backend
+trevor ALL=(ALL) NOPASSWD: /usr/bin/journalctl -u subtitler-backend *

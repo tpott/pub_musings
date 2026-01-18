@@ -525,16 +525,28 @@ cd frontend && npx playwright test tests/dashboard.spec.ts
 
 ## Deployment
 
-### Cloudflare Tunnel Setup
+### CI/CD Pipeline
 
-The service can be exposed publicly using Cloudflare Tunnel. See [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) for detailed setup instructions.
+Subtitler uses GitHub webhooks for automated deployments. When code is pushed to the `trunk` branch, the backend and frontend are automatically rebuilt and deployed.
+
+**See:** [011_CI_CD_PIPELINE.md](011_CI_CD_PIPELINE.md) for complete CI/CD setup instructions.
 
 **Quick overview:**
-1. Install `cloudflared` on your server
-2. Create a tunnel: `cloudflared tunnel create subtitler`
-3. Configure DNS routes for frontend and API domains
-4. Create tunnel config at `/etc/cloudflared/config.yml`
-5. Install as systemd service: `sudo cloudflared service install`
+1. GitHub webhook triggers deployment on push to `trunk`
+2. Deployment script runs: `git pull` → `npm build` → `go build` → `systemctl restart`
+3. Backend runs as systemd service
+4. Frontend served by Caddy
+5. Both exposed via Cloudflare Tunnel
+
+**Configuration files:**
+- `deploy/subtitler-backend.service` - systemd service
+- `deploy/Caddyfile.example` - Caddy configuration
+- `deploy/cloudflared-config.example.yml` - Cloudflare Tunnel routes
+- `deploy/README.md` - Complete deployment guide
+
+### Cloudflare Tunnel Setup
+
+The service can be exposed publicly using Cloudflare Tunnel. See [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) and [deploy/README.md](deploy/README.md) for detailed setup instructions.
 
 **Verify tunnel setup:**
 ```bash
@@ -548,19 +560,23 @@ curl https://api.subtitler.yourdomain.com/api/health
 
 ### Production Configuration
 
-For production deployments, set these environment variables:
+For production deployments, see `secrets.yaml.template` and [deploy/README.md](deploy/README.md).
 
+**Required secrets:**
 ```bash
-# Backend
-JWT_SECRET=<generate-secure-random-secret>
+# Backend (.env)
+JWT_SECRET=<generate-with: openssl rand -base64 32>
 RESEND_API_KEY=<your-resend-api-key>
 EMAIL_FROM=noreply@yourdomain.com
 ENABLE_EMAIL=true
 FRONTEND_URL=https://subtitler.yourdomain.com
 
-# Frontend
+# Frontend (.env)
 PUBLIC_API_URL=https://api.subtitler.yourdomain.com
 ```
+
+**Secrets management:**
+Use sops + age for encrypted secrets (see [personal/001_INITIALIZATION.md](../personal/001_INITIALIZATION.md)).
 
 ## Analytics
 
@@ -598,6 +614,8 @@ See [010_ANALYTICS_INTEGRATION.md](010_ANALYTICS_INTEGRATION.md) and [EXPERIMENT
 - [001_RALPH_SUBTITLER.md](001_RALPH_SUBTITLER.md) - Architecture and planning
 - [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) - Cloudflare Tunnel setup guide
 - [010_ANALYTICS_INTEGRATION.md](010_ANALYTICS_INTEGRATION.md) - Analytics implementation
+- [011_CI_CD_PIPELINE.md](011_CI_CD_PIPELINE.md) - CI/CD pipeline setup
+- [deploy/README.md](deploy/README.md) - Deployment configuration guide
 - [EXPERIMENTATION_PLAN.md](EXPERIMENTATION_PLAN.md) - A/B testing framework
 - [MARKETING_PLAN.md](MARKETING_PLAN.md) - Marketing strategy
 - [TASKS.jsonl](TASKS.jsonl) - Task tracking
