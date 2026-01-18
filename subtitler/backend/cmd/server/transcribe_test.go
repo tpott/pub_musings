@@ -206,6 +206,120 @@ func TestHandleTranscribe_ServiceNotInitialized(t *testing.T) {
 	}
 }
 
+// TestHandleTranscribe_VTTFormat tests that VTT format parameter works
+func TestHandleTranscribe_VTTFormat(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Initialize transcription service
+	cfg := config.Load()
+	transcribeService = transcribe.NewService(cfg)
+	if err := transcribeService.Start(); err != nil {
+		t.Fatalf("Failed to start transcription service: %v", err)
+	}
+	defer transcribeService.Stop()
+
+	// Test with JFK sample audio
+	jfkPath := filepath.Join(os.Getenv("HOME"), "Github/whisper.cpp/samples/jfk.wav")
+	if _, err := os.Stat(jfkPath); os.IsNotExist(err) {
+		t.Skipf("JFK sample audio not found at %s", jfkPath)
+	}
+
+	// Create multipart request
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	file, err := os.Open(jfkPath)
+	if err != nil {
+		t.Fatalf("Failed to open test file: %v", err)
+	}
+	defer file.Close()
+
+	part, err := writer.CreateFormFile("file", "jfk.wav")
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+
+	if _, err := io.Copy(part, file); err != nil {
+		t.Fatalf("Failed to copy file data: %v", err)
+	}
+	writer.Close()
+
+	// Create request with format=vtt parameter
+	req := httptest.NewRequest("POST", "/api/transcribe?format=vtt", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Record response
+	rr := httptest.NewRecorder()
+	handleTranscribe(rr, req)
+
+	// Check status code
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Parse response
+	var response TranscribeResponse
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	// Verify response structure
+	if !response.Success {
+		t.Errorf("Expected success=true, got false. Message: %s", response.Message)
+	}
+
+	if response.Format != "vtt" {
+		t.Errorf("Expected format=vtt, got %s", response.Format)
+	}
+
+	// Verify VTT format (should start with WEBVTT header)
+	transcript := response.Transcript
+	if !strings.HasPrefix(transcript, "WEBVTT") {
+		t.Errorf("VTT transcript should start with 'WEBVTT', got: %s", truncate(transcript, 100))
+	}
+
+	t.Logf("VTT transcription completed in %.2f seconds", response.Duration)
+	t.Logf("Transcript preview (first 200 chars): %s", truncate(transcript, 200))
+}
+
+// TestHandleTranscribe_InvalidFormatParam tests that invalid format parameter is rejected
+func TestHandleTranscribe_InvalidFormatParam(t *testing.T) {
+	// Create minimal valid request
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "test.wav")
+	part.Write([]byte("fake audio"))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/transcribe?format=invalid", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	rr := httptest.NewRecorder()
+
+	// Need to initialize service for this test
+	cfg := config.Load()
+	transcribeService = transcribe.NewService(cfg)
+
+	handleTranscribe(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", rr.Code)
+	}
+
+	var response TranscribeResponse
+	json.NewDecoder(rr.Body).Decode(&response)
+
+	if response.Success {
+		t.Errorf("Expected success=false")
+	}
+
+	if !strings.Contains(response.Message, "Invalid format") {
+		t.Errorf("Expected error message about invalid format, got: %s", response.Message)
+	}
+}
+
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

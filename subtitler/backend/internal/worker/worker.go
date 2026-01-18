@@ -102,9 +102,30 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 		return
 	}
 
+	// Handle embedded format separately (requires video + subtitles)
+	if job.OutputFormat == "embedded" {
+		wp.processEmbeddedJob(workerID, job)
+		return
+	}
+
+	// Convert output format string to OutputFormat type
+	var format transcribe.OutputFormat
+	switch job.OutputFormat {
+	case "srt":
+		format = transcribe.FormatSRT
+	case "vtt":
+		format = transcribe.FormatVTT
+	case "text":
+		format = transcribe.FormatText
+	case "json":
+		format = transcribe.FormatJSON
+	default:
+		format = transcribe.FormatSRT // Fallback to SRT
+	}
+
 	// Transcribe the file
 	transcript, err := wp.transcribeService.TranscribeFile(job.FilePath, transcribe.TranscribeOptions{
-		Format: transcribe.FormatSRT, // Default to SRT for now
+		Format: format,
 	})
 	if err != nil {
 		log.Printf("Worker %d: Transcription failed for job %d: %v", workerID, jobID, err)
@@ -172,4 +193,74 @@ func (wp *WorkerPool) buildResultPath(job *db.Job) (string, error) {
 	)
 
 	return transcriptPath, nil
+}
+
+// processEmbeddedJob handles jobs that require embedded subtitles
+func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
+	log.Printf("Worker %d: Processing embedded format for job %d", workerID, job.ID)
+
+	// Step 1: Generate SRT subtitles first
+	log.Printf("Worker %d: Generating SRT subtitles for job %d", workerID, job.ID)
+	srtTranscript, err := wp.transcribeService.TranscribeFile(job.FilePath, transcribe.TranscribeOptions{
+		Format: transcribe.FormatSRT,
+	})
+	if err != nil {
+		log.Printf("Worker %d: Transcription failed for job %d: %v", workerID, job.ID, err)
+		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Transcription failed: %v", err))
+		return
+	}
+
+	// Save SRT to temporary file
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+
+	tmpSrtDir := filepath.Join(dataDir, "tmp")
+	if err := os.MkdirAll(tmpSrtDir, 0755); err != nil {
+		log.Printf("Worker %d: Failed to create temp directory for job %d: %v", workerID, job.ID, err)
+		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Failed to create temp directory: %v", err))
+		return
+	}
+
+	tmpSrtPath := filepath.Join(tmpSrtDir, fmt.Sprintf("job_%d.srt", job.ID))
+	if err := os.WriteFile(tmpSrtPath, []byte(srtTranscript), 0644); err != nil {
+		log.Printf("Worker %d: Failed to save temp SRT for job %d: %v", workerID, job.ID, err)
+		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Failed to save temp SRT: %v", err))
+		return
+	}
+	defer os.Remove(tmpSrtPath) // Clean up temp SRT file
+
+	// Step 2: Build output path for embedded video
+	baseFilename := filepath.Base(job.OriginalFilename)
+	ext := filepath.Ext(baseFilename)
+	nameWithoutExt := baseFilename[:len(baseFilename)-len(ext)]
+
+	resultFilename := fmt.Sprintf("%s_subtitled.mp4", nameWithoutExt)
+	outputPath := filepath.Join(
+		dataDir,
+		"files",
+		"results",
+		fmt.Sprintf("%d", job.UserID),
+		fmt.Sprintf("%d", job.ID),
+		resultFilename,
+	)
+
+	// Step 3: Embed subtitles into video
+	log.Printf("Worker %d: Embedding subtitles for job %d", workerID, job.ID)
+	err = transcribe.EmbedSubtitles(job.FilePath, tmpSrtPath, outputPath)
+	if err != nil {
+		log.Printf("Worker %d: Failed to embed subtitles for job %d: %v", workerID, job.ID, err)
+		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Failed to embed subtitles: %v", err))
+		return
+	}
+
+	// Update job as completed
+	err = wp.db.UpdateJobCompleted(job.ID, outputPath)
+	if err != nil {
+		log.Printf("Worker %d: Failed to mark job %d as completed: %v", workerID, job.ID, err)
+		return
+	}
+
+	log.Printf("Worker %d: Job %d completed successfully with embedded subtitles", workerID, job.ID)
 }

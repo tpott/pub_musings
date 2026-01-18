@@ -6,7 +6,7 @@
 {"id": 6, "name": "Email and password authentication", "done_when": "curl -X POST localhost:8080/api/register -d '{\"email\":\"test@test.com\",\"password\":\"pass\"}' returns 200; subsequent login returns session token", "status": "complete"}
 {"id": 7, "name": "User dashboard", "done_when": "Login as user, navigate to /dashboard, see list of past jobs with download links", "status": "complete"}
 {"id": 8, "name": "Background job queue", "done_when": "Upload file, check /api/jobs shows pending status; wait for worker, status changes to complete", "status": "complete"}
-{"id": 9, "name": "Multiple output formats", "done_when": "curl localhost:8080/api/transcribe?format=vtt returns VTT; format=embedded returns video file with subtitles", "status": "todo"}
+{"id": 9, "name": "Multiple output formats", "done_when": "curl localhost:8080/api/transcribe?format=vtt returns VTT; format=embedded returns video file with subtitles", "status": "in_progress"}
 {"id": 10, "name": "Job status and notifications", "done_when": "Upload file, dashboard shows progress updating; email received when job completes", "status": "todo"}
 {"id": 11, "name": "Cloudflare Tunnel setup", "done_when": "curl https://subtitler.yourdomain.com/api/health returns 200 via tunnel", "status": "todo"}
 {"id": 12, "name": "CI/CD pipeline", "done_when": "git push to trunk triggers GitHub webhook; new version deploys automatically", "status": "todo"}

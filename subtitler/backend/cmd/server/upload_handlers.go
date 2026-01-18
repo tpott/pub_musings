@@ -66,13 +66,35 @@ func handleUpload(database *db.DB, workerPool *worker.WorkerPool) http.HandlerFu
 			return
 		}
 
+		// Get format parameter from form (default: srt)
+		formatStr := r.FormValue("format")
+		if formatStr == "" {
+			formatStr = "srt"
+		}
+
+		// Validate format
+		validFormats := map[string]bool{
+			"srt":      true,
+			"vtt":      true,
+			"text":     true,
+			"json":     true,
+			"embedded": true,
+		}
+		if !validFormats[formatStr] {
+			respondJSON(w, http.StatusBadRequest, JobUploadResponse{
+				Success: false,
+				Message: fmt.Sprintf("Invalid format '%s'. Supported formats: srt, vtt, text, json, embedded", formatStr),
+			})
+			return
+		}
+
 		// Create job record with status='pending'
 		job := &db.Job{
 			UserID:           userID,
 			Status:           "pending",
 			OriginalFilename: header.Filename,
 			FileSize:         header.Size,
-			OutputFormat:     "srt", // Default to SRT
+			OutputFormat:     formatStr,
 		}
 
 		err = database.CreateJob(job)

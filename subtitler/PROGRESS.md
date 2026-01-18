@@ -1,8 +1,8 @@
 # Progress Report
 
-## Current Status: Task 8 Complete - Background Job Queue Implemented
+## Current Status: Task 9 In Progress - Multiple Output Formats
 
-**Task 8 Complete:** Background worker queue for asynchronous transcription processing.
+**Working on:** Adding support for VTT format and embedded video subtitles.
 
 ## Tasks Complete (1-8)
 - ✅ Task 1: Project initialization

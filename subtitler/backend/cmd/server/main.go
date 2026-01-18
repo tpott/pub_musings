@@ -205,10 +205,32 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get format parameter from query string (default: srt)
+	formatStr := r.URL.Query().Get("format")
+	if formatStr == "" {
+		formatStr = "srt"
+	}
+
+	// Validate and convert format
+	var format transcribe.OutputFormat
+	switch formatStr {
+	case "srt":
+		format = transcribe.FormatSRT
+	case "vtt":
+		format = transcribe.FormatVTT
+	case "text":
+		format = transcribe.FormatText
+	case "json":
+		format = transcribe.FormatJSON
+	default:
+		writeTranscribeError(w, http.StatusBadRequest, fmt.Sprintf("Invalid format '%s'. Supported formats: srt, vtt, text, json", formatStr))
+		return
+	}
+
 	// Transcribe the file
 	startTime := time.Now()
 	transcript, err := transcribeService.TranscribeFile(tmpPath, transcribe.TranscribeOptions{
-		Format: transcribe.FormatSRT,
+		Format: format,
 	})
 	duration := time.Since(startTime).Seconds()
 
@@ -223,7 +245,7 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request) {
 		Message:    "Transcription completed successfully",
 		Transcript: transcript,
 		Filename:   header.Filename,
-		Format:     "srt",
+		Format:     formatStr,
 		Duration:   duration,
 	}
 
