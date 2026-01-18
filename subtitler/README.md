@@ -73,10 +73,24 @@ The file is saved and a job is created with status='pending'. A worker processes
 
 **Example:**
 ```bash
+# Upload with default format (SRT)
 curl -X POST http://localhost:8080/api/upload \
   -H "Cookie: subtitler_token=YOUR_JWT_TOKEN" \
   -F "file=@/path/to/audio.mp3"
+
+# Upload with specific format
+curl -X POST http://localhost:8080/api/upload \
+  -H "Cookie: subtitler_token=YOUR_JWT_TOKEN" \
+  -F "file=@/path/to/video.mp4" \
+  -F "format=embedded"
 ```
+
+**Supported formats:**
+- `srt` - SubRip subtitle format (default)
+- `vtt` - WebVTT subtitle format
+- `text` - Plain text transcript
+- `json` - JSON format with timestamps
+- `embedded` - Video file with burned-in subtitles (MP4 output)
 
 **Response:**
 ```json
@@ -87,7 +101,7 @@ curl -X POST http://localhost:8080/api/upload \
 }
 ```
 
-Use `/api/jobs/{id}` to check job status and `/api/jobs/{id}/download` to download the transcript when complete.
+Use `/api/jobs/{id}` to check job status and `/api/jobs/{id}/download` to download the result when complete.
 
 ### POST /api/upload-old
 Upload a file to the server for validation (old endpoint, unauthenticated).
@@ -99,14 +113,30 @@ curl -X POST http://localhost:8080/api/upload-old \
 ```
 
 ### POST /api/transcribe
-Upload an audio/video file and receive SRT-formatted subtitles.
+Upload an audio/video file and receive transcribed subtitles synchronously.
 
 **Example:**
 ```bash
+# Default format (SRT)
 curl -X POST http://localhost:8080/api/transcribe \
   -F "file=@~/Github/whisper.cpp/samples/jfk.wav" \
   -o output.srt
+
+# VTT format
+curl -X POST "http://localhost:8080/api/transcribe?format=vtt" \
+  -F "file=@~/Github/whisper.cpp/samples/jfk.wav" \
+  -o output.vtt
+
+# Plain text
+curl -X POST "http://localhost:8080/api/transcribe?format=text" \
+  -F "file=@~/Github/whisper.cpp/samples/jfk.wav"
 ```
+
+**Supported output formats (via query parameter):**
+- `srt` - SubRip subtitle format (default)
+- `vtt` - WebVTT subtitle format
+- `text` - Plain text transcript
+- `json` - JSON format with timestamps
 
 **Response format (JSON):**
 ```json
@@ -120,7 +150,7 @@ curl -X POST http://localhost:8080/api/transcribe \
 }
 ```
 
-**Supported formats:**
+**Supported input formats:**
 - Audio: mp3, wav, m4a, ogg, flac
 - Video: mp4, webm, mkv, avi, mov
 - Max file size: 200MB

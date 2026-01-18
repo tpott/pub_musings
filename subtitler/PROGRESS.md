@@ -2,7 +2,50 @@
 
 ## Current Status: Task 9 In Progress - Multiple Output Formats
 
-**Working on:** Adding support for VTT format and embedded video subtitles.
+**Working on:** Testing and verifying multiple output format support.
+
+## Task 9 Implementation Summary (In Progress)
+
+### Completed Components:
+1. ✅ Format parameter support in `/api/transcribe`
+   - Accepts query parameter `format` (default: srt)
+   - Supports: srt, vtt, text, json
+   - Validates format and returns appropriate error for invalid formats
+
+2. ✅ Format parameter support in `/api/upload`
+   - Accepts form field `format` (default: srt)
+   - Supports: srt, vtt, text, json, embedded
+   - Stores format in job.OutputFormat field
+
+3. ✅ Worker respects job.OutputFormat
+   - Converts OutputFormat string to transcribe.OutputFormat type
+   - Passes format to TranscribeFile()
+
+4. ✅ Embedded video format implementation
+   - Added `EmbedSubtitles()` function in `embed.go`
+   - Uses ffmpeg to burn subtitles into video
+   - Worker handles embedded format via `processEmbeddedJob()`
+   - Generates SRT subtitles first, then embeds into video
+   - Output: `{filename}_subtitled.mp4`
+
+5. ✅ Tests for format functionality
+   - `TestHandleTranscribe_VTTFormat` - tests VTT output
+   - `TestHandleTranscribe_InvalidFormatParam` - tests format validation
+
+### Files Created/Modified:
+- `backend/cmd/server/main.go` - Added format parameter to handleTranscribe
+- `backend/cmd/server/transcribe_test.go` - Added VTT and invalid format tests
+- `backend/cmd/server/upload_handlers.go` - Added format parameter validation
+- `backend/internal/transcribe/embed.go` - New file for ffmpeg integration
+- `backend/internal/worker/worker.go` - Added embedded format handling
+- `007_MULTIPLE_FORMATS.md` - Implementation plan
+- `PROGRESS.md`, `TASKS.jsonl` - Status updates
+
+### Next Steps:
+- Run tests to verify VTT format works
+- Test embedded format with actual video file
+- Verify done_when criteria
+- Mark task complete
 
 ## Tasks Complete (1-8)
 - ✅ Task 1: Project initialization
