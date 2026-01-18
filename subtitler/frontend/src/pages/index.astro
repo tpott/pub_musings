@@ -238,6 +238,11 @@
 		</div>
 
 		<script>
+			import { trackPageView, trackEvent } from '../lib/analytics';
+
+			// Track page view on load
+			trackPageView();
+
 			const uploadArea = document.getElementById('upload-area');
 			const fileInput = document.getElementById('file-input');
 			const fileInfo = document.getElementById('file-info');

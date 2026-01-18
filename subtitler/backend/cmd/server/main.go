@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trevor/subtitler/internal/analytics"
 	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/config"
 	"github.com/trevor/subtitler/internal/db"
@@ -318,6 +319,11 @@ func main() {
 		log.Println("Email notifications disabled")
 	}
 
+	// Initialize analytics service
+	log.Println("Initializing analytics service...")
+	analyticsService := analytics.NewService(database.DB)
+	log.Println("Analytics service initialized")
+
 	// Initialize worker pool for background job processing
 	log.Println("Starting worker pool...")
 	workerPool := worker.NewWorkerPool(4, 100, database, transcribeService, emailClient)
@@ -372,6 +378,11 @@ func main() {
 			http.NotFound(w, r)
 		}
 	})))
+
+	// Analytics endpoints
+	http.HandleFunc("/api/analytics/events", handleTrackEvent(analyticsService))
+	http.Handle("/api/analytics/funnel", auth.AuthMiddleware(cfg.JWTSecret)(handleGetFunnel(analyticsService)))
+	http.HandleFunc("/api/analytics/experiments/", handleGetExperiment(analyticsService))
 
 	port := fmt.Sprintf(":%d", cfg.ServerPort)
 	log.Printf("Starting server on %s", port)
