@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/trevor/subtitler/internal/auth"
@@ -296,6 +297,19 @@ func main() {
 	http.HandleFunc("/api/login", handleLogin(database, cfg.JWTSecret))
 	http.HandleFunc("/api/logout", handleLogout)
 	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(handleMe)))
+
+	// Jobs endpoints (protected)
+	http.Handle("/api/jobs", auth.AuthMiddleware(cfg.JWTSecret)(handleListJobs(database)))
+	http.Handle("/api/jobs/", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Route based on URL pattern
+		if strings.HasSuffix(r.URL.Path, "/download") {
+			handleDownloadResult(database)(w, r)
+		} else if strings.Count(r.URL.Path, "/") == 3 { // /api/jobs/{id}
+			handleGetJob(database)(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})))
 
 	port := fmt.Sprintf(":%d", cfg.ServerPort)
 	log.Printf("Starting server on %s", port)
