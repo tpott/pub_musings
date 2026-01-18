@@ -9,6 +9,72 @@ This file captures lessons learned, failed approaches, and decisions made during
 
 ---
 
+## Task 18: Rate Limiting Middleware (2026-01-18)
+
+**Status:** Complete
+
+**What was implemented:**
+- Token bucket rate limiter in `internal/ratelimit/`
+- HTTP middleware for IP-based and user-based rate limiting
+- Applied rate limiting to auth, upload, and analytics endpoints
+- Configuration via environment variables
+- Unit and integration tests
+
+**Key decisions:**
+
+1. **Algorithm:** Token bucket
+   - Why: Simple to implement, fair, allows bursts
+   - Alternative considered: Sliding window (more complex, not needed for MVP)
+   - Tokens refill continuously based on elapsed time
+
+2. **Storage:** In-memory map with mutex
+   - Why: Simple, no external dependencies, sufficient for single-instance deployment
+   - Trade-off: Rate limits reset if server restarts (acceptable)
+   - Cleanup goroutine removes stale buckets every 5 minutes
+
+3. **Rate limits by endpoint type:**
+   - Auth endpoints (register/login): 5 req/min per IP (prevent brute force)
+   - Upload endpoints: 10 req/hour per user (prevent resource exhaustion)
+   - Public endpoints: 100 req/min per IP (prevent spam)
+   - Other protected endpoints: 60 req/min per user (general protection)
+
+4. **Identifier strategy:**
+   - Auth endpoints: IP-based (users not yet authenticated)
+   - Upload endpoints: User ID-based (authenticated, per-user limits)
+   - Public endpoints: IP-based (unauthenticated)
+   - IP extraction: X-Forwarded-For → X-Real-IP → RemoteAddr (proxy-aware)
+
+5. **Response headers:**
+   - `X-RateLimit-Limit`: Maximum requests allowed
+   - `X-RateLimit-Remaining`: Requests remaining in current window
+   - `Retry-After`: Seconds to wait before retrying (when 429)
+
+**Files created:**
+- `backend/internal/ratelimit/ratelimit.go` - Token bucket implementation
+- `backend/internal/ratelimit/middleware.go` - HTTP middleware
+- `backend/internal/ratelimit/ratelimit_test.go` - Unit tests
+- `backend/cmd/server/ratelimit_test.go` - Integration tests
+- `013_RATE_LIMITING.md` - Implementation plan
+
+**Files modified:**
+- `backend/internal/config/config.go` - Added rate limit configuration
+- `backend/cmd/server/main.go` - Applied middleware to endpoints
+- `README.md` - Added rate limiting documentation
+
+**Verification:**
+- ✅ All unit tests pass: `go test ./internal/ratelimit`
+- ✅ Integration tests pass: `go test ./cmd/server -run TestRateLimit`
+- ✅ Backend builds successfully
+- ✅ Rate limit headers included in responses
+
+**Future enhancements:**
+- Redis-backed rate limiter for multi-instance deployments
+- Per-tier rate limits (free vs. paid users)
+- Admin whitelist for trusted IPs
+- Rate limit metrics dashboard
+
+---
+
 ## Task 17: API Proxy Configuration (2026-01-18)
 
 **Status:** Complete

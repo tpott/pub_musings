@@ -100,6 +100,20 @@ ENABLE_EMAIL=false              # Set to true to enable email notifications
 - `WHISPER_MODEL_PATH` - Path to whisper model (default: `$HOME/Github/whisper.cpp/models/ggml-medium.bin`)
 - `WHISPER_SERVER_PATH` - Path to whisper-server binary (default: `$HOME/Github/whisper.cpp/build/bin/whisper-server`)
 
+**Rate Limiting Configuration (optional):**
+```bash
+RATE_LIMIT_AUTH_PER_MIN=5        # Auth endpoints (register/login) per minute per IP (default: 5)
+RATE_LIMIT_UPLOAD_PER_HOUR=10    # Upload requests per hour per user (default: 10)
+RATE_LIMIT_PUBLIC_PER_MIN=100    # Public endpoints per minute per IP (default: 100)
+RATE_LIMIT_DEFAULT_PER_MIN=60    # Other protected endpoints per minute per user (default: 60)
+```
+
+Rate limiting protects the API from abuse:
+- Authentication endpoints are limited by IP address to prevent brute force attacks
+- Upload endpoints are limited by user ID to prevent resource exhaustion
+- Public analytics endpoints are limited by IP to prevent spam
+- All rate-limited responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `Retry-After` headers
+
 **Email Notifications:**
 
 When `ENABLE_EMAIL=true`, users will receive email notifications when:

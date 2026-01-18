@@ -1,6 +1,69 @@
 # Progress Report
 
-## Current Status: All Core Tasks Complete - Enhancement Tasks Added
+## Current Status: Task 18 Complete - Rate Limiting Middleware
+
+Successfully implemented rate limiting middleware to protect API endpoints from abuse.
+
+### What Was Completed:
+
+**1. Rate Limiter Implementation (`internal/ratelimit/`)**
+- ✅ Token bucket algorithm with continuous token refill
+- ✅ In-memory storage with mutex for thread safety
+- ✅ Automatic cleanup of stale buckets (every 5 minutes)
+- ✅ Configurable limits per endpoint type
+
+**2. HTTP Middleware**
+- ✅ IP-based rate limiting for unauthenticated endpoints
+- ✅ User ID-based rate limiting for authenticated endpoints
+- ✅ Rate limit headers in responses (X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After)
+- ✅ Proxy-aware IP extraction (X-Forwarded-For, X-Real-IP)
+
+**3. Rate Limits Applied**
+- ✅ Auth endpoints (register/login): 5 req/min per IP
+- ✅ Upload endpoints: 10 req/hour per user
+- ✅ Public endpoints (analytics/events): 100 req/min per IP
+- ✅ Other protected endpoints: 60 req/min per user
+
+**4. Configuration**
+- ✅ Environment variables for custom rate limits
+- ✅ Sensible defaults for all limits
+- ✅ Documentation in README.md
+
+**5. Testing**
+- ✅ Unit tests for token bucket logic
+- ✅ Integration tests for rate limiting behavior
+- ✅ Tests verify 429 status code and rate limit headers
+- ✅ Tests verify independent limits for different IPs
+- ✅ Tests verify X-Forwarded-For header support
+
+### Verification:
+
+- ✅ Backend builds successfully: `cd backend && go build ./cmd/server`
+- ✅ All unit tests pass: `cd backend && go test ./... -short`
+- ✅ Rate limit tests pass: `cd backend && go test ./cmd/server -run TestRateLimit`
+- ✅ Rate limit headers included in responses
+- ✅ 429 Too Many Requests returned when limit exceeded
+
+### Files Created/Modified:
+
+**New Files:**
+- `backend/internal/ratelimit/ratelimit.go`
+- `backend/internal/ratelimit/middleware.go`
+- `backend/internal/ratelimit/ratelimit_test.go`
+- `backend/cmd/server/ratelimit_test.go`
+- `013_RATE_LIMITING.md`
+
+**Modified Files:**
+- `backend/internal/config/config.go`
+- `backend/cmd/server/main.go`
+- `README.md`
+- `LEARNINGS.md`
+
+### Status:
+
+Task 18 is **complete**. Rate limiting is active on all appropriate endpoints and protecting the API from abuse.
+
+## Previous Status: All Core Tasks Complete - Enhancement Tasks Added
 
 All 17 core tasks (1-17) are complete. Task 11 (Cloudflare Tunnel) is blocked awaiting human setup.
 

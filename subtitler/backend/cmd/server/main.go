@@ -16,6 +16,7 @@ import (
 	"github.com/trevor/subtitler/internal/config"
 	"github.com/trevor/subtitler/internal/db"
 	"github.com/trevor/subtitler/internal/email"
+	"github.com/trevor/subtitler/internal/ratelimit"
 	"github.com/trevor/subtitler/internal/storage"
 	"github.com/trevor/subtitler/internal/transcribe"
 	"github.com/trevor/subtitler/internal/worker"
@@ -331,6 +332,19 @@ func main() {
 	defer workerPool.Stop()
 	log.Println("Worker pool started with 4 workers")
 
+	// Initialize rate limiters
+	log.Println("Initializing rate limiters...")
+	authLimiter := ratelimit.NewLimiter(cfg.RateLimitAuthPerMin)
+	uploadLimiter := ratelimit.NewLimiter(cfg.RateLimitUploadPerHour)
+	publicLimiter := ratelimit.NewLimiter(cfg.RateLimitPublicPerMin)
+	defaultLimiter := ratelimit.NewLimiter(cfg.RateLimitDefaultPerMin)
+	defer authLimiter.Close()
+	defer uploadLimiter.Close()
+	defer publicLimiter.Close()
+	defer defaultLimiter.Close()
+	log.Printf("Rate limiters initialized (auth: %d/min, upload: %d/hour, public: %d/min, default: %d/min)",
+		cfg.RateLimitAuthPerMin, cfg.RateLimitUploadPerHour, cfg.RateLimitPublicPerMin, cfg.RateLimitDefaultPerMin)
+
 	// Basic HTTP server placeholder
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Subtitler API Server")
@@ -354,15 +368,15 @@ func main() {
 	// Old /api/upload endpoint (kept for backward compatibility, no auth)
 	http.HandleFunc("/api/upload-old", handleUploadOld)
 
-	// New /api/upload endpoint (with auth and job queue)
-	http.Handle("/api/upload", auth.AuthMiddleware(cfg.JWTSecret)(handleUpload(database, workerPool, analyticsService)))
+	// New /api/upload endpoint (with auth and job queue, rate limited by user)
+	http.Handle("/api/upload", ratelimit.UserMiddleware(uploadLimiter)(auth.AuthMiddleware(cfg.JWTSecret)(handleUpload(database, workerPool, analyticsService))))
 
 	// Keep /api/transcribe for backward compatibility (synchronous)
 	http.HandleFunc("/api/transcribe", handleTranscribe)
 
-	// Auth endpoints
-	http.HandleFunc("/api/register", handleRegister(database, cfg.JWTSecret, analyticsService))
-	http.HandleFunc("/api/login", handleLogin(database, cfg.JWTSecret, analyticsService))
+	// Auth endpoints (rate limited by IP)
+	http.Handle("/api/register", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleRegister(database, cfg.JWTSecret, analyticsService))))
+	http.Handle("/api/login", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleLogin(database, cfg.JWTSecret, analyticsService))))
 	http.HandleFunc("/api/logout", handleLogout)
 	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(handleMe)))
 
@@ -380,9 +394,9 @@ func main() {
 	})))
 
 	// Analytics endpoints
-	http.HandleFunc("/api/analytics/events", handleTrackEvent(analyticsService))
-	http.Handle("/api/analytics/funnel", auth.AuthMiddleware(cfg.JWTSecret)(handleGetFunnel(analyticsService)))
-	http.HandleFunc("/api/analytics/experiments/", handleGetExperiment(analyticsService))
+	http.Handle("/api/analytics/events", ratelimit.IPMiddleware(publicLimiter)(http.HandlerFunc(handleTrackEvent(analyticsService))))
+	http.Handle("/api/analytics/funnel", ratelimit.UserMiddleware(defaultLimiter)(auth.AuthMiddleware(cfg.JWTSecret)(handleGetFunnel(analyticsService))))
+	http.Handle("/api/analytics/experiments/", ratelimit.IPMiddleware(publicLimiter)(http.HandlerFunc(handleGetExperiment(analyticsService))))
 
 	port := fmt.Sprintf(":%d", cfg.ServerPort)
 	log.Printf("Starting server on %s", port)
