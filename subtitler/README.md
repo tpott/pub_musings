@@ -66,12 +66,35 @@ On first run, the backend will:
 
 ## API Endpoints
 
-### POST /api/upload
-Upload a file to the server for validation.
+### POST /api/upload (Protected)
+Upload a file for background transcription. Requires authentication.
+
+The file is saved and a job is created with status='pending'. A worker processes the job asynchronously.
 
 **Example:**
 ```bash
 curl -X POST http://localhost:8080/api/upload \
+  -H "Cookie: subtitler_token=YOUR_JWT_TOKEN" \
+  -F "file=@/path/to/audio.mp3"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "job_id": 123
+}
+```
+
+Use `/api/jobs/{id}` to check job status and `/api/jobs/{id}/download` to download the transcript when complete.
+
+### POST /api/upload-old
+Upload a file to the server for validation (old endpoint, unauthenticated).
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/upload-old \
   -F "file=@/path/to/audio.mp3"
 ```
 
@@ -287,6 +310,9 @@ cd backend && /home/trevor/go/bin/go test ./cmd/server -v
 
 # Test transcribe endpoint specifically (integration test, requires whisper.cpp)
 cd backend && /home/trevor/go/bin/go test ./cmd/server -v -run TestHandleTranscribe_Integration
+
+# Test worker integration (upload → worker → completion, requires whisper.cpp)
+cd backend && /home/trevor/go/bin/go test ./cmd/server -v -run TestWorkerIntegration -timeout 2m
 ```
 
 ### Integration Tests

@@ -1,10 +1,10 @@
 # Progress Report
 
-## Current Status: Task 7 Complete - User Dashboard Implemented
+## Current Status: Task 8 Complete - Background Job Queue Implemented
 
-**Task 7 Complete:** User dashboard with job listing and download functionality.
+**Task 8 Complete:** Background worker queue for asynchronous transcription processing.
 
-## Tasks Complete (1-7)
+## Tasks Complete (1-8)
 - ✅ Task 1: Project initialization
 - ✅ Task 2: whisper.cpp integration
 - ✅ Task 3: Basic file upload UI
@@ -12,6 +12,7 @@
 - ✅ Task 5: Database setup (SQLite with users and jobs tables)
 - ✅ Task 6: Email and password authentication
 - ✅ Task 7: User dashboard with job listing and download
+- ✅ Task 8: Background job queue with worker pool
 
 ## Task 7 Implementation Summary
 
@@ -117,11 +118,80 @@ cd backend && go test ./internal/db -v -run "TestCreateUser|TestGetUser"
 # ✅ Logout: Clears cookie
 ```
 
-## Next Steps
-Task 7 complete! Ready to start Task 8: Background job queue.
+## Task 8 Implementation Summary
 
-Task 8 will involve:
-- Creating a job queue/worker system to process transcription jobs asynchronously
-- User uploads file → creates pending job → worker picks it up → processes → marks complete
-- Integration with the transcription service
-- Updating the dashboard to show real-time job status
+### Completed Components:
+1. ✅ Worker pool package (`backend/internal/worker/worker.go`)
+   - Configurable number of workers (default: 4)
+   - Buffered job queue using Go channels (size 100)
+   - Job lifecycle: pending → processing → completed/failed
+   - Graceful shutdown with sync.WaitGroup
+   - Each worker runs in its own goroutine
+
+2. ✅ New upload endpoint (`backend/cmd/server/upload_handlers.go`)
+   - `POST /api/upload` (authenticated, requires JWT)
+   - Creates job record in database with status='pending'
+   - Saves uploaded file to `data/files/uploads/{user_id}/{job_id}/{filename}`
+   - Enqueues job for background processing
+   - Returns job_id immediately (async processing)
+
+3. ✅ Database layer updates
+   - Refactored `CreateJob()` to accept Job struct
+   - Added `UpdateJobFilePath()` method
+   - Updated `UpdateJobCompleted()` to save transcript path
+   - All tests updated to use new signatures
+
+4. ✅ Auth helper (`backend/internal/auth/middleware.go`)
+   - Added `AddClaimsToContext()` for testing
+   - `GetUserIDFromRequest()` extracts user ID from JWT claims
+
+5. ✅ Worker pool integration in main.go
+   - Worker pool starts on server startup (line 285-286)
+   - Graceful shutdown on server stop (line 287)
+   - Integrated with existing transcription service
+   - `/api/upload` endpoint wired up with auth middleware (line 304)
+
+6. ✅ Integration test (`backend/cmd/server/worker_integration_test.go`)
+   - Tests full upload → worker → completion flow
+   - Creates test user with authentication
+   - Uploads JFK sample audio
+   - Polls job status until completed
+   - Verifies transcript file created and contains expected content
+   - Test passes in ~50 seconds
+
+### Architecture Decisions:
+- **Async processing:** Upload returns immediately with job_id
+- **Worker pool:** Fixed number of goroutines (4 workers)
+- **Job queue:** Buffered channel for decoupling upload from processing
+- **File organization:** Separate directories for uploads and results
+- **Status tracking:** Jobs progress through pending → processing → completed/failed
+- **Error handling:** Failed jobs have error_message field populated
+
+### Files Created/Modified:
+- `backend/internal/worker/worker.go` - Worker pool implementation
+- `backend/cmd/server/upload_handlers.go` - New upload endpoint
+- `backend/cmd/server/worker_integration_test.go` - Integration test
+- `backend/internal/auth/middleware.go` - Added test helper function
+- `backend/internal/db/jobs.go` - Updated job methods
+- `backend/cmd/server/main.go` - Wired up worker pool
+- `README.md` - Documented new /api/upload endpoint and test
+- `PROGRESS.md` - Updated with Task 8 completion
+- `TASKS.jsonl` - Marked Task 8 as complete
+
+### Test Results:
+```bash
+# Integration test passes
+cd backend && go test ./cmd/server -v -run TestWorkerIntegration -timeout 2m
+# PASS: TestWorkerIntegration (50.75s)
+# ✅ Job created successfully
+# ✅ Worker picked up job and set status to 'processing'
+# ✅ Transcription completed using whisper.cpp
+# ✅ Transcript file saved to disk
+# ✅ Job marked as 'completed'
+# ✅ Transcript content verified (JFK speech)
+```
+
+### Next Steps (Future Tasks):
+- Task 9: Multiple output formats (SRT, VTT, embedded video)
+- Task 10: Real-time job status updates (polling/WebSocket) and email notifications
+- Frontend integration: Update upload UI to use authenticated /api/upload endpoint

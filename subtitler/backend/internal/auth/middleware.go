@@ -51,6 +51,11 @@ func GetUserIDFromRequest(r *http.Request) (int64, error) {
 	return claims.UserID, nil
 }
 
+// AddClaimsToContext adds claims to a context (for testing)
+func AddClaimsToContext(ctx context.Context, claims *Claims) context.Context {
+	return context.WithValue(ctx, claimsContextKey, claims)
+}
+
 // writeError sends a JSON error response
 func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")

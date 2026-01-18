@@ -119,7 +119,7 @@ func TestHandleUpload(t *testing.T) {
 			}
 
 			rr := httptest.NewRecorder()
-			handler := http.HandlerFunc(handleUpload)
+			handler := http.HandlerFunc(handleUploadOld)
 			handler.ServeHTTP(rr, req)
 
 			if rr.Code != tt.expectedStatus {
@@ -170,7 +170,7 @@ func TestHandleUploadOversizedFile(t *testing.T) {
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(handleUpload)
+	handler := http.HandlerFunc(handleUploadOld)
 	handler.ServeHTTP(rr, req)
 
 	// Should return 400 Bad Request due to file size validation
