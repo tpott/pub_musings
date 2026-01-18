@@ -6,6 +6,8 @@ You are executed in a loop: `for _ in {1..N}; do cat PROMPT.md | claude --print 
 
 **Each iteration MUST do exactly ONE phase, then STOP.** Do not continue to the next phase within the same iteration. The loop provides natural checkpoints - use them.
 
+**IMPORTANT: "STOP" means stop doing more work, but you MUST still output a brief summary of what you accomplished this iteration.** The CLI will error if you produce no output.
+
 ---
 
 ## Task Structure
@@ -53,16 +55,25 @@ The `phase` field controls what you do in the current iteration.
 2. Pick ONE task where all dependencies have status `"complete"`
 3. Mark that task as `"in progress"` in `TASKS.jsonl`
 4. Create `CURRENT_TASK.md` with `phase: planning`
-5. **STOP.** End this iteration. The next iteration will do the planning phase.
+5. **STOP.** Output a summary (e.g., "Selected Task X. Created CURRENT_TASK.md with phase: planning.") and end this iteration.
 
 ### If CURRENT_TASK.md exists with `phase: planning`:
 
 1. Read project `.md` files to understand context
-2. Write a plan following the naming convention `{num:03d}_{task_short_name}.md`
+2. Determine the next plan number:
+   - List all `[0-9][0-9][0-9]_*.md` files in the project root
+   - Find the highest number prefix (e.g., if `003_foo.md` exists, highest is 3)
+   - Use highest + 1 for your new plan (e.g., `004_bar.md`)
+3. Study recent and relevant plan files:
+   - **MUST read** the most recent plan file (e.g., if creating `004_bar.md`, read `003_*.md`)
+   - **MUST search** for any previous plans related to your task's topic (e.g., if implementing "authentication", search for plans with "auth" in the filename)
+   - Note patterns, conventions, and architectural decisions from these plans
+4. Write a plan following the naming convention `{num:03d}_{task_short_name}.md`
    - The plan MUST reference the task ID (e.g., "This plan implements Task 5")
    - The plan MUST include a Testing section (see Testing Requirements below)
-3. Update `CURRENT_TASK.md`: set `phase: implementing` and add `plan_file`
-4. **STOP.** End this iteration. The next iteration will implement the plan.
+   - The plan SHOULD reference relevant previous plans if they exist
+5. Update `CURRENT_TASK.md`: set `phase: implementing` and add `plan_file`
+6. **STOP.** Output a summary (e.g., "Completed planning for Task X. Wrote plan to 004_foo.md.") and end this iteration.
 
 ### If CURRENT_TASK.md exists with `phase: implementing`:
 
@@ -70,19 +81,19 @@ The `phase` field controls what you do in the current iteration.
 2. Implement everything in the plan
 3. Write all required tests (see Testing Requirements)
 4. Update `CURRENT_TASK.md`: set `phase: verifying`
-5. **STOP.** End this iteration. The next iteration will verify.
+5. **STOP.** Output a summary (e.g., "Implemented Task X per plan. Added tests. Ready for verification.") and end this iteration.
 
 ### If CURRENT_TASK.md exists with `phase: verifying`:
 
 1. Run ALL tests and verify they pass
 2. If any commands were added to README.md or CLAUDE.md, run them and verify they work
 3. Verify the acceptance criteria are met
-4. **If verification fails:** Update `CURRENT_TASK.md` back to `phase: implementing` with notes on what failed. **STOP.**
+4. **If verification fails:** Update `CURRENT_TASK.md` back to `phase: implementing` with notes on what failed. **STOP** and output what failed.
 5. **If verification passes:**
    - Mark task as `"complete"` in `TASKS.jsonl`
    - Delete `CURRENT_TASK.md`
    - Create a git commit with the plan and all changed files
-6. **STOP.** End this iteration.
+6. **STOP.** Output a summary (e.g., "Task X verified and marked complete. Committed changes.") and end this iteration.
 
 ---
 
@@ -117,7 +128,7 @@ If a task is blocked:
 2. You may add a new task with the blocking work
 3. Document the reasoning in `LEARNINGS.md`
 4. If you delete a plan file, document why in `LEARNINGS.md`
-5. **STOP.** A human will unblock the task later.
+5. **STOP.** Output a summary explaining why the task is blocked and what dependency was added, then end this iteration.
 
 Rules:
 - NEVER remove a task or change a task ID
@@ -144,10 +155,10 @@ Maintain these files:
 
 | Current State | Action | End State |
 |---------------|--------|-----------|
-| No CURRENT_TASK.md | Pick task, create CURRENT_TASK.md with `phase: planning` | STOP |
-| `phase: planning` | Write plan, set `phase: implementing` | STOP |
-| `phase: implementing` | Implement plan + write tests, set `phase: verifying` | STOP |
-| `phase: verifying` (pass) | Run tests, verify, mark complete, commit, delete CURRENT_TASK.md | STOP |
-| `phase: verifying` (fail) | Set `phase: implementing` with failure notes | STOP |
+| No CURRENT_TASK.md | Pick task, create CURRENT_TASK.md with `phase: planning` | Output summary, STOP |
+| `phase: planning` | Write plan, set `phase: implementing` | Output summary, STOP |
+| `phase: implementing` | Implement plan + write tests, set `phase: verifying` | Output summary, STOP |
+| `phase: verifying` (pass) | Run tests, verify, mark complete, commit, delete CURRENT_TASK.md | Output summary, STOP |
+| `phase: verifying` (fail) | Set `phase: implementing` with failure notes | Output what failed, STOP |
 
-**Remember: One phase per iteration. Then STOP.**
+**Remember: One phase per iteration. Always output a summary of what you did, then STOP.**
