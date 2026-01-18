@@ -15,3 +15,8 @@
 {"id": 15, "name": "Create EXPERIMENTATION_PLAN.md", "done_when": "cat EXPERIMENTATION_PLAN.md shows A/B testing framework with metrics for success", "status": "complete"}
 {"id": 16, "name": "Analytics integration", "done_when": "Upload and download file; analytics endpoint or dashboard shows corresponding events", "status": "complete"}
 {"id": 17, "name": "Add /api proxy to astro frontend", "done_when": "All backend API calls are routed to the frontend and proxied to the backend", "status": "complete"}
+{"id": 18, "name": "Add rate limiting middleware", "done_when": "curl -X POST localhost:8080/api/register with 100 rapid requests returns 429 Too Many Requests after configured threshold", "status": "todo"}
+{"id": 19, "name": "Add file cleanup job", "done_when": "Old job files (>30 days) are automatically deleted to save disk space", "status": "todo"}
+{"id": 20, "name": "Add usage dashboard for admin", "done_when": "Admin can view /admin/analytics showing total users, jobs, storage used, and conversion funnels", "status": "todo"}
+{"id": 21, "name": "Add language selection for transcription", "done_when": "Upload form includes language dropdown; transcription uses selected language model", "status": "todo"}
+{"id": 22, "name": "Add batch processing", "done_when": "User can upload multiple files at once; dashboard shows all job statuses", "status": "todo"}

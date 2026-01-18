@@ -1,6 +1,30 @@
 # Progress Report
 
-## Current Status: Task 17 Complete - API Proxy Configuration
+## Current Status: All Core Tasks Complete - Enhancement Tasks Added
+
+All 17 core tasks (1-17) are complete. Task 11 (Cloudflare Tunnel) is blocked awaiting human setup.
+
+### New Enhancement Tasks Added (18-22):
+
+Added 5 optional enhancement tasks to TASKS.jsonl for future consideration:
+
+1. **Task 18: Rate limiting middleware** - Protect API from abuse
+2. **Task 19: File cleanup job** - Automatic deletion of old files to save disk space
+3. **Task 20: Admin usage dashboard** - Analytics dashboard for monitoring service usage
+4. **Task 21: Language selection** - Allow users to select transcription language
+5. **Task 22: Batch processing** - Support uploading multiple files at once
+
+These tasks are nice-to-have features that would improve the service but are not critical for initial launch.
+
+### Verification Status:
+
+- ✅ Backend builds successfully: `cd backend && go build ./cmd/server`
+- ✅ Frontend builds successfully: `cd frontend && npm run build`
+- ✅ All unit tests pass: `cd backend && go test ./... -short`
+- ✅ Git working tree is clean (all changes committed)
+- ✅ 28 commits ahead of origin/trunk (ready to push)
+
+## Previous Status: Task 17 Complete - API Proxy Configuration
 
 Successfully added API proxy configuration to route all backend API calls through the frontend.
 
