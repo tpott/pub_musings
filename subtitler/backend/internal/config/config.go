@@ -23,6 +23,11 @@ type Config struct {
 
 	// Auth configuration
 	JWTSecret             string
+
+	// Email configuration
+	ResendAPIKey          string
+	EmailFrom             string
+	EnableEmail           bool
 }
 
 // Load returns a Config with values from environment variables or defaults
@@ -37,7 +42,17 @@ func Load() *Config {
 		DatabasePath:      getEnv("DATABASE_PATH", "./data/db/subtitler.db"),
 		DataDir:           getEnv("DATA_DIR", "./data"),
 		JWTSecret:         getEnv("JWT_SECRET", "dev-secret-change-in-production"),
+		ResendAPIKey:      getEnv("RESEND_API_KEY", ""),
+		EmailFrom:         getEnv("EMAIL_FROM", "noreply@subtitler.example.com"),
+		EnableEmail:       getEnvBool("ENABLE_EMAIL", false),
 	}
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		return value == "true" || value == "1"
+	}
+	return defaultValue
 }
 
 func getEnv(key, defaultValue string) string {

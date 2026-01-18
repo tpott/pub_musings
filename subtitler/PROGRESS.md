@@ -1,8 +1,111 @@
 # Progress Report
 
-## Current Status: Task 9 Complete - Multiple Output Formats
+## Current Status: Task 10 Complete - Job Status and Notifications
 
-**Task 9 Complete:** Multiple output format support implemented and documented.
+**Task 10 Complete:** Real-time job status updates and email notifications implemented.
+
+## Task 10 Implementation Summary
+
+### Completed Components:
+1. ✅ Email configuration in config package
+   - Added `ResendAPIKey`, `EmailFrom`, `EnableEmail` fields
+   - Added `getEnvBool()` helper function
+   - Email disabled by default (ENABLE_EMAIL=false)
+
+2. ✅ Email notification package (`backend/internal/email/`)
+   - `NewClient()` - Creates email client with Resend API integration
+   - `SendJobCompleted()` - Success notification with job details and duration
+   - `SendJobFailed()` - Failure notification with error message
+   - Feature flag support (no-op when email disabled)
+   - Human-readable duration formatting
+
+3. ✅ Worker integration for email notifications
+   - Added `emailClient` field to WorkerPool
+   - `sendSuccessEmail()` helper method
+   - `sendFailureEmail()` helper method
+   - Emails sent after job completion/failure in both standard and embedded formats
+   - Fetches user email from database before sending
+   - Tracks job duration for completion emails
+
+4. ✅ Dashboard auto-refresh (`frontend/src/pages/dashboard.astro`)
+   - Polls `/api/jobs` endpoint every 5 seconds
+   - Smart polling: only when pending/processing jobs exist
+   - Visual refresh indicator with "Checking for updates..." message
+   - "Last checked" timestamp after each update
+   - Automatic cleanup on page unload
+   - Supports `processing` status display
+
+5. ✅ Unit tests (`backend/internal/email/email_test.go`)
+   - Test client initialization
+   - Test disabled email (no-op behavior)
+   - Test duration formatting
+
+### Files Created/Modified:
+- `backend/internal/config/config.go` - Email configuration fields
+- `backend/internal/email/email.go` - Email client and notification methods
+- `backend/internal/email/email_test.go` - Unit tests
+- `backend/internal/worker/worker.go` - Email integration and helper methods
+- `backend/cmd/server/main.go` - Initialize email client and pass to worker pool
+- `frontend/src/pages/dashboard.astro` - Auto-refresh polling logic
+- `README.md` - Email configuration and auto-refresh documentation
+- `PROGRESS.md`, `TASKS.jsonl` - Status updates
+- `008_JOB_STATUS_NOTIFICATIONS.md` - Implementation plan
+
+### Architecture Decisions:
+- **Email provider:** Resend API (free tier: 100 emails/day, 3000/month)
+- **Email format:** Plain text emails (not HTML)
+- **Feature flag:** Email disabled by default for development
+- **Error handling:** Email failures don't cause job failures
+- **Polling strategy:** Client-side polling every 5 seconds (simpler than WebSockets)
+- **Smart polling:** Only poll when pending/processing jobs exist
+- **User experience:** Visual feedback with refresh indicator
+
+### Done When Verification:
+- ✅ Dashboard shows auto-refresh indicator when polling
+- ✅ Dashboard polls for updates when pending jobs exist
+- ✅ Dashboard stops polling when all jobs complete
+- ✅ Email client initializes with ENABLE_EMAIL flag
+- ✅ Worker sends emails on job completion/failure (when enabled)
+- ✅ Documentation updated in README.md
+
+### Configuration Example:
+```bash
+# Enable email notifications
+export RESEND_API_KEY=re_xxxxx
+export EMAIL_FROM=noreply@subtitler.example.com
+export ENABLE_EMAIL=true
+
+# Restart backend
+cd backend && go run ./cmd/server
+```
+
+### Email Templates:
+
+**Success email:**
+```
+Subject: Your transcription is ready
+
+Your transcription for "filename.mp4" is complete!
+
+Job ID: 123
+Format: srt
+Duration: 2 minutes, 30 seconds
+
+Download your transcript at:
+https://subtitler.example.com/dashboard
+```
+
+**Failure email:**
+```
+Subject: Transcription failed
+
+Your transcription for "filename.mp4" could not be completed.
+
+Job ID: 123
+Error: Transcription failed: file format not supported
+
+Please try uploading your file again.
+```
 
 ## Task 9 Implementation Summary
 

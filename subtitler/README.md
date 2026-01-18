@@ -64,6 +64,44 @@ On first run, the backend will:
 - Run database migrations automatically
 - Create file storage directories at `./data/files/uploads/` and `./data/files/results/`
 
+### Configuration
+
+The backend supports the following environment variables:
+
+**Email Configuration (optional):**
+```bash
+RESEND_API_KEY=re_xxxxx         # Resend API key for email notifications
+EMAIL_FROM=noreply@example.com  # Sender email address
+ENABLE_EMAIL=false              # Set to true to enable email notifications
+```
+
+**Other Configuration:**
+- `DATABASE_PATH` - Database file path (default: `./data/db/subtitler.db`)
+- `DATA_DIR` - Data directory path (default: `./data`)
+- `JWT_SECRET` - JWT signing secret (default: `dev-secret-change-in-production`)
+- `SERVER_PORT` - Server port (default: `8080`)
+- `WHISPER_MODEL_PATH` - Path to whisper model (default: `$HOME/Github/whisper.cpp/models/ggml-medium.bin`)
+- `WHISPER_SERVER_PATH` - Path to whisper-server binary (default: `$HOME/Github/whisper.cpp/build/bin/whisper-server`)
+
+**Email Notifications:**
+
+When `ENABLE_EMAIL=true`, users will receive email notifications when:
+- A transcription job completes successfully
+- A transcription job fails
+
+To enable email notifications:
+1. Sign up for a Resend account at https://resend.com
+2. Get your API key from the Resend dashboard
+3. Set environment variables:
+   ```bash
+   export RESEND_API_KEY=re_xxxxx
+   export EMAIL_FROM=noreply@yourdomain.com
+   export ENABLE_EMAIL=true
+   ```
+4. Restart the backend server
+
+**Note:** Resend free tier includes 100 emails/day, 3000 emails/month.
+
 ## API Endpoints
 
 ### POST /api/upload (Protected)
@@ -315,12 +353,20 @@ Returns the transcript file as an attachment. Only works for completed jobs.
 
 ### Dashboard (/dashboard)
 The dashboard page displays all transcription jobs for the authenticated user. Features:
-- View list of all jobs with status (pending, completed, failed)
+- View list of all jobs with status (pending, processing, completed, failed)
+- **Auto-refresh**: Automatically polls for job status updates every 5 seconds when there are pending/processing jobs
 - Download completed transcripts
 - See file information (name, size, format, date)
 - View error messages for failed jobs
+- Real-time status indicator showing when updates were last checked
 
 Access the dashboard at `http://localhost:4321/dashboard` (requires authentication).
+
+**Auto-refresh behavior:**
+- Polling starts automatically when jobs with status `pending` or `processing` exist
+- Polling stops when all jobs are `completed` or `failed`
+- Refresh indicator shows "Checking for updates..." during polling
+- "Last checked" timestamp displays after each successful update
 
 ## Running Tests
 

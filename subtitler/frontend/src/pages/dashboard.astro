@@ -234,6 +234,23 @@
 			.upload-link:hover {
 				background: #764ba2;
 			}
+
+			.refresh-indicator {
+				font-size: 12px;
+				color: #999;
+				text-align: right;
+				margin-top: -10px;
+				margin-bottom: 20px;
+			}
+
+			.refresh-indicator.checking {
+				color: #667eea;
+			}
+
+			.status-processing {
+				background: #cce5ff;
+				color: #004085;
+			}
 		</style>
 	</head>
 	<body>
@@ -246,6 +263,8 @@
 				</div>
 			</div>
 
+			<div class="refresh-indicator" id="refresh-indicator"></div>
+
 			<div id="content">
 				<div class="loading">Loading your jobs...</div>
 			</div>
@@ -253,6 +272,9 @@
 
 		<script>
 			const API_BASE = 'http://localhost:8080';
+			const POLL_INTERVAL = 5000; // 5 seconds
+			let pollTimer = null;
+			let currentJobs = [];
 
 			// Check authentication on page load
 			async function checkAuth() {
@@ -316,9 +338,15 @@
 				return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 			}
 
+			// Check if there are pending/processing jobs
+			function hasPendingJobs(jobs) {
+				return jobs.some(job => job.status === 'pending' || job.status === 'processing');
+			}
+
 			// Render jobs list
 			function renderJobs(jobs) {
 				const content = document.getElementById('content');
+				currentJobs = jobs;
 
 				if (jobs.length === 0) {
 					content.innerHTML = `
@@ -329,6 +357,7 @@
 							<a href="/" class="upload-link">Upload File</a>
 						</div>
 					`;
+					stopPolling();
 					return;
 				}
 
@@ -371,6 +400,13 @@
 				}).join('');
 
 				content.innerHTML = `<div class="jobs-list">${jobsHTML}</div>`;
+
+				// Start or stop polling based on pending jobs
+				if (hasPendingJobs(jobs)) {
+					startPolling();
+				} else {
+					stopPolling();
+				}
 			}
 
 			// Show error
@@ -386,8 +422,50 @@
 				`;
 			}
 
+			// Update refresh indicator
+			function updateRefreshIndicator(message, checking = false) {
+				const indicator = document.getElementById('refresh-indicator');
+				indicator.textContent = message;
+				if (checking) {
+					indicator.classList.add('checking');
+				} else {
+					indicator.classList.remove('checking');
+				}
+			}
+
+			// Start polling for updates
+			function startPolling() {
+				if (pollTimer) return; // Already polling
+
+				updateRefreshIndicator('Checking for updates...', true);
+
+				pollTimer = setInterval(async () => {
+					try {
+						updateRefreshIndicator('Checking for updates...', true);
+						const jobs = await fetchJobs();
+						renderJobs(jobs);
+
+						const now = new Date().toLocaleTimeString();
+						updateRefreshIndicator(`Last checked: ${now}`, false);
+					} catch (error) {
+						console.error('Polling failed:', error);
+						updateRefreshIndicator('Update check failed', false);
+					}
+				}, POLL_INTERVAL);
+			}
+
+			// Stop polling
+			function stopPolling() {
+				if (pollTimer) {
+					clearInterval(pollTimer);
+					pollTimer = null;
+					updateRefreshIndicator('', false);
+				}
+			}
+
 			// Logout handler
 			async function handleLogout() {
+				stopPolling(); // Stop polling before logout
 				try {
 					await fetch(`${API_BASE}/api/logout`, {
 						method: 'POST',
@@ -421,6 +499,11 @@
 					showError('Failed to load your jobs. Please try again later.');
 				}
 			}
+
+			// Clean up on page unload
+			window.addEventListener('beforeunload', () => {
+				stopPolling();
+			});
 
 			// Start when DOM is ready
 			init();

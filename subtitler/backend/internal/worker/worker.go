@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/trevor/subtitler/internal/db"
+	"github.com/trevor/subtitler/internal/email"
 	"github.com/trevor/subtitler/internal/transcribe"
 )
 
@@ -20,17 +22,19 @@ type WorkerPool struct {
 	queue             JobQueue
 	db                *db.DB
 	transcribeService *transcribe.Service
+	emailClient       *email.Client
 	wg                sync.WaitGroup
 	stopChan          chan struct{}
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(numWorkers int, queueSize int, database *db.DB, transcribeService *transcribe.Service) *WorkerPool {
+func NewWorkerPool(numWorkers int, queueSize int, database *db.DB, transcribeService *transcribe.Service, emailClient *email.Client) *WorkerPool {
 	return &WorkerPool{
 		numWorkers:        numWorkers,
 		queue:             make(JobQueue, queueSize),
 		db:                database,
 		transcribeService: transcribeService,
+		emailClient:       emailClient,
 		stopChan:          make(chan struct{}),
 	}
 }
@@ -87,6 +91,7 @@ func (wp *WorkerPool) worker(id int) {
 // processJob processes a single job
 func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	log.Printf("Worker %d: Processing job %d", workerID, jobID)
+	startTime := time.Now()
 
 	// Fetch job from database
 	job, err := wp.db.GetJobByID(jobID)
@@ -129,7 +134,9 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	})
 	if err != nil {
 		log.Printf("Worker %d: Transcription failed for job %d: %v", workerID, jobID, err)
-		wp.db.UpdateJobFailed(jobID, fmt.Sprintf("Transcription failed: %v", err))
+		errorMsg := fmt.Sprintf("Transcription failed: %v", err)
+		wp.db.UpdateJobFailed(jobID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 
@@ -137,7 +144,9 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	transcriptPath, err := wp.buildResultPath(job)
 	if err != nil {
 		log.Printf("Worker %d: Failed to build result path for job %d: %v", workerID, jobID, err)
-		wp.db.UpdateJobFailed(jobID, fmt.Sprintf("Failed to build result path: %v", err))
+		errorMsg := fmt.Sprintf("Failed to build result path: %v", err)
+		wp.db.UpdateJobFailed(jobID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 
@@ -145,7 +154,9 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	resultDir := filepath.Dir(transcriptPath)
 	if err := os.MkdirAll(resultDir, 0755); err != nil {
 		log.Printf("Worker %d: Failed to create result directory for job %d: %v", workerID, jobID, err)
-		wp.db.UpdateJobFailed(jobID, fmt.Sprintf("Failed to create result directory: %v", err))
+		errorMsg := fmt.Sprintf("Failed to create result directory: %v", err)
+		wp.db.UpdateJobFailed(jobID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 
@@ -153,6 +164,7 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	if err := os.WriteFile(transcriptPath, []byte(transcript), 0644); err != nil {
 		log.Printf("Worker %d: Failed to save transcript for job %d: %v", workerID, jobID, err)
 		wp.db.UpdateJobFailed(jobID, fmt.Sprintf("Failed to save transcript: %v", err))
+		wp.sendFailureEmail(job, fmt.Sprintf("Failed to save transcript: %v", err))
 		return
 	}
 
@@ -162,6 +174,10 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 		log.Printf("Worker %d: Failed to mark job %d as completed: %v", workerID, jobID, err)
 		return
 	}
+
+	// Send success email
+	duration := time.Since(startTime)
+	wp.sendSuccessEmail(job, duration)
 
 	log.Printf("Worker %d: Job %d completed successfully", workerID, jobID)
 }
@@ -195,9 +211,44 @@ func (wp *WorkerPool) buildResultPath(job *db.Job) (string, error) {
 	return transcriptPath, nil
 }
 
+// sendSuccessEmail sends a success notification email to the user
+func (wp *WorkerPool) sendSuccessEmail(job *db.Job, duration time.Duration) {
+	// Get user email
+	user, err := wp.db.GetUserByID(job.UserID)
+	if err != nil {
+		log.Printf("Failed to get user %d for email notification: %v", job.UserID, err)
+		return
+	}
+
+	// Send email (will be no-op if email is disabled)
+	err = wp.emailClient.SendJobCompleted(user.Email, job.ID, job.OriginalFilename, job.OutputFormat, duration)
+	if err != nil {
+		log.Printf("Failed to send success email for job %d: %v", job.ID, err)
+		// Don't fail the job if email fails
+	}
+}
+
+// sendFailureEmail sends a failure notification email to the user
+func (wp *WorkerPool) sendFailureEmail(job *db.Job, errorMessage string) {
+	// Get user email
+	user, err := wp.db.GetUserByID(job.UserID)
+	if err != nil {
+		log.Printf("Failed to get user %d for email notification: %v", job.UserID, err)
+		return
+	}
+
+	// Send email (will be no-op if email is disabled)
+	err = wp.emailClient.SendJobFailed(user.Email, job.ID, job.OriginalFilename, errorMessage)
+	if err != nil {
+		log.Printf("Failed to send failure email for job %d: %v", job.ID, err)
+		// Don't fail the job if email fails
+	}
+}
+
 // processEmbeddedJob handles jobs that require embedded subtitles
 func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 	log.Printf("Worker %d: Processing embedded format for job %d", workerID, job.ID)
+	startTime := time.Now()
 
 	// Step 1: Generate SRT subtitles first
 	log.Printf("Worker %d: Generating SRT subtitles for job %d", workerID, job.ID)
@@ -206,7 +257,9 @@ func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 	})
 	if err != nil {
 		log.Printf("Worker %d: Transcription failed for job %d: %v", workerID, job.ID, err)
-		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Transcription failed: %v", err))
+		errorMsg := fmt.Sprintf("Transcription failed: %v", err)
+		wp.db.UpdateJobFailed(job.ID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 
@@ -219,14 +272,18 @@ func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 	tmpSrtDir := filepath.Join(dataDir, "tmp")
 	if err := os.MkdirAll(tmpSrtDir, 0755); err != nil {
 		log.Printf("Worker %d: Failed to create temp directory for job %d: %v", workerID, job.ID, err)
-		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Failed to create temp directory: %v", err))
+		errorMsg := fmt.Sprintf("Failed to create temp directory: %v", err)
+		wp.db.UpdateJobFailed(job.ID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 
 	tmpSrtPath := filepath.Join(tmpSrtDir, fmt.Sprintf("job_%d.srt", job.ID))
 	if err := os.WriteFile(tmpSrtPath, []byte(srtTranscript), 0644); err != nil {
 		log.Printf("Worker %d: Failed to save temp SRT for job %d: %v", workerID, job.ID, err)
-		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Failed to save temp SRT: %v", err))
+		errorMsg := fmt.Sprintf("Failed to save temp SRT: %v", err)
+		wp.db.UpdateJobFailed(job.ID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 	defer os.Remove(tmpSrtPath) // Clean up temp SRT file
@@ -246,12 +303,24 @@ func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 		resultFilename,
 	)
 
+	// Create result directory if it doesn't exist
+	resultDir := filepath.Dir(outputPath)
+	if err := os.MkdirAll(resultDir, 0755); err != nil {
+		log.Printf("Worker %d: Failed to create result directory for job %d: %v", workerID, job.ID, err)
+		errorMsg := fmt.Sprintf("Failed to create result directory: %v", err)
+		wp.db.UpdateJobFailed(job.ID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
+		return
+	}
+
 	// Step 3: Embed subtitles into video
 	log.Printf("Worker %d: Embedding subtitles for job %d", workerID, job.ID)
 	err = transcribe.EmbedSubtitles(job.FilePath, tmpSrtPath, outputPath)
 	if err != nil {
 		log.Printf("Worker %d: Failed to embed subtitles for job %d: %v", workerID, job.ID, err)
-		wp.db.UpdateJobFailed(job.ID, fmt.Sprintf("Failed to embed subtitles: %v", err))
+		errorMsg := fmt.Sprintf("Failed to embed subtitles: %v", err)
+		wp.db.UpdateJobFailed(job.ID, errorMsg)
+		wp.sendFailureEmail(job, errorMsg)
 		return
 	}
 
@@ -261,6 +330,10 @@ func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 		log.Printf("Worker %d: Failed to mark job %d as completed: %v", workerID, job.ID, err)
 		return
 	}
+
+	// Send success email
+	duration := time.Since(startTime)
+	wp.sendSuccessEmail(job, duration)
 
 	log.Printf("Worker %d: Job %d completed successfully with embedded subtitles", workerID, job.ID)
 }

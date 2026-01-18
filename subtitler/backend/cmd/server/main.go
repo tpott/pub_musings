@@ -14,6 +14,7 @@ import (
 	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/config"
 	"github.com/trevor/subtitler/internal/db"
+	"github.com/trevor/subtitler/internal/email"
 	"github.com/trevor/subtitler/internal/storage"
 	"github.com/trevor/subtitler/internal/transcribe"
 	"github.com/trevor/subtitler/internal/worker"
@@ -302,9 +303,18 @@ func main() {
 	}()
 	log.Println("Transcription service started successfully")
 
+	// Initialize email client
+	log.Println("Initializing email client...")
+	emailClient := email.NewClient(cfg.ResendAPIKey, cfg.EmailFrom, cfg.EnableEmail)
+	if cfg.EnableEmail {
+		log.Printf("Email notifications enabled (from: %s)", cfg.EmailFrom)
+	} else {
+		log.Println("Email notifications disabled")
+	}
+
 	// Initialize worker pool for background job processing
 	log.Println("Starting worker pool...")
-	workerPool := worker.NewWorkerPool(4, 100, database, transcribeService)
+	workerPool := worker.NewWorkerPool(4, 100, database, transcribeService, emailClient)
 	workerPool.Start()
 	defer workerPool.Stop()
 	log.Println("Worker pool started with 4 workers")
