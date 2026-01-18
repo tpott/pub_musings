@@ -72,3 +72,60 @@ This requires:
 - Analytics integration (Task 16) should track the KPIs defined in this plan
 - Consider creating some of the early blog posts from the content calendar to have content ready for launch
 
+---
+
+## Task 15: Experimentation Plan (2026-01-18)
+
+**Status:** Complete
+
+**What was completed:**
+- Created comprehensive EXPERIMENTATION_PLAN.md (500+ lines)
+- Defined experimentation framework (hypothesis → design → implementation → measurement → analysis → action)
+- Specified 12 priority experiments across 3 phases:
+  - **Phase 1 (Validation)**: 4 experiments (landing page, signup flow, format preferences, Reddit messaging)
+  - **Phase 2 (Growth)**: 4 experiments (pricing display, free tier limits, notifications, format education)
+  - **Phase 3 (Scale)**: 4 experiments (batch upsell, referrals, re-engagement, content mix)
+- Defined continuous optimization metrics with targets
+- Documented analytics infrastructure requirements
+- Created learning agenda for market understanding, pricing decisions, and product direction
+- Included privacy and ethics guidelines for responsible experimentation
+- Specified reporting cadence (weekly, monthly, quarterly)
+
+**Key Decisions:**
+1. **Experimentation culture**: "Test early, test often" - every assumption is a hypothesis to validate
+2. **Decision criteria**: Ship if 95%+ confidence and 10%+ improvement; kill if 90%+ confidence variant is worse
+3. **First experiments**: Focus on value proposition messaging (3 variants) and signup flow friction
+4. **Analytics dependency**: Task 16 (Analytics integration) is prerequisite for executing experimentation plan
+5. **Sample sizes**: 300-900 visitors/users per experiment for statistical significance
+6. **Duration**: 2-6 weeks per experiment depending on conversion funnel depth
+7. **Ethics**: No harmful variants, informed consent, data anonymization, transparent reporting
+
+**Strategic Insights:**
+- Landing page messaging experiments will validate which pain point resonates most (time vs. cost vs. quality)
+- Signup flow friction test between email verification vs. guest mode will impact activation rate significantly
+- Free tier sizing (10 vs. 30 vs. 60 min/month) requires 90-day experiment to capture habit formation and upgrade behavior
+- Reddit outreach messaging needs A/B testing - direct promotion vs. helpful-first approach
+- Pricing page experiments should test concrete examples vs. abstract pricing
+
+**Infrastructure Requirements:**
+- User tracking (anonymous visitor ID, user account ID, UTM parameters)
+- Event tracking (page views, signups, uploads, downloads, conversions)
+- A/B testing framework (variant assignment, metric aggregation, statistical significance)
+- Experiment tracking directory structure: `experiments/EXP###_name.md`
+
+**For future iterations:**
+- Task 16 (Analytics integration) should implement:
+  1. Event logging in SQLite (user_id, event_type, metadata, timestamp)
+  2. Experiment assignment table (user_id, experiment_id, variant)
+  3. Metric aggregation and significance testing
+  4. Dashboard for experiment results
+- Consider creating experiment tracking templates before launch
+- Analytics implementation should support cohort analysis for retention tracking
+- Learnings from experiments should feed back into MARKETING_PLAN.md iterations
+
+**Alignment with Marketing Plan:**
+- Experimentation plan directly supports marketing plan validation phase goals
+- First 4 experiments (EXP001-004) align with Phase 1 (Months 1-2) validation tactics
+- Growth phase experiments (EXP005-008) support Phase 2 (Months 3-6) monetization strategy
+- Scale phase experiments (EXP009-012) enable Phase 3 (Months 7-12) retention and upselling
+
