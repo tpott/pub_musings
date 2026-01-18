@@ -182,6 +182,93 @@ curl -X GET http://localhost:8080/api/me \
 
 Returns 401 Unauthorized if not authenticated.
 
+### GET /api/jobs
+Get all transcription jobs for the authenticated user (protected endpoint).
+
+**Example:**
+```bash
+curl -X GET http://localhost:8080/api/jobs \
+  -b cookies.txt
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "jobs": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "status": "completed",
+      "original_filename": "video.mp4",
+      "file_path": "/data/files/uploads/1/1/video.mp4",
+      "file_size": 5242880,
+      "output_format": "srt",
+      "transcript_path": "/data/files/results/1/1/video.srt",
+      "created_at": "2026-01-18T10:00:00Z",
+      "updated_at": "2026-01-18T10:05:00Z",
+      "completed_at": "2026-01-18T10:05:00Z"
+    }
+  ]
+}
+```
+
+Jobs are returned in descending order by creation date (newest first).
+
+### GET /api/jobs/{id}
+Get a specific job by ID (protected endpoint, must own the job).
+
+**Example:**
+```bash
+curl -X GET http://localhost:8080/api/jobs/1 \
+  -b cookies.txt
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "job": {
+    "id": 1,
+    "user_id": 1,
+    "status": "completed",
+    "original_filename": "video.mp4",
+    "file_path": "/data/files/uploads/1/1/video.mp4",
+    "file_size": 5242880,
+    "output_format": "srt",
+    "transcript_path": "/data/files/results/1/1/video.srt",
+    "created_at": "2026-01-18T10:00:00Z",
+    "updated_at": "2026-01-18T10:05:00Z",
+    "completed_at": "2026-01-18T10:05:00Z"
+  }
+}
+```
+
+Returns 403 Forbidden if the job doesn't belong to the authenticated user.
+
+### GET /api/jobs/{id}/download
+Download the transcript file for a completed job (protected endpoint).
+
+**Example:**
+```bash
+curl -X GET http://localhost:8080/api/jobs/1/download \
+  -b cookies.txt \
+  -o transcript.srt
+```
+
+Returns the transcript file as an attachment. Only works for completed jobs.
+
+## User Interface
+
+### Dashboard (/dashboard)
+The dashboard page displays all transcription jobs for the authenticated user. Features:
+- View list of all jobs with status (pending, completed, failed)
+- Download completed transcripts
+- See file information (name, size, format, date)
+- View error messages for failed jobs
+
+Access the dashboard at `http://localhost:4321/dashboard` (requires authentication).
+
 ## Running Tests
 
 ### Unit Tests
@@ -217,6 +304,9 @@ cd frontend && npm test
 
 # Run Playwright tests in headed mode (visible browser)
 cd frontend && npm run test:headed
+
+# Run specific test file
+cd frontend && npx playwright test tests/dashboard.spec.ts
 ```
 
 ## Documentation

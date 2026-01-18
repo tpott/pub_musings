@@ -4,7 +4,7 @@
 {"id": 4, "name": "Basic transcription endpoint", "done_when": "curl -F 'file=@test.mp3' localhost:8080/api/transcribe returns SRT content", "status": "complete"}
 {"id": 5, "name": "Database setup", "done_when": "cd backend && go run ./cmd/migrate creates subtitler.db with users and jobs tables", "status": "complete"}
 {"id": 6, "name": "Email and password authentication", "done_when": "curl -X POST localhost:8080/api/register -d '{\"email\":\"test@test.com\",\"password\":\"pass\"}' returns 200; subsequent login returns session token", "status": "complete"}
-{"id": 7, "name": "User dashboard", "done_when": "Login as user, navigate to /dashboard, see list of past jobs with download links", "status": "in_progress"}
+{"id": 7, "name": "User dashboard", "done_when": "Login as user, navigate to /dashboard, see list of past jobs with download links", "status": "complete"}
 {"id": 8, "name": "Background job queue", "done_when": "Upload file, check /api/jobs shows pending status; wait for worker, status changes to complete", "status": "todo"}
 {"id": 9, "name": "Multiple output formats", "done_when": "curl localhost:8080/api/transcribe?format=vtt returns VTT; format=embedded returns video file with subtitles", "status": "todo"}
 {"id": 10, "name": "Job status and notifications", "done_when": "Upload file, dashboard shows progress updating; email received when job completes", "status": "todo"}
