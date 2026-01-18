@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/trevor/subtitler/internal/auth"
 	"github.com/trevor/subtitler/internal/config"
+	"github.com/trevor/subtitler/internal/db"
 	"github.com/trevor/subtitler/internal/storage"
 	"github.com/trevor/subtitler/internal/transcribe"
 )
@@ -50,6 +52,7 @@ func enableCORS(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:4321")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	// Handle preflight requests
 	if r.Method == "OPTIONS" {
@@ -239,6 +242,28 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Initialize database
+	log.Println("Initializing database...")
+	migrationsDir := filepath.Join("internal", "db", "migrations")
+	database, err := db.Initialize(cfg.DatabasePath, migrationsDir)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.Close()
+	log.Printf("Database initialized at %s", cfg.DatabasePath)
+
+	// Create file storage directories
+	log.Println("Creating file storage directories...")
+	uploadsDir := filepath.Join(cfg.DataDir, "files", "uploads")
+	resultsDir := filepath.Join(cfg.DataDir, "files", "results")
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Fatalf("Failed to create uploads directory: %v", err)
+	}
+	if err := os.MkdirAll(resultsDir, 0755); err != nil {
+		log.Fatalf("Failed to create results directory: %v", err)
+	}
+	log.Println("File storage directories created")
+
 	// Initialize transcription service
 	log.Println("Initializing transcription service...")
 	transcribeService = transcribe.NewService(cfg)
@@ -265,6 +290,12 @@ func main() {
 
 	http.HandleFunc("/api/upload", handleUpload)
 	http.HandleFunc("/api/transcribe", handleTranscribe)
+
+	// Auth endpoints
+	http.HandleFunc("/api/register", handleRegister(database, cfg.JWTSecret))
+	http.HandleFunc("/api/login", handleLogin(database, cfg.JWTSecret))
+	http.HandleFunc("/api/logout", handleLogout)
+	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(handleMe)))
 
 	port := fmt.Sprintf(":%d", cfg.ServerPort)
 	log.Printf("Starting server on %s", port)

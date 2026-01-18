@@ -34,9 +34,16 @@ subtitler/
 │   │   └── server/     # Main server entry point
 │   ├── internal/
 │   │   ├── auth/       # Authentication (Task 6)
+│   │   ├── db/         # Database layer (Task 5)
 │   │   ├── transcribe/ # Whisper.cpp integration (Task 2)
-│   │   └── storage/    # File storage (Task 5)
+│   │   └── storage/    # File storage and validation (Task 5)
 │   └── go.mod
+├── data/               # Created on first run
+│   ├── db/             # SQLite database
+│   │   └── subtitler.db
+│   └── files/          # File storage
+│       ├── uploads/    # User-uploaded files (encrypted)
+│       └── results/    # Transcription results (encrypted)
 ├── v1/                 # Previous Python implementation (archived)
 ├── TASKS.jsonl         # Ralph task tracking
 └── *.md                # Documentation files
@@ -80,6 +87,34 @@ Override via environment variables if needed.
 - The subprocess is stopped gracefully when the service shuts down
 - **Important:** The backend server MUST have the transcription service started to use `/api/transcribe`
 
+## Database (Task 5 - Complete)
+
+**Database:** SQLite at `./data/db/subtitler.db`
+
+**Tables:**
+- `users`: User accounts (id, email, password_hash, timestamps)
+- `jobs`: Transcription jobs (id, user_id, status, file paths, timestamps)
+- `schema_migrations`: Migration tracking
+
+**Configuration:**
+- `DATABASE_PATH`: `./data/db/subtitler.db` (default)
+- `DATA_DIR`: `./data` (default)
+
+**Migration system:**
+- Migrations in `backend/internal/db/migrations/`
+- Automatically run on server startup
+- Simple SQL files with version tracking
+- Idempotent (safe to run multiple times)
+
+**File storage structure:**
+```
+data/files/
+├── uploads/{user_id}/{job_id}/{filename}.encrypted
+└── results/{user_id}/{job_id}/{filename}.{format}.encrypted
+```
+
+**Encryption:** Files will be encrypted with age (implementation in Task 6+). Directory structure is defined in Task 5.
+
 ## Commands
 
 ```bash
@@ -90,6 +125,7 @@ cd frontend && npm run dev        # Runs on http://localhost:4321
 # Backend
 cd backend && /home/trevor/go/bin/go mod download
 cd backend && /home/trevor/go/bin/go run ./cmd/server  # Runs on http://localhost:8080
+# First run: Creates database, runs migrations, creates file directories
 
 # Build backend
 cd backend && /home/trevor/go/bin/go build ./cmd/server
@@ -99,6 +135,9 @@ cd frontend && npm test  # (when implemented)
 
 # Unit tests (fast)
 cd backend && /home/trevor/go/bin/go test ./... -short
+
+# Database tests
+cd backend && /home/trevor/go/bin/go test ./internal/db -v
 
 # Integration tests (requires whisper.cpp)
 cd backend && /home/trevor/go/bin/go test ./internal/transcribe -v

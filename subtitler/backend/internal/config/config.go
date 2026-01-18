@@ -16,6 +16,13 @@ type Config struct {
 
 	// Server configuration
 	ServerPort            int
+
+	// Database configuration
+	DatabasePath          string
+	DataDir               string
+
+	// Auth configuration
+	JWTSecret             string
 }
 
 // Load returns a Config with values from environment variables or defaults
@@ -27,6 +34,9 @@ func Load() *Config {
 		WhisperThreads:    getEnvInt("WHISPER_THREADS", 4),
 		TempDir:           getEnv("TEMP_DIR", os.TempDir()),
 		ServerPort:        getEnvInt("SERVER_PORT", 8080),
+		DatabasePath:      getEnv("DATABASE_PATH", "./data/db/subtitler.db"),
+		DataDir:           getEnv("DATA_DIR", "./data"),
+		JWTSecret:         getEnv("JWT_SECRET", "dev-secret-change-in-production"),
 	}
 }
 

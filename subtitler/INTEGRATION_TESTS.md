@@ -8,6 +8,8 @@ Integration tests verify that components work together correctly, particularly:
 - whisper.cpp integration for audio transcription
 - whisper-server subprocess management
 - End-to-end transcription workflows
+- Database initialization and migrations
+- File storage directory creation
 
 ## Prerequisites
 
@@ -241,6 +243,91 @@ Additional tests in `backend/cmd/server/transcribe_test.go`:
 - `TestHandleTranscribe_MissingFile`: Verifies requests without files are rejected
 - `TestHandleTranscribe_InvalidFormat`: Verifies invalid file formats are rejected
 - `TestHandleTranscribe_ServiceNotInitialized`: Verifies behavior when service isn't started
+
+### Database Integration Tests (Task 5 - Completed)
+
+Tests database initialization, migrations, and schema creation.
+
+**Location:** `backend/internal/db/db_test.go`
+
+**Tests:**
+- `TestInitialize_WithRealMigrations`: Tests database initialization with real migration files
+  - Creates database with migrations
+  - Verifies `users` and `jobs` tables exist
+  - Verifies all indexes are created
+  - Uses temporary database for isolation
+
+**What it tests:**
+- Database file creation
+- Migration execution from SQL files
+- Schema creation (users and jobs tables)
+- Index creation
+- Foreign key enforcement
+
+**Expected output:**
+- Database file is created
+- Tables `users` and `jobs` exist
+- Indexes exist: `idx_users_email`, `idx_jobs_user_id`, `idx_jobs_status`, `idx_jobs_created_at`
+- Foreign key constraint from jobs.user_id to users.id
+
+**Runtime:** ~1-2 seconds
+
+**Example run:**
+```bash
+cd backend
+/home/trevor/go/bin/go test ./internal/db -v -run TestInitialize_WithRealMigrations
+```
+
+### Manual Database Integration Tests
+
+Verify database initialization on server startup:
+
+```bash
+# Remove existing database (if any)
+rm -rf ./data
+
+# Start server
+cd backend && /home/trevor/go/bin/go run ./cmd/server &
+SERVER_PID=$!
+sleep 2
+
+# Verify database file exists
+test -f ./data/db/subtitler.db && echo "✓ Database file created"
+
+# Verify tables exist
+sqlite3 ./data/db/subtitler.db ".tables" | grep -q "users" && echo "✓ Users table exists"
+sqlite3 ./data/db/subtitler.db ".tables" | grep -q "jobs" && echo "✓ Jobs table exists"
+
+# Verify directory structure
+test -d ./data/files/uploads && echo "✓ Uploads directory created"
+test -d ./data/files/results && echo "✓ Results directory created"
+
+# Stop server
+kill $SERVER_PID
+
+echo "All database integration tests passed!"
+```
+
+### Schema Verification Test
+
+Verify database schema matches expectations:
+
+```bash
+cd backend && /home/trevor/go/bin/go run ./cmd/server &
+SERVER_PID=$!
+sleep 2
+
+# Check users table schema
+sqlite3 ./data/db/subtitler.db ".schema users"
+
+# Check jobs table schema
+sqlite3 ./data/db/subtitler.db ".schema jobs"
+
+# Verify migration tracking
+sqlite3 ./data/db/subtitler.db "SELECT * FROM schema_migrations"
+
+kill $SERVER_PID
+```
 
 ## Future Test Scenarios
 

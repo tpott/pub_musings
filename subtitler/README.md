@@ -59,6 +59,11 @@ cd frontend && npm install && npm run dev
 cd backend && /home/trevor/go/bin/go run ./cmd/server
 ```
 
+On first run, the backend will:
+- Initialize the SQLite database at `./data/db/subtitler.db`
+- Run database migrations automatically
+- Create file storage directories at `./data/files/uploads/` and `./data/files/results/`
+
 ## API Endpoints
 
 ### POST /api/upload
@@ -97,6 +102,86 @@ curl -X POST http://localhost:8080/api/transcribe \
 - Video: mp4, webm, mkv, avi, mov
 - Max file size: 200MB
 
+### POST /api/register
+Register a new user account.
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"yourpassword"}' \
+  -c cookies.txt
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "user": {"id": 1, "email": "user@example.com"}
+}
+```
+
+Sets a JWT token in an HTTP-only cookie named `subtitler_token` (expires in 7 days).
+
+### POST /api/login
+Login with email and password.
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"yourpassword"}' \
+  -c cookies.txt
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "user": {"id": 1, "email": "user@example.com"}
+}
+```
+
+Sets a JWT token in an HTTP-only cookie named `subtitler_token` (expires in 7 days).
+
+### POST /api/logout
+Logout and clear session cookie.
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/logout \
+  -b cookies.txt
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+### GET /api/me
+Get current authenticated user (protected endpoint).
+
+**Example:**
+```bash
+curl -X GET http://localhost:8080/api/me \
+  -b cookies.txt
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "user": {"id": 1, "email": "user@example.com"}
+}
+```
+
+Returns 401 Unauthorized if not authenticated.
+
 ## Running Tests
 
 ### Unit Tests
@@ -104,6 +189,8 @@ curl -X POST http://localhost:8080/api/transcribe \
 # Backend unit tests
 cd backend && /home/trevor/go/bin/go test ./internal/config -v
 cd backend && /home/trevor/go/bin/go test ./internal/storage -v
+cd backend && /home/trevor/go/bin/go test ./internal/db -v
+cd backend && /home/trevor/go/bin/go test ./internal/auth -v
 
 # Run all backend tests (short mode, skips integration tests)
 cd backend && /home/trevor/go/bin/go test ./... -short
