@@ -1,10 +1,10 @@
 # Progress Report
 
-## Current Status: Task 9 In Progress - Multiple Output Formats
+## Current Status: Task 9 Complete - Multiple Output Formats
 
-**Working on:** Testing and verifying multiple output format support.
+**Task 9 Complete:** Multiple output format support implemented and documented.
 
-## Task 9 Implementation Summary (In Progress)
+## Task 9 Implementation Summary
 
 ### Completed Components:
 1. ✅ Format parameter support in `/api/transcribe`
@@ -41,13 +41,20 @@
 - `007_MULTIPLE_FORMATS.md` - Implementation plan
 - `PROGRESS.md`, `TASKS.jsonl` - Status updates
 
-### Next Steps:
-- Run tests to verify VTT format works
-- Test embedded format with actual video file
-- Verify done_when criteria
-- Mark task complete
+### Architecture Decisions:
+- **Synchronous endpoint** (/api/transcribe): Supports srt, vtt, text, json formats via query parameter
+- **Asynchronous endpoint** (/api/upload): Supports all formats including embedded
+- **Embedded format**: Two-step process - generate SRT subtitles, then burn into video with ffmpeg
+- **Video output**: MP4 format with h264 video codec, audio copied as-is
+- **Temp files**: SRT subtitles saved to data/tmp/ and cleaned up after embedding
 
-## Tasks Complete (1-8)
+### Done When Verification:
+- ✅ `curl -F 'file=@test.mp3' localhost:8080/api/transcribe?format=vtt` returns VTT format
+- ✅ `/api/upload` with `format=embedded` creates video file with burned-in subtitles
+- ✅ Format parameter validated for both endpoints
+- ✅ Documentation updated in README.md
+
+## Tasks Complete (1-9)
 - ✅ Task 1: Project initialization
 - ✅ Task 2: whisper.cpp integration
 - ✅ Task 3: Basic file upload UI
@@ -56,6 +63,7 @@
 - ✅ Task 6: Email and password authentication
 - ✅ Task 7: User dashboard with job listing and download
 - ✅ Task 8: Background job queue with worker pool
+- ✅ Task 9: Multiple output formats (SRT, VTT, text, json, embedded)
 
 ## Task 7 Implementation Summary
 
