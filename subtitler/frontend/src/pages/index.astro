@@ -377,7 +377,8 @@
 						showMessage('Network error. Please check if the server is running.', 'error');
 					});
 
-					xhr.open('POST', 'http://localhost:8080/api/upload');
+					// Use relative path - proxied through Astro server
+					xhr.open('POST', '/api/upload');
 					xhr.send(formData);
 				} catch (error) {
 					progressBar.classList.remove('visible');

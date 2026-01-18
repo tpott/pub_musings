@@ -276,7 +276,8 @@
 			// Track page view on load
 			trackPageView();
 
-			const API_BASE = 'http://localhost:8080';
+			// Use relative path for API calls - proxied through Astro server
+			const API_BASE = '';
 			const POLL_INTERVAL = 5000; // 5 seconds
 			let pollTimer = null;
 			let currentJobs = [];

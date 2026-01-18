@@ -52,17 +52,33 @@ See [INSTALL.md](INSTALL.md) for detailed setup instructions.
 
 Quick start:
 ```bash
-# Frontend
-cd frontend && npm install && npm run dev
-
-# Backend (in separate terminal)
+# Backend (start first)
 cd backend && /home/trevor/go/bin/go run ./cmd/server
+
+# Frontend (in separate terminal)
+cd frontend && npm install && npm run dev
 ```
+
+**Important:** Start the backend first (on port 8080), then the frontend (on port 4321). The frontend dev server proxies all `/api/*` requests to the backend.
 
 On first run, the backend will:
 - Initialize the SQLite database at `./data/db/subtitler.db`
 - Run database migrations automatically
 - Create file storage directories at `./data/files/uploads/` and `./data/files/results/`
+
+### API Proxy Architecture
+
+**Development:**
+- Frontend runs on `http://localhost:4321`
+- Backend runs on `http://localhost:8080`
+- Vite dev server proxies `/api/*` requests to backend (configured in `astro.config.mjs`)
+- All frontend code uses relative paths (e.g., `/api/register`)
+
+**Production:**
+- Frontend static files served by Caddy on port 8081
+- Backend runs on port 8080
+- Caddy proxies `/api/*` requests to backend (configured in `deploy/Caddyfile.example`)
+- Single origin, no CORS issues
 
 ### Configuration
 

@@ -1,6 +1,71 @@
 # Progress Report
 
-## Current Status: Bug Fix Complete - Test Compilation
+## Current Status: Task 17 Complete - API Proxy Configuration
+
+Successfully added API proxy configuration to route all backend API calls through the frontend.
+
+### What Was Completed:
+
+**1. Vite Proxy Configuration (Development)**
+- ✅ Added Vite proxy configuration to `astro.config.mjs`
+- ✅ Proxies `/api/*` requests to `http://localhost:8080` during development
+- ✅ No CORS issues in development
+
+**2. Frontend Code Updates**
+- ✅ Updated `frontend/src/lib/auth.ts` - Changed API_BASE to empty string
+- ✅ Updated `frontend/src/pages/dashboard.astro` - Changed API_BASE to empty string
+- ✅ Updated `frontend/src/pages/index.astro` - Changed upload URL to relative path
+- ✅ All frontend code now uses relative paths (e.g., `/api/register`)
+
+**3. Production Configuration**
+- ✅ Updated `deploy/Caddyfile.example` to proxy `/api/*` requests
+- ✅ Caddy handles API proxy in production (no need for separate API domain)
+- ✅ Single origin for both frontend and API in production
+
+**4. Documentation**
+- ✅ Updated README.md with API proxy architecture section
+- ✅ Added learnings to LEARNINGS.md with implementation details
+- ✅ Documented dev vs. prod proxy setup
+
+### Architecture:
+
+**Development:**
+- Frontend: `http://localhost:4321` (Astro dev server)
+- Backend: `http://localhost:8080` (Go server)
+- Vite proxies `/api/*` → backend
+
+**Production:**
+- Frontend: Static files served by Caddy on port 8081
+- Backend: Go server on port 8080
+- Caddy proxies `/api/*` → backend
+
+### Verification:
+
+- ✅ Frontend builds successfully: `cd frontend && npm run build`
+- ✅ Backend builds successfully: `cd backend && go build ./cmd/server`
+- ✅ No hardcoded `http://localhost:8080` URLs in frontend code
+- ✅ Production Caddyfile configured correctly
+
+### Files Modified:
+
+**Configuration:**
+- `frontend/astro.config.mjs` - Added Vite proxy config
+- `deploy/Caddyfile.example` - Added `/api/*` proxy handler
+
+**Frontend Code:**
+- `frontend/src/lib/auth.ts`
+- `frontend/src/pages/dashboard.astro`
+- `frontend/src/pages/index.astro`
+
+**Documentation:**
+- `README.md` - Added API proxy architecture section
+- `LEARNINGS.md` - Added Task 17 implementation details
+
+### Status:
+
+Task 17 is **complete**. All backend API calls are now routed through the frontend and proxied to the backend in both development and production.
+
+## Previous Status: Bug Fix Complete - Test Compilation
 
 Fixed worker_integration_test.go to include analytics.Service parameter after Task 16 integration.
 

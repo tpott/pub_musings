@@ -14,3 +14,4 @@
 {"id": 14, "name": "Create MARKETING_PLAN.md", "done_when": "cat MARKETING_PLAN.md shows content creator outreach strategy with target platforms", "status": "complete"}
 {"id": 15, "name": "Create EXPERIMENTATION_PLAN.md", "done_when": "cat EXPERIMENTATION_PLAN.md shows A/B testing framework with metrics for success", "status": "complete"}
 {"id": 16, "name": "Analytics integration", "done_when": "Upload and download file; analytics endpoint or dashboard shows corresponding events", "status": "complete"}
+{"id": 17, "name": "Add /api proxy to astro frontend", "done_when": "All backend API calls are routed to the frontend and proxied to the backend", "status": "complete"}

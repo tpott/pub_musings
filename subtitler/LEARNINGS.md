@@ -9,6 +9,44 @@ This file captures lessons learned, failed approaches, and decisions made during
 
 ---
 
+## Task 17: API Proxy Configuration (2026-01-18)
+
+**Status:** Complete
+
+**What was implemented:**
+- Vite proxy configuration in astro.config.mjs for development
+- Updated all frontend code to use relative paths (`/api/*` instead of `http://localhost:8080/api/*`)
+- Updated Caddyfile.example to proxy `/api/*` requests in production
+- Updated README.md with API proxy architecture documentation
+
+**Key decisions:**
+
+1. **Proxy approach:** Vite proxy (dev) + Caddy proxy (prod)
+   - Why: Simpler than Astro SSR adapter, works with static builds
+   - Dev: Vite dev server proxies `/api/*` to `http://localhost:8080`
+   - Prod: Caddy proxies `/api/*` to backend service
+   - Benefits: No CORS issues, single origin, cleaner deployment
+
+2. **Astro configuration:**
+   - Initially tried `output: "hybrid"` but Astro 5 removed that option
+   - Switched to Vite proxy configuration instead of server endpoints
+   - Keeps build simple (static output) while enabling API proxy
+
+3. **Files modified:**
+   - frontend/astro.config.mjs: Added Vite proxy config
+   - frontend/src/lib/auth.ts: Changed API_BASE to empty string
+   - frontend/src/pages/dashboard.astro: Changed API_BASE to empty string
+   - frontend/src/pages/index.astro: Changed upload URL to relative path
+   - deploy/Caddyfile.example: Added `/api/*` proxy handler
+
+**Verification:**
+- ✅ Frontend builds successfully: `cd frontend && npm run build`
+- ✅ Backend builds successfully: `cd backend && go build ./cmd/server`
+- ✅ All API calls now use relative paths
+- ✅ Production Caddyfile configured to proxy API requests
+
+---
+
 ## Task 13: Secrets Management (2026-01-18)
 
 **Status:** Complete (infrastructure ready, requires human setup for decryption)

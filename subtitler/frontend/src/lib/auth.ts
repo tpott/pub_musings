@@ -1,6 +1,7 @@
 // Authentication utilities for frontend
 
-const API_BASE = 'http://localhost:8080';
+// Use relative path for API calls - proxied through Astro server
+const API_BASE = '';
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
 
