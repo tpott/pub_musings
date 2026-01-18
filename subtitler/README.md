@@ -576,7 +576,7 @@ PUBLIC_API_URL=https://api.subtitler.yourdomain.com
 ```
 
 **Secrets management:**
-Use sops + age for encrypted secrets (see [personal/001_INITIALIZATION.md](../personal/001_INITIALIZATION.md)).
+Use sops + age for encrypted secrets. See [012_SECRETS_MANAGEMENT.md](012_SECRETS_MANAGEMENT.md) for complete workflow and troubleshooting.
 
 ## Analytics
 
@@ -615,6 +615,7 @@ See [010_ANALYTICS_INTEGRATION.md](010_ANALYTICS_INTEGRATION.md) and [EXPERIMENT
 - [009_CLOUDFLARE_TUNNEL.md](009_CLOUDFLARE_TUNNEL.md) - Cloudflare Tunnel setup guide
 - [010_ANALYTICS_INTEGRATION.md](010_ANALYTICS_INTEGRATION.md) - Analytics implementation
 - [011_CI_CD_PIPELINE.md](011_CI_CD_PIPELINE.md) - CI/CD pipeline setup
+- [012_SECRETS_MANAGEMENT.md](012_SECRETS_MANAGEMENT.md) - Secrets management with sops + age
 - [deploy/README.md](deploy/README.md) - Deployment configuration guide
 - [EXPERIMENTATION_PLAN.md](EXPERIMENTATION_PLAN.md) - A/B testing framework
 - [MARKETING_PLAN.md](MARKETING_PLAN.md) - Marketing strategy
