@@ -20,6 +20,7 @@ type User struct {
 	ID           int64
 	Email        string
 	PasswordHash string
+	IsAdmin      bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -50,9 +51,9 @@ func (db *DB) CreateUser(email, passwordHash string) (*User, error) {
 func (db *DB) GetUserByEmail(email string) (*User, error) {
 	user := &User{}
 	err := db.QueryRow(
-		"SELECT id, email, password_hash, created_at, updated_at FROM users WHERE email = ?",
+		"SELECT id, email, password_hash, is_admin, created_at, updated_at FROM users WHERE email = ?",
 		email,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.IsAdmin, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -68,9 +69,9 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 func (db *DB) GetUserByID(id int64) (*User, error) {
 	user := &User{}
 	err := db.QueryRow(
-		"SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = ?",
+		"SELECT id, email, password_hash, is_admin, created_at, updated_at FROM users WHERE id = ?",
 		id,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.IsAdmin, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

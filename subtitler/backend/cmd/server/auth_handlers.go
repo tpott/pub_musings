@@ -30,8 +30,9 @@ type AuthResponse struct {
 }
 
 type AuthUserResult struct {
-	ID    int64  `json:"id"`
-	Email string `json:"email"`
+	ID      int64  `json:"id"`
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"is_admin"`
 }
 
 func handleRegister(database *db.DB, jwtSecret string, cookieSecure bool, analyticsService *analytics.Service) http.HandlerFunc {
@@ -232,33 +233,43 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func handleMe(w http.ResponseWriter, r *http.Request) {
-	if enableCORS(w, r) {
-		return
-	}
+func handleMe(database *db.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if enableCORS(w, r) {
+			return
+		}
 
-	if r.Method != http.MethodGet {
-		writeAuthError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
+		if r.Method != http.MethodGet {
+			writeAuthError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
 
-	// Get claims from context (set by middleware)
-	claims, ok := auth.GetClaims(r)
-	if !ok {
-		writeAuthError(w, http.StatusUnauthorized, "Authentication required")
-		return
-	}
+		// Get claims from context (set by middleware)
+		claims, ok := auth.GetClaims(r)
+		if !ok {
+			writeAuthError(w, http.StatusUnauthorized, "Authentication required")
+			return
+		}
 
-	response := AuthResponse{
-		Success: true,
-		User: &AuthUserResult{
-			ID:    claims.UserID,
-			Email: claims.Email,
-		},
-	}
+		// Get user from database to check admin status
+		user, err := database.GetUserByID(claims.UserID)
+		if err != nil {
+			writeAuthError(w, http.StatusInternalServerError, "Failed to get user")
+			return
+		}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+		response := AuthResponse{
+			Success: true,
+			User: &AuthUserResult{
+				ID:      user.ID,
+				Email:   user.Email,
+				IsAdmin: user.IsAdmin,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 func setAuthCookie(w http.ResponseWriter, token string, secure bool) {

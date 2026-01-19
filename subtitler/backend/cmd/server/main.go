@@ -393,7 +393,7 @@ func main() {
 	http.Handle("/api/register", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleRegister(database, cfg.JWTSecret, cfg.CookieSecure, analyticsService))))
 	http.Handle("/api/login", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleLogin(database, cfg.JWTSecret, cfg.CookieSecure, analyticsService))))
 	http.HandleFunc("/api/logout", handleLogout)
-	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(handleMe)))
+	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(handleMe(database)))
 
 	// Jobs endpoints (protected)
 	http.Handle("/api/jobs", auth.AuthMiddleware(cfg.JWTSecret)(handleListJobs(database)))
@@ -412,6 +412,9 @@ func main() {
 	http.Handle("/api/analytics/events", ratelimit.IPMiddleware(publicLimiter)(http.HandlerFunc(handleTrackEvent(analyticsService))))
 	http.Handle("/api/analytics/funnel", ratelimit.UserMiddleware(defaultLimiter)(auth.AuthMiddleware(cfg.JWTSecret)(handleGetFunnel(analyticsService))))
 	http.Handle("/api/analytics/experiments/", ratelimit.IPMiddleware(publicLimiter)(http.HandlerFunc(handleGetExperiment(analyticsService))))
+
+	// Admin endpoints (requires auth + admin)
+	http.Handle("/api/admin/analytics", ratelimit.UserMiddleware(defaultLimiter)(auth.AuthMiddleware(cfg.JWTSecret)(auth.AdminMiddleware(database)(handleAdminAnalytics(database, analyticsService)))))
 
 	port := fmt.Sprintf(":%d", cfg.ServerPort)
 	log.Printf("Starting server on %s", port)

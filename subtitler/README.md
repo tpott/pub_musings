@@ -327,7 +327,7 @@ curl -X GET http://localhost:8080/api/me \
 ```json
 {
   "success": true,
-  "user": {"id": 1, "email": "user@example.com"}
+  "user": {"id": 1, "email": "user@example.com", "is_admin": false}
 }
 ```
 
@@ -470,6 +470,46 @@ curl -X GET "http://localhost:8080/api/analytics/funnel?start=2026-01-01&end=202
 }
 ```
 
+### GET /api/admin/analytics
+Get admin analytics dashboard data (protected endpoint, requires admin).
+
+**Example:**
+```bash
+curl -X GET "http://localhost:8080/api/admin/analytics?start=2026-01-01&end=2026-01-31" \
+  -H "Cookie: subtitler_token=YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "period": {"start": "2026-01-01", "end": "2026-01-31"},
+  "users": {
+    "total": 150,
+    "new_this_period": 25,
+    "active_this_period": 80
+  },
+  "jobs": {
+    "total": 1200,
+    "completed": 1100,
+    "failed": 50,
+    "pending": 50,
+    "by_format": {"srt": 600, "vtt": 400, "embedded": 200}
+  },
+  "storage": {
+    "total_bytes": 5368709120,
+    "uploads_bytes": 4294967296,
+    "results_bytes": 1073741824
+  },
+  "funnel": {
+    "period": {"start": "...", "end": "..."},
+    "funnel": [...],
+    "conversion_rates": {...}
+  }
+}
+```
+
+Returns 403 Forbidden if the user is not an admin.
+
 ### GET /api/analytics/experiments/{id}
 Get A/B test results for a specific experiment (public endpoint).
 
@@ -521,6 +561,21 @@ Access the dashboard at `http://localhost:4321/dashboard` (requires authenticati
 - Polling stops when all jobs are `completed` or `failed`
 - Refresh indicator shows "Checking for updates..." during polling
 - "Last checked" timestamp displays after each successful update
+
+### Admin Analytics (/admin/analytics)
+The admin analytics page displays system-wide usage statistics for administrators. Features:
+- Total users, new users, and active users
+- Total jobs with breakdown by status and format
+- Storage usage (uploads and results)
+- Conversion funnel visualization
+- Date range filtering
+
+Access the admin analytics at `http://localhost:4321/admin/analytics` (requires admin role).
+
+To grant admin access to a user, update the database:
+```sql
+UPDATE users SET is_admin = TRUE WHERE email = 'admin@example.com';
+```
 
 ## Running Tests
 
