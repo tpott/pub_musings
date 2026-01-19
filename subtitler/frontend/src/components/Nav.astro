@@ -1,0 +1,139 @@
+---
+// Nav component - shows logo, auth links (login/register or dashboard/logout)
+// This component uses client-side JS to check auth state
+---
+
+<nav class="nav">
+	<a href="/" class="nav-logo">Subtitler</a>
+	<div class="nav-links" id="nav-links">
+		<!-- Links are populated by JavaScript based on auth state -->
+		<a href="/login" class="nav-link" id="login-link">Login</a>
+		<a href="/register" class="nav-link nav-link-primary" id="register-link">Sign Up</a>
+		<a href="/dashboard" class="nav-link" id="dashboard-link" style="display: none;">Dashboard</a>
+		<button class="nav-link nav-link-secondary" id="logout-btn" style="display: none;">Logout</button>
+	</div>
+</nav>
+
+<style>
+	.nav {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 16px 24px;
+		background: rgba(255, 255, 255, 0.95);
+		border-radius: 12px;
+		margin-bottom: 20px;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+	}
+
+	.nav-logo {
+		font-size: 20px;
+		font-weight: 700;
+		color: #667eea;
+		text-decoration: none;
+	}
+
+	.nav-logo:hover {
+		color: #764ba2;
+	}
+
+	.nav-links {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.nav-link {
+		padding: 8px 16px;
+		border-radius: 6px;
+		font-size: 14px;
+		font-weight: 600;
+		text-decoration: none;
+		transition: all 0.3s ease;
+		border: none;
+		cursor: pointer;
+		background: transparent;
+		color: #667eea;
+	}
+
+	.nav-link:hover {
+		background: #f0f2ff;
+	}
+
+	.nav-link-primary {
+		background: #667eea;
+		color: white;
+	}
+
+	.nav-link-primary:hover {
+		background: #764ba2;
+	}
+
+	.nav-link-secondary {
+		border: 2px solid #667eea;
+	}
+
+	.nav-link-secondary:hover {
+		background: #667eea;
+		color: white;
+	}
+</style>
+
+<script>
+	// Check auth state and update nav links
+	function updateNavLinks() {
+		const loginLink = document.getElementById('login-link');
+		const registerLink = document.getElementById('register-link');
+		const dashboardLink = document.getElementById('dashboard-link');
+		const logoutBtn = document.getElementById('logout-btn');
+
+		// Check if auth token exists in localStorage
+		const token = localStorage.getItem('auth_token');
+		const isAuthenticated = !!token;
+
+		if (isAuthenticated) {
+			// Show authenticated links
+			if (loginLink) loginLink.style.display = 'none';
+			if (registerLink) registerLink.style.display = 'none';
+			if (dashboardLink) dashboardLink.style.display = 'inline-block';
+			if (logoutBtn) logoutBtn.style.display = 'inline-block';
+		} else {
+			// Show unauthenticated links
+			if (loginLink) loginLink.style.display = 'inline-block';
+			if (registerLink) registerLink.style.display = 'inline-block';
+			if (dashboardLink) dashboardLink.style.display = 'none';
+			if (logoutBtn) logoutBtn.style.display = 'none';
+		}
+	}
+
+	// Handle logout
+	async function handleLogout() {
+		const token = localStorage.getItem('auth_token');
+
+		try {
+			await fetch('/api/logout', {
+				method: 'POST',
+				credentials: 'include',
+				headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+			});
+		} catch (error) {
+			console.error('Logout request failed:', error);
+		}
+
+		// Clear local storage regardless of API response
+		localStorage.removeItem('auth_token');
+		localStorage.removeItem('auth_user');
+
+		// Redirect to home
+		window.location.href = '/';
+	}
+
+	// Setup logout button handler
+	const logoutBtn = document.getElementById('logout-btn');
+	if (logoutBtn) {
+		logoutBtn.addEventListener('click', handleLogout);
+	}
+
+	// Update nav on page load
+	updateNavLinks();
+</script>

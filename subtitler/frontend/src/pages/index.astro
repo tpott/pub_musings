@@ -1,5 +1,5 @@
 ---
-
+import Nav from '../components/Nav.astro';
 ---
 
 <html lang="en">
@@ -20,10 +20,19 @@
 				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 				min-height: 100vh;
+				padding: 20px;
+			}
+
+			.page-wrapper {
+				max-width: 900px;
+				margin: 0 auto;
+			}
+
+			.main-content {
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				padding: 20px;
+				min-height: calc(100vh - 120px);
 			}
 
 			.container {
@@ -208,8 +217,11 @@
 		</style>
 	</head>
 	<body>
-		<div class="container">
-			<h1>Subtitler</h1>
+		<div class="page-wrapper">
+			<Nav />
+			<div class="main-content">
+				<div class="container">
+					<h1>Subtitler</h1>
 			<p class="subtitle">Upload your video or audio file to generate subtitles</p>
 
 			<form id="upload-form">
@@ -235,6 +247,8 @@
 
 				<button type="button" class="reset-btn" id="reset-btn">Upload Another File</button>
 			</form>
+				</div>
+			</div>
 		</div>
 
 		<script>

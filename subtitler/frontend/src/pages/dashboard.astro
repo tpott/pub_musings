@@ -1,5 +1,5 @@
 ---
-
+import Nav from '../components/Nav.astro';
 ---
 
 <html lang="en">
@@ -21,6 +21,11 @@
 				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 				min-height: 100vh;
 				padding: 20px;
+			}
+
+			.page-wrapper {
+				max-width: 900px;
+				margin: 0 auto;
 			}
 
 			.container {
@@ -254,7 +259,9 @@
 		</style>
 	</head>
 	<body>
-		<div class="container">
+		<div class="page-wrapper">
+			<Nav />
+			<div class="container">
 			<div class="header">
 				<h1>My Transcription Jobs</h1>
 				<div class="user-info">
@@ -267,6 +274,7 @@
 
 			<div id="content">
 				<div class="loading">Loading your jobs...</div>
+			</div>
 			</div>
 		</div>
 

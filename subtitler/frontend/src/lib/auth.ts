@@ -71,11 +71,12 @@ export function isAuthenticated(): boolean {
 
 // Register a new user
 export async function register(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE}/api/auth/register`, {
+  const response = await fetch(`${API_BASE}/api/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify({ email, password }),
   });
 
@@ -92,11 +93,12 @@ export async function register(email: string, password: string): Promise<AuthRes
 
 // Login user
 export async function login(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE}/api/auth/login`, {
+  const response = await fetch(`${API_BASE}/api/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify({ email, password }),
   });
 
@@ -120,8 +122,9 @@ export async function logout(): Promise<void> {
   }
 
   try {
-    await fetch(`${API_BASE}/api/auth/logout`, {
+    await fetch(`${API_BASE}/api/logout`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -138,8 +141,9 @@ export async function getCurrentUser(): Promise<User> {
     throw new Error('Not authenticated');
   }
 
-  const response = await fetch(`${API_BASE}/api/auth/me`, {
+  const response = await fetch(`${API_BASE}/api/me`, {
     method: 'GET',
+    credentials: 'include',
     headers: {
       'Authorization': `Bearer ${token}`,
     },
