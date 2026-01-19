@@ -90,6 +90,43 @@ func handleUpload(database *db.DB, workerPool *worker.WorkerPool, analyticsServi
 			return
 		}
 
+		// Get language parameter from form (optional, empty = auto-detect)
+		languageStr := r.FormValue("language")
+		var language *string
+		if languageStr != "" {
+			// Validate language code (ISO 639-1)
+			validLanguages := map[string]bool{
+				"en": true, "zh": true, "de": true, "es": true, "ru": true,
+				"ko": true, "fr": true, "ja": true, "pt": true, "tr": true,
+				"pl": true, "ca": true, "nl": true, "ar": true, "sv": true,
+				"it": true, "id": true, "hi": true, "fi": true, "vi": true,
+				"he": true, "uk": true, "el": true, "ms": true, "cs": true,
+				"ro": true, "da": true, "hu": true, "ta": true, "no": true,
+				"th": true, "ur": true, "hr": true, "bg": true, "lt": true,
+				"la": true, "mi": true, "ml": true, "cy": true, "sk": true,
+				"te": true, "fa": true, "lv": true, "bn": true, "sr": true,
+				"az": true, "sl": true, "kn": true, "et": true, "mk": true,
+				"br": true, "eu": true, "is": true, "hy": true, "ne": true,
+				"mn": true, "bs": true, "kk": true, "sq": true, "sw": true,
+				"gl": true, "mr": true, "pa": true, "si": true, "km": true,
+				"sn": true, "yo": true, "so": true, "af": true, "oc": true,
+				"ka": true, "be": true, "tg": true, "sd": true, "gu": true,
+				"am": true, "yi": true, "lo": true, "uz": true, "fo": true,
+				"ht": true, "ps": true, "tk": true, "nn": true, "mt": true,
+				"sa": true, "lb": true, "my": true, "bo": true, "tl": true,
+				"mg": true, "as": true, "tt": true, "haw": true, "ln": true,
+				"ha": true, "ba": true, "jw": true, "su": true,
+			}
+			if !validLanguages[languageStr] {
+				respondJSON(w, http.StatusBadRequest, JobUploadResponse{
+					Success: false,
+					Message: fmt.Sprintf("Invalid language code '%s'. Use ISO 639-1 codes (e.g., 'en', 'es', 'fr')", languageStr),
+				})
+				return
+			}
+			language = &languageStr
+		}
+
 		// Create job record with status='pending'
 		job := &db.Job{
 			UserID:           userID,
@@ -97,6 +134,7 @@ func handleUpload(database *db.DB, workerPool *worker.WorkerPool, analyticsServi
 			OriginalFilename: header.Filename,
 			FileSize:         header.Size,
 			OutputFormat:     formatStr,
+			Language:         language,
 		}
 
 		err = database.CreateJob(job)
@@ -182,11 +220,15 @@ func handleUpload(database *db.DB, workerPool *worker.WorkerPool, analyticsServi
 		}
 		if visitorID != "" {
 			go func() {
-				err := analyticsService.TrackEvent(r.Context(), visitorID, &userID, "upload_completed", map[string]interface{}{
+				eventProps := map[string]interface{}{
 					"job_id":        job.ID,
 					"file_size":     header.Size,
 					"output_format": formatStr,
-				}, nil, nil, nil)
+				}
+				if language != nil {
+					eventProps["language"] = *language
+				}
+				err := analyticsService.TrackEvent(r.Context(), visitorID, &userID, "upload_completed", eventProps, nil, nil, nil)
 				if err != nil {
 					log.Printf("Failed to track upload_completed event: %v", err)
 				}

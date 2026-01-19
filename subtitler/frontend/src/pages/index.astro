@@ -214,6 +214,51 @@ import Nav from '../components/Nav.astro';
 				background: #667eea;
 				color: white;
 			}
+
+			.options-section {
+				margin-top: 20px;
+				display: none;
+			}
+
+			.options-section.visible {
+				display: block;
+			}
+
+			.options-section label {
+				display: block;
+				color: #333;
+				font-weight: 600;
+				margin-bottom: 8px;
+				font-size: 14px;
+			}
+
+			.options-section select {
+				width: 100%;
+				padding: 12px;
+				border: 1px solid #ddd;
+				border-radius: 8px;
+				font-size: 14px;
+				background: white;
+				color: #333;
+				cursor: pointer;
+				transition: border-color 0.3s ease;
+			}
+
+			.options-section select:hover {
+				border-color: #667eea;
+			}
+
+			.options-section select:focus {
+				outline: none;
+				border-color: #667eea;
+				box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+			}
+
+			.options-hint {
+				color: #666;
+				font-size: 12px;
+				margin-top: 6px;
+			}
 		</style>
 	</head>
 	<body>
@@ -235,6 +280,73 @@ import Nav from '../components/Nav.astro';
 				<div class="file-info" id="file-info">
 					<div class="file-name" id="file-name"></div>
 					<div class="file-size" id="file-size"></div>
+				</div>
+
+				<div class="options-section" id="options-section">
+					<label for="language-select">Language (optional)</label>
+					<select id="language-select">
+						<option value="">Auto-detect</option>
+						<optgroup label="Common Languages">
+							<option value="en">English</option>
+							<option value="es">Spanish</option>
+							<option value="fr">French</option>
+							<option value="de">German</option>
+							<option value="it">Italian</option>
+							<option value="pt">Portuguese</option>
+							<option value="zh">Chinese</option>
+							<option value="ja">Japanese</option>
+							<option value="ko">Korean</option>
+							<option value="ru">Russian</option>
+							<option value="ar">Arabic</option>
+							<option value="hi">Hindi</option>
+						</optgroup>
+						<optgroup label="European Languages">
+							<option value="nl">Dutch</option>
+							<option value="pl">Polish</option>
+							<option value="sv">Swedish</option>
+							<option value="da">Danish</option>
+							<option value="no">Norwegian</option>
+							<option value="fi">Finnish</option>
+							<option value="el">Greek</option>
+							<option value="cs">Czech</option>
+							<option value="ro">Romanian</option>
+							<option value="hu">Hungarian</option>
+							<option value="uk">Ukrainian</option>
+							<option value="tr">Turkish</option>
+							<option value="ca">Catalan</option>
+							<option value="hr">Croatian</option>
+							<option value="sk">Slovak</option>
+							<option value="bg">Bulgarian</option>
+							<option value="sr">Serbian</option>
+							<option value="lt">Lithuanian</option>
+							<option value="lv">Latvian</option>
+							<option value="et">Estonian</option>
+							<option value="sl">Slovenian</option>
+							<option value="is">Icelandic</option>
+						</optgroup>
+						<optgroup label="Asian Languages">
+							<option value="th">Thai</option>
+							<option value="vi">Vietnamese</option>
+							<option value="id">Indonesian</option>
+							<option value="ms">Malay</option>
+							<option value="tl">Tagalog</option>
+							<option value="ta">Tamil</option>
+							<option value="te">Telugu</option>
+							<option value="bn">Bengali</option>
+							<option value="ur">Urdu</option>
+							<option value="fa">Persian</option>
+							<option value="he">Hebrew</option>
+						</optgroup>
+						<optgroup label="Other Languages">
+							<option value="af">Afrikaans</option>
+							<option value="sw">Swahili</option>
+							<option value="cy">Welsh</option>
+							<option value="gl">Galician</option>
+							<option value="eu">Basque</option>
+							<option value="la">Latin</option>
+						</optgroup>
+					</select>
+					<div class="options-hint">Select a language for better accuracy, or leave as auto-detect</div>
 				</div>
 
 				<button type="submit" class="submit-btn" id="submit-btn">Upload File</button>
@@ -268,6 +380,8 @@ import Nav from '../components/Nav.astro';
 			const message = document.getElementById('message');
 			const resetBtn = document.getElementById('reset-btn');
 			const uploadForm = document.getElementById('upload-form');
+			const optionsSection = document.getElementById('options-section');
+			const languageSelect = document.getElementById('language-select');
 
 			const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 			let selectedFile = null;
@@ -310,6 +424,7 @@ import Nav from '../components/Nav.astro';
 				fileName.textContent = file.name;
 				fileSize.textContent = formatFileSize(file.size);
 				fileInfo.classList.add('visible');
+				optionsSection.classList.add('visible');
 				submitBtn.classList.add('visible');
 
 				// Validate file size
@@ -350,6 +465,12 @@ import Nav from '../components/Nav.astro';
 				// Prepare form data
 				const formData = new FormData();
 				formData.append('file', selectedFile);
+
+				// Add language if selected
+				const selectedLanguage = languageSelect.value;
+				if (selectedLanguage) {
+					formData.append('language', selectedLanguage);
+				}
 
 				// Show progress bar
 				progressBar.classList.add('visible');
@@ -406,6 +527,8 @@ import Nav from '../components/Nav.astro';
 				selectedFile = null;
 				fileInput.value = '';
 				fileInfo.classList.remove('visible');
+				optionsSection.classList.remove('visible');
+				languageSelect.value = '';
 				submitBtn.classList.remove('visible');
 				submitBtn.classList.add('visible');
 				resetBtn.classList.remove('visible');

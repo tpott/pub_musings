@@ -7,25 +7,26 @@ import (
 
 // Job represents a transcription job
 type Job struct {
-	ID               int64     `json:"id"`
-	UserID           int64     `json:"user_id"`
-	Status           string    `json:"status"`
-	OriginalFilename string    `json:"original_filename"`
-	FilePath         string    `json:"file_path"`
-	FileSize         int64     `json:"file_size"`
-	OutputFormat     string    `json:"output_format"`
-	TranscriptPath   *string   `json:"transcript_path,omitempty"`
-	ErrorMessage     *string   `json:"error_message,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID               int64      `json:"id"`
+	UserID           int64      `json:"user_id"`
+	Status           string     `json:"status"`
+	OriginalFilename string     `json:"original_filename"`
+	FilePath         string     `json:"file_path"`
+	FileSize         int64      `json:"file_size"`
+	OutputFormat     string     `json:"output_format"`
+	Language         *string    `json:"language,omitempty"` // ISO 639-1 code, nil = auto-detect
+	TranscriptPath   *string    `json:"transcript_path,omitempty"`
+	ErrorMessage     *string    `json:"error_message,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
 
 // CreateJob creates a new job record (accepts a Job struct)
 func (db *DB) CreateJob(job *Job) error {
 	query := `
-		INSERT INTO jobs (user_id, status, original_filename, file_path, file_size, output_format)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO jobs (user_id, status, original_filename, file_path, file_size, output_format, language)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
 	// Set default status if not provided
@@ -33,7 +34,7 @@ func (db *DB) CreateJob(job *Job) error {
 		job.Status = "pending"
 	}
 
-	result, err := db.Exec(query, job.UserID, job.Status, job.OriginalFilename, job.FilePath, job.FileSize, job.OutputFormat)
+	result, err := db.Exec(query, job.UserID, job.Status, job.OriginalFilename, job.FilePath, job.FileSize, job.OutputFormat, job.Language)
 	if err != nil {
 		return err
 	}
@@ -75,7 +76,7 @@ func (db *DB) UpdateJobFilePath(id int64, filePath string) error {
 func (db *DB) GetJobByID(id int64) (*Job, error) {
 	query := `
 		SELECT id, user_id, status, original_filename, file_path, file_size,
-		       output_format, transcript_path, error_message, created_at,
+		       output_format, language, transcript_path, error_message, created_at,
 		       updated_at, completed_at
 		FROM jobs
 		WHERE id = ?
@@ -84,7 +85,7 @@ func (db *DB) GetJobByID(id int64) (*Job, error) {
 	job := &Job{}
 	err := db.QueryRow(query, id).Scan(
 		&job.ID, &job.UserID, &job.Status, &job.OriginalFilename,
-		&job.FilePath, &job.FileSize, &job.OutputFormat,
+		&job.FilePath, &job.FileSize, &job.OutputFormat, &job.Language,
 		&job.TranscriptPath, &job.ErrorMessage,
 		&job.CreatedAt, &job.UpdatedAt, &job.CompletedAt,
 	)
@@ -103,7 +104,7 @@ func (db *DB) GetJobByID(id int64) (*Job, error) {
 func (db *DB) GetJobsByUserID(userID int64) ([]*Job, error) {
 	query := `
 		SELECT id, user_id, status, original_filename, file_path, file_size,
-		       output_format, transcript_path, error_message, created_at,
+		       output_format, language, transcript_path, error_message, created_at,
 		       updated_at, completed_at
 		FROM jobs
 		WHERE user_id = ?
@@ -121,7 +122,7 @@ func (db *DB) GetJobsByUserID(userID int64) ([]*Job, error) {
 		job := &Job{}
 		err := rows.Scan(
 			&job.ID, &job.UserID, &job.Status, &job.OriginalFilename,
-			&job.FilePath, &job.FileSize, &job.OutputFormat,
+			&job.FilePath, &job.FileSize, &job.OutputFormat, &job.Language,
 			&job.TranscriptPath, &job.ErrorMessage,
 			&job.CreatedAt, &job.UpdatedAt, &job.CompletedAt,
 		)
@@ -185,7 +186,7 @@ func (db *DB) UpdateJobFailed(id int64, errorMessage string) error {
 func (db *DB) GetOldJobs(maxAgeDays int) ([]*Job, error) {
 	query := `
 		SELECT id, user_id, status, original_filename, file_path, file_size,
-		       output_format, transcript_path, error_message, created_at,
+		       output_format, language, transcript_path, error_message, created_at,
 		       updated_at, completed_at
 		FROM jobs
 		WHERE created_at < datetime('now', '-' || ? || ' days')
@@ -204,7 +205,7 @@ func (db *DB) GetOldJobs(maxAgeDays int) ([]*Job, error) {
 		job := &Job{}
 		err := rows.Scan(
 			&job.ID, &job.UserID, &job.Status, &job.OriginalFilename,
-			&job.FilePath, &job.FileSize, &job.OutputFormat,
+			&job.FilePath, &job.FileSize, &job.OutputFormat, &job.Language,
 			&job.TranscriptPath, &job.ErrorMessage,
 			&job.CreatedAt, &job.UpdatedAt, &job.CompletedAt,
 		)

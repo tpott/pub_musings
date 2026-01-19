@@ -300,6 +300,82 @@ func TestGetOldJobs(t *testing.T) {
 	}
 }
 
+func TestJobLanguageField(t *testing.T) {
+	tmpDB := setupJobsTestDB(t)
+	defer tmpDB.Close()
+
+	user, _ := tmpDB.CreateUser("test@example.com", "hash")
+
+	// Test 1: Job without language (auto-detect)
+	jobAutoDetect := &Job{
+		UserID:           user.ID,
+		OriginalFilename: "auto.mp3",
+		FilePath:         "/path/to/auto.mp3",
+		FileSize:         1024,
+		OutputFormat:     "srt",
+		Language:         nil, // Auto-detect
+	}
+	err := tmpDB.CreateJob(jobAutoDetect)
+	if err != nil {
+		t.Fatalf("Failed to create job without language: %v", err)
+	}
+
+	retrieved, err := tmpDB.GetJobByID(jobAutoDetect.ID)
+	if err != nil {
+		t.Fatalf("Failed to get job: %v", err)
+	}
+	if retrieved.Language != nil {
+		t.Errorf("Expected nil language for auto-detect, got %v", retrieved.Language)
+	}
+
+	// Test 2: Job with language specified
+	spanish := "es"
+	jobWithLang := &Job{
+		UserID:           user.ID,
+		OriginalFilename: "spanish.mp3",
+		FilePath:         "/path/to/spanish.mp3",
+		FileSize:         2048,
+		OutputFormat:     "vtt",
+		Language:         &spanish,
+	}
+	err = tmpDB.CreateJob(jobWithLang)
+	if err != nil {
+		t.Fatalf("Failed to create job with language: %v", err)
+	}
+
+	retrieved2, err := tmpDB.GetJobByID(jobWithLang.ID)
+	if err != nil {
+		t.Fatalf("Failed to get job with language: %v", err)
+	}
+	if retrieved2.Language == nil {
+		t.Fatal("Expected language to be set")
+	}
+	if *retrieved2.Language != "es" {
+		t.Errorf("Expected language 'es', got %s", *retrieved2.Language)
+	}
+
+	// Test 3: GetJobsByUserID includes language
+	jobs, err := tmpDB.GetJobsByUserID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get jobs by user: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("Expected 2 jobs, got %d", len(jobs))
+	}
+
+	// Find the job with Spanish language
+	var foundSpanishJob *Job
+	for _, j := range jobs {
+		if j.Language != nil && *j.Language == "es" {
+			foundSpanishJob = j
+			break
+		}
+	}
+	if foundSpanishJob == nil {
+		t.Error("Expected to find job with Spanish language in user's jobs")
+	}
+}
+
 func TestDeleteJob(t *testing.T) {
 	tmpDB := setupJobsTestDB(t)
 	defer tmpDB.Close()

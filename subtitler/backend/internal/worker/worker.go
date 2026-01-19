@@ -140,10 +140,16 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 		format = transcribe.FormatSRT // Fallback to SRT
 	}
 
-	// Transcribe the file
-	transcript, err := wp.transcribeService.TranscribeFile(job.FilePath, transcribe.TranscribeOptions{
+	// Build transcription options
+	transcribeOpts := transcribe.TranscribeOptions{
 		Format: format,
-	})
+	}
+	if job.Language != nil {
+		transcribeOpts.Language = *job.Language
+	}
+
+	// Transcribe the file
+	transcript, err := wp.transcribeService.TranscribeFile(job.FilePath, transcribeOpts)
 	if err != nil {
 		log.Printf("Worker %d: Transcription failed for job %d: %v", workerID, jobID, err)
 		errorMsg := fmt.Sprintf("Transcription failed: %v", err)
@@ -294,9 +300,13 @@ func (wp *WorkerPool) processEmbeddedJob(workerID int, job *db.Job) {
 
 	// Step 1: Generate SRT subtitles first
 	log.Printf("Worker %d: Generating SRT subtitles for job %d", workerID, job.ID)
-	srtTranscript, err := wp.transcribeService.TranscribeFile(job.FilePath, transcribe.TranscribeOptions{
+	transcribeOpts := transcribe.TranscribeOptions{
 		Format: transcribe.FormatSRT,
-	})
+	}
+	if job.Language != nil {
+		transcribeOpts.Language = *job.Language
+	}
+	srtTranscript, err := wp.transcribeService.TranscribeFile(job.FilePath, transcribeOpts)
 	if err != nil {
 		log.Printf("Worker %d: Transcription failed for job %d: %v", workerID, job.ID, err)
 		errorMsg := fmt.Sprintf("Transcription failed: %v", err)
