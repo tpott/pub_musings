@@ -1,18 +1,41 @@
 # Progress Report
 
-Human in the loop here. I tried running the backend and frontend together and I haven't been able to upload a single file yet. I haven't been able to create an account or login to the UI either. Wtf have you been working on Ralph??
+## Current Status (2026-01-19)
 
-I tried visiting http://localhost:4321/ in my browser and uploading a file. I noticed the frontend log an error like:
-```
-:08:36 [ERROR] [vite] http proxy error: /api/analytics/events
-```
-and the browser network console showed a 500 error for `/api/analytics/events`. So this bug was slightly user facing.
+**Just completed:** Fixed critical bug where backend crashed if whisper-server failed to start within 30 seconds.
 
-The bigger concern from me was that the backend had these logs:
-```
-2026/01/18 23:08:53 Stopping whisper-server...
-2026/01/18 23:08:53 whisper-server stopped
-2026/01/18 23:08:53 Failed to start transcription service: whisper-server failed to become ready: whisper-server did not become ready after 30 attempts
+**Changes made this session:**
+1. Increased whisper-server readiness timeout from 30s to 120s (model loading takes time)
+2. Made whisper-server startup non-fatal - backend now continues running even if transcription is unavailable
+3. Added nil check in worker pool to gracefully fail jobs when transcription service is unavailable
+
+**Backend now starts even when whisper-server is unavailable.** All other features (auth, analytics, dashboard, job listing) will work. Transcription jobs will fail with a clear error message until whisper-server becomes available.
+
+## Next Priority Tasks
+
+The user reported they couldn't log in or upload files. This is because:
+
+1. **Tasks 23-25 (Login/Register UI)** - These pages were never built. Backend auth exists but there's no UI.
+2. **Task 25 (Auth library paths)** - The frontend auth library has wrong API paths (`/api/auth/*` instead of `/api/*`)
+
+These tasks are marked as CRITICAL in TASKS.jsonl and should be tackled next.
+
+## Verification Steps
+
+To verify the backend fix:
+```bash
+cd backend && go build ./cmd/server   # Should compile
+cd backend && go test ./... -short    # All tests should pass
+cd backend && ./server                # Should start, may warn about whisper-server
 ```
 
-Get your gears in order and make this an awesome project!
+To verify frontend:
+```bash
+cd frontend && npm run dev            # Should serve on localhost:4321
+```
+
+## Known Issues
+
+1. **No login/register UI** - Users can't authenticate (Tasks 23-25)
+2. **No navigation header** - Users can't navigate between pages (Task 24)
+3. **Secure cookies for production** - Security concern for HTTPS deployment (Task 26)

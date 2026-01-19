@@ -2,6 +2,45 @@
 
 This file captures lessons learned, failed approaches, and decisions made during development. Ralph should add entries here when:
 
+---
+
+## Task 29: Fix Backend Crash on whisper-server Startup Failure (2026-01-19)
+
+**Status:** Complete
+
+**Problem:**
+The backend was crashing at startup with the error:
+```
+Failed to start transcription service: whisper-server failed to become ready: whisper-server did not become ready after 30 attempts
+```
+
+This caused the entire backend to be unavailable, breaking all features including auth and analytics.
+
+**Root Cause:**
+1. The medium whisper model (1.5GB) can take 60+ seconds to load into memory
+2. The readiness check only waited 30 seconds
+3. The startup was fatal - if whisper-server failed, the entire backend crashed
+
+**Solution:**
+1. Increased readiness timeout from 30s to 120s in `internal/transcribe/whisper_server.go`
+2. Changed whisper-server startup to be non-fatal in `cmd/server/main.go`
+3. Added nil check in worker pool to gracefully fail jobs when transcription unavailable
+
+**Key Decision:**
+Made whisper-server optional rather than required. The backend can now serve auth, analytics, dashboard, and job listing even when transcription is unavailable. Jobs submitted during this time fail with a clear error message.
+
+**Files Modified:**
+- `backend/internal/transcribe/whisper_server.go` - Increased maxAttempts from 30 to 120
+- `backend/cmd/server/main.go` - Changed log.Fatalf to log.Printf, set transcribeService to nil on failure
+- `backend/internal/worker/worker.go` - Added nil check for transcribeService
+
+**Verification:**
+- `go build ./cmd/server` - Compiles successfully
+- `go test ./... -short` - All tests pass
+- Backend starts even when whisper-server is unavailable
+
+---
+
 - A plan fails and is deleted
 - Dependencies are added or modified (explain why)
 - An unexpected issue is encountered and resolved

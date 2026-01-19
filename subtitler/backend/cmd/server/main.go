@@ -297,19 +297,22 @@ func main() {
 	}
 	log.Println("File storage directories created")
 
-	// Initialize transcription service
+	// Initialize transcription service (non-fatal if unavailable)
 	log.Println("Initializing transcription service...")
 	transcribeService = transcribe.NewService(cfg)
 	if err := transcribeService.Start(); err != nil {
-		log.Fatalf("Failed to start transcription service: %v", err)
+		log.Printf("WARNING: Failed to start transcription service: %v", err)
+		log.Println("Transcription features will be unavailable. Other features will work normally.")
+		transcribeService = nil
+	} else {
+		defer func() {
+			log.Println("Stopping transcription service...")
+			if err := transcribeService.Stop(); err != nil {
+				log.Printf("Error stopping transcription service: %v", err)
+			}
+		}()
+		log.Println("Transcription service started successfully")
 	}
-	defer func() {
-		log.Println("Stopping transcription service...")
-		if err := transcribeService.Stop(); err != nil {
-			log.Printf("Error stopping transcription service: %v", err)
-		}
-	}()
-	log.Println("Transcription service started successfully")
 
 	// Initialize email client
 	log.Println("Initializing email client...")

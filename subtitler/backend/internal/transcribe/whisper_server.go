@@ -103,7 +103,7 @@ func (ws *WhisperServer) GetEndpoint() string {
 // waitForReady waits for whisper-server to respond to health checks
 func (ws *WhisperServer) waitForReady() error {
 	endpoint := ws.GetEndpoint()
-	maxAttempts := 30
+	maxAttempts := 120 // 2 minutes to allow large model loading
 	delay := 1 * time.Second
 
 	for i := 0; i < maxAttempts; i++ {

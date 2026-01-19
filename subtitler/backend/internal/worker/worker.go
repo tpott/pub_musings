@@ -98,6 +98,13 @@ func (wp *WorkerPool) processJob(workerID int, jobID int64) {
 	log.Printf("Worker %d: Processing job %d", workerID, jobID)
 	startTime := time.Now()
 
+	// Check if transcription service is available
+	if wp.transcribeService == nil {
+		log.Printf("Worker %d: Transcription service unavailable, failing job %d", workerID, jobID)
+		wp.db.UpdateJobFailed(jobID, "Transcription service is currently unavailable. Please try again later.")
+		return
+	}
+
 	// Fetch job from database
 	job, err := wp.db.GetJobByID(jobID)
 	if err != nil {
