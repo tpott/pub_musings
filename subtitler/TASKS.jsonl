@@ -27,3 +27,4 @@
 {"id": 27, "name": "Add 404 and error pages", "done_when": "Visiting /nonexistent shows styled 404 page matching site design; server errors show friendly error page", "status": "complete"}
 {"id": 28, "name": "Add .env.example files for deployment", "done_when": "backend/.env.example and frontend/.env.example exist with all required variables documented; deployment README references these files", "status": "complete"}
 {"id": 29, "name": "Fix backend crash on whisper-server startup failure", "done_when": "Backend starts successfully even when whisper-server is unavailable; transcription returns appropriate error; go test ./... -short passes", "status": "complete"}
+{"id": 30, "name": "Fix Playwright tests for batch upload UI", "done_when": "npm test in frontend passes all tests (was 13 failures)", "status": "complete"}

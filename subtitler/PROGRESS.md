@@ -2,59 +2,49 @@
 
 ## Current Status (2026-01-19)
 
-**Just completed:** Task 22 - Add batch processing (multiple file upload).
+**Just completed:** Task 30 - Fix Playwright tests for batch upload UI.
 
 **Changes made this session:**
 
-### Task 22: Add batch processing
+### Task 30: Fix Playwright tests
 
-**Backend:**
-- Updated `upload_handlers.go` to support multiple file uploads:
-  - Added `BatchUploadResponse`, `JobResult`, and `FailedFile` types
-  - Modified `handleUpload()` to use `r.MultipartForm.File["file"]` for multiple files
-  - Added `processUploadedFile()` helper function for processing individual files
-  - Returns array of job IDs on success
-  - Handles partial failures gracefully (some files succeed, some fail)
-  - Maximum 10 files per batch upload
-  - Increased form size limit to 2GB total (200MB x 10 files)
+After Task 22 (batch upload), 13 Playwright tests were failing because:
+1. Tests mocked `http://localhost:8080/api/*` but frontend now uses relative paths `/api/*` (via Vite proxy)
+2. Upload tests expected single-file UI elements (`#file-info`, `#file-name`) but batch upload uses `#file-list` with `.file-item` elements
+3. Dashboard tests used `#logout-btn` but there are two elements with that ID (Nav component and dashboard page)
 
-**Frontend:**
-- Updated `src/pages/index.astro` for multiple file selection:
-  - Added `multiple` attribute to file input
-  - Changed `selectedFile` to `selectedFiles` array
-  - New file list UI showing all selected files with sizes
-  - Remove button for individual files before upload
-  - File validation (size limit) shown per-file
-  - Dynamic button text ("Upload File" vs "Upload 3 Files")
-  - Redirects to dashboard on successful upload
-  - Updated hint text to mention "up to 10 files"
+**Fixes applied:**
 
-**UI/UX:**
-- Added CSS styles for file list display:
-  - `.file-list` container with header and summary
-  - `.file-item` cards with name, size, and remove button
-  - `.file-item-error` styling for invalid files
-  - Error messages shown inline per-file
+1. **Dashboard tests** (`tests/dashboard.spec.ts`):
+   - Changed all route mocks from `http://localhost:8080/api/*` to `**/api/*`
+   - Updated download button href assertion from absolute to relative URL
+   - Fixed logout button test to set localStorage token before navigation
+   - Used more specific locators (`.user-info #logout-btn`, `#nav-links #logout-btn`)
 
-**Documentation:**
-- Created `016_BATCH_PROCESSING.md` implementation plan
+2. **Upload tests** (`tests/upload.spec.ts`):
+   - Changed route mocks from `http://localhost:8080/api/upload` to `**/api/upload`
+   - Updated all tests to work with batch upload UI (`#file-list`, `.file-item`)
+   - Updated mock response format to match batch upload API (status 201, `jobs` array)
+   - Added new tests for batch upload features (remove files, language selection)
+
+3. **Transcribe tests** (`tests/transcribe.spec.ts`):
+   - Updated UI integration test to use batch upload UI elements
 
 **Verification:**
-- `go build ./cmd/server` - Backend builds successfully
+- `npm test` - All 22 tests pass
 - `go test ./... -short` - All backend tests pass
-- `npm run build` - Frontend builds successfully
 
 ## Previous Session Work
 
+### Task 22: Add batch processing (multiple file upload)
+- Backend supports multiple file uploads
+- Frontend file list UI with remove functionality
+
 ### Task 21: Add language selection for transcription
 - Language dropdown in upload form
-- Backend validates and stores language in job record
 
 ### Task 20: Add admin usage dashboard
 - Admin analytics API endpoint and dashboard page
-
-### Task 19: Add file cleanup job
-- Automatic deletion of old job files (>30 days)
 
 ## Next Priority Tasks
 
@@ -62,15 +52,11 @@
 
 ## Known Issues
 
-1. **Playwright tests failing** - Some dashboard and upload tests are failing due to auth/API mocking issues. These failures pre-date this session and are not related to recent changes.
+None. All tests passing.
 
 ## Files Modified This Session
 
-**Backend:**
-- `cmd/server/upload_handlers.go` - Batch upload support
-
 **Frontend:**
-- `src/pages/index.astro` - Multiple file selection UI
-
-**Documentation:**
-- `016_BATCH_PROCESSING.md` - Implementation plan
+- `tests/dashboard.spec.ts` - Fixed route mocks and logout button locators
+- `tests/upload.spec.ts` - Updated for batch upload UI
+- `tests/transcribe.spec.ts` - Updated UI integration test

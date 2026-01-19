@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Dashboard', () => {
   test('redirects to home when not authenticated', async ({ page }) => {
     // Mock the /api/me endpoint to return 401
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 401,
         contentType: 'application/json',
@@ -24,7 +24,7 @@ test.describe('Dashboard', () => {
 
   test('displays user email and logout button when authenticated', async ({ page }) => {
     // Mock the /api/me endpoint
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -39,7 +39,7 @@ test.describe('Dashboard', () => {
     });
 
     // Mock the /api/jobs endpoint with empty list
-    await page.route('http://localhost:8080/api/jobs', async route => {
+    await page.route('**/api/jobs', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -56,14 +56,14 @@ test.describe('Dashboard', () => {
     const userEmail = page.locator('#user-email');
     await expect(userEmail).toContainText('test@example.com');
 
-    // Check that logout button is present
-    const logoutBtn = page.locator('#logout-btn');
+    // Check that logout button is present (use the one in user-info section to avoid duplicate ID issue)
+    const logoutBtn = page.locator('.user-info #logout-btn');
     await expect(logoutBtn).toBeVisible();
   });
 
   test('displays empty state when user has no jobs', async ({ page }) => {
     // Mock authentication
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -75,7 +75,7 @@ test.describe('Dashboard', () => {
     });
 
     // Mock empty jobs list
-    await page.route('http://localhost:8080/api/jobs', async route => {
+    await page.route('**/api/jobs', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -101,7 +101,7 @@ test.describe('Dashboard', () => {
 
   test('displays list of jobs with correct information', async ({ page }) => {
     // Mock authentication
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -113,7 +113,7 @@ test.describe('Dashboard', () => {
     });
 
     // Mock jobs list with sample data
-    await page.route('http://localhost:8080/api/jobs', async route => {
+    await page.route('**/api/jobs', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -181,7 +181,7 @@ test.describe('Dashboard', () => {
     const downloadBtn = firstJob.locator('.download-btn');
     await expect(downloadBtn).toBeVisible();
     await expect(downloadBtn).not.toBeDisabled();
-    await expect(downloadBtn).toHaveAttribute('href', 'http://localhost:8080/api/jobs/1/download');
+    await expect(downloadBtn).toHaveAttribute('href', '/api/jobs/1/download');
 
     // Check second job (pending)
     const secondJob = jobCards.nth(1);
@@ -203,7 +203,7 @@ test.describe('Dashboard', () => {
 
   test('logout button redirects to home and calls logout API', async ({ page }) => {
     // Mock authentication
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -215,7 +215,7 @@ test.describe('Dashboard', () => {
     });
 
     // Mock jobs list
-    await page.route('http://localhost:8080/api/jobs', async route => {
+    await page.route('**/api/jobs', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -228,7 +228,7 @@ test.describe('Dashboard', () => {
 
     // Mock logout endpoint
     let logoutCalled = false;
-    await page.route('http://localhost:8080/api/logout', async route => {
+    await page.route('**/api/logout', async route => {
       logoutCalled = true;
       await route.fulfill({
         status: 200,
@@ -240,10 +240,17 @@ test.describe('Dashboard', () => {
       });
     });
 
+    // Set auth token in localStorage BEFORE navigating so Nav shows logout button
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.setItem('auth_token', 'fake-token');
+    });
+
     await page.goto('/dashboard');
 
-    // Click logout button
-    const logoutBtn = page.locator('#logout-btn');
+    // Wait for the dashboard to load and show logout button in nav
+    const logoutBtn = page.locator('#nav-links #logout-btn');
+    await expect(logoutBtn).toBeVisible({ timeout: 5000 });
     await logoutBtn.click();
 
     // Should redirect to home
@@ -256,7 +263,7 @@ test.describe('Dashboard', () => {
 
   test('displays error message when jobs API fails', async ({ page }) => {
     // Mock authentication
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -268,7 +275,7 @@ test.describe('Dashboard', () => {
     });
 
     // Mock jobs API failure
-    await page.route('http://localhost:8080/api/jobs', async route => {
+    await page.route('**/api/jobs', async route => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -289,7 +296,7 @@ test.describe('Dashboard', () => {
 
   test('formats file sizes correctly', async ({ page }) => {
     // Mock authentication
-    await page.route('http://localhost:8080/api/me', async route => {
+    await page.route('**/api/me', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -301,7 +308,7 @@ test.describe('Dashboard', () => {
     });
 
     // Mock jobs with different file sizes
-    await page.route('http://localhost:8080/api/jobs', async route => {
+    await page.route('**/api/jobs', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

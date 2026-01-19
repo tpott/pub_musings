@@ -26,7 +26,7 @@ test.describe('File Upload Form', () => {
     await expect(submitBtn).not.toBeVisible();
   });
 
-  test('displays file info after selecting a file', async ({ page }) => {
+  test('displays file list after selecting files', async ({ page }) => {
     await page.goto('/');
 
     // Create a small test audio file
@@ -40,16 +40,17 @@ test.describe('File Upload Form', () => {
       const fileInput = page.locator('#file-input');
       await fileInput.setInputFiles(testFilePath);
 
-      // Wait for file info to appear
-      const fileInfo = page.locator('#file-info');
-      await expect(fileInfo).toBeVisible();
+      // Wait for file list to appear (batch upload UI)
+      const fileList = page.locator('#file-list');
+      await expect(fileList).toBeVisible();
 
-      // Check file name is displayed
-      const fileName = page.locator('#file-name');
-      await expect(fileName).toContainText('test-audio.mp3');
+      // Check file name is displayed in the file list
+      const fileItem = page.locator('.file-item');
+      await expect(fileItem).toBeVisible();
+      await expect(fileItem.locator('.file-item-name')).toContainText('test-audio.mp3');
 
       // Check file size is displayed
-      const fileSize = page.locator('#file-size');
+      const fileSize = fileItem.locator('.file-item-size');
       await expect(fileSize).toBeVisible();
 
       // Submit button should now be visible
@@ -79,28 +80,33 @@ test.describe('File Upload Form', () => {
       fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    // Wait for error message
-    const message = page.locator('#message');
-    await expect(message).toBeVisible();
-    await expect(message).toContainText('200MB');
+    // Wait for file list to appear
+    const fileList = page.locator('#file-list');
+    await expect(fileList).toBeVisible();
 
-    // Submit button should be disabled
+    // File should show error styling
+    const fileItem = page.locator('.file-item-error');
+    await expect(fileItem).toBeVisible();
+    await expect(fileItem.locator('.file-item-error-msg')).toContainText('200MB');
+
+    // Submit button should be disabled since no valid files
     const submitBtn = page.locator('#submit-btn');
     await expect(submitBtn).toBeDisabled();
   });
 
-  test('uploads file successfully with mock backend', async ({ page, context }) => {
-    // Intercept the upload request
-    await page.route('http://localhost:8080/api/upload', async route => {
+  test('uploads file successfully with mock backend', async ({ page }) => {
+    // Intercept the upload request (relative path via proxy)
+    await page.route('**/api/upload', async route => {
       await route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          message: 'File uploaded successfully',
-          filename: 'test-audio.mp3',
-          size: 10240,
-          type: 'audio/mpeg'
+          message: 'Files uploaded successfully',
+          jobs: [
+            { job_id: 1, filename: 'test-audio.mp3' }
+          ],
+          failed_files: []
         })
       });
     });
@@ -138,7 +144,7 @@ test.describe('File Upload Form', () => {
 
   test('shows error on failed upload', async ({ page }) => {
     // Intercept the upload request with error response
-    await page.route('http://localhost:8080/api/upload', async route => {
+    await page.route('**/api/upload', async route => {
       await route.fulfill({
         status: 400,
         contentType: 'application/json',
@@ -177,16 +183,17 @@ test.describe('File Upload Form', () => {
 
   test('reset button works correctly', async ({ page }) => {
     // Intercept the upload request
-    await page.route('http://localhost:8080/api/upload', async route => {
+    await page.route('**/api/upload', async route => {
       await route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          message: 'File uploaded successfully',
-          filename: 'test.mp3',
-          size: 1024,
-          type: 'audio/mpeg'
+          message: 'Files uploaded successfully',
+          jobs: [
+            { job_id: 1, filename: 'test.mp3' }
+          ],
+          failed_files: []
         })
       });
     });
@@ -212,12 +219,12 @@ test.describe('File Upload Form', () => {
       // Click reset button
       await resetBtn.click();
 
-      // Verify form is reset
-      const fileInfo = page.locator('#file-info');
-      await expect(fileInfo).not.toBeVisible();
+      // Verify form is reset - file list should be hidden
+      const fileList = page.locator('#file-list');
+      await expect(fileList).not.toBeVisible();
 
-      await expect(resetBtn).not.toBeVisible();
-      await expect(submitBtn).toBeVisible();
+      // Submit button should be hidden again (no files selected)
+      await expect(submitBtn).not.toBeVisible();
     } finally {
       // Cleanup
       fs.unlinkSync(testFilePath);
@@ -226,7 +233,7 @@ test.describe('File Upload Form', () => {
 
   test('shows network error when backend is unreachable', async ({ page }) => {
     // Intercept and abort the request to simulate network error
-    await page.route('http://localhost:8080/api/upload', route => route.abort('failed'));
+    await page.route('**/api/upload', route => route.abort('failed'));
 
     await page.goto('/');
 
@@ -248,6 +255,70 @@ test.describe('File Upload Form', () => {
       const message = page.locator('#message');
       await expect(message).toBeVisible();
       await expect(message).toContainText('Network error');
+    } finally {
+      // Cleanup
+      fs.unlinkSync(testFilePath);
+    }
+  });
+
+  test('can remove files from selection before upload', async ({ page }) => {
+    await page.goto('/');
+
+    // Create test files
+    const tempDir = os.tmpdir();
+    const testFilePath1 = path.join(tempDir, 'test1.mp3');
+    const testFilePath2 = path.join(tempDir, 'test2.mp3');
+    fs.writeFileSync(testFilePath1, Buffer.alloc(1024));
+    fs.writeFileSync(testFilePath2, Buffer.alloc(1024));
+
+    try {
+      // Upload multiple files
+      const fileInput = page.locator('#file-input');
+      await fileInput.setInputFiles([testFilePath1, testFilePath2]);
+
+      // Verify both files are shown
+      const fileItems = page.locator('.file-item');
+      await expect(fileItems).toHaveCount(2);
+
+      // Click the remove button on the first file
+      const removeBtn = fileItems.first().locator('.file-item-remove');
+      await removeBtn.click();
+
+      // Verify only one file remains
+      await expect(fileItems).toHaveCount(1);
+      await expect(fileItems.first().locator('.file-item-name')).toContainText('test2.mp3');
+    } finally {
+      // Cleanup
+      fs.unlinkSync(testFilePath1);
+      fs.unlinkSync(testFilePath2);
+    }
+  });
+
+  test('language selection is shown when files are selected', async ({ page }) => {
+    await page.goto('/');
+
+    // Create a test file
+    const tempDir = os.tmpdir();
+    const testFilePath = path.join(tempDir, 'test.mp3');
+    fs.writeFileSync(testFilePath, Buffer.alloc(1024));
+
+    try {
+      // Initially, language selection should be hidden
+      const optionsSection = page.locator('#options-section');
+      await expect(optionsSection).not.toBeVisible();
+
+      // Upload the file
+      const fileInput = page.locator('#file-input');
+      await fileInput.setInputFiles(testFilePath);
+
+      // Language selection should now be visible
+      await expect(optionsSection).toBeVisible();
+      const languageSelect = page.locator('#language-select');
+      await expect(languageSelect).toBeVisible();
+
+      // Select a language
+      await languageSelect.selectOption('es');
+      await expect(languageSelect).toHaveValue('es');
     } finally {
       // Cleanup
       fs.unlinkSync(testFilePath);

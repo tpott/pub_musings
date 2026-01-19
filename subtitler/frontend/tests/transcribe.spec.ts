@@ -104,27 +104,18 @@ test.describe('Transcription API', () => {
 
 test.describe('Transcription UI Integration', () => {
   test('UI can upload and display transcription (mocked)', async ({ page }) => {
-    // Mock the transcribe API response
-    await page.route('http://localhost:8080/api/transcribe', async route => {
-      // Simulate transcription delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+    // Mock the upload API response (current UI uses /api/upload)
+    await page.route('**/api/upload', async route => {
       await route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          message: 'Transcription completed successfully',
-          transcript: `1
-00:00:00,000 --> 00:00:05,000
-And so my fellow Americans, ask not what your country can do for you.
-
-2
-00:00:05,000 --> 00:00:10,000
-Ask what you can do for your country.`,
-          filename: 'test-audio.wav',
-          format: 'srt',
-          duration: 15.5,
+          message: 'Files uploaded successfully',
+          jobs: [
+            { job_id: 1, filename: 'test-audio.wav' }
+          ],
+          failed_files: []
         }),
       });
     });
@@ -142,14 +133,14 @@ Ask what you can do for your country.`,
       const fileInput = page.locator('#file-input');
       await fileInput.setInputFiles(testFilePath);
 
-      // Wait for file info to appear
-      const fileInfo = page.locator('#file-info');
-      await expect(fileInfo).toBeVisible();
+      // Wait for file list to appear (batch upload UI)
+      const fileList = page.locator('#file-list');
+      await expect(fileList).toBeVisible();
 
-      // Note: Current UI uses /api/upload endpoint
-      // This test validates the API works, but UI integration
-      // would require updating the frontend to use /api/transcribe
-      // That will be done in a future task (Task 7 - User dashboard)
+      // Verify file is shown
+      const fileItem = page.locator('.file-item');
+      await expect(fileItem).toBeVisible();
+      await expect(fileItem.locator('.file-item-name')).toContainText('test-audio.wav');
 
     } finally {
       // Cleanup
