@@ -245,3 +245,87 @@ func TestUpdateJobFailed(t *testing.T) {
 		t.Error("Expected completed_at to be set")
 	}
 }
+
+func TestGetOldJobs(t *testing.T) {
+	tmpDB := setupJobsTestDB(t)
+	defer tmpDB.Close()
+
+	user, _ := tmpDB.CreateUser("test@example.com", "hash")
+
+	// Create a job with old created_at (manually update using raw SQL)
+	job := &Job{UserID: user.ID, OriginalFilename: "old.mp3", FilePath: "/path/to/old.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(job)
+
+	// Set created_at to 60 days ago and mark as completed
+	_, err := tmpDB.Exec(`
+		UPDATE jobs
+		SET created_at = datetime('now', '-60 days'),
+		    status = 'completed',
+		    completed_at = datetime('now', '-60 days')
+		WHERE id = ?
+	`, job.ID)
+	if err != nil {
+		t.Fatalf("Failed to update job created_at: %v", err)
+	}
+
+	// Create a recent job (should not be returned)
+	recentJob := &Job{UserID: user.ID, OriginalFilename: "recent.mp3", FilePath: "/path/to/recent.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(recentJob)
+	tmpDB.UpdateJobCompleted(recentJob.ID, "/path/to/transcript.srt")
+
+	// Create a pending job that's old (should not be returned - only completed/failed)
+	pendingJob := &Job{UserID: user.ID, OriginalFilename: "pending.mp3", FilePath: "/path/to/pending.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(pendingJob)
+	_, err = tmpDB.Exec(`
+		UPDATE jobs
+		SET created_at = datetime('now', '-60 days')
+		WHERE id = ?
+	`, pendingJob.ID)
+	if err != nil {
+		t.Fatalf("Failed to update pending job created_at: %v", err)
+	}
+
+	// Get old jobs (>30 days)
+	oldJobs, err := tmpDB.GetOldJobs(30)
+	if err != nil {
+		t.Fatalf("Failed to get old jobs: %v", err)
+	}
+
+	if len(oldJobs) != 1 {
+		t.Errorf("Expected 1 old job, got %d", len(oldJobs))
+	}
+
+	if len(oldJobs) == 1 && oldJobs[0].OriginalFilename != "old.mp3" {
+		t.Errorf("Expected old job 'old.mp3', got %s", oldJobs[0].OriginalFilename)
+	}
+}
+
+func TestDeleteJob(t *testing.T) {
+	tmpDB := setupJobsTestDB(t)
+	defer tmpDB.Close()
+
+	user, _ := tmpDB.CreateUser("test@example.com", "hash")
+	job := &Job{UserID: user.ID, OriginalFilename: "test.mp3", FilePath: "/path/to/test.mp3", FileSize: 1024, OutputFormat: "srt"}
+	tmpDB.CreateJob(job)
+
+	// Verify job exists
+	existing, err := tmpDB.GetJobByID(job.ID)
+	if err != nil || existing == nil {
+		t.Fatal("Job should exist before deletion")
+	}
+
+	// Delete the job
+	err = tmpDB.DeleteJob(job.ID)
+	if err != nil {
+		t.Fatalf("Failed to delete job: %v", err)
+	}
+
+	// Verify job is deleted
+	deleted, err := tmpDB.GetJobByID(job.ID)
+	if err != nil {
+		t.Fatalf("Unexpected error checking deleted job: %v", err)
+	}
+	if deleted != nil {
+		t.Error("Job should not exist after deletion")
+	}
+}

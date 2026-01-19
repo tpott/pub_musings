@@ -117,6 +117,15 @@ Rate limiting protects the API from abuse:
 - Public analytics endpoints are limited by IP to prevent spam
 - All rate-limited responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `Retry-After` headers
 
+**File Cleanup Configuration (optional):**
+```bash
+CLEANUP_ENABLED=true              # Enable automatic cleanup (default: true)
+CLEANUP_MAX_AGE_DAYS=30           # Delete files older than N days (default: 30)
+CLEANUP_INTERVAL_MINS=60          # How often to run cleanup (default: 60 minutes)
+```
+
+The cleanup service automatically deletes uploaded files and transcription results from jobs older than the configured age. This helps manage disk space on the server. Only completed and failed jobs are cleaned up; pending and processing jobs are preserved.
+
 **Email Notifications:**
 
 When `ENABLE_EMAIL=true`, users will receive email notifications when:

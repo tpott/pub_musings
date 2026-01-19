@@ -40,6 +40,11 @@ type Config struct {
 	RateLimitUploadPerHour int
 	RateLimitPublicPerMin  int
 	RateLimitDefaultPerMin int
+
+	// Cleanup configuration
+	CleanupEnabled      bool
+	CleanupMaxAgeDays   int
+	CleanupIntervalMins int
 }
 
 // Load returns a Config with values from environment variables or defaults
@@ -63,6 +68,9 @@ func Load() *Config {
 		RateLimitUploadPerHour: getEnvInt("RATE_LIMIT_UPLOAD_PER_HOUR", 10),
 		RateLimitPublicPerMin:  getEnvInt("RATE_LIMIT_PUBLIC_PER_MIN", 100),
 		RateLimitDefaultPerMin: getEnvInt("RATE_LIMIT_DEFAULT_PER_MIN", 60),
+		CleanupEnabled:         getEnvBool("CLEANUP_ENABLED", true),
+		CleanupMaxAgeDays:      getEnvInt("CLEANUP_MAX_AGE_DAYS", 30),
+		CleanupIntervalMins:    getEnvInt("CLEANUP_INTERVAL_MINS", 60),
 	}
 }
 

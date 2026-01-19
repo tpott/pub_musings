@@ -179,3 +179,51 @@ func (db *DB) UpdateJobFailed(id int64, errorMessage string) error {
 	_, err := db.Exec(query, errorMessage, id)
 	return err
 }
+
+// GetOldJobs retrieves all jobs older than maxAgeDays
+// Only returns completed or failed jobs (not pending or processing)
+func (db *DB) GetOldJobs(maxAgeDays int) ([]*Job, error) {
+	query := `
+		SELECT id, user_id, status, original_filename, file_path, file_size,
+		       output_format, transcript_path, error_message, created_at,
+		       updated_at, completed_at
+		FROM jobs
+		WHERE created_at < datetime('now', '-' || ? || ' days')
+		  AND status IN ('completed', 'failed')
+		ORDER BY created_at ASC
+	`
+
+	rows, err := db.Query(query, maxAgeDays)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	jobs := []*Job{}
+	for rows.Next() {
+		job := &Job{}
+		err := rows.Scan(
+			&job.ID, &job.UserID, &job.Status, &job.OriginalFilename,
+			&job.FilePath, &job.FileSize, &job.OutputFormat,
+			&job.TranscriptPath, &job.ErrorMessage,
+			&job.CreatedAt, &job.UpdatedAt, &job.CompletedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, job)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return jobs, nil
+}
+
+// DeleteJob deletes a job record by ID
+func (db *DB) DeleteJob(id int64) error {
+	query := `DELETE FROM jobs WHERE id = ?`
+	_, err := db.Exec(query, id)
+	return err
+}

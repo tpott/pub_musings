@@ -13,6 +13,7 @@ import (
 
 	"github.com/trevor/subtitler/internal/analytics"
 	"github.com/trevor/subtitler/internal/auth"
+	"github.com/trevor/subtitler/internal/cleanup"
 	"github.com/trevor/subtitler/internal/config"
 	"github.com/trevor/subtitler/internal/db"
 	"github.com/trevor/subtitler/internal/email"
@@ -334,6 +335,17 @@ func main() {
 	workerPool.Start()
 	defer workerPool.Stop()
 	log.Println("Worker pool started with 4 workers")
+
+	// Initialize cleanup service for old job files
+	if cfg.CleanupEnabled {
+		log.Println("Starting cleanup service...")
+		cleanupService := cleanup.NewService(database, cfg.CleanupMaxAgeDays, cfg.CleanupIntervalMins)
+		cleanupService.Start()
+		defer cleanupService.Stop()
+		log.Printf("Cleanup service started (max age: %d days, interval: %d mins)", cfg.CleanupMaxAgeDays, cfg.CleanupIntervalMins)
+	} else {
+		log.Println("Cleanup service disabled")
+	}
 
 	// Initialize rate limiters
 	log.Println("Initializing rate limiters...")
