@@ -34,7 +34,7 @@ type AuthUserResult struct {
 	Email string `json:"email"`
 }
 
-func handleRegister(database *db.DB, jwtSecret string, analyticsService *analytics.Service) http.HandlerFunc {
+func handleRegister(database *db.DB, jwtSecret string, cookieSecure bool, analyticsService *analytics.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if enableCORS(w, r) {
 			return
@@ -96,7 +96,7 @@ func handleRegister(database *db.DB, jwtSecret string, analyticsService *analyti
 		}
 
 		// Set cookie
-		setAuthCookie(w, token)
+		setAuthCookie(w, token, cookieSecure)
 
 		// Track signup_completed event (fail silently if tracking fails)
 		visitorID := r.Header.Get("X-Visitor-ID")
@@ -129,7 +129,7 @@ func handleRegister(database *db.DB, jwtSecret string, analyticsService *analyti
 	}
 }
 
-func handleLogin(database *db.DB, jwtSecret string, analyticsService *analytics.Service) http.HandlerFunc {
+func handleLogin(database *db.DB, jwtSecret string, cookieSecure bool, analyticsService *analytics.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if enableCORS(w, r) {
 			return
@@ -178,7 +178,7 @@ func handleLogin(database *db.DB, jwtSecret string, analyticsService *analytics.
 		}
 
 		// Set cookie
-		setAuthCookie(w, token)
+		setAuthCookie(w, token, cookieSecure)
 
 		// Track login_completed event (fail silently if tracking fails)
 		visitorID := r.Header.Get("X-Visitor-ID")
@@ -261,13 +261,13 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func setAuthCookie(w http.ResponseWriter, token string) {
+func setAuthCookie(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.CookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(auth.TokenExpiry),
 	})

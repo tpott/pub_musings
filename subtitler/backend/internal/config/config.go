@@ -32,6 +32,9 @@ type Config struct {
 	// CORS configuration
 	FrontendURL           string
 
+	// Cookie configuration
+	CookieSecure          bool
+
 	// Rate limiting configuration
 	RateLimitAuthPerMin    int
 	RateLimitUploadPerHour int
@@ -55,6 +58,7 @@ func Load() *Config {
 		EmailFrom:         getEnv("EMAIL_FROM", "noreply@subtitler.example.com"),
 		EnableEmail:       getEnvBool("ENABLE_EMAIL", false),
 		FrontendURL:       getEnv("FRONTEND_URL", "http://localhost:4321"),
+		CookieSecure:      getEnvBool("COOKIE_SECURE", false),
 		RateLimitAuthPerMin:    getEnvInt("RATE_LIMIT_AUTH_PER_MIN", 5),
 		RateLimitUploadPerHour: getEnvInt("RATE_LIMIT_UPLOAD_PER_HOUR", 10),
 		RateLimitPublicPerMin:  getEnvInt("RATE_LIMIT_PUBLIC_PER_MIN", 100),

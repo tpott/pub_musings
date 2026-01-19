@@ -97,8 +97,11 @@ ENABLE_EMAIL=false              # Set to true to enable email notifications
 - `JWT_SECRET` - JWT signing secret (default: `dev-secret-change-in-production`)
 - `SERVER_PORT` - Server port (default: `8080`)
 - `FRONTEND_URL` - Frontend URL for CORS (default: `http://localhost:4321`)
+- `COOKIE_SECURE` - Set to `true` for production HTTPS deployments (default: `false`)
 - `WHISPER_MODEL_PATH` - Path to whisper model (default: `$HOME/Github/whisper.cpp/models/ggml-medium.bin`)
 - `WHISPER_SERVER_PATH` - Path to whisper-server binary (default: `$HOME/Github/whisper.cpp/build/bin/whisper-server`)
+
+**Security Note:** When deploying over HTTPS, always set `COOKIE_SECURE=true`. This ensures authentication cookies are only transmitted over secure connections, preventing man-in-the-middle attacks.
 
 **Rate Limiting Configuration (optional):**
 ```bash

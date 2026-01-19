@@ -2,9 +2,24 @@
 
 ## Current Status (2026-01-19)
 
-**Just completed:** Critical UI tasks 23-25 plus bug fix task 29.
+**Just completed:** Task 26 - Enable secure cookies for production.
 
 **Changes made this session:**
+
+### Task 26: Enable Secure Cookies for Production
+- Added `COOKIE_SECURE` configuration option to `internal/config/config.go`
+- Modified `handleRegister` and `handleLogin` to accept `cookieSecure` parameter
+- Updated `setAuthCookie` function to use configurable Secure flag
+- Updated main.go to pass `cfg.CookieSecure` to auth handlers
+- Updated ratelimit_test.go to include the new parameter
+- Documented in README.md, secrets.yaml.template, and deploy/README.md
+
+**Verification:**
+- `go build ./cmd/server` - Compiles successfully
+- `go test ./... -short` - All tests pass
+- `npm run build` - Frontend builds successfully
+
+## Previous Session Work
 
 ### Task 29: Fix Backend Crash on whisper-server Startup
 - Increased whisper-server readiness timeout from 30s to 120s (model loading takes time)
@@ -31,46 +46,25 @@
 - Added Nav to all pages: index, dashboard, login, register
 - Updated page layouts with page-wrapper and main-content structure
 
-## Verification
-
-To verify the changes:
-```bash
-# Backend
-cd backend && go build ./cmd/server   # Should compile
-cd backend && go test ./... -short    # All tests should pass
-
-# Frontend
-cd frontend && npm run build          # Should build 4 pages
-```
-
-All tests pass. Frontend builds successfully with 4 pages:
-- `/index.html` (home)
-- `/login/index.html`
-- `/register/index.html`
-- `/dashboard/index.html`
-
 ## Next Priority Tasks
 
-1. **Task 26**: Enable secure cookies for production (security concern)
-2. **Task 27**: Add 404 and error pages
-3. **Task 28**: Add .env.example files for deployment
+1. **Task 27**: Add 404 and error pages
+2. **Task 28**: Add .env.example files for deployment
+3. **Task 19**: Add file cleanup job
 
 ## Known Issues
 
-1. **Secure cookies** - Need to enable Secure flag for production HTTPS (Task 26)
-2. **Missing 404 page** - Visiting non-existent routes shows Astro default 404
+1. **Missing 404 page** - Visiting non-existent routes shows Astro default 404
 
 ## Files Modified This Session
 
 **Backend:**
-- `internal/transcribe/whisper_server.go` - Increased timeout
-- `cmd/server/main.go` - Non-fatal whisper startup
-- `internal/worker/worker.go` - Nil check for transcribe service
+- `internal/config/config.go` - Added CookieSecure config option
+- `cmd/server/auth_handlers.go` - Updated handlers to use configurable Secure flag
+- `cmd/server/main.go` - Pass CookieSecure to auth handlers
+- `cmd/server/ratelimit_test.go` - Updated test calls with new parameter
 
-**Frontend:**
-- `src/lib/auth.ts` - Fixed API paths
-- `src/components/Nav.astro` - New navigation component
-- `src/pages/login.astro` - New login page
-- `src/pages/register.astro` - New register page
-- `src/pages/index.astro` - Added Nav
-- `src/pages/dashboard.astro` - Added Nav
+**Documentation:**
+- `README.md` - Added COOKIE_SECURE documentation
+- `secrets.yaml.template` - Added COOKIE_SECURE to template
+- `deploy/README.md` - Added COOKIE_SECURE to .env example

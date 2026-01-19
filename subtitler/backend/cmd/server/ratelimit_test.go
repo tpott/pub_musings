@@ -36,7 +36,7 @@ func TestRateLimit_Register(t *testing.T) {
 
 	// Create handler with rate limiting
 	handler := ratelimit.IPMiddleware(limiter)(
-		http.HandlerFunc(handleRegister(database, "test-secret", analyticsService)),
+		http.HandlerFunc(handleRegister(database, "test-secret", false, analyticsService)),
 	)
 
 	// Make 5 requests (should all succeed)
@@ -112,7 +112,7 @@ func TestRateLimit_DifferentIPs(t *testing.T) {
 
 	// Create handler with rate limiting
 	handler := ratelimit.IPMiddleware(limiter)(
-		http.HandlerFunc(handleRegister(database, "test-secret", analyticsService)),
+		http.HandlerFunc(handleRegister(database, "test-secret", false, analyticsService)),
 	)
 
 	// Make 5 requests from IP1
@@ -192,7 +192,7 @@ func TestRateLimit_XForwardedFor(t *testing.T) {
 
 	// Create handler with rate limiting
 	handler := ratelimit.IPMiddleware(limiter)(
-		http.HandlerFunc(handleRegister(database, "test-secret", analyticsService)),
+		http.HandlerFunc(handleRegister(database, "test-secret", false, analyticsService)),
 	)
 
 	// Make 5 requests with X-Forwarded-For header

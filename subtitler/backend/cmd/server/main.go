@@ -378,8 +378,8 @@ func main() {
 	http.HandleFunc("/api/transcribe", handleTranscribe)
 
 	// Auth endpoints (rate limited by IP)
-	http.Handle("/api/register", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleRegister(database, cfg.JWTSecret, analyticsService))))
-	http.Handle("/api/login", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleLogin(database, cfg.JWTSecret, analyticsService))))
+	http.Handle("/api/register", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleRegister(database, cfg.JWTSecret, cfg.CookieSecure, analyticsService))))
+	http.Handle("/api/login", ratelimit.IPMiddleware(authLimiter)(http.HandlerFunc(handleLogin(database, cfg.JWTSecret, cfg.CookieSecure, analyticsService))))
 	http.HandleFunc("/api/logout", handleLogout)
 	http.Handle("/api/me", auth.AuthMiddleware(cfg.JWTSecret)(http.HandlerFunc(handleMe)))
 

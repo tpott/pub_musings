@@ -50,6 +50,7 @@ cat > .env << 'EOF'
 SERVER_PORT=8080
 JWT_SECRET=<generate-with: openssl rand -base64 32>
 FRONTEND_URL=https://subtitler.yourdomain.com
+COOKIE_SECURE=true
 
 # Database
 DATABASE_PATH=/home/trevor/pub_musings/subtitler/data/db/subtitler.db
