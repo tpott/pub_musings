@@ -56,7 +56,7 @@ func (ws *WhisperServer) Start() error {
 
 	// Wait for server to be ready
 	if err := ws.waitForReady(); err != nil {
-		ws.Stop()
+		ws.stopLocked()
 		return fmt.Errorf("whisper-server failed to become ready: %w", err)
 	}
 
@@ -68,7 +68,11 @@ func (ws *WhisperServer) Start() error {
 func (ws *WhisperServer) Stop() error {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+	return ws.stopLocked()
+}
 
+// stopLocked stops the whisper-server subprocess (must be called with mutex held)
+func (ws *WhisperServer) stopLocked() error {
 	if !ws.started || ws.cmd == nil || ws.cmd.Process == nil {
 		return nil
 	}
