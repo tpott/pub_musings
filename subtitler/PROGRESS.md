@@ -2,82 +2,75 @@
 
 ## Current Status (2026-01-19)
 
-**Just completed:** Task 21 - Add language selection for transcription.
+**Just completed:** Task 22 - Add batch processing (multiple file upload).
 
 **Changes made this session:**
 
-### Task 21: Add language selection for transcription
+### Task 22: Add batch processing
 
 **Backend:**
-- Created migration `004_add_language_to_jobs.sql` - Adds nullable `language` column to jobs table
-- Updated `Job` struct in `internal/db/jobs.go` to include `Language *string` field
-- Updated all job queries (CreateJob, GetJobByID, GetJobsByUserID, GetOldJobs) to include language column
-- Updated `handleUpload()` in `cmd/server/upload_handlers.go`:
-  - Reads `language` form parameter
-  - Validates against supported ISO 639-1 language codes (99 languages supported)
-  - Stores language in job record
-  - Includes language in analytics tracking
-- Updated worker in `internal/worker/worker.go`:
-  - `processJob()` now passes job.Language to TranscribeOptions
-  - `processEmbeddedJob()` also passes language for embedded format
+- Updated `upload_handlers.go` to support multiple file uploads:
+  - Added `BatchUploadResponse`, `JobResult`, and `FailedFile` types
+  - Modified `handleUpload()` to use `r.MultipartForm.File["file"]` for multiple files
+  - Added `processUploadedFile()` helper function for processing individual files
+  - Returns array of job IDs on success
+  - Handles partial failures gracefully (some files succeed, some fail)
+  - Maximum 10 files per batch upload
+  - Increased form size limit to 2GB total (200MB x 10 files)
 
 **Frontend:**
-- Updated `src/pages/index.astro`:
-  - Added language dropdown with optgroups (Common, European, Asian, Other)
-  - 50+ languages available for selection
-  - "Auto-detect" is the default option
-  - Dropdown appears after file selection
-  - Language is included in form submission when selected
-  - Reset button clears language selection
+- Updated `src/pages/index.astro` for multiple file selection:
+  - Added `multiple` attribute to file input
+  - Changed `selectedFile` to `selectedFiles` array
+  - New file list UI showing all selected files with sizes
+  - Remove button for individual files before upload
+  - File validation (size limit) shown per-file
+  - Dynamic button text ("Upload File" vs "Upload 3 Files")
+  - Redirects to dashboard on successful upload
+  - Updated hint text to mention "up to 10 files"
 
-**Tests:**
-- Added `TestJobLanguageField` in `internal/db/jobs_test.go`:
-  - Tests job creation without language (auto-detect)
-  - Tests job creation with language specified
-  - Tests language retrieval in GetJobsByUserID
+**UI/UX:**
+- Added CSS styles for file list display:
+  - `.file-list` container with header and summary
+  - `.file-item` cards with name, size, and remove button
+  - `.file-item-error` styling for invalid files
+  - Error messages shown inline per-file
 
 **Documentation:**
-- Created implementation plan `015_LANGUAGE_SELECTION.md`
+- Created `016_BATCH_PROCESSING.md` implementation plan
 
 **Verification:**
 - `go build ./cmd/server` - Backend builds successfully
-- `go test ./... -short` - All backend tests pass (26 tests)
+- `go test ./... -short` - All backend tests pass
 - `npm run build` - Frontend builds successfully
 
 ## Previous Session Work
 
+### Task 21: Add language selection for transcription
+- Language dropdown in upload form
+- Backend validates and stores language in job record
+
 ### Task 20: Add admin usage dashboard
-- Added `is_admin` field to users table
 - Admin analytics API endpoint and dashboard page
-- Stats cards for users, jobs, storage
 
 ### Task 19: Add file cleanup job
 - Automatic deletion of old job files (>30 days)
 
-### Task 28: Add .env.example files for deployment
-
-### Task 27: Add 404 and Error Pages
-
 ## Next Priority Tasks
 
-1. **Task 22**: Add batch processing - User can upload multiple files at once
-2. **Task 11**: Cloudflare Tunnel setup (blocked - requires human action)
+1. **Task 11**: Cloudflare Tunnel setup (blocked - requires human action)
 
 ## Known Issues
 
 1. **Playwright tests failing** - Some dashboard and upload tests are failing due to auth/API mocking issues. These failures pre-date this session and are not related to recent changes.
 
-## Files Created This Session
+## Files Modified This Session
 
 **Backend:**
-- `internal/db/migrations/004_add_language_to_jobs.sql` - Language column migration
+- `cmd/server/upload_handlers.go` - Batch upload support
+
+**Frontend:**
+- `src/pages/index.astro` - Multiple file selection UI
 
 **Documentation:**
-- `015_LANGUAGE_SELECTION.md` - Implementation plan
-
-**Modified Files:**
-- `internal/db/jobs.go` - Added Language field and updated queries
-- `internal/db/jobs_test.go` - Added TestJobLanguageField
-- `cmd/server/upload_handlers.go` - Language parameter handling
-- `internal/worker/worker.go` - Pass language to transcription
-- `frontend/src/pages/index.astro` - Language dropdown UI
+- `016_BATCH_PROCESSING.md` - Implementation plan

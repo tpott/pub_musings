@@ -119,6 +119,97 @@ import Nav from '../components/Nav.astro';
 				font-size: 14px;
 			}
 
+			.file-list {
+				margin-top: 20px;
+				display: none;
+			}
+
+			.file-list.visible {
+				display: block;
+			}
+
+			.file-list-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-bottom: 12px;
+			}
+
+			.file-list-title {
+				font-weight: 600;
+				color: #333;
+				font-size: 14px;
+			}
+
+			.file-list-summary {
+				color: #666;
+				font-size: 12px;
+			}
+
+			.file-item {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 10px 12px;
+				background: #f8f9ff;
+				border-radius: 6px;
+				margin-bottom: 8px;
+			}
+
+			.file-item:last-child {
+				margin-bottom: 0;
+			}
+
+			.file-item-info {
+				flex: 1;
+				min-width: 0;
+			}
+
+			.file-item-name {
+				font-weight: 500;
+				color: #333;
+				font-size: 14px;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.file-item-size {
+				color: #666;
+				font-size: 12px;
+			}
+
+			.file-item-remove {
+				background: none;
+				border: none;
+				color: #dc3545;
+				cursor: pointer;
+				padding: 4px 8px;
+				font-size: 18px;
+				line-height: 1;
+				opacity: 0.7;
+				transition: opacity 0.2s;
+			}
+
+			.file-item-remove:hover {
+				opacity: 1;
+			}
+
+			.file-item-error {
+				background: #fff5f5;
+				border: 1px solid #f5c6cb;
+			}
+
+			.file-item-error .file-item-name {
+				color: #721c24;
+			}
+
+			.file-item-error-msg {
+				color: #721c24;
+				font-size: 11px;
+				margin-top: 2px;
+			}
+
 			.submit-btn {
 				width: 100%;
 				padding: 14px;
@@ -272,14 +363,17 @@ import Nav from '../components/Nav.astro';
 			<form id="upload-form">
 				<div class="upload-area" id="upload-area">
 					<div class="upload-icon">📁</div>
-					<div class="upload-text">Click to select or drag and drop your file</div>
-					<div class="upload-hint">Supports: MP4, WebM, MP3, WAV, M4A (max 200MB)</div>
-					<input type="file" id="file-input" class="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.webm,.mkv,.avi,.mov" />
+					<div class="upload-text">Click to select or drag and drop your files</div>
+					<div class="upload-hint">Supports: MP4, WebM, MP3, WAV, M4A (max 200MB each, up to 10 files)</div>
+					<input type="file" id="file-input" class="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.mp4,.webm,.mkv,.avi,.mov" multiple />
 				</div>
 
-				<div class="file-info" id="file-info">
-					<div class="file-name" id="file-name"></div>
-					<div class="file-size" id="file-size"></div>
+				<div class="file-list" id="file-list">
+					<div class="file-list-header">
+						<span class="file-list-title">Selected Files</span>
+						<span class="file-list-summary" id="file-list-summary"></span>
+					</div>
+					<div id="file-list-items"></div>
 				</div>
 
 				<div class="options-section" id="options-section">
@@ -349,7 +443,7 @@ import Nav from '../components/Nav.astro';
 					<div class="options-hint">Select a language for better accuracy, or leave as auto-detect</div>
 				</div>
 
-				<button type="submit" class="submit-btn" id="submit-btn">Upload File</button>
+				<button type="submit" class="submit-btn" id="submit-btn">Upload Files</button>
 
 				<div class="progress-bar" id="progress-bar">
 					<div class="progress-fill" id="progress-fill"></div>
@@ -357,7 +451,7 @@ import Nav from '../components/Nav.astro';
 
 				<div class="message" id="message"></div>
 
-				<button type="button" class="reset-btn" id="reset-btn">Upload Another File</button>
+				<button type="button" class="reset-btn" id="reset-btn">Upload More Files</button>
 			</form>
 				</div>
 			</div>
@@ -371,9 +465,9 @@ import Nav from '../components/Nav.astro';
 
 			const uploadArea = document.getElementById('upload-area');
 			const fileInput = document.getElementById('file-input');
-			const fileInfo = document.getElementById('file-info');
-			const fileName = document.getElementById('file-name');
-			const fileSize = document.getElementById('file-size');
+			const fileList = document.getElementById('file-list');
+			const fileListItems = document.getElementById('file-list-items');
+			const fileListSummary = document.getElementById('file-list-summary');
 			const submitBtn = document.getElementById('submit-btn');
 			const progressBar = document.getElementById('progress-bar');
 			const progressFill = document.getElementById('progress-fill');
@@ -384,7 +478,8 @@ import Nav from '../components/Nav.astro';
 			const languageSelect = document.getElementById('language-select');
 
 			const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
-			let selectedFile = null;
+			const MAX_FILES = 10;
+			let selectedFiles = []; // Array of {file, valid, error} objects
 
 			// Click to upload
 			uploadArea.addEventListener('click', () => {
@@ -404,37 +499,98 @@ import Nav from '../components/Nav.astro';
 			uploadArea.addEventListener('drop', (e) => {
 				e.preventDefault();
 				uploadArea.classList.remove('dragging');
-				const files = e.dataTransfer.files;
-				if (files.length > 0) {
-					handleFileSelect(files[0]);
-				}
+				const files = Array.from(e.dataTransfer.files);
+				handleFilesSelect(files);
 			});
 
 			// File input change
 			fileInput.addEventListener('change', (e) => {
-				if (e.target.files.length > 0) {
-					handleFileSelect(e.target.files[0]);
-				}
+				const files = Array.from(e.target.files);
+				handleFilesSelect(files);
 			});
 
-			function handleFileSelect(file) {
-				selectedFile = file;
+			function handleFilesSelect(files) {
+				// Add new files to selection (avoid duplicates by name)
+				const existingNames = new Set(selectedFiles.map(f => f.file.name));
 
-				// Display file info
-				fileName.textContent = file.name;
-				fileSize.textContent = formatFileSize(file.size);
-				fileInfo.classList.add('visible');
+				for (const file of files) {
+					if (existingNames.has(file.name)) continue; // Skip duplicates
+					if (selectedFiles.length >= MAX_FILES) {
+						showMessage(`Maximum ${MAX_FILES} files allowed`, 'error');
+						break;
+					}
+
+					const valid = file.size <= MAX_FILE_SIZE;
+					const error = valid ? null : 'File exceeds 200MB limit';
+					selectedFiles.push({ file, valid, error });
+					existingNames.add(file.name);
+				}
+
+				updateFileListDisplay();
+			}
+
+			function removeFile(index) {
+				selectedFiles.splice(index, 1);
+				updateFileListDisplay();
+			}
+
+			function updateFileListDisplay() {
+				if (selectedFiles.length === 0) {
+					fileList.classList.remove('visible');
+					optionsSection.classList.remove('visible');
+					submitBtn.classList.remove('visible');
+					hideMessage();
+					return;
+				}
+
+				// Show file list and options
+				fileList.classList.add('visible');
 				optionsSection.classList.add('visible');
 				submitBtn.classList.add('visible');
 
-				// Validate file size
-				if (file.size > MAX_FILE_SIZE) {
-					showMessage('File size exceeds 200MB limit', 'error');
-					submitBtn.disabled = true;
+				// Calculate totals
+				const totalSize = selectedFiles.reduce((sum, f) => sum + f.file.size, 0);
+				const validCount = selectedFiles.filter(f => f.valid).length;
+
+				// Update summary
+				fileListSummary.textContent = `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} (${formatFileSize(totalSize)})`;
+
+				// Render file items
+				fileListItems.innerHTML = selectedFiles.map((item, index) => `
+					<div class="file-item ${item.valid ? '' : 'file-item-error'}">
+						<div class="file-item-info">
+							<div class="file-item-name">${escapeHtml(item.file.name)}</div>
+							<div class="file-item-size">${formatFileSize(item.file.size)}</div>
+							${item.error ? `<div class="file-item-error-msg">${escapeHtml(item.error)}</div>` : ''}
+						</div>
+						<button type="button" class="file-item-remove" data-index="${index}" title="Remove file">&times;</button>
+					</div>
+				`).join('');
+
+				// Add event listeners for remove buttons
+				fileListItems.querySelectorAll('.file-item-remove').forEach(btn => {
+					btn.addEventListener('click', (e) => {
+						const index = parseInt(e.target.dataset.index);
+						removeFile(index);
+					});
+				});
+
+				// Update submit button state
+				submitBtn.disabled = validCount === 0;
+				if (validCount === 0 && selectedFiles.length > 0) {
+					showMessage('No valid files to upload', 'error');
 				} else {
 					hideMessage();
-					submitBtn.disabled = false;
 				}
+
+				// Update button text based on count
+				submitBtn.textContent = validCount === 1 ? 'Upload File' : `Upload ${validCount} Files`;
+			}
+
+			function escapeHtml(text) {
+				const div = document.createElement('div');
+				div.textContent = text;
+				return div.innerHTML;
 			}
 
 			function formatFileSize(bytes) {
@@ -457,14 +613,17 @@ import Nav from '../components/Nav.astro';
 			uploadForm.addEventListener('submit', async (e) => {
 				e.preventDefault();
 
-				if (!selectedFile) {
-					showMessage('Please select a file first', 'error');
+				const validFiles = selectedFiles.filter(f => f.valid);
+				if (validFiles.length === 0) {
+					showMessage('Please select valid files first', 'error');
 					return;
 				}
 
-				// Prepare form data
+				// Prepare form data with all valid files
 				const formData = new FormData();
-				formData.append('file', selectedFile);
+				validFiles.forEach(item => {
+					formData.append('file', item.file);
+				});
 
 				// Add language if selected
 				const selectedLanguage = languageSelect.value;
@@ -492,16 +651,36 @@ import Nav from '../components/Nav.astro';
 					// Handle completion
 					xhr.addEventListener('load', () => {
 						progressBar.classList.remove('visible');
-						submitBtn.disabled = false;
 
-						if (xhr.status === 200) {
+						try {
 							const response = JSON.parse(xhr.responseText);
-							showMessage('File uploaded successfully: ' + response.filename, 'success');
-							resetBtn.classList.add('visible');
-							submitBtn.classList.remove('visible');
-						} else {
-							const response = JSON.parse(xhr.responseText);
-							showMessage('Upload failed: ' + (response.message || 'Unknown error'), 'error');
+
+							if (xhr.status === 201 && response.success) {
+								// Success - show message and redirect to dashboard
+								let msg = response.message;
+								if (response.failed_files && response.failed_files.length > 0) {
+									msg += '. Failed: ' + response.failed_files.map(f => f.filename).join(', ');
+								}
+								showMessage(msg, 'success');
+								resetBtn.classList.add('visible');
+								submitBtn.classList.remove('visible');
+
+								// Redirect to dashboard after a brief delay
+								setTimeout(() => {
+									window.location.href = '/dashboard';
+								}, 1500);
+							} else {
+								// Error
+								let errorMsg = response.message || 'Unknown error';
+								if (response.failed_files && response.failed_files.length > 0) {
+									errorMsg += ': ' + response.failed_files.map(f => `${f.filename} (${f.error})`).join(', ');
+								}
+								showMessage('Upload failed: ' + errorMsg, 'error');
+								submitBtn.disabled = false;
+							}
+						} catch (parseErr) {
+							showMessage('Upload failed: Invalid server response', 'error');
+							submitBtn.disabled = false;
 						}
 					});
 
@@ -524,13 +703,14 @@ import Nav from '../components/Nav.astro';
 
 			resetBtn.addEventListener('click', () => {
 				// Reset form
-				selectedFile = null;
+				selectedFiles = [];
 				fileInput.value = '';
-				fileInfo.classList.remove('visible');
+				fileList.classList.remove('visible');
 				optionsSection.classList.remove('visible');
 				languageSelect.value = '';
 				submitBtn.classList.remove('visible');
 				submitBtn.classList.add('visible');
+				submitBtn.textContent = 'Upload Files';
 				resetBtn.classList.remove('visible');
 				hideMessage();
 				submitBtn.disabled = false;
