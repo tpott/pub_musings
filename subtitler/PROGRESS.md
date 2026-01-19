@@ -2,22 +2,37 @@
 
 ## Current Status (2026-01-19)
 
-**Just completed:** Task 27 - Add 404 and error pages.
+**Just completed:** Task 28 - Add .env.example files for deployment.
 
 **Changes made this session:**
+
+### Task 28: Add .env.example files for deployment
+- Created `backend/.env.example` with all environment variables documented:
+  - Server configuration (port, frontend URL)
+  - Authentication (JWT secret, cookie settings)
+  - Database paths
+  - Email configuration (Resend API)
+  - Whisper.cpp configuration
+  - Rate limiting settings
+- Created `frontend/.env.example` with documentation explaining:
+  - Development setup uses Vite proxy (no env vars needed)
+  - Optional production configuration
+  - CI/testing variables
+- Updated `deploy/README.md` to reference the new .env.example files
+
+**Verification:**
+- `ls backend/.env.example frontend/.env.example` - Both files exist
+- `go build ./cmd/server` - Backend builds successfully
+- `go test ./... -short` - All backend tests pass
+- `grep ".env.example" deploy/README.md` - README references the example files
+
+## Previous Session Work
 
 ### Task 27: Add 404 and Error Pages
 - Created `frontend/src/pages/404.astro` - styled 404 page with navigation back to homepage/dashboard
 - Created `frontend/src/pages/500.astro` - styled 500 server error page with retry button
 - Both pages match the site design (purple gradient background, white card, consistent typography)
 - Both pages include analytics tracking for error page views
-
-**Verification:**
-- `npm run build` - Frontend builds successfully with 6 pages
-- `go build ./cmd/server` - Backend builds successfully
-- `go test ./... -short` - All backend tests pass
-
-## Previous Session Work
 
 ### Task 26: Enable Secure Cookies for Production
 - Added `COOKIE_SECURE` configuration option to `internal/config/config.go`
@@ -34,16 +49,21 @@
 
 ## Next Priority Tasks
 
-1. **Task 28**: Add .env.example files for deployment
-2. **Task 19**: Add file cleanup job
-3. **Task 20**: Add usage dashboard for admin
+1. **Task 19**: Add file cleanup job
+2. **Task 20**: Add usage dashboard for admin
+3. **Task 21**: Add language selection for transcription
 
 ## Known Issues
 
-1. **Playwright tests failing** - Some dashboard and upload tests are failing due to auth/API mocking issues. These failures pre-date this session and are not related to the 404/500 page changes.
+1. **Playwright tests failing** - Some dashboard and upload tests are failing due to auth/API mocking issues. These failures pre-date this session and are not related to recent changes.
 
 ## Files Modified This Session
 
+**Backend:**
+- `.env.example` (new) - Environment variable documentation
+
 **Frontend:**
-- `src/pages/404.astro` (new) - 404 error page
-- `src/pages/500.astro` (new) - 500 server error page
+- `.env.example` (new) - Environment variable documentation
+
+**Deploy:**
+- `README.md` - Updated to reference .env.example files

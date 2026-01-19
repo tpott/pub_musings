@@ -39,56 +39,44 @@ Run these commands on the VM:
 ```bash
 cd ~/pub_musings/subtitler/backend
 
-# Option A: If secrets.enc.yaml exists, decrypt it
+# Option A: Copy from .env.example and edit
+cp .env.example .env
+nano .env  # Edit values for production
+
+# Option B: If secrets.enc.yaml exists, decrypt it
 sops -d ~/pub_musings/subtitler/secrets.enc.yaml | \
   grep -E "^(JWT_SECRET|RESEND_API_KEY|EMAIL_FROM|FRONTEND_URL):" | \
   sed 's/: /=/' | sed 's/"//g' > .env
 
-# Option B: Create manually
-cat > .env << 'EOF'
-# Server
-SERVER_PORT=8080
-JWT_SECRET=<generate-with: openssl rand -base64 32>
-FRONTEND_URL=https://subtitler.yourdomain.com
-COOKIE_SECURE=true
-
-# Database
-DATABASE_PATH=/home/trevor/pub_musings/subtitler/data/db/subtitler.db
-DATA_DIR=/home/trevor/pub_musings/subtitler/data
-
-# Email
-RESEND_API_KEY=re_xxxxx
-EMAIL_FROM=noreply@yourdomain.com
-ENABLE_EMAIL=true
-
-# Whisper.cpp
-WHISPER_MODEL_PATH=/home/trevor/Github/whisper.cpp/models/ggml-medium.bin
-WHISPER_SERVER_PATH=/home/trevor/Github/whisper.cpp/build/bin/whisper-server
-WHISPER_SERVER_PORT=9090
-WHISPER_THREADS=4
-EOF
+# CRITICAL: Set these for production:
+# - JWT_SECRET: Generate with `openssl rand -base64 32`
+# - COOKIE_SECURE=true (when using HTTPS)
+# - FRONTEND_URL=https://subtitler.yourdomain.com
+# - ENABLE_EMAIL=true (if using email notifications)
+# - RESEND_API_KEY=re_xxxxx (your Resend API key)
 
 # Secure permissions
 chmod 600 .env
 ```
 
-### 2. Create Frontend .env File
+See `backend/.env.example` for full list of configuration options with documentation.
+
+### 2. Create Frontend .env File (Optional)
 
 ```bash
 cd ~/pub_musings/subtitler/frontend
 
-# Option A: If secrets.enc.yaml exists, decrypt it
-sops -d ~/pub_musings/subtitler/secrets.enc.yaml | \
-  grep -E "^PUBLIC_API_URL:" | \
-  sed 's/: /=/' | sed 's/"//g' > .env
+# The frontend uses Vite's proxy in development to route /api to the backend.
+# In production with the same-domain Caddy setup, no .env is required.
 
-# Option B: Create manually
-cat > .env << 'EOF'
-PUBLIC_API_URL=https://api.subtitler.yourdomain.com
-EOF
+# If you need custom configuration, copy from .env.example:
+cp .env.example .env
+nano .env  # Edit as needed
 
 chmod 600 .env
 ```
+
+See `frontend/.env.example` for available configuration options.
 
 ### 3. Install systemd Service
 
