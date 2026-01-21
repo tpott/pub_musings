@@ -48,12 +48,23 @@ cd backend && /home/trevor/go/bin/go test ./... -v
 cd frontend && npm test
 ```
 
+### Installation
+
+See [INSTALL.md](INSTALL.md) for detailed instructions on installing:
+- Node.js (v18+)
+- Go (v1.22+)
+- FFmpeg
+- whisper-cli (from whisper.cpp)
+
+### Linting
+
+See [LINTERS.md](LINTERS.md) for linting setup:
+- Go: golangci-lint, go fmt, go vet
+- Frontend: ESLint, Prettier
+
+### Browser Testing
+
+See [BROWSER_TESTING.md](BROWSER_TESTING.md) for E2E testing with Playwright.
+
 ### TODO
-* Install section and link to INSTALL.md
-* Linters section and link to LINTERS.md
-* Browser automation section and link to BROWSER_TESTING.md
 * Debugging section, how to attach debuggers
-
-## Install
-
-TODO create [INSTALL.md](INSTALL.md) to document how to install dependencies for this project

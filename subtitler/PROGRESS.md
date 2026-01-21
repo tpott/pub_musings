@@ -548,13 +548,68 @@ Also updated `README.md` to:
 - Include quick test commands
 - Remove Testing from TODO list
 
-## Completed
+### Task 21: Create INSTALL.md documentation
 
-All 20 tasks have been completed! The subtitler application is feature-complete with:
+**Date**: 2026-01-21
+
+Created comprehensive installation documentation in `INSTALL.md`:
+
+- System prerequisites (Linux/macOS)
+- Node.js installation (v18+ required for Astro)
+- Go installation (v1.22+ required for backend)
+- FFmpeg installation (for audio extraction and subtitle burning)
+- whisper-cli installation from whisper.cpp source
+- Whisper model download instructions
+- SQLite installation (optional, usually pre-installed)
+- Environment variables table (PORT, WHISPER_MODEL)
+- Quick start commands
+- Troubleshooting section for common issues
+- Links to related documentation
+
+### Task 22: Create LINTERS.md documentation
+
+**Date**: 2026-01-21
+
+Created linting guide documentation in `LINTERS.md`:
+
+- Go linting with golangci-lint installation and usage
+- Built-in Go tools (go fmt, go vet)
+- Optional golangci.yml configuration example
+- ESLint setup for TypeScript/Astro
+- Prettier setup for code formatting
+- Package.json script additions
+- Pre-commit hooks setup with Husky
+- Quick reference table of all linting commands
+- Links to related documentation
+
+### Task 23: Create BROWSER_TESTING.md documentation
+
+**Date**: 2026-01-21
+
+Created browser automation testing guide in `BROWSER_TESTING.md`:
+
+- Overview of E2E testing benefits
+- Playwright installation and configuration
+- playwright.config.ts with multi-browser support
+- Test directory structure
+- Example tests for homepage, upload flow, and authentication
+- Test running commands (headed, UI, debug modes)
+- Test fixtures (creating test video with ffmpeg)
+- Database reset for consistent tests
+- GitHub Actions CI/CD integration example
+- Debugging failed tests (reports, traces, screenshots)
+- Alternative: Cypress brief overview
+- Quick reference command table
+- Links to related documentation
+
+## Summary
+
+All 23 tasks have been completed! The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
 - User authentication with optional 2FA (TOTP)
 - File encryption at rest
 - Anonymous and registered user support with retention policies
-- Comprehensive test coverage
+- Comprehensive test coverage (128 tests)
+- Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
