@@ -151,9 +151,18 @@
 			.segment {
 				padding: 0.75rem 1rem;
 				border-bottom: 1px solid var(--border-color);
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.segment:hover {
+				background-color: #f5f5f5;
 			}
 			.segment:last-child {
 				border-bottom: none;
+			}
+			.segment.active {
+				background-color: #e6f0ff;
+				border-left: 3px solid var(--accent-color);
 			}
 			.segment-time {
 				font-size: 0.75rem;
@@ -163,6 +172,39 @@
 			}
 			.segment-text {
 				font-size: 0.95rem;
+			}
+			.current-subtitle {
+				margin-top: 1rem;
+				padding: 1rem;
+				background-color: #1a1a1a;
+				color: #fff;
+				border-radius: 8px;
+				font-size: 1.25rem;
+				text-align: center;
+				min-height: 3.5rem;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.download-btn {
+				display: inline-block;
+				margin-top: 1rem;
+				padding: 0.75rem 1.5rem;
+				background-color: var(--accent-color);
+				color: #fff;
+				text-decoration: none;
+				border-radius: 6px;
+				font-weight: 500;
+				transition: background-color 0.2s;
+			}
+			.download-btn:hover {
+				background-color: #0052a3;
+			}
+			.actions {
+				margin-top: 1rem;
+				display: flex;
+				gap: 1rem;
+				flex-wrap: wrap;
 			}
 			.full-text {
 				margin-top: 1rem;
@@ -202,7 +244,11 @@
 			<div class="transcription" id="transcription">
 				<h2>Transcription</h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
+				<div class="current-subtitle" id="currentSubtitle"></div>
 				<div class="segments" id="segments"></div>
+				<div class="actions" id="actions" style="display: none;">
+					<a href="#" class="download-btn" id="downloadSrt">Download SRT</a>
+				</div>
 				<div class="full-text" id="fullText"></div>
 			</div>
 		</div>
@@ -220,9 +266,13 @@
 			const transcriptionStatus = document.getElementById('transcriptionStatus') as HTMLElement;
 			const segments = document.getElementById('segments') as HTMLElement;
 			const fullText = document.getElementById('fullText') as HTMLElement;
+			const currentSubtitle = document.getElementById('currentSubtitle') as HTMLElement;
+			const actions = document.getElementById('actions') as HTMLElement;
+			const downloadSrt = document.getElementById('downloadSrt') as HTMLAnchorElement;
 
 			let isUploading = false;
 			let currentUploadId: string | null = null;
+			let transcriptionSegments: any[] = [];
 
 			dropzone.addEventListener('click', () => fileInput.click());
 
@@ -425,20 +475,85 @@
 			function displayTranscription(result: any) {
 				if (!result) return;
 
+				// Store segments for syncing
+				transcriptionSegments = result.segments || [];
+
 				// Display full text
 				if (result.text) {
 					fullText.textContent = result.text;
 				}
 
-				// Display segments
-				if (result.segments && result.segments.length > 0) {
-					segments.innerHTML = result.segments.map((seg: any) => `
-						<div class="segment">
+				// Display segments with click handlers
+				if (transcriptionSegments.length > 0) {
+					segments.innerHTML = transcriptionSegments.map((seg: any, index: number) => `
+						<div class="segment" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
 							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
 							<div class="segment-text">${seg.text}</div>
 						</div>
 					`).join('');
+
+					// Add click handlers for seeking
+					segments.querySelectorAll('.segment').forEach(el => {
+						el.addEventListener('click', () => {
+							const start = parseFloat(el.getAttribute('data-start') || '0');
+							previewVideo.currentTime = start;
+							previewVideo.play();
+						});
+					});
 				}
+
+				// Show download button
+				if (currentUploadId) {
+					downloadSrt.href = `/api/videos/${currentUploadId}/subtitles.srt`;
+					actions.style.display = 'flex';
+				}
+
+				// Load video from server for playback (replacing blob URL)
+				if (currentUploadId) {
+					previewVideo.src = `/api/videos/${currentUploadId}/video`;
+				}
+
+				// Set up video timeupdate handler for subtitle syncing
+				setupSubtitleSync();
+			}
+
+			function setupSubtitleSync() {
+				previewVideo.addEventListener('timeupdate', updateCurrentSubtitle);
+			}
+
+			function updateCurrentSubtitle() {
+				const currentTime = previewVideo.currentTime;
+
+				// Find the current segment
+				let currentSeg = null;
+				let currentIndex = -1;
+
+				for (let i = 0; i < transcriptionSegments.length; i++) {
+					const seg = transcriptionSegments[i];
+					if (currentTime >= seg.start && currentTime <= seg.end) {
+						currentSeg = seg;
+						currentIndex = i;
+						break;
+					}
+				}
+
+				// Update the current subtitle display
+				if (currentSeg) {
+					currentSubtitle.textContent = currentSeg.text.trim();
+				} else {
+					currentSubtitle.textContent = '';
+				}
+
+				// Update active segment highlighting
+				segments.querySelectorAll('.segment').forEach((el, idx) => {
+					if (idx === currentIndex) {
+						el.classList.add('active');
+						// Scroll the segment into view if needed
+						el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+					} else {
+						el.classList.remove('active');
+					}
+				});
 			}
 		</script>
 	</body>

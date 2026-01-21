@@ -3,7 +3,7 @@
 {"id": 3, "name": "Frontend: Complete upload flow", "done_when": "Upload page sends file to backend and shows upload progress and result", "status": "done"}
 {"id": 4, "name": "Backend: Integrate whisper-server", "done_when": "Backend can send video to whisper and receive transcription with timestamps", "status": "done"}
 {"id": 5, "name": "Backend: Generate SRT files", "done_when": "Backend generates valid SRT subtitle files from whisper output", "status": "done"}
-{"id": 6, "name": "Frontend: Subtitle viewer", "done_when": "User can view subtitles synced with video playback", "status": "todo"}
+{"id": 6, "name": "Frontend: Subtitle viewer", "done_when": "User can view subtitles synced with video playback", "status": "done"}
 {"id": 7, "name": "Backend: SQLite database", "done_when": "Videos and subtitles stored in SQLite with proper schema", "status": "todo"}
 {"id": 8, "name": "Backend: File encryption at rest", "done_when": "Uploaded files encrypted with age, decrypted on access", "status": "todo"}
 {"id": 9, "name": "API: Download SRT endpoint", "done_when": "GET /api/videos/:id/subtitles.srt returns downloadable SRT file", "status": "done"}

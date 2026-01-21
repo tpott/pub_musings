@@ -84,6 +84,19 @@ Added unit tests in `backend/main_test.go`:
 - `TestGenerateSRT` - validates full SRT generation
 - `TestGenerateSRTEmpty` - validates empty segment handling
 
+### Task 6: Frontend - Subtitle viewer
+
+**Date**: 2026-01-21
+
+Implemented synced subtitle viewer in `frontend/src/pages/upload.astro`:
+
+- Added video serving endpoint `GET /api/videos/{id}/video` in backend
+- Current subtitle display: Shows active subtitle text in a dark overlay during playback
+- Clickable segments: Click any segment to seek to that timestamp
+- Active segment highlighting: Currently playing segment is highlighted with blue border
+- Auto-scroll: Segment list auto-scrolls to keep active segment visible
+- Download SRT button: Allows downloading the generated SRT file
+
 ## In Progress
 
 None

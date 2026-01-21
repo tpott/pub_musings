@@ -439,6 +439,33 @@ func main() {
 		w.Write([]byte(srtContent))
 	})
 
+	// Serve uploaded video files for playback
+	mux.HandleFunc("GET /api/videos/{id}/video", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		// Find the video file
+		videoPath, err := findVideoFile(uploadID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Serve the file
+		http.ServeFile(w, r, videoPath)
+	})
+
 	log.Printf("Backend server starting on :%s", port)
 	log.Printf("Using whisper model: %s", getWhisperModel())
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
