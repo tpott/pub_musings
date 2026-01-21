@@ -341,3 +341,197 @@ func TestCountVideosBySession(t *testing.T) {
 		t.Errorf("Expected 0 videos for different session, got %d", count)
 	}
 }
+
+func TestGetExpiredVideos(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	userID := "user-123"
+
+	// Create an anonymous video older than 48 hours (should be expired)
+	expiredAnon := &Video{
+		ID:          "anon-old",
+		Filename:    "old-anon.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/anon-old.mp4",
+		CreatedAt:   time.Now().Add(-49 * time.Hour),
+	}
+	if err := db.CreateVideo(expiredAnon); err != nil {
+		t.Fatalf("Failed to create expired anonymous video: %v", err)
+	}
+
+	// Create an anonymous video less than 48 hours old (should NOT be expired)
+	freshAnon := &Video{
+		ID:          "anon-fresh",
+		Filename:    "fresh-anon.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/anon-fresh.mp4",
+		CreatedAt:   time.Now().Add(-24 * time.Hour),
+	}
+	if err := db.CreateVideo(freshAnon); err != nil {
+		t.Fatalf("Failed to create fresh anonymous video: %v", err)
+	}
+
+	// Create a registered user video older than 90 days (should be expired)
+	expiredUser := &Video{
+		ID:          "user-old",
+		Filename:    "old-user.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/user-old.mp4",
+		CreatedAt:   time.Now().Add(-91 * 24 * time.Hour),
+		UserID:      &userID,
+	}
+	if err := db.CreateVideo(expiredUser); err != nil {
+		t.Fatalf("Failed to create expired user video: %v", err)
+	}
+
+	// Create a registered user video less than 90 days old (should NOT be expired)
+	freshUser := &Video{
+		ID:          "user-fresh",
+		Filename:    "fresh-user.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/user-fresh.mp4",
+		CreatedAt:   time.Now().Add(-30 * 24 * time.Hour),
+		UserID:      &userID,
+	}
+	if err := db.CreateVideo(freshUser); err != nil {
+		t.Fatalf("Failed to create fresh user video: %v", err)
+	}
+
+	// Get expired videos
+	expired, err := db.GetExpiredVideos()
+	if err != nil {
+		t.Fatalf("Failed to get expired videos: %v", err)
+	}
+
+	// Should have exactly 2 expired videos
+	if len(expired) != 2 {
+		t.Errorf("Expected 2 expired videos, got %d", len(expired))
+	}
+
+	// Check that the correct videos are in the list
+	expiredIDs := make(map[string]bool)
+	for _, v := range expired {
+		expiredIDs[v.ID] = true
+	}
+
+	if !expiredIDs["anon-old"] {
+		t.Error("Expected 'anon-old' to be expired")
+	}
+	if !expiredIDs["user-old"] {
+		t.Error("Expected 'user-old' to be expired")
+	}
+	if expiredIDs["anon-fresh"] {
+		t.Error("Did not expect 'anon-fresh' to be expired")
+	}
+	if expiredIDs["user-fresh"] {
+		t.Error("Did not expect 'user-fresh' to be expired")
+	}
+}
+
+func TestDeleteVideo(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a video with a transcription
+	video := &Video{
+		ID:          "video-to-delete",
+		Filename:    "test.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/video-to-delete.mp4",
+		CreatedAt:   time.Now(),
+	}
+	if err := db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create video: %v", err)
+	}
+
+	transcription := &Transcription{
+		ID:        "trans-to-delete",
+		VideoID:   "video-to-delete",
+		Status:    "complete",
+		Message:   "Done",
+		Progress:  100,
+		CreatedAt: time.Now(),
+	}
+	if err := db.CreateTranscription(transcription); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+
+	// Delete the video
+	filePath, err := db.DeleteVideo("video-to-delete")
+	if err != nil {
+		t.Fatalf("Failed to delete video: %v", err)
+	}
+
+	// Check that the file path was returned
+	if filePath != "/uploads/video-to-delete.mp4" {
+		t.Errorf("Expected file path '/uploads/video-to-delete.mp4', got '%s'", filePath)
+	}
+
+	// Verify video is deleted
+	retrieved, err := db.GetVideo("video-to-delete")
+	if err != nil {
+		t.Fatalf("Unexpected error getting deleted video: %v", err)
+	}
+	if retrieved != nil {
+		t.Error("Video should have been deleted")
+	}
+
+	// Verify transcription is deleted
+	trans, err := db.GetTranscription("video-to-delete")
+	if err != nil {
+		t.Fatalf("Unexpected error getting transcription: %v", err)
+	}
+	if trans != nil {
+		t.Error("Transcription should have been deleted")
+	}
+}
+
+func TestDeleteVideoNotFound(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Try to delete a non-existent video
+	filePath, err := db.DeleteVideo("nonexistent")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if filePath != "" {
+		t.Errorf("Expected empty file path for nonexistent video, got '%s'", filePath)
+	}
+}

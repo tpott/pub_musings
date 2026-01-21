@@ -270,6 +270,35 @@ Tests (`backend/db/db_test.go`):
 - Added `TestCountVideosBySession` to verify count functionality
 - Tests initial 0 count, incrementing count, and isolation between sessions
 
+### Task 14: Backend - Auto-delete old files
+
+**Date**: 2026-01-21
+
+Implemented automatic cleanup of expired videos based on retention policy:
+
+Database layer (`backend/db/db.go`):
+- Added `GetExpiredVideos()` method to find videos past retention period
+  - Anonymous videos (no user_id): expire after 48 hours
+  - Registered user videos: expire after 90 days
+- Added `DeleteVideo(videoID)` method to remove video and associated transcription
+  - Returns file path for disk cleanup
+  - Cascades deletion to transcriptions table
+
+Cleanup scheduler (`backend/main.go`):
+- Added `startCleanupScheduler()` goroutine that runs on server start
+- Runs cleanup immediately on startup, then every hour
+- `runCleanup()` function:
+  - Finds all expired videos using `GetExpiredVideos()`
+  - Deletes database records via `DeleteVideo()`
+  - Removes encrypted files from disk
+  - Also cleans up expired sessions via `DeleteExpiredSessions()`
+  - Logs all cleanup activity for monitoring
+
+Tests (`backend/db/db_test.go`):
+- Added `TestGetExpiredVideos` - validates expiry logic for both anonymous and registered users
+- Added `TestDeleteVideo` - validates cascade deletion of video and transcription
+- Added `TestDeleteVideoNotFound` - validates handling of non-existent videos
+
 ## In Progress
 
 None

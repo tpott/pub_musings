@@ -419,3 +419,62 @@ func (db *DB) DeleteUserSessions(userID string) error {
 	_, err := db.conn.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
 	return err
 }
+
+// GetExpiredVideos returns videos that have exceeded their retention period.
+// Anonymous videos (no user_id) expire after 48 hours.
+// Registered user videos expire after 90 days.
+func (db *DB) GetExpiredVideos() ([]Video, error) {
+	now := time.Now()
+	anonymousExpiry := now.Add(-48 * time.Hour)
+	registeredExpiry := now.Add(-90 * 24 * time.Hour)
+
+	rows, err := db.conn.Query(`
+		SELECT id, filename, size, content_type, file_path, created_at, user_id, session_id
+		FROM videos
+		WHERE (user_id IS NULL AND created_at < ?)
+		   OR (user_id IS NOT NULL AND created_at < ?)
+	`, anonymousExpiry, registeredExpiry)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var videos []Video
+	for rows.Next() {
+		var v Video
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+			return nil, err
+		}
+		videos = append(videos, v)
+	}
+
+	return videos, rows.Err()
+}
+
+// DeleteVideo deletes a video and its associated transcription from the database.
+// Returns the file path so the caller can delete the file from disk.
+func (db *DB) DeleteVideo(videoID string) (string, error) {
+	// Get the file path before deleting
+	video, err := db.GetVideo(videoID)
+	if err != nil {
+		return "", err
+	}
+	if video == nil {
+		return "", nil
+	}
+
+	// Delete transcription first (foreign key constraint)
+	_, err = db.conn.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, videoID)
+	if err != nil {
+		return "", fmt.Errorf("failed to delete transcription: %w", err)
+	}
+
+	// Delete video record
+	_, err = db.conn.Exec(`DELETE FROM videos WHERE id = ?`, videoID)
+	if err != nil {
+		return "", fmt.Errorf("failed to delete video: %w", err)
+	}
+
+	return video.FilePath, nil
+}

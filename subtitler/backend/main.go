@@ -995,9 +995,79 @@ func main() {
 		http.ServeFile(w, r, videoPath)
 	})
 
+	// Start the cleanup scheduler for expired videos
+	go startCleanupScheduler()
+
 	log.Printf("Backend server starting on :%s", port)
 	log.Printf("Using whisper model: %s", getWhisperModel())
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// startCleanupScheduler runs periodic cleanup of expired videos.
+// Anonymous videos are deleted after 48 hours, registered user videos after 90 days.
+func startCleanupScheduler() {
+	// Run cleanup immediately on startup, then every hour
+	runCleanup()
+
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		runCleanup()
+	}
+}
+
+// runCleanup deletes expired videos and their associated files
+func runCleanup() {
+	log.Println("Running cleanup for expired videos...")
+
+	expiredVideos, err := database.GetExpiredVideos()
+	if err != nil {
+		log.Printf("Error getting expired videos: %v", err)
+		return
+	}
+
+	if len(expiredVideos) == 0 {
+		log.Println("No expired videos to clean up")
+		return
+	}
+
+	log.Printf("Found %d expired videos to clean up", len(expiredVideos))
+
+	deletedCount := 0
+	for _, video := range expiredVideos {
+		// Delete from database and get file path
+		filePath, err := database.DeleteVideo(video.ID)
+		if err != nil {
+			log.Printf("Error deleting video %s from database: %v", video.ID, err)
+			continue
+		}
+
+		// Delete the file from disk
+		if filePath != "" {
+			if err := os.Remove(filePath); err != nil {
+				if !os.IsNotExist(err) {
+					log.Printf("Error deleting file %s: %v", filePath, err)
+				}
+			} else {
+				log.Printf("Deleted file: %s", filePath)
+			}
+		}
+
+		deletedCount++
+		log.Printf("Cleaned up expired video: %s (user: %v, created: %s)",
+			video.ID, video.UserID != nil, video.CreatedAt.Format(time.RFC3339))
+	}
+
+	// Also clean up expired sessions
+	sessionCount, err := database.DeleteExpiredSessions()
+	if err != nil {
+		log.Printf("Error deleting expired sessions: %v", err)
+	} else if sessionCount > 0 {
+		log.Printf("Deleted %d expired sessions", sessionCount)
+	}
+
+	log.Printf("Cleanup complete: %d videos deleted", deletedCount)
 }
