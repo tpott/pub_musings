@@ -4,6 +4,7 @@ Ralph loop: repeatedly runs claude with RALPH.md until STOP_RALPH exists.
 """
 
 import argparse
+import json
 import subprocess
 import sys
 import time
@@ -112,8 +113,8 @@ def main():
 
         try:
             last_line = run_claude(prompt_content, args.verbose)
-            if last_line:
-                print(f"Result: {last_line}")
+            if last_line is not None:
+                print(f"Result: {json.loads(last_line)['result']}")
         except FileNotFoundError:
             print("Error: 'claude' command not found", file=sys.stderr)
             sys.exit(1)
