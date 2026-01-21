@@ -249,6 +249,161 @@
 			.nav-logout:hover {
 				background-color: var(--border-color);
 			}
+			/* Edit mode styles */
+			.edit-btn {
+				display: inline-block;
+				padding: 0.5rem 1rem;
+				background-color: #f5f5f5;
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.edit-btn:hover {
+				background-color: var(--border-color);
+			}
+			.edit-btn.active {
+				background-color: var(--accent-color);
+				color: #fff;
+				border-color: var(--accent-color);
+			}
+			.save-btn {
+				display: inline-block;
+				padding: 0.5rem 1rem;
+				background-color: #22c55e;
+				color: #fff;
+				border: none;
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.save-btn:hover {
+				background-color: #16a34a;
+			}
+			.save-btn:disabled {
+				background-color: #9ca3af;
+				cursor: not-allowed;
+			}
+			.cancel-btn {
+				display: inline-block;
+				padding: 0.5rem 1rem;
+				background-color: #f5f5f5;
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.cancel-btn:hover {
+				background-color: var(--border-color);
+			}
+			.edit-actions {
+				display: none;
+				gap: 0.5rem;
+				margin-bottom: 1rem;
+			}
+			.edit-actions.visible {
+				display: flex;
+			}
+			.segment-edit {
+				display: none;
+				gap: 0.5rem;
+				margin-top: 0.5rem;
+			}
+			.segment.editing .segment-edit {
+				display: flex;
+				flex-direction: column;
+			}
+			.segment.editing .segment-text {
+				display: none;
+			}
+			.segment.editing .segment-time {
+				display: none;
+			}
+			.segment-edit textarea {
+				width: 100%;
+				min-height: 60px;
+				padding: 0.5rem;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-family: inherit;
+				font-size: 0.95rem;
+				resize: vertical;
+			}
+			.segment-edit textarea:focus {
+				outline: none;
+				border-color: var(--accent-color);
+			}
+			.time-inputs {
+				display: flex;
+				gap: 0.5rem;
+				align-items: center;
+			}
+			.time-inputs label {
+				font-size: 0.75rem;
+				color: #666;
+			}
+			.time-inputs input {
+				width: 100px;
+				padding: 0.25rem 0.5rem;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-family: monospace;
+				font-size: 0.8rem;
+			}
+			.time-inputs input:focus {
+				outline: none;
+				border-color: var(--accent-color);
+			}
+			.segment-actions {
+				display: flex;
+				gap: 0.5rem;
+				margin-top: 0.5rem;
+			}
+			.segment-delete-btn {
+				padding: 0.25rem 0.5rem;
+				background-color: #fee2e2;
+				color: #dc2626;
+				border: 1px solid #fecaca;
+				border-radius: 4px;
+				font-size: 0.75rem;
+				cursor: pointer;
+			}
+			.segment-delete-btn:hover {
+				background-color: #fecaca;
+			}
+			.add-segment-btn {
+				display: none;
+				width: 100%;
+				padding: 0.75rem;
+				background-color: #f5f5f5;
+				border: 2px dashed var(--border-color);
+				border-radius: 4px;
+				color: #666;
+				cursor: pointer;
+				font-size: 0.9rem;
+				margin-top: 0.5rem;
+			}
+			.add-segment-btn:hover {
+				background-color: var(--border-color);
+				border-color: #999;
+			}
+			.add-segment-btn.visible {
+				display: block;
+			}
+			.unsaved-indicator {
+				display: none;
+				color: #f59e0b;
+				font-size: 0.8rem;
+				margin-left: 0.5rem;
+			}
+			.unsaved-indicator.visible {
+				display: inline;
+			}
 		</style>
 	</head>
 	<body>
@@ -281,11 +436,17 @@
 			</div>
 
 			<div class="transcription" id="transcription">
-				<h2>Transcription</h2>
+				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
 				<div class="current-subtitle" id="currentSubtitle"></div>
+				<div class="edit-actions" id="editActions">
+					<button class="save-btn" id="saveBtn">Save Changes</button>
+					<button class="cancel-btn" id="cancelBtn">Cancel</button>
+				</div>
 				<div class="segments" id="segments"></div>
+				<button class="add-segment-btn" id="addSegmentBtn">+ Add Segment</button>
 				<div class="actions" id="actions" style="display: none;">
+					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
 					<a href="#" class="download-btn" id="downloadSrt">Download SRT</a>
 				</div>
 				<div class="full-text" id="fullText"></div>
@@ -308,10 +469,19 @@
 			const currentSubtitle = document.getElementById('currentSubtitle') as HTMLElement;
 			const actions = document.getElementById('actions') as HTMLElement;
 			const downloadSrt = document.getElementById('downloadSrt') as HTMLAnchorElement;
+			const editBtn = document.getElementById('editBtn') as HTMLButtonElement;
+			const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+			const cancelBtn = document.getElementById('cancelBtn') as HTMLButtonElement;
+			const editActions = document.getElementById('editActions') as HTMLElement;
+			const addSegmentBtn = document.getElementById('addSegmentBtn') as HTMLButtonElement;
+			const unsavedIndicator = document.getElementById('unsavedIndicator') as HTMLElement;
 
 			let isUploading = false;
 			let currentUploadId: string | null = null;
 			let transcriptionSegments: any[] = [];
+			let editedSegments: any[] = [];
+			let isEditMode = false;
+			let hasUnsavedChanges = false;
 
 			dropzone.addEventListener('click', () => fileInput.click());
 
@@ -516,30 +686,15 @@
 
 				// Store segments for syncing
 				transcriptionSegments = result.segments || [];
+				editedSegments = JSON.parse(JSON.stringify(transcriptionSegments)); // Deep copy for editing
 
 				// Display full text
 				if (result.text) {
 					fullText.textContent = result.text;
 				}
 
-				// Display segments with click handlers
-				if (transcriptionSegments.length > 0) {
-					segments.innerHTML = transcriptionSegments.map((seg: any, index: number) => `
-						<div class="segment" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
-							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
-							<div class="segment-text">${seg.text}</div>
-						</div>
-					`).join('');
-
-					// Add click handlers for seeking
-					segments.querySelectorAll('.segment').forEach(el => {
-						el.addEventListener('click', () => {
-							const start = parseFloat(el.getAttribute('data-start') || '0');
-							previewVideo.currentTime = start;
-							previewVideo.play();
-						});
-					});
-				}
+				// Render segments
+				renderSegments();
 
 				// Show download button
 				if (currentUploadId) {
@@ -555,6 +710,258 @@
 				// Set up video timeupdate handler for subtitle syncing
 				setupSubtitleSync();
 			}
+
+			function renderSegments() {
+				const segsToRender = isEditMode ? editedSegments : transcriptionSegments;
+
+				if (segsToRender.length > 0) {
+					segments.innerHTML = segsToRender.map((seg: any, index: number) => `
+						<div class="segment${isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
+							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+							<div class="segment-text">${escapeHtml(seg.text)}</div>
+							<div class="segment-edit">
+								<div class="time-inputs">
+									<label>Start:</label>
+									<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" />
+									<label>End:</label>
+									<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" />
+								</div>
+								<textarea class="segment-textarea" data-index="${index}">${escapeHtml(seg.text)}</textarea>
+								<div class="segment-actions">
+									<button class="segment-delete-btn" data-index="${index}">Delete</button>
+								</div>
+							</div>
+						</div>
+					`).join('');
+
+					// Add event handlers
+					if (isEditMode) {
+						setupEditHandlers();
+					} else {
+						setupClickHandlers();
+					}
+				}
+			}
+
+			function escapeHtml(text: string): string {
+				const div = document.createElement('div');
+				div.textContent = text;
+				return div.innerHTML;
+			}
+
+			function formatTimeForInput(seconds: number): string {
+				const hrs = Math.floor(seconds / 3600);
+				const mins = Math.floor((seconds % 3600) / 60);
+				const secs = Math.floor(seconds % 60);
+				const ms = Math.floor((seconds % 1) * 1000);
+				return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+			}
+
+			function parseTimeInput(timeStr: string): number | null {
+				// Parse formats like "00:01:23.456" or "1:23.456" or "1:23"
+				const parts = timeStr.trim().split(':');
+				let hours = 0, mins = 0, secs = 0;
+
+				if (parts.length === 3) {
+					hours = parseInt(parts[0], 10) || 0;
+					mins = parseInt(parts[1], 10) || 0;
+					const secParts = parts[2].split('.');
+					secs = parseInt(secParts[0], 10) || 0;
+					if (secParts[1]) {
+						secs += parseInt(secParts[1].padEnd(3, '0').slice(0, 3), 10) / 1000;
+					}
+				} else if (parts.length === 2) {
+					mins = parseInt(parts[0], 10) || 0;
+					const secParts = parts[1].split('.');
+					secs = parseInt(secParts[0], 10) || 0;
+					if (secParts[1]) {
+						secs += parseInt(secParts[1].padEnd(3, '0').slice(0, 3), 10) / 1000;
+					}
+				} else {
+					return null;
+				}
+
+				return hours * 3600 + mins * 60 + secs;
+			}
+
+			function setupClickHandlers() {
+				segments.querySelectorAll('.segment').forEach(el => {
+					el.addEventListener('click', () => {
+						const start = parseFloat(el.getAttribute('data-start') || '0');
+						previewVideo.currentTime = start;
+						previewVideo.play();
+					});
+				});
+			}
+
+			function setupEditHandlers() {
+				// Text editing
+				segments.querySelectorAll('.segment-textarea').forEach((textarea: Element) => {
+					textarea.addEventListener('input', (e) => {
+						const target = e.target as HTMLTextAreaElement;
+						const index = parseInt(target.getAttribute('data-index') || '0', 10);
+						editedSegments[index].text = target.value;
+						markUnsaved();
+					});
+				});
+
+				// Time inputs
+				segments.querySelectorAll('.time-input-start').forEach((input: Element) => {
+					input.addEventListener('change', (e) => {
+						const target = e.target as HTMLInputElement;
+						const index = parseInt(target.getAttribute('data-index') || '0', 10);
+						const parsed = parseTimeInput(target.value);
+						if (parsed !== null) {
+							editedSegments[index].start = parsed;
+							markUnsaved();
+						}
+					});
+				});
+
+				segments.querySelectorAll('.time-input-end').forEach((input: Element) => {
+					input.addEventListener('change', (e) => {
+						const target = e.target as HTMLInputElement;
+						const index = parseInt(target.getAttribute('data-index') || '0', 10);
+						const parsed = parseTimeInput(target.value);
+						if (parsed !== null) {
+							editedSegments[index].end = parsed;
+							markUnsaved();
+						}
+					});
+				});
+
+				// Delete buttons
+				segments.querySelectorAll('.segment-delete-btn').forEach((btn: Element) => {
+					btn.addEventListener('click', (e) => {
+						e.stopPropagation();
+						const index = parseInt(btn.getAttribute('data-index') || '0', 10);
+						editedSegments.splice(index, 1);
+						// Re-assign IDs
+						editedSegments.forEach((seg, i) => seg.id = i);
+						markUnsaved();
+						renderSegments();
+					});
+				});
+			}
+
+			function markUnsaved() {
+				hasUnsavedChanges = true;
+				unsavedIndicator.classList.add('visible');
+			}
+
+			function clearUnsaved() {
+				hasUnsavedChanges = false;
+				unsavedIndicator.classList.remove('visible');
+			}
+
+			function enterEditMode() {
+				isEditMode = true;
+				editBtn.classList.add('active');
+				editBtn.textContent = 'Editing...';
+				editActions.classList.add('visible');
+				addSegmentBtn.classList.add('visible');
+				fullText.style.display = 'none';
+				editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
+				renderSegments();
+			}
+
+			function exitEditMode() {
+				isEditMode = false;
+				editBtn.classList.remove('active');
+				editBtn.textContent = 'Edit Subtitles';
+				editActions.classList.remove('visible');
+				addSegmentBtn.classList.remove('visible');
+				fullText.style.display = 'block';
+				clearUnsaved();
+				renderSegments();
+			}
+
+			async function saveSegments() {
+				if (!currentUploadId) return;
+
+				saveBtn.disabled = true;
+				saveBtn.textContent = 'Saving...';
+
+				try {
+					const response = await fetch(`/api/transcribe/${currentUploadId}/segments`, {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ segments: editedSegments })
+					});
+
+					const result = await response.json();
+
+					if (!response.ok) {
+						throw new Error(result.error || 'Failed to save');
+					}
+
+					// Update the original segments
+					transcriptionSegments = JSON.parse(JSON.stringify(editedSegments));
+					// Update full text display
+					fullText.textContent = editedSegments.map((s: any) => s.text).join(' ');
+					clearUnsaved();
+					showStatus('Subtitles saved successfully!', 'success');
+
+					// Exit edit mode after successful save
+					exitEditMode();
+				} catch (error) {
+					showStatus(`Failed to save: ${error instanceof Error ? error.message : error}`, 'error');
+				} finally {
+					saveBtn.disabled = false;
+					saveBtn.textContent = 'Save Changes';
+				}
+			}
+
+			function addNewSegment() {
+				// Get the last segment's end time or 0
+				const lastSeg = editedSegments[editedSegments.length - 1];
+				const startTime = lastSeg ? lastSeg.end : 0;
+
+				editedSegments.push({
+					id: editedSegments.length,
+					start: startTime,
+					end: startTime + 3, // Default 3 second segment
+					text: ''
+				});
+				markUnsaved();
+				renderSegments();
+
+				// Focus the new segment's textarea
+				const textareas = segments.querySelectorAll('.segment-textarea');
+				const lastTextarea = textareas[textareas.length - 1] as HTMLTextAreaElement;
+				if (lastTextarea) {
+					lastTextarea.focus();
+				}
+			}
+
+			// Set up edit mode event handlers
+			editBtn.addEventListener('click', () => {
+				if (isEditMode) {
+					if (hasUnsavedChanges) {
+						if (confirm('You have unsaved changes. Discard them?')) {
+							exitEditMode();
+						}
+					} else {
+						exitEditMode();
+					}
+				} else {
+					enterEditMode();
+				}
+			});
+
+			saveBtn.addEventListener('click', saveSegments);
+
+			cancelBtn.addEventListener('click', () => {
+				if (hasUnsavedChanges) {
+					if (confirm('Discard unsaved changes?')) {
+						exitEditMode();
+					}
+				} else {
+					exitEditMode();
+				}
+			});
+
+			addSegmentBtn.addEventListener('click', addNewSegment);
 
 			function setupSubtitleSync() {
 				previewVideo.addEventListener('timeupdate', updateCurrentSubtitle);

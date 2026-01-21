@@ -12,7 +12,7 @@
 {"id": 12, "name": "Frontend: Auth pages", "done_when": "Login, register, and logout pages work with backend", "status": "done"}
 {"id": 13, "name": "Backend: Upload limits for anonymous", "done_when": "Anonymous users limited to 2 uploads, tracked by session", "status": "done"}
 {"id": 14, "name": "Backend: Auto-delete old files", "done_when": "Cron/scheduler deletes anonymous files after 48hr, registered after 90 days", "status": "done"}
-{"id": 15, "name": "Frontend: Subtitle editor", "done_when": "User can edit subtitle text and timing in browser", "status": "todo"}
+{"id": 15, "name": "Frontend: Subtitle editor", "done_when": "User can edit subtitle text and timing in browser", "status": "done"}
 {"id": 16, "name": "Backend: Transcript paste-and-match", "done_when": "User can paste transcript and backend aligns with whisper tokens", "status": "todo"}
 {"id": 17, "name": "Backend: Embed subtitles in video", "done_when": "Backend can burn subtitles into video file for download", "status": "todo"}
 {"id": 18, "name": "Backend: 2FA with TOTP", "done_when": "Users can enable Google Authenticator style 2FA", "status": "todo"}

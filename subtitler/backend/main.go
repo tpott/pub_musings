@@ -823,6 +823,92 @@ func main() {
 		json.NewEncoder(w).Encode(dbTranscriptionToStatus(transcription))
 	})
 
+	// Update segments for a transcription (edit subtitles)
+	mux.HandleFunc("PUT /api/transcribe/{id}/segments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		// Check if transcription exists and is complete
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription",
+			})
+			return
+		}
+		if transcription == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found for this upload",
+			})
+			return
+		}
+		if transcription.Status != "complete" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Cannot edit segments - transcription not complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Segments []db.Segment `json:"segments"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Validate segments
+		for i, seg := range req.Segments {
+			if seg.Start < 0 || seg.End < 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": fmt.Sprintf("Segment %d has invalid timing (negative values)", i),
+				})
+				return
+			}
+			if seg.Start > seg.End {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": fmt.Sprintf("Segment %d: start time cannot be greater than end time", i),
+				})
+				return
+			}
+		}
+
+		// Update segments in database
+		if err := database.UpdateSegments(uploadID, req.Segments); err != nil {
+			log.Printf("Error updating segments: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to update segments",
+			})
+			return
+		}
+
+		log.Printf("Updated segments for %s: %d segments", uploadID, len(req.Segments))
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   "success",
+			"segments": len(req.Segments),
+		})
+	})
+
 	// Download SRT file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")

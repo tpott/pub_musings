@@ -299,6 +299,42 @@ Tests (`backend/db/db_test.go`):
 - Added `TestDeleteVideo` - validates cascade deletion of video and transcription
 - Added `TestDeleteVideoNotFound` - validates handling of non-existent videos
 
+### Task 15: Frontend - Subtitle editor
+
+**Date**: 2026-01-21
+
+Implemented in-browser subtitle editing functionality:
+
+Backend (`backend/main.go`):
+- Added `PUT /api/transcribe/{id}/segments` endpoint to save edited segments
+- Validates that transcription exists and is complete before allowing edits
+- Validates segment timing (no negative values, start <= end)
+- Updates both segments and full_text in database
+
+Database layer (`backend/db/db.go`):
+- Added `UpdateSegments(videoID, segments)` method
+- Automatically regenerates full_text by concatenating segment texts
+- Updates segments_json with new segment data
+
+Frontend (`frontend/src/pages/upload.astro`):
+- Added "Edit Subtitles" button that toggles edit mode
+- Edit mode UI features:
+  - Inline text editing via textarea for each segment
+  - Time editing via text inputs (format: HH:MM:SS.mmm)
+  - Delete button to remove individual segments
+  - "Add Segment" button to create new segments
+  - Save/Cancel buttons for commit or discard
+  - Unsaved changes indicator
+- Time input parsing supports multiple formats (00:01:23.456, 1:23.456, 1:23)
+- Confirmation prompts when discarding unsaved changes
+- Auto-exits edit mode after successful save
+- Updated full text display after save
+
+Tests (`backend/db/db_test.go`):
+- Added `TestUpdateSegments` to verify segment update functionality
+- Tests segment content changes, timing updates, and adding new segments
+- Verifies full_text is regenerated from segment texts
+
 ## In Progress
 
 None

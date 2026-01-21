@@ -452,6 +452,30 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 	return videos, rows.Err()
 }
 
+// UpdateSegments updates the segments for a transcription
+func (db *DB) UpdateSegments(videoID string, segments []Segment) error {
+	segmentsJSON, err := json.Marshal(segments)
+	if err != nil {
+		return fmt.Errorf("failed to marshal segments: %w", err)
+	}
+
+	// Also update the full_text by concatenating all segment texts
+	var fullText string
+	for i, seg := range segments {
+		if i > 0 {
+			fullText += " "
+		}
+		fullText += seg.Text
+	}
+
+	_, err = db.conn.Exec(`
+		UPDATE transcriptions
+		SET segments_json = ?, full_text = ?
+		WHERE video_id = ?
+	`, string(segmentsJSON), fullText, videoID)
+	return err
+}
+
 // DeleteVideo deletes a video and its associated transcription from the database.
 // Returns the file path so the caller can delete the file from disk.
 func (db *DB) DeleteVideo(videoID string) (string, error) {
