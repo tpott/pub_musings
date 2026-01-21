@@ -146,6 +146,42 @@ Frontend:
 - Empty state with call-to-action to upload first video
 - Updated homepage (`index.astro`) with "My Videos" button
 
+### Task 8: Backend - File encryption at rest
+
+**Date**: 2026-01-21
+
+Implemented file encryption at rest using the `age` encryption library (filippo.io/age):
+
+New package `backend/crypto/crypto.go`:
+- `Encryptor` type wraps age identity (private key) and recipient (public key)
+- `NewEncryptor(privateKey)` creates encryptor from existing key or generates new one
+- `LoadOrGenerateKey(keyPath)` loads key from file or generates and saves new key
+- `EncryptFile(srcPath)` encrypts a file, returns path to `.age` encrypted file
+- `DecryptFile(encPath)` decrypts a `.age` file, returns plaintext bytes
+- `DecryptToTempFile(encPath)` decrypts to temp file (for ffmpeg/http.ServeFile)
+- `EncryptBytes/DecryptBytes` for in-memory operations
+- Thread-safe with mutex protection
+
+Comprehensive tests in `backend/crypto/crypto_test.go`:
+- Key generation and parsing tests
+- Encrypt/decrypt round-trip tests
+- Large file (1MB) encryption test
+- File and temp file operations
+- Key persistence (load/generate) tests
+- Wrong key rejection test
+
+Updated `backend/main.go`:
+- Initializes encryptor on startup from `data/age.key`
+- Generates new key if none exists, logs public key
+- Upload handler encrypts files after saving, stores `.age` path in database
+- Transcription handler decrypts video to temp file before processing
+- Video serving endpoint decrypts to temp file for streaming
+
+Environment:
+- Encryption key stored at `data/age.key`
+- Key file format includes public key comment for reference
+- Encrypted files stored as `uploads/{id}.{ext}.age`
+
 ## In Progress
 
 None

@@ -5,7 +5,7 @@
 {"id": 5, "name": "Backend: Generate SRT files", "done_when": "Backend generates valid SRT subtitle files from whisper output", "status": "done"}
 {"id": 6, "name": "Frontend: Subtitle viewer", "done_when": "User can view subtitles synced with video playback", "status": "done"}
 {"id": 7, "name": "Backend: SQLite database", "done_when": "Videos and subtitles stored in SQLite with proper schema", "status": "done"}
-{"id": 8, "name": "Backend: File encryption at rest", "done_when": "Uploaded files encrypted with age, decrypted on access", "status": "todo"}
+{"id": 8, "name": "Backend: File encryption at rest", "done_when": "Uploaded files encrypted with age, decrypted on access", "status": "done"}
 {"id": 9, "name": "API: Download SRT endpoint", "done_when": "GET /api/videos/:id/subtitles.srt returns downloadable SRT file", "status": "done"}
 {"id": 10, "name": "Frontend: List uploaded videos", "done_when": "Homepage or videos page lists user's uploaded videos", "status": "done"}
 {"id": 11, "name": "Backend: Authentication system", "done_when": "Email/password registration and login with sessions", "status": "todo"}

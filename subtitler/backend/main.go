@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
 )
 
@@ -22,6 +23,7 @@ const (
 	maxUploadSize = 500 << 20 // 500 MB
 	uploadDir     = "uploads"
 	dbPath        = "data/subtitler.db"
+	keyPath       = "data/age.key"
 )
 
 // WhisperSegment represents a transcribed segment with timing
@@ -50,6 +52,9 @@ type TranscriptionStatus struct {
 
 // Global database connection
 var database *db.DB
+
+// Global encryptor for file encryption
+var encryptor *crypto.Encryptor
 
 func generateID() string {
 	bytes := make([]byte, 16)
@@ -225,6 +230,19 @@ func main() {
 	defer database.Close()
 	log.Printf("Database initialized at %s", dbPath)
 
+	// Initialize encryptor for file encryption at rest
+	var isNewKey bool
+	encryptor, isNewKey, err = crypto.LoadOrGenerateKey(keyPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize encryption: %v", err)
+	}
+	if isNewKey {
+		log.Printf("Generated new encryption key, saved to %s", keyPath)
+	} else {
+		log.Printf("Loaded encryption key from %s", keyPath)
+	}
+	log.Printf("Public key: %s", encryptor.PublicKey())
+
 	mux := http.NewServeMux()
 
 	// Health check endpoint
@@ -307,21 +325,38 @@ func main() {
 			})
 			return
 		}
+		destFile.Close() // Close before encrypting
 
 		log.Printf("Uploaded file: %s (%d bytes) -> %s", header.Filename, written, destPath)
 
-		// Save video to database
+		// Encrypt the file at rest
+		encPath, err := encryptor.EncryptFile(destPath)
+		if err != nil {
+			log.Printf("Error encrypting file: %v", err)
+			os.Remove(destPath)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to encrypt file",
+			})
+			return
+		}
+
+		// Remove the unencrypted file
+		os.Remove(destPath)
+		log.Printf("Encrypted file: %s -> %s", destPath, encPath)
+
+		// Save video to database with encrypted file path
 		video := &db.Video{
 			ID:          uploadID,
 			Filename:    header.Filename,
 			Size:        written,
 			ContentType: contentType,
-			FilePath:    destPath,
+			FilePath:    encPath,
 			CreatedAt:   time.Now(),
 		}
 		if err := database.CreateVideo(video); err != nil {
 			log.Printf("Error saving video to database: %v", err)
-			os.Remove(destPath) // Clean up file
+			os.Remove(encPath) // Clean up encrypted file
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save video record",
@@ -416,9 +451,24 @@ func main() {
 		go func() {
 			log.Printf("Starting transcription for %s", uploadID)
 
+			// Decrypt video file if encrypted
+			workingVideoPath := videoPath
+			if strings.HasSuffix(videoPath, ".age") {
+				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
+				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+				if err != nil {
+					log.Printf("Video decryption failed: %v", err)
+					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
+					return
+				}
+				workingVideoPath = decryptedPath
+				defer os.Remove(decryptedPath) // Clean up decrypted file when done
+			}
+
 			// Extract audio
+			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
-			if err := extractAudio(videoPath, audioPath); err != nil {
+			if err := extractAudio(workingVideoPath, audioPath); err != nil {
 				log.Printf("Audio extraction failed: %v", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
@@ -639,6 +689,23 @@ func main() {
 				"error": err.Error(),
 			})
 			return
+		}
+
+		// If file is encrypted, decrypt to temp file for serving
+		// (http.ServeFile needs seekable file for range requests)
+		if strings.HasSuffix(videoPath, ".age") {
+			decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+			if err != nil {
+				log.Printf("Failed to decrypt video for serving: %v", err)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to decrypt video",
+				})
+				return
+			}
+			defer os.Remove(decryptedPath)
+			videoPath = decryptedPath
 		}
 
 		// Serve the file
