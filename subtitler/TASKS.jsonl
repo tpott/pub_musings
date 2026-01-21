@@ -1,16 +1,2 @@
-{"id": 1, "name": "Initialize project structure", "done_when": "cd frontend && npm run dev shows Astro running; cd backend && go build ./cmd/server succeeds", "status": "todo"}
-{"id": 2, "name": "Implement whisper.cpp integration", "done_when": "cd backend && go test ./internal/transcribe/... passes with whisper.cpp transcription test", "status": "todo"}
-{"id": 3, "name": "Basic file upload UI", "done_when": "Open localhost:3000, select a file, submit form; browser network tab shows multipart POST to backend", "status": "todo"}
-{"id": 4, "name": "Basic transcription endpoint", "done_when": "curl -F 'file=@test.mp3' localhost:8080/api/transcribe returns SRT content", "status": "todo"}
-{"id": 5, "name": "Database setup", "done_when": "cd backend && go run ./cmd/migrate creates subtitler.db with users and jobs tables", "status": "todo"}
-{"id": 6, "name": "Email and password authentication", "done_when": "curl -X POST localhost:8080/api/register -d '{\"email\":\"test@test.com\",\"password\":\"pass\"}' returns 200; subsequent login returns session token", "status": "todo"}
-{"id": 7, "name": "User dashboard", "done_when": "Login as user, navigate to /dashboard, see list of past jobs with download links", "status": "todo"}
-{"id": 8, "name": "Background job queue", "done_when": "Upload file, check /api/jobs shows pending status; wait for worker, status changes to complete", "status": "todo"}
-{"id": 9, "name": "Multiple output formats", "done_when": "curl localhost:8080/api/transcribe?format=vtt returns VTT; format=embedded returns video file with subtitles", "status": "todo"}
-{"id": 10, "name": "Job status and notifications", "done_when": "Upload file, dashboard shows progress updating; email received when job completes", "status": "todo"}
-{"id": 11, "name": "Cloudflare Tunnel setup", "done_when": "curl https://subtitler.yourdomain.com/api/health returns 200 via tunnel", "status": "todo"}
-{"id": 12, "name": "CI/CD pipeline", "done_when": "git push to trunk triggers GitHub webhook; new version deploys automatically", "status": "todo"}
-{"id": 13, "name": "Secrets management", "done_when": "sops -d secrets.enc.yaml outputs decrypted secrets; deployment uses decrypted values", "status": "todo"}
-{"id": 14, "name": "Create MARKETING_PLAN.md", "done_when": "cat MARKETING_PLAN.md shows content creator outreach strategy with target platforms", "status": "todo"}
-{"id": 15, "name": "Create EXPERIMENTATION_PLAN.md", "done_when": "cat EXPERIMENTATION_PLAN.md shows A/B testing framework with metrics for success", "status": "todo"}
-{"id": 16, "name": "Analytics integration", "done_when": "Upload and download file; analytics endpoint or dashboard shows corresponding events", "status": "todo"}
+{"id": 1, "name": "Initialize project scaffolding", "done_when": "I can run the frontend and backend based on commands in README.md and I can view the frontend in my browser", "status": "todo"}
+{"id": 2, "name": "Implement core functions", "done_when": "Everything in specs/subtitler.md is implemented", "status": "todo"}
