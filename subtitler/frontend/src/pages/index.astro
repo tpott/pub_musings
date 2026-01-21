@@ -1,0 +1,69 @@
+---
+
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Subtitler</title>
+		<style>
+			:root {
+				--bg-color: #fafafa;
+				--text-color: #1a1a1a;
+				--accent-color: #0066cc;
+				--secondary-bg: #ffffff;
+				--border-color: #e5e5e5;
+			}
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				line-height: 1.6;
+				min-height: 100vh;
+			}
+			.container {
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 4rem 2rem;
+			}
+			h1 {
+				font-size: 3rem;
+				font-weight: 600;
+				margin-bottom: 1rem;
+			}
+			.tagline {
+				font-size: 1.25rem;
+				color: #666;
+				margin-bottom: 3rem;
+			}
+			.cta {
+				display: inline-block;
+				background-color: var(--text-color);
+				color: white;
+				padding: 1rem 2rem;
+				border-radius: 8px;
+				text-decoration: none;
+				font-weight: 500;
+				transition: opacity 0.2s;
+			}
+			.cta:hover {
+				opacity: 0.9;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>Subtitler</h1>
+			<p class="tagline">Generate accurate subtitles for your videos in seconds.</p>
+			<a href="/upload" class="cta">Upload a Video</a>
+		</div>
+	</body>
+</html>

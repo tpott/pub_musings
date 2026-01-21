@@ -10,14 +10,16 @@ When running as Ralph, you MAY:
 ## Commands
 
 ```bash
-# Frontend
-# TODO
+# Frontend - install deps and run dev server
+cd frontend && npm install && npm run dev
+# Runs on http://localhost:4321
 
 # Frontend Tests
 # TODO
 
-# Backend
-# TODO
+# Backend - run Go server
+cd backend && go run main.go
+# Runs on http://localhost:8080
 # Note: go may not be in PATH, use full path, ex: /home/trevor/go/bin/go
 
 # Backend Tests

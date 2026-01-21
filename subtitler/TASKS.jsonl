@@ -1,2 +1,2 @@
-{"id": 1, "name": "Initialize project scaffolding", "done_when": "I can run the frontend and backend based on commands in README.md and I can view the frontend in my browser", "status": "todo"}
+{"id": 1, "name": "Initialize project scaffolding", "done_when": "I can run the frontend and backend based on commands in README.md and I can view the frontend in my browser", "status": "done"}
 {"id": 2, "name": "Implement core functions", "done_when": "Everything in specs/subtitler.md is implemented", "status": "todo"}
