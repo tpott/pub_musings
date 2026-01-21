@@ -575,6 +575,49 @@ func main() {
 		w.Write([]byte(srtContent))
 	})
 
+	// List all videos
+	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Get optional session_id from query params (for anonymous user filtering)
+		sessionID := r.URL.Query().Get("session_id")
+		var sessionPtr *string
+		if sessionID != "" {
+			sessionPtr = &sessionID
+		}
+
+		// TODO: Get user_id from auth when implemented
+		var userPtr *string
+
+		videos, err := database.ListVideos(userPtr, sessionPtr)
+		if err != nil {
+			log.Printf("Error listing videos: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to list videos",
+			})
+			return
+		}
+
+		// Get transcription status for each video
+		type VideoWithStatus struct {
+			db.Video
+			TranscriptionStatus string `json:"transcription_status"`
+		}
+
+		result := make([]VideoWithStatus, len(videos))
+		for i, v := range videos {
+			result[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
+			if t, err := database.GetTranscription(v.ID); err == nil && t != nil {
+				result[i].TranscriptionStatus = t.Status
+			}
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"videos": result,
+		})
+	})
+
 	// Serve uploaded video files for playback
 	mux.HandleFunc("GET /api/videos/{id}/video", func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")

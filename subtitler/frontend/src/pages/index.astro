@@ -57,13 +57,30 @@
 			.cta:hover {
 				opacity: 0.9;
 			}
+			.buttons {
+				display: flex;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+			.cta.secondary {
+				background-color: transparent;
+				color: var(--text-color);
+				border: 2px solid var(--text-color);
+			}
+			.cta.secondary:hover {
+				background-color: var(--text-color);
+				color: white;
+			}
 		</style>
 	</head>
 	<body>
 		<div class="container">
 			<h1>Subtitler</h1>
 			<p class="tagline">Generate accurate subtitles for your videos in seconds.</p>
-			<a href="/upload" class="cta">Upload a Video</a>
+			<div class="buttons">
+				<a href="/upload" class="cta">Upload a Video</a>
+				<a href="/videos" class="cta secondary">My Videos</a>
+			</div>
 		</div>
 	</body>
 </html>

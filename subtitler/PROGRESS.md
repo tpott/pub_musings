@@ -126,6 +126,26 @@ Added comprehensive tests in `backend/db/db_test.go`:
 
 Database file stored at `data/subtitler.db`
 
+### Task 10: Frontend - List uploaded videos
+
+**Date**: 2026-01-21
+
+Implemented video listing page and API endpoint:
+
+Backend (`backend/main.go`):
+- Added `GET /api/videos` endpoint to list all videos
+- Returns videos with their transcription status
+- Supports optional `session_id` query param for filtering (for future anonymous session support)
+- Uses existing `ListVideos` function from database layer
+
+Frontend:
+- Created new `/videos` page at `frontend/src/pages/videos.astro`
+- Shows list of uploaded videos with filename, size, date, and transcription status
+- Status badges (Complete, Processing, Pending, Error, Not Started)
+- Action buttons: View (for completed), Download SRT (for completed), Transcribe (for pending)
+- Empty state with call-to-action to upload first video
+- Updated homepage (`index.astro`) with "My Videos" button
+
 ## In Progress
 
 None
