@@ -36,7 +36,7 @@ def run_claude(prompt_content: str, verbose: bool) -> str | None:
     """
     cmd = [
         "claude",
-        "--prompt",
+        "--print",
         "--dangerously-skip-permissions",
         "--output-format=stream-json",
         "--verbose",
@@ -66,6 +66,13 @@ def run_claude(prompt_content: str, verbose: bool) -> str | None:
 
         # Wait for process to complete
         proc.wait()
+
+        if proc.returncode != 0:
+            print(f"Process exited with code {proc.returncode}")
+
+        stderr_output = proc.stderr.read()
+        if stderr_output:
+            print(f"STDERR: {stderr_output}", file=sys.stderr)
 
         if not verbose:
             print()  # Newline after dots
