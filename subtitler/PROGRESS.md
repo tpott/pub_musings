@@ -463,10 +463,78 @@ Tests:
 - `backend/totp/totp_test.go` - comprehensive tests for TOTP generation and validation
 - `backend/db/db_test.go` - added TestTOTPLifecycle and TestGetUserByEmailWithTOTP
 
-## In Progress
+### Task 19: Write tests
 
-None
+**Date**: 2026-01-21
 
-## Next Up
+Implemented comprehensive test coverage for both backend and frontend:
 
-See `TASKS.jsonl` for the full task breakdown.
+**Backend API Integration Tests (`backend/api_test.go`)**:
+- New test infrastructure with `testServer` struct that creates isolated test environments
+- `setupTestServer()` creates temporary database, encryptor, and upload directory
+- Helper functions: `doRequest()`, `createTestUser()`, `createTestVideo()`, `createTestTranscription()`
+
+Test cases added:
+- `TestHealthEndpoint` - validates health check API
+- `TestAuthRegister` - registration with valid/invalid inputs
+- `TestAuthRegisterDuplicate` - duplicate email rejection
+- `TestAuthLogin` - login with valid/invalid credentials
+- `TestAuthLogout` - logout and session invalidation
+- `TestAuthMe` - current user retrieval with/without auth
+- `TestListVideos` - video listing by authenticated user
+- `TestListVideosBySession` - video listing by session ID
+- `TestGetTranscriptionStatus` - transcription status retrieval
+- `TestGetTranscriptionNotFound` - 404 for missing transcription
+- `TestDownloadSRT` - SRT file download
+- `TestDownloadSRTNotComplete` - error for incomplete transcription
+- `TestUpdateSegments` - segment editing
+- `TestUpdateSegmentsInvalidTiming` - validation for start > end
+- `TestUpdateSegmentsNegativeTiming` - validation for negative times
+- `TestSessionCookie` - session cookie attributes (HttpOnly, etc.)
+
+**Frontend Utility Modules and Tests**:
+
+New utility modules extracted from inline page code:
+- `frontend/src/utils/format.ts` - formatting functions
+- `frontend/src/utils/validation.ts` - validation functions
+
+`format.ts` functions:
+- `formatBytes(bytes)` - human-readable file sizes
+- `formatTime(seconds)` - SRT-style timestamps
+- `formatTimeForInput(seconds)` - input field format
+- `parseTimeInput(timeStr)` - parse multiple time formats
+- `formatDate(dateStr)` - date formatting
+- `escapeHtml(text)` - XSS prevention
+- `getStatusInfo(status)` - transcription status badges
+
+`validation.ts` functions:
+- `validateEmail(email)` - email format validation
+- `validatePassword(password)` - password strength
+- `validateTotpCode(code)` - 6-digit TOTP validation
+- `validateVideoFile(file, maxSize)` - video file type and size
+- `validateSegmentTiming(start, end)` - subtitle timing validation
+
+Tests added (`frontend/src/utils/*.test.ts`):
+- 23 tests for format utilities (bytes, times, dates, HTML escaping, status badges)
+- 21 tests for validation utilities (email, password, TOTP, video files, segment timing)
+
+**Test Infrastructure**:
+- Added Vitest ^3.2.0 to frontend devDependencies
+- Created `vitest.config.ts` configuration
+- Added `npm test` and `npm test:watch` scripts
+
+**Total Test Count**:
+- Backend: 84 tests (68 existing + 16 new integration tests)
+- Frontend: 44 tests (all new)
+- Total: 128 tests
+
+## Completed
+
+All 19 tasks have been completed! The subtitler application is feature-complete with:
+- Video upload and transcription with Whisper AI
+- Subtitle generation, viewing, editing, and downloading (SRT format)
+- Subtitle burning into video files
+- User authentication with optional 2FA (TOTP)
+- File encryption at rest
+- Anonymous and registered user support with retention policies
+- Comprehensive test coverage
