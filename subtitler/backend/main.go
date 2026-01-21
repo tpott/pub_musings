@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trevor/subtitler/backend/align"
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
@@ -906,6 +907,121 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":   "success",
 			"segments": len(req.Segments),
+		})
+	})
+
+	// Paste-and-match: align user-provided transcript with whisper timing
+	mux.HandleFunc("POST /api/transcribe/{id}/align", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		// Check if transcription exists and is complete
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription",
+			})
+			return
+		}
+		if transcription == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found for this upload",
+			})
+			return
+		}
+		if transcription.Status != "complete" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Cannot align - transcription not complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		if strings.TrimSpace(req.Text) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Text is required",
+			})
+			return
+		}
+
+		// Get existing segments
+		existingSegments, err := transcription.GetSegments()
+		if err != nil {
+			log.Printf("Error getting segments: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get existing segments",
+			})
+			return
+		}
+
+		// Convert db.Segment to align.Segment
+		alignSegments := make([]align.Segment, len(existingSegments))
+		for i, s := range existingSegments {
+			alignSegments[i] = align.Segment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
+		// Perform alignment
+		result := align.AlignTranscript(req.Text, alignSegments)
+
+		// Convert back to db.Segment
+		newSegments := make([]db.Segment, len(result.Segments))
+		for i, s := range result.Segments {
+			newSegments[i] = db.Segment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
+		// Update segments in database
+		if err := database.UpdateSegments(uploadID, newSegments); err != nil {
+			log.Printf("Error updating segments: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to save aligned segments",
+			})
+			return
+		}
+
+		log.Printf("Aligned transcript for %s: %d segments, %.1f%% match rate",
+			uploadID, len(newSegments), result.Stats.MatchRate*100)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   "success",
+			"segments": len(newSegments),
+			"stats":    result.Stats,
 		})
 	})
 

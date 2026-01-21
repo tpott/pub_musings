@@ -335,6 +335,47 @@ Tests (`backend/db/db_test.go`):
 - Tests segment content changes, timing updates, and adding new segments
 - Verifies full_text is regenerated from segment texts
 
+### Task 16: Backend - Transcript paste-and-match
+
+**Date**: 2026-01-21
+
+Implemented transcript paste-and-match feature allowing users to paste their own transcript text and have it aligned with whisper's timing information:
+
+New package `backend/align/align.go`:
+- Text alignment algorithm that maps user-provided text to whisper segment timing
+- `AlignTranscript(userText, whisperSegments)` - main alignment function
+- `extractWordsFromSegments` - extracts words with interpolated timing from whisper segments
+- `findAlignment` - uses greedy matching with look-ahead to find optimal word alignment
+- `createAlignedSegments` - creates new segments using user text with matched timing
+- `levenshteinDistance` - edit distance for fuzzy word matching
+- `wordSimilarity` - normalized similarity score (0-1) with case/punctuation normalization
+- Handles multi-line input by preserving user's line breaks as segment boundaries
+- Reports alignment statistics (match rate, word counts)
+
+New API endpoint in `backend/main.go`:
+- `POST /api/transcribe/{id}/align` - accepts user text, returns aligned segments
+- Request body: `{"text": "user's transcript text"}`
+- Response: `{"status": "success", "segments": N, "stats": {...}}`
+- Validates transcription exists and is complete before aligning
+- Converts between db.Segment and align.Segment types
+- Updates database with aligned segments
+
+Tests `backend/align/align_test.go`:
+- Word normalization tests (case, punctuation)
+- Word splitting tests
+- Levenshtein distance tests
+- Word similarity tests
+- Segment timing extraction tests
+- Full alignment tests (exact match, with corrections, empty inputs, multiple lines)
+- Line splitting tests
+
+Algorithm summary:
+1. Extract words with interpolated timing from whisper segments
+2. Split user text into lines (preserving structure as segment boundaries)
+3. Greedy alignment with 10-word look-ahead and 60% similarity threshold
+4. Create segments using user text with timing from matched whisper words
+5. Interpolate timing for unmatched segments based on neighbors
+
 ## In Progress
 
 None
