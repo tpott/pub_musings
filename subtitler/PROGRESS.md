@@ -250,6 +250,26 @@ Auth navigation behavior:
 - When logged in: Shows user email and "Log out" button
 - Logout clears session and reloads page
 
+### Task 13: Backend - Upload limits for anonymous users
+
+**Date**: 2026-01-21
+
+Implemented upload limits for anonymous (unauthenticated) users:
+
+Database layer (`backend/db/db.go`):
+- Added `CountVideosBySession(sessionID)` method to count uploads by session ID
+- Used to check upload count before allowing new uploads
+
+Backend (`backend/main.go`):
+- Added upload limit check in `/api/upload` endpoint
+- Anonymous users (no auth token) limited to 2 uploads per session
+- Returns 403 Forbidden with message prompting registration when limit reached
+- Authenticated users have no upload limit
+
+Tests (`backend/db/db_test.go`):
+- Added `TestCountVideosBySession` to verify count functionality
+- Tests initial 0 count, incrementing count, and isolation between sessions
+
 ## In Progress
 
 None

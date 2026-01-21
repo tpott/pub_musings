@@ -281,3 +281,63 @@ func TestListVideos(t *testing.T) {
 		t.Errorf("Expected 3 videos for user, got %d", len(videos))
 	}
 }
+
+func TestCountVideosBySession(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	sessionID := "session-abc123"
+
+	// Initially should be 0
+	count, err := db.CountVideosBySession(sessionID)
+	if err != nil {
+		t.Fatalf("Failed to count videos: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 videos, got %d", count)
+	}
+
+	// Create 2 videos with the session
+	for i := 0; i < 2; i++ {
+		video := &Video{
+			ID:          "video-session-" + string(rune('a'+i)),
+			Filename:    "test.mp4",
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    "/uploads/video.mp4",
+			CreatedAt:   time.Now(),
+			SessionID:   &sessionID,
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create video: %v", err)
+		}
+	}
+
+	// Now should be 2
+	count, err = db.CountVideosBySession(sessionID)
+	if err != nil {
+		t.Fatalf("Failed to count videos: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("Expected 2 videos, got %d", count)
+	}
+
+	// Different session should have 0
+	count, err = db.CountVideosBySession("different-session")
+	if err != nil {
+		t.Fatalf("Failed to count videos: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 videos for different session, got %d", count)
+	}
+}

@@ -321,6 +321,18 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 	return videos, rows.Err()
 }
 
+// CountVideosBySession returns the number of videos uploaded by a session
+func (db *DB) CountVideosBySession(sessionID string) (int, error) {
+	var count int
+	err := db.conn.QueryRow(`
+		SELECT COUNT(*) FROM videos WHERE session_id = ?
+	`, sessionID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // CreateUser creates a new user record
 func (db *DB) CreateUser(user *User) error {
 	_, err := db.conn.Exec(`

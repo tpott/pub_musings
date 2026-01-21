@@ -511,6 +511,20 @@ func main() {
 		// Get session_id from form for anonymous session tracking
 		sessionID := r.URL.Query().Get("session_id")
 
+		// Enforce upload limit for anonymous users (2 uploads max)
+		if user == nil && sessionID != "" {
+			count, err := database.CountVideosBySession(sessionID)
+			if err != nil {
+				log.Printf("Error counting videos for session: %v", err)
+			} else if count >= 2 {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Anonymous users are limited to 2 uploads. Please register to upload more videos.",
+				})
+				return
+			}
+		}
+
 		// Limit request body size
 		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
