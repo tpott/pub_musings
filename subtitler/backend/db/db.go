@@ -68,6 +68,18 @@ type Session struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// BurnJob represents a subtitle burning job
+type BurnJob struct {
+	ID          string     `json:"id"`
+	VideoID     string     `json:"video_id"`
+	Status      string     `json:"status"` // pending, processing, complete, error
+	Message     string     `json:"message,omitempty"`
+	Progress    int        `json:"progress"`
+	OutputPath  string     `json:"output_path,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
 // Open opens or creates a SQLite database at the given path
 func Open(dbPath string) (*DB, error) {
 	// Ensure directory exists
@@ -150,6 +162,17 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`,
+		`CREATE TABLE IF NOT EXISTS burn_jobs (
+			id TEXT PRIMARY KEY,
+			video_id TEXT NOT NULL REFERENCES videos(id),
+			status TEXT NOT NULL DEFAULT 'pending',
+			message TEXT,
+			progress INTEGER NOT NULL DEFAULT 0,
+			output_path TEXT,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			completed_at DATETIME
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_burn_jobs_video_id ON burn_jobs(video_id)`,
 	}
 
 	for _, migration := range migrations {
@@ -476,6 +499,74 @@ func (db *DB) UpdateSegments(videoID string, segments []Segment) error {
 	return err
 }
 
+// CreateBurnJob creates a new burn job record
+func (db *DB) CreateBurnJob(job *BurnJob) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO burn_jobs (id, video_id, status, message, progress, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, job.ID, job.VideoID, job.Status, job.Message, job.Progress, job.CreatedAt)
+	return err
+}
+
+// GetBurnJob retrieves a burn job by video ID
+func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
+	job := &BurnJob{}
+	var message, outputPath sql.NullString
+	var completedAt sql.NullTime
+
+	err := db.conn.QueryRow(`
+		SELECT id, video_id, status, message, progress, output_path, created_at, completed_at
+		FROM burn_jobs WHERE video_id = ? ORDER BY created_at DESC LIMIT 1
+	`, videoID).Scan(&job.ID, &job.VideoID, &job.Status, &message, &job.Progress, &outputPath, &job.CreatedAt, &completedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if message.Valid {
+		job.Message = message.String
+	}
+	if outputPath.Valid {
+		job.OutputPath = outputPath.String
+	}
+	if completedAt.Valid {
+		job.CompletedAt = &completedAt.Time
+	}
+
+	return job, nil
+}
+
+// UpdateBurnJobStatus updates the status and message of a burn job
+func (db *DB) UpdateBurnJobStatus(videoID, status, message string, progress int) error {
+	_, err := db.conn.Exec(`
+		UPDATE burn_jobs SET status = ?, message = ?, progress = ? WHERE video_id = ?
+	`, status, message, progress, videoID)
+	return err
+}
+
+// CompleteBurnJob marks a burn job as complete with the output file path
+func (db *DB) CompleteBurnJob(videoID, outputPath string) error {
+	now := time.Now()
+	_, err := db.conn.Exec(`
+		UPDATE burn_jobs
+		SET status = 'complete', message = 'Subtitles burned successfully', progress = 100,
+		    output_path = ?, completed_at = ?
+		WHERE video_id = ?
+	`, outputPath, now, videoID)
+	return err
+}
+
+// FailBurnJob marks a burn job as failed with an error message
+func (db *DB) FailBurnJob(videoID, errorMessage string) error {
+	_, err := db.conn.Exec(`
+		UPDATE burn_jobs SET status = 'error', message = ? WHERE video_id = ?
+	`, errorMessage, videoID)
+	return err
+}
+
 // DeleteVideo deletes a video and its associated transcription from the database.
 // Returns the file path so the caller can delete the file from disk.
 func (db *DB) DeleteVideo(videoID string) (string, error) {
@@ -492,6 +583,12 @@ func (db *DB) DeleteVideo(videoID string) (string, error) {
 	_, err = db.conn.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, videoID)
 	if err != nil {
 		return "", fmt.Errorf("failed to delete transcription: %w", err)
+	}
+
+	// Delete burn jobs
+	_, err = db.conn.Exec(`DELETE FROM burn_jobs WHERE video_id = ?`, videoID)
+	if err != nil {
+		return "", fmt.Errorf("failed to delete burn jobs: %w", err)
 	}
 
 	// Delete video record

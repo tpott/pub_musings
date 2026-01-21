@@ -376,6 +376,48 @@ Algorithm summary:
 4. Create segments using user text with timing from matched whisper words
 5. Interpolate timing for unmatched segments based on neighbors
 
+### Task 17: Backend - Embed subtitles in video
+
+**Date**: 2026-01-21
+
+Implemented subtitle burning feature that hardcodes subtitles into video files using ffmpeg's subtitles filter:
+
+Database layer (`backend/db/db.go`):
+- Added `burn_jobs` table to track subtitle burning jobs
+- Added `BurnJob` struct with fields: ID, VideoID, Status, Message, Progress, OutputPath, CreatedAt, CompletedAt
+- Added CRUD methods: `CreateBurnJob`, `GetBurnJob`, `UpdateBurnJobStatus`, `CompleteBurnJob`, `FailBurnJob`
+- Updated `DeleteVideo` to cascade delete burn jobs
+
+New API endpoints in `backend/main.go`:
+- `POST /api/videos/{id}/burn` - Start burning subtitles into video
+  - Validates transcription exists and is complete
+  - Decrypts video if encrypted
+  - Generates SRT file from segments
+  - Burns subtitles using ffmpeg with customizable styling (FontSize=24, white text, black outline)
+  - Encrypts output file at rest
+  - Background processing with progress updates
+- `GET /api/videos/{id}/burn` - Get burn job status (status, message, progress)
+- `GET /api/videos/{id}/burned` - Download the burned video
+  - Decrypts on-demand for serving
+  - Sets download filename based on original video name
+
+Frontend (`frontend/src/pages/upload.astro`):
+- Added "Burn Subtitles into Video" button in actions section
+- Burn status panel with progress bar
+- Download button appears when burn completes
+- Polling mechanism for status updates during processing
+- Error handling with retry capability
+
+Tests (`backend/db/db_test.go`):
+- Added `TestBurnJobLifecycle` - tests create, get, update status, complete
+- Added `TestFailBurnJob` - tests error state handling
+- Added `TestDeleteVideoWithBurnJob` - tests cascade deletion
+
+ffmpeg command used:
+```bash
+ffmpeg -i input.mp4 -vf "subtitles='subs.srt':force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'" -c:a copy -y output.mp4
+```
+
 ## In Progress
 
 None

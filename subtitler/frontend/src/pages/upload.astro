@@ -404,6 +404,59 @@
 			.unsaved-indicator.visible {
 				display: inline;
 			}
+			/* Burn subtitles button */
+			.burn-btn {
+				display: inline-block;
+				padding: 0.75rem 1.5rem;
+				background-color: #059669;
+				color: #fff;
+				border: none;
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.burn-btn:hover {
+				background-color: #047857;
+			}
+			.burn-btn:disabled {
+				background-color: #9ca3af;
+				cursor: not-allowed;
+			}
+			.burn-status {
+				display: none;
+				margin-top: 1rem;
+				padding: 1rem;
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 8px;
+			}
+			.burn-status.visible {
+				display: block;
+			}
+			.burn-status.complete {
+				background-color: #f0fff4;
+				border-color: #9ae6b4;
+			}
+			.burn-status.error {
+				background-color: #fff5f5;
+				border-color: #feb2b2;
+			}
+			.download-burned-btn {
+				display: inline-block;
+				margin-top: 0.5rem;
+				padding: 0.5rem 1rem;
+				background-color: #059669;
+				color: #fff;
+				text-decoration: none;
+				border-radius: 6px;
+				font-weight: 500;
+				font-size: 0.9rem;
+				transition: background-color 0.2s;
+			}
+			.download-burned-btn:hover {
+				background-color: #047857;
+			}
 		</style>
 	</head>
 	<body>
@@ -448,6 +501,14 @@
 				<div class="actions" id="actions" style="display: none;">
 					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
 					<a href="#" class="download-btn" id="downloadSrt">Download SRT</a>
+					<button class="burn-btn" id="burnBtn">Burn Subtitles into Video</button>
+				</div>
+				<div class="burn-status" id="burnStatus">
+					<p id="burnStatusText">Starting...</p>
+					<div class="progress-bar" id="burnProgressBar">
+						<div class="progress-bar-fill" id="burnProgressFill"></div>
+					</div>
+					<a href="#" class="download-burned-btn" id="downloadBurnedBtn" style="display: none;">Download Video with Subtitles</a>
 				</div>
 				<div class="full-text" id="fullText"></div>
 			</div>
@@ -475,6 +536,12 @@
 			const editActions = document.getElementById('editActions') as HTMLElement;
 			const addSegmentBtn = document.getElementById('addSegmentBtn') as HTMLButtonElement;
 			const unsavedIndicator = document.getElementById('unsavedIndicator') as HTMLElement;
+			const burnBtn = document.getElementById('burnBtn') as HTMLButtonElement;
+			const burnStatus = document.getElementById('burnStatus') as HTMLElement;
+			const burnStatusText = document.getElementById('burnStatusText') as HTMLElement;
+			const burnProgressBar = document.getElementById('burnProgressBar') as HTMLElement;
+			const burnProgressFill = document.getElementById('burnProgressFill') as HTMLElement;
+			const downloadBurnedBtn = document.getElementById('downloadBurnedBtn') as HTMLAnchorElement;
 
 			let isUploading = false;
 			let currentUploadId: string | null = null;
@@ -1001,6 +1068,85 @@
 					}
 				});
 			}
+
+			// Burn subtitles handling
+			let isBurning = false;
+
+			async function startBurn() {
+				if (!currentUploadId || isBurning) return;
+
+				isBurning = true;
+				burnBtn.disabled = true;
+				burnBtn.textContent = 'Burning...';
+				burnStatus.classList.add('visible');
+				burnStatus.classList.remove('complete', 'error');
+				burnStatusText.textContent = 'Starting subtitle burn...';
+				burnProgressFill.style.width = '0%';
+				downloadBurnedBtn.style.display = 'none';
+
+				try {
+					const response = await fetch(`/api/videos/${currentUploadId}/burn`, {
+						method: 'POST',
+					});
+					const result = await response.json();
+
+					if (!response.ok) {
+						throw new Error(result.error || 'Failed to start burn');
+					}
+
+					// Start polling for status
+					pollBurnStatus();
+				} catch (error) {
+					burnStatus.classList.add('error');
+					burnStatusText.textContent = `Error: ${error instanceof Error ? error.message : error}`;
+					burnBtn.disabled = false;
+					burnBtn.textContent = 'Burn Subtitles into Video';
+					isBurning = false;
+				}
+			}
+
+			async function pollBurnStatus() {
+				if (!currentUploadId) return;
+
+				const poll = async () => {
+					try {
+						const response = await fetch(`/api/videos/${currentUploadId}/burn`);
+						const result = await response.json();
+
+						burnStatusText.textContent = result.message || 'Processing...';
+						burnProgressFill.style.width = `${result.progress || 0}%`;
+
+						if (result.status === 'processing') {
+							setTimeout(poll, 2000);
+						} else if (result.status === 'complete') {
+							burnStatus.classList.add('complete');
+							burnStatusText.textContent = 'Subtitles burned successfully!';
+							burnProgressFill.style.width = '100%';
+							downloadBurnedBtn.href = `/api/videos/${currentUploadId}/burned`;
+							downloadBurnedBtn.style.display = 'inline-block';
+							burnBtn.disabled = false;
+							burnBtn.textContent = 'Burn Again';
+							isBurning = false;
+						} else if (result.status === 'error') {
+							burnStatus.classList.add('error');
+							burnStatusText.textContent = `Error: ${result.message}`;
+							burnBtn.disabled = false;
+							burnBtn.textContent = 'Retry Burn';
+							isBurning = false;
+						}
+					} catch (error) {
+						burnStatus.classList.add('error');
+						burnStatusText.textContent = `Polling error: ${error}`;
+						burnBtn.disabled = false;
+						burnBtn.textContent = 'Retry Burn';
+						isBurning = false;
+					}
+				};
+
+				poll();
+			}
+
+			burnBtn.addEventListener('click', startBurn);
 
 			// Auth handling
 			const nav = document.getElementById('nav') as HTMLElement;

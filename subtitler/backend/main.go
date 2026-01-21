@@ -1197,6 +1197,316 @@ func main() {
 		http.ServeFile(w, r, videoPath)
 	})
 
+	// Start burning subtitles into video
+	mux.HandleFunc("POST /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		// Check if transcription exists and is complete
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription",
+			})
+			return
+		}
+		if transcription == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found - please transcribe the video first",
+			})
+			return
+		}
+		if transcription.Status != "complete" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Cannot burn subtitles - transcription not complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// Check if already processing
+		existingJob, err := database.GetBurnJob(uploadID)
+		if err != nil {
+			log.Printf("Error getting burn job: %v", err)
+		}
+		if existingJob != nil {
+			if existingJob.Status == "processing" {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"status":   "processing",
+					"message":  existingJob.Message,
+					"progress": existingJob.Progress,
+				})
+				return
+			}
+			if existingJob.Status == "complete" {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"status":   "complete",
+					"message":  existingJob.Message,
+					"progress": 100,
+				})
+				return
+			}
+		}
+
+		// Find the video file
+		videoPath, err := findVideoFile(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Create or update burn job
+		if existingJob == nil {
+			burnJob := &db.BurnJob{
+				ID:        generateID(),
+				VideoID:   uploadID,
+				Status:    "processing",
+				Message:   "Starting subtitle burn...",
+				Progress:  0,
+				CreatedAt: time.Now(),
+			}
+			if err := database.CreateBurnJob(burnJob); err != nil {
+				log.Printf("Error creating burn job: %v", err)
+			}
+		} else {
+			database.UpdateBurnJobStatus(uploadID, "processing", "Starting subtitle burn...", 0)
+		}
+
+		// Process in background
+		go func() {
+			log.Printf("Starting subtitle burn for %s", uploadID)
+
+			// Decrypt video if encrypted
+			workingVideoPath := videoPath
+			if strings.HasSuffix(videoPath, ".age") {
+				database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5)
+				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+				if err != nil {
+					log.Printf("Video decryption failed: %v", err)
+					database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
+					return
+				}
+				workingVideoPath = decryptedPath
+				defer os.Remove(decryptedPath)
+			}
+
+			// Get segments for SRT generation
+			segments, err := transcription.GetSegments()
+			if err != nil || len(segments) == 0 {
+				log.Printf("No segments available: %v", err)
+				database.FailBurnJob(uploadID, "No subtitle segments available")
+				return
+			}
+
+			database.UpdateBurnJobStatus(uploadID, "processing", "Generating subtitles...", 10)
+
+			// Convert to WhisperResult for SRT generation
+			whisperResult := &WhisperResult{
+				Language: transcription.Language,
+				Duration: transcription.Duration,
+				Text:     transcription.FullText,
+				Segments: make([]WhisperSegment, len(segments)),
+			}
+			for i, s := range segments {
+				whisperResult.Segments[i] = WhisperSegment{
+					ID:    s.ID,
+					Start: s.Start,
+					End:   s.End,
+					Text:  s.Text,
+				}
+			}
+
+			// Write SRT to temp file
+			srtContent := generateSRT(whisperResult)
+			srtPath := filepath.Join(uploadDir, uploadID+"_burn.srt")
+			if err := os.WriteFile(srtPath, []byte(srtContent), 0644); err != nil {
+				log.Printf("Failed to write SRT file: %v", err)
+				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to write SRT file: %v", err))
+				return
+			}
+			defer os.Remove(srtPath)
+
+			database.UpdateBurnJobStatus(uploadID, "processing", "Burning subtitles into video...", 20)
+
+			// Burn subtitles using ffmpeg with subtitles filter
+			// Output to a temp file first, then encrypt
+			outputPath := filepath.Join(uploadDir, uploadID+"_burned.mp4")
+			cmd := exec.Command("ffmpeg",
+				"-i", workingVideoPath,
+				"-vf", fmt.Sprintf("subtitles='%s':force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'", srtPath),
+				"-c:a", "copy",
+				"-y",
+				outputPath,
+			)
+			cmdOutput, err := cmd.CombinedOutput()
+			if err != nil {
+				log.Printf("ffmpeg burn subtitles failed: %v, output: %s", err, string(cmdOutput))
+				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err))
+				return
+			}
+
+			database.UpdateBurnJobStatus(uploadID, "processing", "Encrypting output...", 90)
+
+			// Encrypt the output file
+			encOutputPath, err := encryptor.EncryptFile(outputPath)
+			if err != nil {
+				log.Printf("Failed to encrypt burned video: %v", err)
+				os.Remove(outputPath)
+				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err))
+				return
+			}
+			os.Remove(outputPath) // Remove unencrypted file
+
+			log.Printf("Subtitle burn complete for %s: %s", uploadID, encOutputPath)
+			database.CompleteBurnJob(uploadID, encOutputPath)
+		}()
+
+		// Return immediately with processing status
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   "processing",
+			"message":  "Subtitle burn started",
+			"progress": 0,
+		})
+	})
+
+	// Get burn job status
+	mux.HandleFunc("GET /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		job, err := database.GetBurnJob(uploadID)
+		if err != nil {
+			log.Printf("Error getting burn job: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get burn job status",
+			})
+			return
+		}
+
+		if job == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No burn job found for this video",
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   job.Status,
+			"message":  job.Message,
+			"progress": job.Progress,
+		})
+	})
+
+	// Download burned video
+	mux.HandleFunc("GET /api/videos/{id}/burned", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		job, err := database.GetBurnJob(uploadID)
+		if err != nil {
+			log.Printf("Error getting burn job: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get burn job",
+			})
+			return
+		}
+
+		if job == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No burn job found - start one first with POST /api/videos/{id}/burn",
+			})
+			return
+		}
+
+		if job.Status != "complete" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":    "Burn job not complete",
+				"status":   job.Status,
+				"message":  job.Message,
+				"progress": job.Progress,
+			})
+			return
+		}
+
+		if job.OutputPath == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Burned video file not found",
+			})
+			return
+		}
+
+		// Decrypt if encrypted
+		servePath := job.OutputPath
+		if strings.HasSuffix(job.OutputPath, ".age") {
+			decryptedPath, err := encryptor.DecryptToTempFile(job.OutputPath)
+			if err != nil {
+				log.Printf("Failed to decrypt burned video: %v", err)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to decrypt video",
+				})
+				return
+			}
+			defer os.Remove(decryptedPath)
+			servePath = decryptedPath
+		}
+
+		// Get original video filename for download name
+		video, err := database.GetVideo(uploadID)
+		downloadName := uploadID + "_subtitled.mp4"
+		if err == nil && video != nil {
+			// Use original filename with _subtitled suffix
+			ext := filepath.Ext(video.Filename)
+			baseName := strings.TrimSuffix(video.Filename, ext)
+			downloadName = baseName + "_subtitled.mp4"
+		}
+
+		// Set headers for download
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadName))
+		http.ServeFile(w, r, servePath)
+	})
+
 	// Start the cleanup scheduler for expired videos
 	go startCleanupScheduler()
 
