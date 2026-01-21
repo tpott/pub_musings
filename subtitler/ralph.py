@@ -115,6 +115,12 @@ def main():
             last_line = run_claude(prompt_content, args.verbose)
             if last_line is not None:
                 print(f"Result: {json.loads(last_line)['result']}")
+        except json.JSONDecodeError:
+            print(f"Last line failed to parse as JSON: {last_line}")
+            continue
+        except KeyError:
+            print(f"Last line missing \"result\": {last_line}")
+            continue
         except FileNotFoundError:
             print("Error: 'claude' command not found", file=sys.stderr)
             sys.exit(1)
