@@ -9,3 +9,4 @@ frontend/.astro/
 # Backend
 backend/subtitler
 backend/uploads/
+backend/data/

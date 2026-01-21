@@ -194,9 +194,48 @@
 				background-color: #e2e8f0;
 				color: #64748b;
 			}
+			.nav {
+				display: flex;
+				justify-content: flex-end;
+				padding: 1rem 2rem;
+				gap: 1rem;
+			}
+			.nav-link {
+				color: var(--text-color);
+				text-decoration: none;
+				font-size: 0.9rem;
+				padding: 0.5rem 1rem;
+				border-radius: 6px;
+				transition: background-color 0.2s;
+			}
+			.nav-link:hover {
+				background-color: var(--border-color);
+			}
+			.nav-user {
+				color: #666;
+				font-size: 0.9rem;
+				padding: 0.5rem 1rem;
+			}
+			.nav-logout {
+				background: none;
+				border: none;
+				color: var(--text-color);
+				font-size: 0.9rem;
+				padding: 0.5rem 1rem;
+				border-radius: 6px;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.nav-logout:hover {
+				background-color: var(--border-color);
+			}
 		</style>
 	</head>
 	<body>
+		<nav class="nav" id="nav">
+			<a href="/login" class="nav-link" id="loginLink">Log in</a>
+			<a href="/register" class="nav-link" id="registerLink">Sign up</a>
+		</nav>
 		<div class="container">
 			<div class="header">
 				<div class="header-left">
@@ -316,6 +355,48 @@
 			}
 
 			loadVideos();
+
+			// Auth handling
+			const nav = document.getElementById('nav') as HTMLElement;
+			const loginLink = document.getElementById('loginLink') as HTMLElement;
+			const registerLink = document.getElementById('registerLink') as HTMLElement;
+
+			async function checkAuth() {
+				try {
+					const response = await fetch('/api/auth/me');
+					if (response.ok) {
+						const data = await response.json();
+						if (data.user) {
+							loginLink.style.display = 'none';
+							registerLink.style.display = 'none';
+
+							const userSpan = document.createElement('span');
+							userSpan.className = 'nav-user';
+							userSpan.textContent = data.user.email;
+							nav.appendChild(userSpan);
+
+							const logoutBtn = document.createElement('button');
+							logoutBtn.className = 'nav-logout';
+							logoutBtn.textContent = 'Log out';
+							logoutBtn.addEventListener('click', logout);
+							nav.appendChild(logoutBtn);
+						}
+					}
+				} catch (err) {
+					// Not logged in
+				}
+			}
+
+			async function logout() {
+				try {
+					await fetch('/api/auth/logout', { method: 'POST' });
+					window.location.reload();
+				} catch (err) {
+					console.error('Logout failed:', err);
+				}
+			}
+
+			checkAuth();
 		</script>
 	</body>
 </html>

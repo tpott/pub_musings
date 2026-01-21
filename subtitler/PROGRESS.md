@@ -222,6 +222,34 @@ Comprehensive tests in `backend/auth/auth_test.go`:
 - Session lifecycle tests (create, validate, delete)
 - User lifecycle tests (create, get by ID, get by email)
 
+### Task 12: Frontend - Auth pages
+
+**Date**: 2026-01-21
+
+Implemented frontend authentication pages and navigation:
+
+New pages:
+- `frontend/src/pages/login.astro` - Login form with email/password
+- `frontend/src/pages/register.astro` - Registration form with email/password/confirm
+
+Features:
+- Clean, centered card design matching Subtitler's aesthetic
+- Client-side form validation
+- Error message display for failed login/registration
+- Loading states on submit buttons
+- Automatic redirect to /videos on successful login/registration
+- Links between login and register pages
+
+Updated existing pages with auth navigation:
+- `frontend/src/pages/index.astro` - Added nav bar with Log in/Sign up links
+- `frontend/src/pages/videos.astro` - Added nav bar with auth state
+- `frontend/src/pages/upload.astro` - Added nav bar with auth state
+
+Auth navigation behavior:
+- When logged out: Shows "Log in" and "Sign up" links
+- When logged in: Shows user email and "Log out" button
+- Logout clears session and reloads page
+
 ## In Progress
 
 None
