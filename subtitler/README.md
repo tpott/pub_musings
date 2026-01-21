@@ -31,10 +31,26 @@ Visit http://localhost:4321 in your browser. The frontend proxies `/api/*` reque
 
 ## Development
 
-TODO:
+### Testing
+
+See [TESTING.md](TESTING.md) for comprehensive testing documentation including:
+- Running backend tests (Go)
+- Running frontend tests (Vitest)
+- Writing new tests
+- Coverage reports
+
+Quick test commands:
+```bash
+# Backend
+cd backend && /home/trevor/go/bin/go test ./... -v
+
+# Frontend
+cd frontend && npm test
+```
+
+### TODO
 * Install section and link to INSTALL.md
 * Linters section and link to LINTERS.md
-* Testing section and link to TESTING.md
 * Browser automation section and link to BROWSER_TESTING.md
 * Debugging section, how to attach debuggers
 

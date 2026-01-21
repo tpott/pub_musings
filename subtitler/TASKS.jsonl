@@ -17,3 +17,7 @@
 {"id": 17, "name": "Backend: Embed subtitles in video", "done_when": "Backend can burn subtitles into video file for download", "status": "done"}
 {"id": 18, "name": "Backend: 2FA with TOTP", "done_when": "Users can enable Google Authenticator style 2FA", "status": "done"}
 {"id": 19, "name": "Write tests", "done_when": "Unit and integration tests for backend and frontend", "status": "done"}
+{"id": 20, "name": "Create TESTING.md documentation", "done_when": "TESTING.md exists with instructions for running backend and frontend tests, test commands, and info about test coverage", "status": "done"}
+{"id": 21, "name": "Create INSTALL.md documentation", "done_when": "INSTALL.md exists with instructions for installing all project dependencies (Go, Node.js, ffmpeg, whisper-cli)", "status": "pending"}
+{"id": 22, "name": "Create LINTERS.md documentation", "done_when": "LINTERS.md exists with linting setup and commands", "status": "pending"}
+{"id": 23, "name": "Create BROWSER_TESTING.md documentation", "done_when": "BROWSER_TESTING.md exists with browser automation testing instructions", "status": "pending"}

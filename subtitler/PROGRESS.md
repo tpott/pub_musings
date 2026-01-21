@@ -528,9 +528,29 @@ Tests added (`frontend/src/utils/*.test.ts`):
 - Frontend: 44 tests (all new)
 - Total: 128 tests
 
+### Task 20: Create TESTING.md documentation
+
+**Date**: 2026-01-21
+
+Created comprehensive testing documentation in `TESTING.md`:
+
+- Overview of test coverage (128 total tests: 84 backend, 44 frontend)
+- Backend test commands using Go test with verbose output and coverage
+- Frontend test commands using Vitest
+- Description of all 7 backend test files and their purpose
+- Description of 2 frontend test files and their purpose
+- Guide for writing new tests (both backend and frontend)
+- Coverage report generation instructions
+- CI/CD integration notes
+
+Also updated `README.md` to:
+- Add Testing section with link to TESTING.md
+- Include quick test commands
+- Remove Testing from TODO list
+
 ## Completed
 
-All 19 tasks have been completed! The subtitler application is feature-complete with:
+All 20 tasks have been completed! The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
