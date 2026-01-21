@@ -182,6 +182,46 @@ Environment:
 - Key file format includes public key comment for reference
 - Encrypted files stored as `uploads/{id}.{ext}.age`
 
+### Task 11: Backend - Authentication system
+
+**Date**: 2026-01-21
+
+Implemented email/password authentication with session management:
+
+Database schema (`backend/db/db.go`):
+- Added `users` table: id, email (unique), password_hash, created_at
+- Added `sessions` table: id, user_id, token (unique), expires_at, created_at
+- Added indexes for efficient lookups
+
+New package `backend/auth/auth.go`:
+- `HashPassword(password)` - bcrypt hashing with cost 12
+- `CheckPassword(password, hash)` - bcrypt comparison
+- `GenerateToken()` - 32-byte cryptographically secure token
+- `GenerateID()` - 16-byte random ID generation
+- `ValidateEmail(email)` - basic email format validation
+- `ValidatePassword(password)` - min 8 chars, max 72 (bcrypt limit)
+- `CreateSession(db, userID)` - creates 7-day session
+- `ValidateSession(db, token)` - validates token, returns user and session
+- `GetTokenFromRequest(r)` - extracts token from Authorization header or cookie
+- `SetSessionCookie/ClearSessionCookie` - cookie management
+
+New API endpoints in `backend/main.go`:
+- `POST /api/auth/register` - create new user account, returns session token
+- `POST /api/auth/login` - authenticate and get session token
+- `POST /api/auth/logout` - invalidate session
+- `GET /api/auth/me` - get current authenticated user
+
+Updated endpoints:
+- `POST /api/upload` - now extracts user_id from session and stores with video
+- `GET /api/videos` - filters by authenticated user_id when logged in
+
+Comprehensive tests in `backend/auth/auth_test.go`:
+- Password hashing and verification tests
+- Token and ID generation tests
+- Email and password validation tests
+- Session lifecycle tests (create, validate, delete)
+- User lifecycle tests (create, get by ID, get by email)
+
 ## In Progress
 
 None

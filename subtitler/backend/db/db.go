@@ -51,6 +51,23 @@ type Segment struct {
 	Text  string  `json:"text"`
 }
 
+// User represents a registered user
+type User struct {
+	ID           string    `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"` // Never serialize
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// Session represents an authenticated session
+type Session struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Token     string    `json:"-"` // Never serialize token in JSON
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Open opens or creates a SQLite database at the given path
 func Open(dbPath string) (*DB, error) {
 	// Ensure directory exists
@@ -116,6 +133,23 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_videos_session_id ON videos(session_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_videos_created_at ON videos(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_transcriptions_video_id ON transcriptions(video_id)`,
+		`CREATE TABLE IF NOT EXISTS users (
+			id TEXT PRIMARY KEY,
+			email TEXT UNIQUE NOT NULL,
+			password_hash TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			token TEXT UNIQUE NOT NULL,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`,
 	}
 
 	for _, migration := range migrations {
@@ -285,4 +319,91 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 	}
 
 	return videos, rows.Err()
+}
+
+// CreateUser creates a new user record
+func (db *DB) CreateUser(user *User) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO users (id, email, password_hash, created_at)
+		VALUES (?, ?, ?, ?)
+	`, user.ID, user.Email, user.PasswordHash, user.CreatedAt)
+	return err
+}
+
+// GetUserByID retrieves a user by ID
+func (db *DB) GetUserByID(id string) (*User, error) {
+	user := &User{}
+	err := db.conn.QueryRow(`
+		SELECT id, email, password_hash, created_at
+		FROM users WHERE id = ?
+	`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+// GetUserByEmail retrieves a user by email
+func (db *DB) GetUserByEmail(email string) (*User, error) {
+	user := &User{}
+	err := db.conn.QueryRow(`
+		SELECT id, email, password_hash, created_at
+		FROM users WHERE email = ?
+	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+// CreateSession creates a new session record
+func (db *DB) CreateSession(session *Session) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO sessions (id, user_id, token, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, session.ID, session.UserID, session.Token, session.ExpiresAt, session.CreatedAt)
+	return err
+}
+
+// GetSessionByToken retrieves a session by token
+func (db *DB) GetSessionByToken(token string) (*Session, error) {
+	session := &Session{}
+	err := db.conn.QueryRow(`
+		SELECT id, user_id, token, expires_at, created_at
+		FROM sessions WHERE token = ?
+	`, token).Scan(&session.ID, &session.UserID, &session.Token, &session.ExpiresAt, &session.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// DeleteSession deletes a session by token
+func (db *DB) DeleteSession(token string) error {
+	_, err := db.conn.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+	return err
+}
+
+// DeleteExpiredSessions deletes all expired sessions
+func (db *DB) DeleteExpiredSessions() (int64, error) {
+	result, err := db.conn.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// DeleteUserSessions deletes all sessions for a user
+func (db *DB) DeleteUserSessions(userID string) error {
+	_, err := db.conn.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
+	return err
 }

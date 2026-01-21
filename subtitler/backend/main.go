@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
 )
@@ -253,9 +254,262 @@ func main() {
 		})
 	})
 
+	// Auth: Register new user
+	mux.HandleFunc("POST /api/auth/register", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse request body
+		var req struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Normalize email
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		// Validate email
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Validate password
+		if err := auth.ValidatePassword(req.Password); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Check if email already exists
+		existingUser, err := database.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Error checking existing user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Registration failed",
+			})
+			return
+		}
+		if existingUser != nil {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Email already registered",
+			})
+			return
+		}
+
+		// Hash password
+		hash, err := auth.HashPassword(req.Password)
+		if err != nil {
+			log.Printf("Error hashing password: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Registration failed",
+			})
+			return
+		}
+
+		// Generate user ID
+		userID, err := auth.GenerateID()
+		if err != nil {
+			log.Printf("Error generating user ID: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Registration failed",
+			})
+			return
+		}
+
+		// Create user
+		user := &db.User{
+			ID:           userID,
+			Email:        req.Email,
+			PasswordHash: hash,
+			CreatedAt:    time.Now(),
+		}
+		if err := database.CreateUser(user); err != nil {
+			log.Printf("Error creating user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Registration failed",
+			})
+			return
+		}
+
+		// Create session
+		session, err := auth.CreateSession(database, userID)
+		if err != nil {
+			log.Printf("Error creating session: %v", err)
+			// User was created, but session failed - still return success
+			// User can log in to get a session
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"user": map[string]interface{}{
+					"id":         user.ID,
+					"email":      user.Email,
+					"created_at": user.CreatedAt,
+				},
+			})
+			return
+		}
+
+		// Set session cookie
+		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		log.Printf("New user registered: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"user": map[string]interface{}{
+				"id":         user.ID,
+				"email":      user.Email,
+				"created_at": user.CreatedAt,
+			},
+			"token": session.Token,
+		})
+	})
+
+	// Auth: Login
+	mux.HandleFunc("POST /api/auth/login", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse request body
+		var req struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Normalize email
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		// Get user by email
+		user, err := database.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Error getting user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Login failed",
+			})
+			return
+		}
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid email or password",
+			})
+			return
+		}
+
+		// Check password
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid email or password",
+			})
+			return
+		}
+
+		// Create session
+		session, err := auth.CreateSession(database, user.ID)
+		if err != nil {
+			log.Printf("Error creating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Login failed",
+			})
+			return
+		}
+
+		// Set session cookie
+		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		log.Printf("User logged in: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"user": map[string]interface{}{
+				"id":         user.ID,
+				"email":      user.Email,
+				"created_at": user.CreatedAt,
+			},
+			"token": session.Token,
+		})
+	})
+
+	// Auth: Logout
+	mux.HandleFunc("POST /api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		if token != "" {
+			if err := database.DeleteSession(token); err != nil {
+				log.Printf("Error deleting session: %v", err)
+			}
+		}
+
+		auth.ClearSessionCookie(w)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Logged out successfully",
+		})
+	})
+
+	// Auth: Get current user
+	mux.HandleFunc("GET /api/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil {
+			log.Printf("Error validating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get user",
+			})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Not authenticated",
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"user": map[string]interface{}{
+				"id":         user.ID,
+				"email":      user.Email,
+				"created_at": user.CreatedAt,
+			},
+		})
+	})
+
 	// Upload endpoint - accepts video files
 	mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+
+		// Get authenticated user (if any)
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+
+		// Get session_id from form for anonymous session tracking
+		sessionID := r.URL.Query().Get("session_id")
 
 		// Limit request body size
 		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
@@ -353,6 +607,14 @@ func main() {
 			ContentType: contentType,
 			FilePath:    encPath,
 			CreatedAt:   time.Now(),
+		}
+		// Set user_id if authenticated
+		if user != nil {
+			video.UserID = &user.ID
+		}
+		// Set session_id for anonymous tracking
+		if sessionID != "" {
+			video.SessionID = &sessionID
 		}
 		if err := database.CreateVideo(video); err != nil {
 			log.Printf("Error saving video to database: %v", err)
@@ -629,6 +891,10 @@ func main() {
 	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		// Get authenticated user (if any)
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+
 		// Get optional session_id from query params (for anonymous user filtering)
 		sessionID := r.URL.Query().Get("session_id")
 		var sessionPtr *string
@@ -636,8 +902,11 @@ func main() {
 			sessionPtr = &sessionID
 		}
 
-		// TODO: Get user_id from auth when implemented
+		// Get user_id from authenticated session
 		var userPtr *string
+		if user != nil {
+			userPtr = &user.ID
+		}
 
 		videos, err := database.ListVideos(userPtr, sessionPtr)
 		if err != nil {
