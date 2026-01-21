@@ -6,9 +6,9 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 84 tests across 7 test files
-- **Frontend (TypeScript)**: 44 tests across 2 test files
-- **Total**: 128 tests
+- **Backend (Go)**: 86 tests across 7 test files
+- **Frontend (TypeScript)**: 64 tests across 3 test files
+- **Total**: 150 tests
 
 ## Backend Tests
 
@@ -100,6 +100,7 @@ npm test:watch
 |------|-------------|
 | `src/utils/format.test.ts` | 23 tests for formatting utilities |
 | `src/utils/validation.test.ts` | 21 tests for validation utilities |
+| `src/utils/console-forwarder.test.ts` | 20 tests for dev mode console forwarding |
 
 ### Test Categories
 

@@ -88,6 +88,33 @@ func (ts *testServer) registerHandlers() {
 		})
 	})
 
+	// Frontend log forwarding endpoint (for dev mode debugging)
+	ts.mux.HandleFunc("POST /api/log", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Level   string `json:"level"`
+			Message string `json:"message"`
+			URL     string `json:"url"`
+			Line    int    `json:"line"`
+			Column  int    `json:"column"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate level
+		validLevels := map[string]bool{"log": true, "warn": true, "error": true, "info": true, "debug": true}
+		if !validLevels[req.Level] {
+			req.Level = "log"
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+
 	// Auth: Register
 	ts.mux.HandleFunc("POST /api/auth/register", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -591,6 +618,114 @@ func TestHealthEndpoint(t *testing.T) {
 
 	if result["status"] != "ok" {
 		t.Errorf("Expected status 'ok', got '%s'", result["status"])
+	}
+}
+
+func TestLogEndpoint(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	tests := []struct {
+		name       string
+		body       map[string]interface{}
+		wantStatus int
+	}{
+		{
+			name: "valid log message",
+			body: map[string]interface{}{
+				"level":   "log",
+				"message": "Test log message",
+				"url":     "http://localhost:4321/upload",
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "error level with line info",
+			body: map[string]interface{}{
+				"level":   "error",
+				"message": "Test error message",
+				"url":     "http://localhost:4321/upload",
+				"line":    42,
+				"column":  10,
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "warn level",
+			body: map[string]interface{}{
+				"level":   "warn",
+				"message": "Test warning",
+				"url":     "http://localhost:4321/",
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "debug level",
+			body: map[string]interface{}{
+				"level":   "debug",
+				"message": "Debug info",
+				"url":     "http://localhost:4321/",
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "info level",
+			body: map[string]interface{}{
+				"level":   "info",
+				"message": "Info message",
+				"url":     "http://localhost:4321/",
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "invalid level defaults to log",
+			body: map[string]interface{}{
+				"level":   "invalid",
+				"message": "Message with invalid level",
+				"url":     "http://localhost:4321/",
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "minimal body",
+			body: map[string]interface{}{
+				"message": "Just a message",
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, _ := json.Marshal(tt.body)
+			resp := ts.doRequest("POST", "/api/log", bytes.NewReader(body), "")
+
+			if resp.Code != tt.wantStatus {
+				t.Errorf("Expected status %d, got %d", tt.wantStatus, resp.Code)
+			}
+
+			var result map[string]string
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			if result["status"] != "ok" {
+				t.Errorf("Expected status 'ok', got '%s'", result["status"])
+			}
+		})
+	}
+}
+
+func TestLogEndpointInvalidBody(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Send completely invalid JSON directly (bypass doRequest's json.Marshal)
+	req := httptest.NewRequest("POST", "/api/log", strings.NewReader(`{level: not-valid-json}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", rr.Code)
 	}
 }
 

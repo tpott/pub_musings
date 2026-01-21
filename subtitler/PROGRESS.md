@@ -602,14 +602,51 @@ Created browser automation testing guide in `BROWSER_TESTING.md`:
 - Quick reference command table
 - Links to related documentation
 
+### Task 24: Frontend - Console log forwarding to backend
+
+**Date**: 2026-01-21
+
+Implemented console log forwarding from frontend to backend for easier debugging during development (as specified in the architecture requirements in specs/subtitler.md):
+
+Backend (`backend/main.go`):
+- Added `POST /api/log` endpoint to receive console messages from frontend
+- Accepts JSON payload with: `level`, `message`, `url`, `line`, `column`
+- Validates log levels (log, warn, error, info, debug) with fallback to "log"
+- Formats and outputs received logs with `[FRONTEND]`, `[FRONTEND ERROR]`, etc. prefixes
+- Includes source URL and line/column info when available
+
+Frontend (`frontend/src/utils/console-forwarder.ts`):
+- `installConsoleForwarder(isDev)` - installs interceptors for console.log/warn/error/info/debug
+- Only activates when `isDev` is true (development mode only)
+- Preserves original console behavior - messages still appear in browser console
+- Formats arguments as strings (handles objects, arrays, errors, undefined, circular refs)
+- Captures unhandled errors and promise rejections via window event listeners
+- Queue system prevents infinite loops when logging during send
+- `uninstallConsoleForwarder()` restores original console methods
+
+Astro component (`frontend/src/components/DevConsoleForwarder.astro`):
+- Simple component to include in pages that need log forwarding
+- Uses `import.meta.env.DEV` to only enable in development builds
+- Included in all 6 pages: index, upload, videos, login, register, security
+
+Tests:
+- Backend: `TestLogEndpoint` (7 subtests) and `TestLogEndpointInvalidBody` in `api_test.go`
+- Frontend: 20 tests in `console-forwarder.test.ts` covering formatArgs, installation, interception
+
+**Total Test Count Update**:
+- Backend: 86 tests (84 + 2 new)
+- Frontend: 64 tests (44 + 20 new)
+- Total: 150 tests
+
 ## Summary
 
-All 23 tasks have been completed! The subtitler application is feature-complete with:
+All 24 tasks have been completed! The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
 - User authentication with optional 2FA (TOTP)
 - File encryption at rest
 - Anonymous and registered user support with retention policies
-- Comprehensive test coverage (128 tests)
+- Frontend console log forwarding to backend for dev debugging
+- Comprehensive test coverage (150 tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)

@@ -256,6 +256,70 @@ func main() {
 		})
 	})
 
+	// Frontend log forwarding endpoint (for dev mode debugging)
+	mux.HandleFunc("POST /api/log", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse request body
+		var req struct {
+			Level   string        `json:"level"`   // log, warn, error, info, debug
+			Message string        `json:"message"` // formatted message string
+			Args    []interface{} `json:"args"`    // additional arguments (optional)
+			URL     string        `json:"url"`     // page URL where log originated
+			Line    int           `json:"line"`    // line number (optional)
+			Column  int           `json:"column"`  // column number (optional)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Validate level
+		validLevels := map[string]bool{"log": true, "warn": true, "error": true, "info": true, "debug": true}
+		if !validLevels[req.Level] {
+			req.Level = "log"
+		}
+
+		// Format the log message with source info
+		var prefix string
+		switch req.Level {
+		case "error":
+			prefix = "[FRONTEND ERROR]"
+		case "warn":
+			prefix = "[FRONTEND WARN]"
+		case "debug":
+			prefix = "[FRONTEND DEBUG]"
+		case "info":
+			prefix = "[FRONTEND INFO]"
+		default:
+			prefix = "[FRONTEND]"
+		}
+
+		// Build log message
+		logMsg := fmt.Sprintf("%s %s", prefix, req.Message)
+		if req.URL != "" {
+			logMsg = fmt.Sprintf("%s (from %s", logMsg, req.URL)
+			if req.Line > 0 {
+				logMsg = fmt.Sprintf("%s:%d", logMsg, req.Line)
+				if req.Column > 0 {
+					logMsg = fmt.Sprintf("%s:%d", logMsg, req.Column)
+				}
+			}
+			logMsg = logMsg + ")"
+		}
+
+		// Log to backend console
+		log.Println(logMsg)
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "ok",
+		})
+	})
+
 	// Auth: Register new user
 	mux.HandleFunc("POST /api/auth/register", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -21,3 +21,4 @@
 {"id": 21, "name": "Create INSTALL.md documentation", "done_when": "INSTALL.md exists with instructions for installing all project dependencies (Go, Node.js, ffmpeg, whisper-cli)", "status": "done"}
 {"id": 22, "name": "Create LINTERS.md documentation", "done_when": "LINTERS.md exists with linting setup and commands", "status": "done"}
 {"id": 23, "name": "Create BROWSER_TESTING.md documentation", "done_when": "BROWSER_TESTING.md exists with browser automation testing instructions", "status": "done"}
+{"id": 24, "name": "Frontend: Console log forwarding to backend", "done_when": "Frontend forwards console.log/warn/error to backend /api/log endpoint in dev mode only", "status": "done"}
