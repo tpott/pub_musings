@@ -89,6 +89,30 @@
 			.status.visible {
 				display: block;
 			}
+			.status.error {
+				background-color: #fff5f5;
+				border: 1px solid #feb2b2;
+				color: #c53030;
+			}
+			.status.success {
+				background-color: #f0fff4;
+				border: 1px solid #9ae6b4;
+				color: #276749;
+			}
+			.progress-bar {
+				width: 100%;
+				height: 8px;
+				background-color: var(--border-color);
+				border-radius: 4px;
+				margin-top: 0.5rem;
+				overflow: hidden;
+			}
+			.progress-bar-fill {
+				height: 100%;
+				background-color: var(--accent-color);
+				width: 0%;
+				transition: width 0.3s ease;
+			}
 			.video-preview {
 				margin-top: 2rem;
 				display: none;
@@ -122,6 +146,9 @@
 
 			<div class="status" id="status">
 				<p id="statusText">Ready to upload</p>
+				<div class="progress-bar" id="progressBar" style="display: none;">
+					<div class="progress-bar-fill" id="progressFill"></div>
+				</div>
 			</div>
 		</div>
 
@@ -132,6 +159,10 @@
 			const statusText = document.getElementById('statusText') as HTMLElement;
 			const videoPreview = document.getElementById('videoPreview') as HTMLElement;
 			const previewVideo = document.getElementById('previewVideo') as HTMLVideoElement;
+			const progressBar = document.getElementById('progressBar') as HTMLElement;
+			const progressFill = document.getElementById('progressFill') as HTMLElement;
+
+			let isUploading = false;
 
 			dropzone.addEventListener('click', () => fileInput.click());
 
@@ -161,8 +192,20 @@
 			});
 
 			function handleFile(file: File) {
+				if (isUploading) {
+					showStatus('Upload already in progress', 'error');
+					return;
+				}
+
 				if (!file.type.startsWith('video/')) {
-					showStatus('Please select a video file');
+					showStatus('Please select a video file', 'error');
+					return;
+				}
+
+				// Check file size (500 MB max)
+				const maxSize = 500 * 1024 * 1024;
+				if (file.size > maxSize) {
+					showStatus('File too large. Maximum size is 500 MB.', 'error');
 					return;
 				}
 
@@ -173,29 +216,82 @@
 
 				showStatus(`Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-				// TODO: Upload file to backend
-				// uploadFile(file);
+				// Start upload
+				uploadFile(file);
 			}
 
-			function showStatus(message: string) {
+			function showStatus(message: string, type?: 'error' | 'success') {
 				statusText.textContent = message;
 				status.classList.add('visible');
+				status.classList.remove('error', 'success');
+				if (type) {
+					status.classList.add(type);
+				}
+			}
+
+			function showProgress(percent: number) {
+				progressBar.style.display = 'block';
+				progressFill.style.width = `${percent}%`;
+			}
+
+			function hideProgress() {
+				progressBar.style.display = 'none';
+				progressFill.style.width = '0%';
 			}
 
 			async function uploadFile(file: File) {
+				isUploading = true;
 				const formData = new FormData();
 				formData.append('video', file);
 
 				try {
 					showStatus('Uploading...');
-					const response = await fetch('/api/upload', {
-						method: 'POST',
-						body: formData,
+					showProgress(0);
+
+					// Use XMLHttpRequest for progress tracking
+					const xhr = new XMLHttpRequest();
+
+					xhr.upload.addEventListener('progress', (e) => {
+						if (e.lengthComputable) {
+							const percent = Math.round((e.loaded / e.total) * 100);
+							showProgress(percent);
+							showStatus(`Uploading... ${percent}%`);
+						}
 					});
-					const result = await response.json();
-					showStatus(`Upload complete: ${JSON.stringify(result)}`);
+
+					const uploadPromise = new Promise<any>((resolve, reject) => {
+						xhr.onload = () => {
+							if (xhr.status >= 200 && xhr.status < 300) {
+								try {
+									resolve(JSON.parse(xhr.responseText));
+								} catch {
+									reject(new Error('Invalid JSON response'));
+								}
+							} else {
+								try {
+									const error = JSON.parse(xhr.responseText);
+									reject(new Error(error.error || 'Upload failed'));
+								} catch {
+									reject(new Error(`Upload failed: ${xhr.status}`));
+								}
+							}
+						};
+						xhr.onerror = () => reject(new Error('Network error'));
+					});
+
+					xhr.open('POST', '/api/upload');
+					xhr.send(formData);
+
+					const result = await uploadPromise;
+					hideProgress();
+					showStatus(`Upload complete! ID: ${result.upload_id}`, 'success');
+					console.log('Upload result:', result);
+
 				} catch (error) {
-					showStatus(`Upload failed: ${error}`);
+					hideProgress();
+					showStatus(`Upload failed: ${error instanceof Error ? error.message : error}`, 'error');
+				} finally {
+					isUploading = false;
 				}
 			}
 		</script>
