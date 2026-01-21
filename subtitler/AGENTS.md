@@ -13,9 +13,16 @@ When running as Ralph, you MAY:
 # Frontend
 # TODO
 
-# Backend
+# Frontend Tests
 # TODO
 
-# Tests
+# Backend
+# TODO
+# Note: go may not be in PATH, use full path, ex: /home/trevor/go/bin/go
+
+# Backend Tests
+cd backend && go test ./... -v
+
+# End-to-end Tests
 # TODO
 ```

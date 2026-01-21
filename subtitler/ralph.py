@@ -33,7 +33,7 @@ def run_claude(prompt_content: str, verbose: bool) -> str | None:
     Run claude and return the last line of output.
 
     If verbose, streams all JSON output.
-    If not verbose, prints a '.' for each line received.
+    If not verbose, prints session_id once, then '.' for each line received.
     """
     cmd = [
         "claude",
@@ -45,6 +45,7 @@ def run_claude(prompt_content: str, verbose: bool) -> str | None:
     ]
 
     last_line = None
+    session_id_printed = False
 
     with subprocess.Popen(
         cmd,
@@ -63,6 +64,15 @@ def run_claude(prompt_content: str, verbose: bool) -> str | None:
             if verbose:
                 print(line, end='', flush=True)
             else:
+                # Print session_id once before the dots
+                if not session_id_printed:
+                    try:
+                        data = json.loads(last_line)
+                        if 'session_id' in data:
+                            print(f"session_id: {data['session_id']}")
+                            session_id_printed = True
+                    except json.JSONDecodeError:
+                        pass
                 print('.', end='', flush=True)
 
         # Wait for process to complete
@@ -94,15 +104,15 @@ def main():
 
     max_iterations = 10
     prompt_file = Path(PROMPT_FILE)
-    complete_marker = Path(STOP_FILE)
+    stop_marker = Path(STOP_FILE)
 
     for i in range(max_iterations):
         # Check if we should stop
-        if complete_marker.exists():
+        if stop_marker.exists():
             print(f"{STOP_FILE} found, stopping after {i} iteration(s)")
             break
 
-        print(f"=== Iteration {i}/{max_iterations} === {get_timestamp()}")
+        print(f"=== Iteration {i + 1}/{max_iterations} === {get_timestamp()}")
 
         # Read the prompt file
         if not prompt_file.exists():
@@ -113,7 +123,9 @@ def main():
 
         try:
             last_line = run_claude(prompt_content, args.verbose)
-            if last_line is not None:
+            # If ralph is run with --verbose then skip logging the Result so it's
+            # easier to parse with `jq`. Grep for `"type":"result","subtype":"success"`
+            if last_line is not None and not args.verbose:
                 print(f"Result: {json.loads(last_line)['result']}")
         except json.JSONDecodeError:
             print(f"Last line failed to parse as JSON: {last_line}")
