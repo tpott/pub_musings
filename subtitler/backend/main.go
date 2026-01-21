@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -118,6 +119,28 @@ func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
 	}
 
 	return &result, nil
+}
+
+// formatSRTTimestamp formats seconds as SRT timestamp (HH:MM:SS,mmm)
+func formatSRTTimestamp(seconds float64) string {
+	hours := int(seconds) / 3600
+	minutes := (int(seconds) % 3600) / 60
+	secs := int(seconds) % 60
+	millis := int(math.Round((seconds - math.Floor(seconds)) * 1000))
+	return fmt.Sprintf("%02d:%02d:%02d,%03d", hours, minutes, secs, millis)
+}
+
+// generateSRT converts WhisperResult segments to SRT format
+func generateSRT(result *WhisperResult) string {
+	var sb strings.Builder
+	for i, segment := range result.Segments {
+		// SRT sequence numbers are 1-indexed
+		sb.WriteString(fmt.Sprintf("%d\n", i+1))
+		sb.WriteString(fmt.Sprintf("%s --> %s\n", formatSRTTimestamp(segment.Start), formatSRTTimestamp(segment.End)))
+		sb.WriteString(strings.TrimSpace(segment.Text))
+		sb.WriteString("\n\n")
+	}
+	return sb.String()
 }
 
 // findVideoFile finds the video file for an upload ID
@@ -363,6 +386,57 @@ func main() {
 		}
 
 		json.NewEncoder(w).Encode(status)
+	})
+
+	// Download SRT file for a transcription
+	mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		status, exists := transcriptions[uploadID]
+		if !exists {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found for this upload",
+			})
+			return
+		}
+
+		if status.Status != "complete" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Transcription not yet complete",
+				"status": status.Status,
+			})
+			return
+		}
+
+		if status.Result == nil || len(status.Result.Segments) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No subtitle segments available",
+			})
+			return
+		}
+
+		// Generate SRT content
+		srtContent := generateSRT(status.Result)
+
+		// Set headers for file download
+		w.Header().Set("Content-Type", "text/srt; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.srt\"", uploadID))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(srtContent))
 	})
 
 	log.Printf("Backend server starting on :%s", port)

@@ -67,9 +67,26 @@ Updated `frontend/src/pages/upload.astro` to:
   - Full transcript text
   - Segments with timestamps (formatted HH:MM:SS.mmm)
 
+### Task 5: Backend - Generate SRT files
+
+**Date**: 2026-01-21
+
+Implemented SRT file generation in `backend/main.go`:
+
+- Added `formatSRTTimestamp` function to convert seconds to SRT format (HH:MM:SS,mmm)
+- Added `generateSRT` function to convert WhisperResult segments to valid SRT format
+- Added `GET /api/videos/{id}/subtitles.srt` endpoint for downloading SRT files
+- Returns proper Content-Type (`text/srt; charset=utf-8`) and Content-Disposition headers
+- Handles edge cases: missing transcription, incomplete transcription, empty segments
+
+Added unit tests in `backend/main_test.go`:
+- `TestFormatSRTTimestamp` - validates timestamp formatting
+- `TestGenerateSRT` - validates full SRT generation
+- `TestGenerateSRTEmpty` - validates empty segment handling
+
 ## In Progress
 
-- Task 5: Backend - Generate SRT files
+None
 
 ## Next Up
 
