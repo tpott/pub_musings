@@ -124,6 +124,54 @@
 				max-width: 100%;
 				border-radius: 8px;
 			}
+			.transcription {
+				margin-top: 2rem;
+				padding: 1.5rem;
+				background-color: var(--secondary-bg);
+				border-radius: 8px;
+				display: none;
+			}
+			.transcription.visible {
+				display: block;
+			}
+			.transcription h2 {
+				font-size: 1.25rem;
+				margin-bottom: 1rem;
+			}
+			.transcription-status {
+				color: #666;
+				margin-bottom: 1rem;
+			}
+			.segments {
+				max-height: 400px;
+				overflow-y: auto;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+			}
+			.segment {
+				padding: 0.75rem 1rem;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.segment:last-child {
+				border-bottom: none;
+			}
+			.segment-time {
+				font-size: 0.75rem;
+				color: #999;
+				font-family: monospace;
+				margin-bottom: 0.25rem;
+			}
+			.segment-text {
+				font-size: 0.95rem;
+			}
+			.full-text {
+				margin-top: 1rem;
+				padding: 1rem;
+				background-color: var(--bg-color);
+				border-radius: 4px;
+				font-size: 0.95rem;
+				line-height: 1.8;
+			}
 		</style>
 	</head>
 	<body>
@@ -150,6 +198,13 @@
 					<div class="progress-bar-fill" id="progressFill"></div>
 				</div>
 			</div>
+
+			<div class="transcription" id="transcription">
+				<h2>Transcription</h2>
+				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
+				<div class="segments" id="segments"></div>
+				<div class="full-text" id="fullText"></div>
+			</div>
 		</div>
 
 		<script>
@@ -161,8 +216,13 @@
 			const previewVideo = document.getElementById('previewVideo') as HTMLVideoElement;
 			const progressBar = document.getElementById('progressBar') as HTMLElement;
 			const progressFill = document.getElementById('progressFill') as HTMLElement;
+			const transcription = document.getElementById('transcription') as HTMLElement;
+			const transcriptionStatus = document.getElementById('transcriptionStatus') as HTMLElement;
+			const segments = document.getElementById('segments') as HTMLElement;
+			const fullText = document.getElementById('fullText') as HTMLElement;
 
 			let isUploading = false;
+			let currentUploadId: string | null = null;
 
 			dropzone.addEventListener('click', () => fileInput.click());
 
@@ -284,14 +344,100 @@
 
 					const result = await uploadPromise;
 					hideProgress();
-					showStatus(`Upload complete! ID: ${result.upload_id}`, 'success');
+					showStatus(`Upload complete! Starting transcription...`, 'success');
 					console.log('Upload result:', result);
+
+					// Store upload ID and start transcription
+					currentUploadId = result.upload_id;
+					startTranscription(result.upload_id);
 
 				} catch (error) {
 					hideProgress();
 					showStatus(`Upload failed: ${error instanceof Error ? error.message : error}`, 'error');
 				} finally {
 					isUploading = false;
+				}
+			}
+
+			async function startTranscription(uploadId: string) {
+				transcription.classList.add('visible');
+				transcriptionStatus.textContent = 'Starting transcription...';
+				segments.innerHTML = '';
+				fullText.textContent = '';
+
+				try {
+					// Start transcription
+					const response = await fetch(`/api/transcribe/${uploadId}`, {
+						method: 'POST',
+					});
+					const result = await response.json();
+					console.log('Transcription started:', result);
+
+					// Start polling for status
+					pollTranscriptionStatus(uploadId);
+				} catch (error) {
+					transcriptionStatus.textContent = `Failed to start transcription: ${error}`;
+				}
+			}
+
+			async function pollTranscriptionStatus(uploadId: string) {
+				const poll = async () => {
+					try {
+						const response = await fetch(`/api/transcribe/${uploadId}`);
+						const result = await response.json();
+
+						if (result.status === 'processing') {
+							transcriptionStatus.textContent = result.message || 'Processing...';
+							if (result.progress) {
+								transcriptionStatus.textContent += ` (${result.progress}%)`;
+							}
+							// Continue polling
+							setTimeout(poll, 2000);
+						} else if (result.status === 'complete') {
+							transcriptionStatus.textContent = 'Transcription complete!';
+							displayTranscription(result.result);
+						} else if (result.status === 'error') {
+							transcriptionStatus.textContent = `Error: ${result.message}`;
+						} else if (result.status === 'pending') {
+							transcriptionStatus.textContent = 'Waiting to start...';
+							setTimeout(poll, 2000);
+						}
+					} catch (error) {
+						transcriptionStatus.textContent = `Polling error: ${error}`;
+					}
+				};
+
+				poll();
+			}
+
+			function formatTime(seconds: number): string {
+				const hrs = Math.floor(seconds / 3600);
+				const mins = Math.floor((seconds % 3600) / 60);
+				const secs = Math.floor(seconds % 60);
+				const ms = Math.floor((seconds % 1) * 1000);
+
+				if (hrs > 0) {
+					return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+				}
+				return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+			}
+
+			function displayTranscription(result: any) {
+				if (!result) return;
+
+				// Display full text
+				if (result.text) {
+					fullText.textContent = result.text;
+				}
+
+				// Display segments
+				if (result.segments && result.segments.length > 0) {
+					segments.innerHTML = result.segments.map((seg: any) => `
+						<div class="segment">
+							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+							<div class="segment-text">${seg.text}</div>
+						</div>
+					`).join('');
 				}
 			}
 		</script>

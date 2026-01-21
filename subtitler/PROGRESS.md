@@ -44,9 +44,32 @@ Updated `frontend/src/pages/upload.astro` to:
 - Prevent duplicate uploads while one is in progress
 - Validate file size on client side (500 MB limit)
 
+### Task 4: Backend - Integrate whisper-cli
+
+**Date**: 2026-01-21
+
+Implemented transcription functionality in `backend/main.go`:
+
+- Added `POST /api/transcribe/{id}` endpoint to start transcription
+- Added `GET /api/transcribe/{id}` endpoint to poll status/get results
+- Uses ffmpeg to extract audio from video (16kHz mono WAV)
+- Invokes whisper-cli with JSON output mode
+- Parses whisper JSON to extract segments with timestamps
+- Background processing with status updates (pending, processing, complete, error)
+- Configurable model via `WHISPER_MODEL` env var (defaults to ggml-medium.bin)
+
+Updated `frontend/src/pages/upload.astro` to:
+
+- Automatically start transcription after upload completes
+- Poll backend for transcription status every 2 seconds
+- Display transcription progress and status
+- Show completed transcription with:
+  - Full transcript text
+  - Segments with timestamps (formatted HH:MM:SS.mmm)
+
 ## In Progress
 
-- Task 4: Backend - Integrate whisper-server
+- Task 5: Backend - Generate SRT files
 
 ## Next Up
 
