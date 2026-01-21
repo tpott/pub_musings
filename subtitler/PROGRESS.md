@@ -418,6 +418,51 @@ ffmpeg command used:
 ffmpeg -i input.mp4 -vf "subtitles='subs.srt':force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'" -c:a copy -y output.mp4
 ```
 
+### Task 18: Backend - 2FA with TOTP
+
+**Date**: 2026-01-21
+
+Implemented Google Authenticator style two-factor authentication using TOTP (Time-based One-Time Password):
+
+New package `backend/totp/totp.go`:
+- RFC 6238 compliant TOTP implementation using HMAC-SHA1
+- `GenerateSecret()` - creates 20-byte cryptographically secure random secret
+- `GenerateCode(secret)` / `GenerateCodeAt(secret, time)` - generates 6-digit TOTP codes
+- `Validate(secret, code)` / `ValidateAt(secret, code, time)` - validates codes with 1-period window for clock drift
+- `GenerateProvisioningURI(secret, email, issuer)` - creates otpauth:// URI for QR codes
+- `FormatSecretForDisplay(secret)` - formats secret with spaces for readability
+- 30-second time period, 6 digits (standard Google Authenticator compatible)
+
+Database schema (`backend/db/db.go`):
+- Added `totp_secret` column to users table (encrypted at rest via SQLite)
+- Added `totp_enabled` boolean column to users table
+- Added `SetTOTPSecret(userID, secret)` - store secret during setup
+- Added `EnableTOTP(userID)` - activate 2FA after verification
+- Added `DisableTOTP(userID)` - clear secret and disable 2FA
+
+New API endpoints in `backend/main.go`:
+- `POST /api/auth/totp/setup` - generates new TOTP secret, returns secret and provisioning URI
+- `POST /api/auth/totp/verify` - verifies code and enables 2FA
+- `POST /api/auth/totp/disable` - requires password and TOTP code, disables 2FA
+
+Updated endpoints:
+- `POST /api/auth/login` - now checks for `totp_enabled`, requires `totp_code` field when 2FA is active
+  - Returns `{"totp_required": true}` when 2FA code is needed
+- `GET /api/auth/me` - now includes `totp_enabled` in user response
+- Registration and login responses include `totp_enabled` field
+
+Frontend updates:
+- `frontend/src/pages/login.astro` - added 2FA code input that appears when `totp_required` is returned
+- `frontend/src/pages/security.astro` - new security settings page for managing 2FA
+  - Setup flow with QR code (via qrserver.com API) and manual secret entry
+  - Verification step to enable 2FA
+  - Disable flow requiring password and current TOTP code
+- `frontend/src/pages/videos.astro` - added "Security" link in nav when logged in
+
+Tests:
+- `backend/totp/totp_test.go` - comprehensive tests for TOTP generation and validation
+- `backend/db/db_test.go` - added TestTOTPLifecycle and TestGetUserByEmailWithTOTP
+
 ## In Progress
 
 None

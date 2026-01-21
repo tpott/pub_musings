@@ -19,6 +19,7 @@ import (
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/totp"
 )
 
 const (
@@ -357,9 +358,10 @@ func main() {
 			// User can log in to get a session
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"user": map[string]interface{}{
-					"id":         user.ID,
-					"email":      user.Email,
-					"created_at": user.CreatedAt,
+					"id":           user.ID,
+					"email":        user.Email,
+					"created_at":   user.CreatedAt,
+					"totp_enabled": user.TOTPEnabled,
 				},
 			})
 			return
@@ -371,9 +373,10 @@ func main() {
 		log.Printf("New user registered: %s", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
-				"id":         user.ID,
-				"email":      user.Email,
-				"created_at": user.CreatedAt,
+				"id":           user.ID,
+				"email":        user.Email,
+				"created_at":   user.CreatedAt,
+				"totp_enabled": user.TOTPEnabled,
 			},
 			"token": session.Token,
 		})
@@ -387,6 +390,7 @@ func main() {
 		var req struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
+			TOTPCode string `json:"totp_code,omitempty"` // Required if 2FA is enabled
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -426,6 +430,28 @@ func main() {
 			return
 		}
 
+		// Check 2FA if enabled
+		if user.TOTPEnabled {
+			if req.TOTPCode == "" {
+				// Indicate that 2FA is required
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":         "2FA code required",
+					"totp_required": true,
+				})
+				return
+			}
+
+			// Validate the TOTP code
+			if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.TOTPCode) {
+				w.WriteHeader(http.StatusUnauthorized)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Invalid 2FA code",
+				})
+				return
+			}
+		}
+
 		// Create session
 		session, err := auth.CreateSession(database, user.ID)
 		if err != nil {
@@ -443,9 +469,10 @@ func main() {
 		log.Printf("User logged in: %s", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
-				"id":         user.ID,
-				"email":      user.Email,
-				"created_at": user.CreatedAt,
+				"id":           user.ID,
+				"email":        user.Email,
+				"created_at":   user.CreatedAt,
+				"totp_enabled": user.TOTPEnabled,
 			},
 			"token": session.Token,
 		})
@@ -494,10 +521,212 @@ func main() {
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
-				"id":         user.ID,
-				"email":      user.Email,
-				"created_at": user.CreatedAt,
+				"id":           user.ID,
+				"email":        user.Email,
+				"created_at":   user.CreatedAt,
+				"totp_enabled": user.TOTPEnabled,
 			},
+		})
+	})
+
+	// 2FA: Start TOTP setup - generates a new secret
+	mux.HandleFunc("POST /api/auth/totp/setup", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Require authentication
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		// Check if 2FA is already enabled
+		if user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "2FA is already enabled. Disable it first to set up a new authenticator.",
+			})
+			return
+		}
+
+		// Generate a new TOTP secret
+		secret, err := totp.GenerateSecret()
+		if err != nil {
+			log.Printf("Error generating TOTP secret: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to generate secret",
+			})
+			return
+		}
+
+		// Save the secret to the database (not yet enabled)
+		if err := database.SetTOTPSecret(user.ID, secret); err != nil {
+			log.Printf("Error saving TOTP secret: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to save secret",
+			})
+			return
+		}
+
+		// Generate the provisioning URI for QR code
+		issuer := "Subtitler"
+		uri := totp.GenerateProvisioningURI(secret, user.Email, issuer)
+
+		log.Printf("TOTP setup initiated for user: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"secret":         secret,
+			"secret_display": totp.FormatSecretForDisplay(secret),
+			"uri":            uri,
+			"issuer":         issuer,
+		})
+	})
+
+	// 2FA: Verify TOTP code and enable 2FA
+	mux.HandleFunc("POST /api/auth/totp/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Require authentication
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		// Check if 2FA is already enabled
+		if user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "2FA is already enabled",
+			})
+			return
+		}
+
+		// Check if a secret has been set up
+		if user.TOTPSecret == nil || *user.TOTPSecret == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No TOTP secret found. Please start setup first.",
+			})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Code string `json:"code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Validate the code
+		if !totp.Validate(*user.TOTPSecret, req.Code) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid code. Please try again.",
+			})
+			return
+		}
+
+		// Enable 2FA
+		if err := database.EnableTOTP(user.ID); err != nil {
+			log.Printf("Error enabling TOTP: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to enable 2FA",
+			})
+			return
+		}
+
+		log.Printf("2FA enabled for user: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":      "2FA has been enabled successfully",
+			"totp_enabled": true,
+		})
+	})
+
+	// 2FA: Disable TOTP
+	mux.HandleFunc("POST /api/auth/totp/disable", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Require authentication
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		// Check if 2FA is enabled
+		if !user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "2FA is not enabled",
+			})
+			return
+		}
+
+		// Parse request body - require current TOTP code and password for security
+		var req struct {
+			Code     string `json:"code"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Verify password
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid password",
+			})
+			return
+		}
+
+		// Validate the TOTP code
+		if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.Code) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid 2FA code",
+			})
+			return
+		}
+
+		// Disable 2FA
+		if err := database.DisableTOTP(user.ID); err != nil {
+			log.Printf("Error disabling TOTP: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to disable 2FA",
+			})
+			return
+		}
+
+		log.Printf("2FA disabled for user: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":      "2FA has been disabled successfully",
+			"totp_enabled": false,
 		})
 	})
 

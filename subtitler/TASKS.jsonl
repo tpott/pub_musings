@@ -15,5 +15,5 @@
 {"id": 15, "name": "Frontend: Subtitle editor", "done_when": "User can edit subtitle text and timing in browser", "status": "done"}
 {"id": 16, "name": "Backend: Transcript paste-and-match", "done_when": "User can paste transcript and backend aligns with whisper tokens", "status": "done"}
 {"id": 17, "name": "Backend: Embed subtitles in video", "done_when": "Backend can burn subtitles into video file for download", "status": "done"}
-{"id": 18, "name": "Backend: 2FA with TOTP", "done_when": "Users can enable Google Authenticator style 2FA", "status": "todo"}
+{"id": 18, "name": "Backend: 2FA with TOTP", "done_when": "Users can enable Google Authenticator style 2FA", "status": "done"}
 {"id": 19, "name": "Write tests", "done_when": "Unit and integration tests for backend and frontend", "status": "todo"}

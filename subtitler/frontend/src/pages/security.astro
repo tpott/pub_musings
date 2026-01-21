@@ -1,0 +1,610 @@
+---
+
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Security Settings - Subtitler</title>
+		<style>
+			:root {
+				--bg-color: #fafafa;
+				--text-color: #1a1a1a;
+				--accent-color: #0066cc;
+				--secondary-bg: #ffffff;
+				--border-color: #e5e5e5;
+				--error-color: #c53030;
+				--error-bg: #fff5f5;
+				--success-color: #276749;
+				--success-bg: #c6f6d5;
+			}
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				line-height: 1.6;
+				min-height: 100vh;
+			}
+			.container {
+				max-width: 600px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+			.header {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+				margin-bottom: 2rem;
+			}
+			.back-link {
+				text-decoration: none;
+				color: var(--text-color);
+				font-size: 1.5rem;
+			}
+			h1 {
+				font-size: 2rem;
+				font-weight: 600;
+			}
+			.nav {
+				display: flex;
+				justify-content: flex-end;
+				padding: 1rem 2rem;
+				gap: 1rem;
+			}
+			.nav-link {
+				color: var(--text-color);
+				text-decoration: none;
+				font-size: 0.9rem;
+				padding: 0.5rem 1rem;
+				border-radius: 6px;
+				transition: background-color 0.2s;
+			}
+			.nav-link:hover {
+				background-color: var(--border-color);
+			}
+			.nav-user {
+				color: #666;
+				font-size: 0.9rem;
+				padding: 0.5rem 1rem;
+			}
+			.nav-logout {
+				background: none;
+				border: none;
+				color: var(--text-color);
+				font-size: 0.9rem;
+				padding: 0.5rem 1rem;
+				border-radius: 6px;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.nav-logout:hover {
+				background-color: var(--border-color);
+			}
+			.card {
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 12px;
+				padding: 1.5rem;
+				margin-bottom: 1.5rem;
+			}
+			.card-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 1rem;
+			}
+			.card-title {
+				font-size: 1.25rem;
+				font-weight: 600;
+			}
+			.status-badge {
+				display: inline-block;
+				padding: 0.25rem 0.75rem;
+				border-radius: 4px;
+				font-size: 0.8rem;
+				font-weight: 500;
+			}
+			.status-enabled {
+				background-color: var(--success-bg);
+				color: var(--success-color);
+			}
+			.status-disabled {
+				background-color: #e2e8f0;
+				color: #64748b;
+			}
+			.card-description {
+				color: #666;
+				font-size: 0.95rem;
+				margin-bottom: 1rem;
+			}
+			.btn {
+				padding: 0.75rem 1.25rem;
+				border: none;
+				border-radius: 6px;
+				font-size: 0.95rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s, opacity 0.2s;
+			}
+			.btn-primary {
+				background-color: var(--accent-color);
+				color: white;
+			}
+			.btn-primary:hover:not(:disabled) {
+				background-color: #0052a3;
+			}
+			.btn-danger {
+				background-color: var(--error-color);
+				color: white;
+			}
+			.btn-danger:hover:not(:disabled) {
+				background-color: #9b2c2c;
+			}
+			.btn:disabled {
+				opacity: 0.6;
+				cursor: not-allowed;
+			}
+			.loading {
+				text-align: center;
+				padding: 3rem;
+				color: #666;
+			}
+			.error-message {
+				background-color: var(--error-bg);
+				border: 1px solid #feb2b2;
+				color: var(--error-color);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1rem;
+				font-size: 0.9rem;
+			}
+			.success-message {
+				background-color: var(--success-bg);
+				border: 1px solid #9ae6b4;
+				color: var(--success-color);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1rem;
+				font-size: 0.9rem;
+			}
+			.hidden {
+				display: none !important;
+			}
+			.setup-section {
+				margin-top: 1.5rem;
+			}
+			.qr-container {
+				text-align: center;
+				margin: 1.5rem 0;
+			}
+			.qr-placeholder {
+				background-color: var(--bg-color);
+				border: 1px solid var(--border-color);
+				border-radius: 8px;
+				padding: 1rem;
+				display: inline-block;
+			}
+			.secret-display {
+				font-family: 'Menlo', 'Monaco', monospace;
+				font-size: 1.1rem;
+				letter-spacing: 0.1rem;
+				background-color: var(--bg-color);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				text-align: center;
+				margin: 1rem 0;
+				user-select: all;
+			}
+			.form-group {
+				margin-bottom: 1.25rem;
+			}
+			label {
+				display: block;
+				font-weight: 500;
+				margin-bottom: 0.5rem;
+				font-size: 0.9rem;
+			}
+			input[type="text"],
+			input[type="password"] {
+				width: 100%;
+				padding: 0.75rem 1rem;
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-size: 1rem;
+				transition: border-color 0.2s, box-shadow 0.2s;
+			}
+			input:focus {
+				outline: none;
+				border-color: var(--accent-color);
+				box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+			}
+			.totp-input {
+				font-family: 'Menlo', 'Monaco', monospace;
+				font-size: 1.5rem;
+				letter-spacing: 0.3rem;
+				text-align: center;
+			}
+			.setup-instructions {
+				font-size: 0.9rem;
+				color: #666;
+				margin-bottom: 1rem;
+			}
+			.setup-instructions ol {
+				margin-left: 1.5rem;
+			}
+			.setup-instructions li {
+				margin-bottom: 0.5rem;
+			}
+			.qr-code {
+				width: 200px;
+				height: 200px;
+			}
+			.btn-group {
+				display: flex;
+				gap: 0.75rem;
+				margin-top: 1rem;
+			}
+			.btn-secondary {
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+			}
+			.btn-secondary:hover:not(:disabled) {
+				background-color: #f0f0f0;
+			}
+		</style>
+	</head>
+	<body>
+		<nav class="nav" id="nav">
+			<a href="/login" class="nav-link" id="loginLink">Log in</a>
+			<a href="/register" class="nav-link" id="registerLink">Sign up</a>
+		</nav>
+		<div class="container">
+			<div class="header">
+				<a href="/videos" class="back-link">&larr;</a>
+				<h1>Security Settings</h1>
+			</div>
+
+			<div id="loading" class="loading">Loading...</div>
+			<div id="notLoggedIn" class="card hidden">
+				<p>Please <a href="/login">log in</a> to manage your security settings.</p>
+			</div>
+
+			<div id="content" class="hidden">
+				<div id="errorMessage" class="error-message hidden"></div>
+				<div id="successMessage" class="success-message hidden"></div>
+
+				<div class="card">
+					<div class="card-header">
+						<h2 class="card-title">Two-Factor Authentication</h2>
+						<span id="totpStatus" class="status-badge status-disabled">Disabled</span>
+					</div>
+					<p class="card-description">
+						Add an extra layer of security to your account by requiring a verification code from your authenticator app when signing in.
+					</p>
+
+					<div id="enableSection">
+						<button id="startSetupBtn" class="btn btn-primary">Enable 2FA</button>
+					</div>
+
+					<div id="setupSection" class="setup-section hidden">
+						<div class="setup-instructions">
+							<p><strong>Set up your authenticator app:</strong></p>
+							<ol>
+								<li>Download an authenticator app like Google Authenticator, Authy, or 1Password</li>
+								<li>Scan the QR code below or manually enter the secret key</li>
+								<li>Enter the 6-digit code from your app to verify</li>
+							</ol>
+						</div>
+
+						<div class="qr-container">
+							<div class="qr-placeholder">
+								<img id="qrCode" class="qr-code" alt="QR Code for 2FA setup" />
+							</div>
+						</div>
+
+						<p style="text-align: center; font-size: 0.9rem; color: #666;">Or enter this secret manually:</p>
+						<div id="secretDisplay" class="secret-display">Loading...</div>
+
+						<form id="verifyForm">
+							<div class="form-group">
+								<label for="verifyCode">Verification Code</label>
+								<input type="text" id="verifyCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+							</div>
+							<div class="btn-group">
+								<button type="submit" class="btn btn-primary" id="verifyBtn">Verify & Enable</button>
+								<button type="button" class="btn btn-secondary" id="cancelSetupBtn">Cancel</button>
+							</div>
+						</form>
+					</div>
+
+					<div id="disableSection" class="hidden">
+						<p class="card-description" style="margin-top: 0;">
+							To disable 2FA, enter your current password and a code from your authenticator app.
+						</p>
+						<form id="disableForm">
+							<div class="form-group">
+								<label for="disablePassword">Password</label>
+								<input type="password" id="disablePassword" autocomplete="current-password" required />
+							</div>
+							<div class="form-group">
+								<label for="disableCode">Authentication Code</label>
+								<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+							</div>
+							<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			const loading = document.getElementById('loading') as HTMLElement;
+			const notLoggedIn = document.getElementById('notLoggedIn') as HTMLElement;
+			const content = document.getElementById('content') as HTMLElement;
+			const totpStatus = document.getElementById('totpStatus') as HTMLElement;
+			const enableSection = document.getElementById('enableSection') as HTMLElement;
+			const setupSection = document.getElementById('setupSection') as HTMLElement;
+			const disableSection = document.getElementById('disableSection') as HTMLElement;
+			const errorMessage = document.getElementById('errorMessage') as HTMLElement;
+			const successMessage = document.getElementById('successMessage') as HTMLElement;
+			const startSetupBtn = document.getElementById('startSetupBtn') as HTMLButtonElement;
+			const cancelSetupBtn = document.getElementById('cancelSetupBtn') as HTMLButtonElement;
+			const verifyForm = document.getElementById('verifyForm') as HTMLFormElement;
+			const verifyBtn = document.getElementById('verifyBtn') as HTMLButtonElement;
+			const verifyCode = document.getElementById('verifyCode') as HTMLInputElement;
+			const disableForm = document.getElementById('disableForm') as HTMLFormElement;
+			const disableBtn = document.getElementById('disableBtn') as HTMLButtonElement;
+			const disablePassword = document.getElementById('disablePassword') as HTMLInputElement;
+			const disableCode = document.getElementById('disableCode') as HTMLInputElement;
+			const qrCode = document.getElementById('qrCode') as HTMLImageElement;
+			const secretDisplay = document.getElementById('secretDisplay') as HTMLElement;
+			const nav = document.getElementById('nav') as HTMLElement;
+			const loginLink = document.getElementById('loginLink') as HTMLElement;
+			const registerLink = document.getElementById('registerLink') as HTMLElement;
+
+			let currentUser: { id: string; email: string; totp_enabled: boolean } | null = null;
+			let setupSecret: string = '';
+
+			function showError(message: string) {
+				errorMessage.textContent = message;
+				errorMessage.classList.remove('hidden');
+				successMessage.classList.add('hidden');
+			}
+
+			function showSuccess(message: string) {
+				successMessage.textContent = message;
+				successMessage.classList.remove('hidden');
+				errorMessage.classList.add('hidden');
+			}
+
+			function hideMessages() {
+				errorMessage.classList.add('hidden');
+				successMessage.classList.add('hidden');
+			}
+
+			function updateUI() {
+				if (!currentUser) return;
+
+				if (currentUser.totp_enabled) {
+					totpStatus.textContent = 'Enabled';
+					totpStatus.className = 'status-badge status-enabled';
+					enableSection.classList.add('hidden');
+					setupSection.classList.add('hidden');
+					disableSection.classList.remove('hidden');
+				} else {
+					totpStatus.textContent = 'Disabled';
+					totpStatus.className = 'status-badge status-disabled';
+					enableSection.classList.remove('hidden');
+					setupSection.classList.add('hidden');
+					disableSection.classList.add('hidden');
+				}
+			}
+
+			async function checkAuth() {
+				try {
+					const response = await fetch('/api/auth/me');
+					loading.classList.add('hidden');
+
+					if (response.ok) {
+						const data = await response.json();
+						if (data.user) {
+							currentUser = data.user;
+							content.classList.remove('hidden');
+							updateUI();
+
+							// Update nav
+							loginLink.style.display = 'none';
+							registerLink.style.display = 'none';
+
+							const userSpan = document.createElement('span');
+							userSpan.className = 'nav-user';
+							userSpan.textContent = data.user.email;
+							nav.appendChild(userSpan);
+
+							const logoutBtn = document.createElement('button');
+							logoutBtn.className = 'nav-logout';
+							logoutBtn.textContent = 'Log out';
+							logoutBtn.addEventListener('click', logout);
+							nav.appendChild(logoutBtn);
+							return;
+						}
+					}
+
+					notLoggedIn.classList.remove('hidden');
+				} catch (err) {
+					loading.classList.add('hidden');
+					notLoggedIn.classList.remove('hidden');
+				}
+			}
+
+			async function logout() {
+				try {
+					await fetch('/api/auth/logout', { method: 'POST' });
+					window.location.href = '/login';
+				} catch (err) {
+					console.error('Logout failed:', err);
+				}
+			}
+
+			async function startSetup() {
+				hideMessages();
+				startSetupBtn.disabled = true;
+				startSetupBtn.textContent = 'Setting up...';
+
+				try {
+					const response = await fetch('/api/auth/totp/setup', {
+						method: 'POST',
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Failed to start setup');
+						startSetupBtn.disabled = false;
+						startSetupBtn.textContent = 'Enable 2FA';
+						return;
+					}
+
+					setupSecret = data.secret;
+					secretDisplay.textContent = data.secret_display;
+
+					// Generate QR code using a simple QR code API
+					const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.uri)}`;
+					qrCode.src = qrUrl;
+
+					enableSection.classList.add('hidden');
+					setupSection.classList.remove('hidden');
+					verifyCode.focus();
+
+				} catch (err) {
+					showError('Network error. Please try again.');
+					startSetupBtn.disabled = false;
+					startSetupBtn.textContent = 'Enable 2FA';
+				}
+			}
+
+			function cancelSetup() {
+				hideMessages();
+				setupSecret = '';
+				verifyCode.value = '';
+				setupSection.classList.add('hidden');
+				enableSection.classList.remove('hidden');
+				startSetupBtn.disabled = false;
+				startSetupBtn.textContent = 'Enable 2FA';
+			}
+
+			async function verifyAndEnable(e: Event) {
+				e.preventDefault();
+				hideMessages();
+
+				const code = verifyCode.value.trim();
+				if (!code || code.length !== 6) {
+					showError('Please enter a 6-digit code');
+					return;
+				}
+
+				verifyBtn.disabled = true;
+				verifyBtn.textContent = 'Verifying...';
+
+				try {
+					const response = await fetch('/api/auth/totp/verify', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ code }),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Verification failed');
+						verifyBtn.disabled = false;
+						verifyBtn.textContent = 'Verify & Enable';
+						return;
+					}
+
+					// Success!
+					if (currentUser) {
+						currentUser.totp_enabled = true;
+					}
+					setupSecret = '';
+					verifyCode.value = '';
+					showSuccess('Two-factor authentication has been enabled successfully!');
+					updateUI();
+
+				} catch (err) {
+					showError('Network error. Please try again.');
+					verifyBtn.disabled = false;
+					verifyBtn.textContent = 'Verify & Enable';
+				}
+			}
+
+			async function disable2FA(e: Event) {
+				e.preventDefault();
+				hideMessages();
+
+				const password = disablePassword.value;
+				const code = disableCode.value.trim();
+
+				if (!password) {
+					showError('Please enter your password');
+					return;
+				}
+				if (!code || code.length !== 6) {
+					showError('Please enter a 6-digit code');
+					return;
+				}
+
+				disableBtn.disabled = true;
+				disableBtn.textContent = 'Disabling...';
+
+				try {
+					const response = await fetch('/api/auth/totp/disable', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ password, code }),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Failed to disable 2FA');
+						disableBtn.disabled = false;
+						disableBtn.textContent = 'Disable 2FA';
+						return;
+					}
+
+					// Success!
+					if (currentUser) {
+						currentUser.totp_enabled = false;
+					}
+					disablePassword.value = '';
+					disableCode.value = '';
+					showSuccess('Two-factor authentication has been disabled.');
+					updateUI();
+
+				} catch (err) {
+					showError('Network error. Please try again.');
+				} finally {
+					disableBtn.disabled = false;
+					disableBtn.textContent = 'Disable 2FA';
+				}
+			}
+
+			startSetupBtn.addEventListener('click', startSetup);
+			cancelSetupBtn.addEventListener('click', cancelSetup);
+			verifyForm.addEventListener('submit', verifyAndEnable);
+			disableForm.addEventListener('submit', disable2FA);
+
+			checkAuth();
+		</script>
+	</body>
+</html>

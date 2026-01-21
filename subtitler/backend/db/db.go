@@ -56,6 +56,8 @@ type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"` // Never serialize
+	TOTPSecret   *string   `json:"-"` // Never serialize, nil if 2FA not set up
+	TOTPEnabled  bool      `json:"totp_enabled"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -149,6 +151,8 @@ func (db *DB) migrate() error {
 			id TEXT PRIMARY KEY,
 			email TEXT UNIQUE NOT NULL,
 			password_hash TEXT NOT NULL,
+			totp_secret TEXT,
+			totp_enabled INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
@@ -359,24 +363,28 @@ func (db *DB) CountVideosBySession(sessionID string) (int, error) {
 // CreateUser creates a new user record
 func (db *DB) CreateUser(user *User) error {
 	_, err := db.conn.Exec(`
-		INSERT INTO users (id, email, password_hash, created_at)
-		VALUES (?, ?, ?, ?)
-	`, user.ID, user.Email, user.PasswordHash, user.CreatedAt)
+		INSERT INTO users (id, email, password_hash, totp_secret, totp_enabled, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, user.ID, user.Email, user.PasswordHash, user.TOTPSecret, user.TOTPEnabled, user.CreatedAt)
 	return err
 }
 
 // GetUserByID retrieves a user by ID
 func (db *DB) GetUserByID(id string) (*User, error) {
 	user := &User{}
+	var totpSecret sql.NullString
 	err := db.conn.QueryRow(`
-		SELECT id, email, password_hash, created_at
+		SELECT id, email, password_hash, totp_secret, totp_enabled, created_at
 		FROM users WHERE id = ?
-	`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if totpSecret.Valid {
+		user.TOTPSecret = &totpSecret.String
 	}
 	return user, nil
 }
@@ -384,15 +392,19 @@ func (db *DB) GetUserByID(id string) (*User, error) {
 // GetUserByEmail retrieves a user by email
 func (db *DB) GetUserByEmail(email string) (*User, error) {
 	user := &User{}
+	var totpSecret sql.NullString
 	err := db.conn.QueryRow(`
-		SELECT id, email, password_hash, created_at
+		SELECT id, email, password_hash, totp_secret, totp_enabled, created_at
 		FROM users WHERE email = ?
-	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if totpSecret.Valid {
+		user.TOTPSecret = &totpSecret.String
 	}
 	return user, nil
 }
@@ -440,6 +452,30 @@ func (db *DB) DeleteExpiredSessions() (int64, error) {
 // DeleteUserSessions deletes all sessions for a user
 func (db *DB) DeleteUserSessions(userID string) error {
 	_, err := db.conn.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
+	return err
+}
+
+// SetTOTPSecret sets the TOTP secret for a user (during 2FA setup)
+func (db *DB) SetTOTPSecret(userID, secret string) error {
+	_, err := db.conn.Exec(`
+		UPDATE users SET totp_secret = ? WHERE id = ?
+	`, secret, userID)
+	return err
+}
+
+// EnableTOTP enables 2FA for a user (after verification)
+func (db *DB) EnableTOTP(userID string) error {
+	_, err := db.conn.Exec(`
+		UPDATE users SET totp_enabled = 1 WHERE id = ?
+	`, userID)
+	return err
+}
+
+// DisableTOTP disables 2FA and clears the secret for a user
+func (db *DB) DisableTOTP(userID string) error {
+	_, err := db.conn.Exec(`
+		UPDATE users SET totp_enabled = 0, totp_secret = NULL WHERE id = ?
+	`, userID)
 	return err
 }
 

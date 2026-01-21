@@ -375,6 +375,12 @@
 							userSpan.textContent = data.user.email;
 							nav.appendChild(userSpan);
 
+							const securityLink = document.createElement('a');
+							securityLink.href = '/security';
+							securityLink.className = 'nav-link';
+							securityLink.textContent = 'Security';
+							nav.appendChild(securityLink);
+
 							const logoutBtn = document.createElement('button');
 							logoutBtn.className = 'nav-logout';
 							logoutBtn.textContent = 'Log out';

@@ -72,13 +72,29 @@
 				font-size: 0.9rem;
 			}
 			input[type="email"],
-			input[type="password"] {
+			input[type="password"],
+			input[type="text"] {
 				width: 100%;
 				padding: 0.75rem 1rem;
 				border: 1px solid var(--border-color);
 				border-radius: 6px;
 				font-size: 1rem;
 				transition: border-color 0.2s, box-shadow 0.2s;
+			}
+			.totp-input {
+				font-family: 'Menlo', 'Monaco', monospace;
+				font-size: 1.5rem;
+				letter-spacing: 0.3rem;
+				text-align: center;
+			}
+			.hidden {
+				display: none !important;
+			}
+			.totp-info {
+				text-align: center;
+				margin-bottom: 1rem;
+				font-size: 0.9rem;
+				color: #666;
 			}
 			input:focus {
 				outline: none;
@@ -144,13 +160,22 @@
 				<div id="error" class="error-message"></div>
 
 				<form id="loginForm">
-					<div class="form-group">
-						<label for="email">Email</label>
-						<input type="email" id="email" name="email" required autocomplete="email" />
+					<div id="credentialsSection">
+						<div class="form-group">
+							<label for="email">Email</label>
+							<input type="email" id="email" name="email" required autocomplete="email" />
+						</div>
+						<div class="form-group">
+							<label for="password">Password</label>
+							<input type="password" id="password" name="password" required autocomplete="current-password" />
+						</div>
 					</div>
-					<div class="form-group">
-						<label for="password">Password</label>
-						<input type="password" id="password" name="password" required autocomplete="current-password" />
+					<div id="totpSection" class="hidden">
+						<p class="totp-info">Enter the 6-digit code from your authenticator app</p>
+						<div class="form-group">
+							<label for="totpCode">Authentication Code</label>
+							<input type="text" id="totpCode" name="totpCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" />
+						</div>
 					</div>
 					<button type="submit" class="btn btn-primary" id="submitBtn">Log in</button>
 				</form>
@@ -167,6 +192,11 @@
 			const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 			const emailInput = document.getElementById('email') as HTMLInputElement;
 			const passwordInput = document.getElementById('password') as HTMLInputElement;
+			const totpInput = document.getElementById('totpCode') as HTMLInputElement;
+			const credentialsSection = document.getElementById('credentialsSection') as HTMLElement;
+			const totpSection = document.getElementById('totpSection') as HTMLElement;
+
+			let totpRequired = false;
 
 			function showError(message: string) {
 				errorDiv.textContent = message;
@@ -182,6 +212,13 @@
 				submitBtn.textContent = loading ? 'Logging in...' : 'Log in';
 			}
 
+			function showTotpInput() {
+				totpRequired = true;
+				credentialsSection.classList.add('hidden');
+				totpSection.classList.remove('hidden');
+				totpInput.focus();
+			}
+
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				hideError();
@@ -189,6 +226,7 @@
 
 				const email = emailInput.value.trim();
 				const password = passwordInput.value;
+				const totpCode = totpInput.value.trim();
 
 				if (!email || !password) {
 					showError('Please fill in all fields');
@@ -196,18 +234,35 @@
 					return;
 				}
 
+				if (totpRequired && (!totpCode || totpCode.length !== 6)) {
+					showError('Please enter a 6-digit code');
+					setLoading(false);
+					return;
+				}
+
 				try {
+					const body: { email: string; password: string; totp_code?: string } = { email, password };
+					if (totpRequired && totpCode) {
+						body.totp_code = totpCode;
+					}
+
 					const response = await fetch('/api/auth/login', {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json',
 						},
-						body: JSON.stringify({ email, password }),
+						body: JSON.stringify(body),
 					});
 
 					const data = await response.json();
 
 					if (!response.ok) {
+						// Check if 2FA is required
+						if (data.totp_required) {
+							showTotpInput();
+							setLoading(false);
+							return;
+						}
 						showError(data.error || 'Login failed');
 						setLoading(false);
 						return;

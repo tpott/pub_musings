@@ -828,3 +828,131 @@ func TestDeleteVideoWithBurnJob(t *testing.T) {
 		t.Error("Burn job should have been deleted")
 	}
 }
+
+func TestTOTPLifecycle(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-totp-test",
+		Email:        "totp@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Verify user is created without TOTP
+	retrieved, err := db.GetUserByID("user-totp-test")
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if retrieved.TOTPEnabled {
+		t.Error("Expected TOTP to be disabled initially")
+	}
+	if retrieved.TOTPSecret != nil {
+		t.Error("Expected TOTP secret to be nil initially")
+	}
+
+	// Set TOTP secret
+	secret := "JBSWY3DPEHPK3PXP"
+	if err := db.SetTOTPSecret("user-totp-test", secret); err != nil {
+		t.Fatalf("Failed to set TOTP secret: %v", err)
+	}
+
+	// Verify secret is set but not enabled
+	retrieved, _ = db.GetUserByID("user-totp-test")
+	if retrieved.TOTPSecret == nil || *retrieved.TOTPSecret != secret {
+		t.Error("Expected TOTP secret to be set")
+	}
+	if retrieved.TOTPEnabled {
+		t.Error("Expected TOTP to still be disabled")
+	}
+
+	// Enable TOTP
+	if err := db.EnableTOTP("user-totp-test"); err != nil {
+		t.Fatalf("Failed to enable TOTP: %v", err)
+	}
+
+	// Verify TOTP is now enabled
+	retrieved, _ = db.GetUserByID("user-totp-test")
+	if !retrieved.TOTPEnabled {
+		t.Error("Expected TOTP to be enabled")
+	}
+	if retrieved.TOTPSecret == nil || *retrieved.TOTPSecret != secret {
+		t.Error("Expected TOTP secret to still be set")
+	}
+
+	// Disable TOTP
+	if err := db.DisableTOTP("user-totp-test"); err != nil {
+		t.Fatalf("Failed to disable TOTP: %v", err)
+	}
+
+	// Verify TOTP is disabled and secret is cleared
+	retrieved, _ = db.GetUserByID("user-totp-test")
+	if retrieved.TOTPEnabled {
+		t.Error("Expected TOTP to be disabled")
+	}
+	if retrieved.TOTPSecret != nil {
+		t.Error("Expected TOTP secret to be cleared")
+	}
+}
+
+func TestGetUserByEmailWithTOTP(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user with TOTP enabled
+	user := &User{
+		ID:           "user-email-totp",
+		Email:        "totpemail@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Set and enable TOTP
+	secret := "TESTSECRETZZZZZZ"
+	if err := db.SetTOTPSecret("user-email-totp", secret); err != nil {
+		t.Fatalf("Failed to set TOTP secret: %v", err)
+	}
+	if err := db.EnableTOTP("user-email-totp"); err != nil {
+		t.Fatalf("Failed to enable TOTP: %v", err)
+	}
+
+	// Get by email and verify TOTP fields
+	retrieved, err := db.GetUserByEmail("totpemail@example.com")
+	if err != nil {
+		t.Fatalf("Failed to get user by email: %v", err)
+	}
+	if !retrieved.TOTPEnabled {
+		t.Error("Expected TOTP to be enabled")
+	}
+	if retrieved.TOTPSecret == nil || *retrieved.TOTPSecret != secret {
+		t.Error("Expected TOTP secret to match")
+	}
+}
