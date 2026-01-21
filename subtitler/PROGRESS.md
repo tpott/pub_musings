@@ -97,6 +97,35 @@ Implemented synced subtitle viewer in `frontend/src/pages/upload.astro`:
 - Auto-scroll: Segment list auto-scrolls to keep active segment visible
 - Download SRT button: Allows downloading the generated SRT file
 
+### Task 7: Backend - SQLite database
+
+**Date**: 2026-01-21
+
+Implemented SQLite database for persistent storage in `backend/db/db.go`:
+
+Database schema:
+- `videos` table: stores uploaded video metadata (id, filename, size, content_type, file_path, created_at, user_id, session_id)
+- `transcriptions` table: stores transcription jobs and results (id, video_id, status, message, progress, language, duration, full_text, segments_json, created_at, completed_at)
+
+Features:
+- Automatic migration on startup
+- WAL mode for better concurrent access
+- JSON serialization for segments
+- Support for listing videos by user or session
+
+Updated handlers in `backend/main.go`:
+- Upload handler saves video records to database
+- Transcription handlers read/write from database
+- SRT download uses database for transcription lookup
+
+Added comprehensive tests in `backend/db/db_test.go`:
+- Database open/migrate tests
+- Video CRUD tests
+- Transcription lifecycle tests (create, update status, complete, fail)
+- List videos tests
+
+Database file stored at `data/subtitler.db`
+
 ## In Progress
 
 None

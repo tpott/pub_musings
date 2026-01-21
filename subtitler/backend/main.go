@@ -13,11 +13,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/trevor/subtitler/backend/db"
 )
 
 const (
 	maxUploadSize = 500 << 20 // 500 MB
 	uploadDir     = "uploads"
+	dbPath        = "data/subtitler.db"
 )
 
 // WhisperSegment represents a transcribed segment with timing
@@ -36,7 +40,7 @@ type WhisperResult struct {
 	Segments []WhisperSegment `json:"segments"`
 }
 
-// TranscriptionStatus tracks the state of a transcription job
+// TranscriptionStatus tracks the state of a transcription job (API response format)
 type TranscriptionStatus struct {
 	Status   string         `json:"status"` // pending, processing, complete, error
 	Message  string         `json:"message,omitempty"`
@@ -44,8 +48,8 @@ type TranscriptionStatus struct {
 	Progress int            `json:"progress,omitempty"` // 0-100
 }
 
-// In-memory storage for transcription statuses (will be replaced with SQLite)
-var transcriptions = make(map[string]*TranscriptionStatus)
+// Global database connection
+var database *db.DB
 
 func generateID() string {
 	bytes := make([]byte, 16)
@@ -145,7 +149,18 @@ func generateSRT(result *WhisperResult) string {
 
 // findVideoFile finds the video file for an upload ID
 func findVideoFile(uploadID string) (string, error) {
-	// Look for video file with any extension
+	// First try to get from database
+	if database != nil {
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			return "", err
+		}
+		if video != nil {
+			return video.FilePath, nil
+		}
+	}
+
+	// Fallback to glob search for backwards compatibility
 	matches, err := filepath.Glob(filepath.Join(uploadDir, uploadID+".*"))
 	if err != nil {
 		return "", err
@@ -154,6 +169,40 @@ func findVideoFile(uploadID string) (string, error) {
 		return "", fmt.Errorf("video not found for upload ID: %s", uploadID)
 	}
 	return matches[0], nil
+}
+
+// dbTranscriptionToStatus converts a database transcription to API status format
+func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
+	if t == nil {
+		return nil
+	}
+
+	status := &TranscriptionStatus{
+		Status:   t.Status,
+		Message:  t.Message,
+		Progress: t.Progress,
+	}
+
+	if t.Status == "complete" {
+		segments, _ := t.GetSegments()
+		whisperSegments := make([]WhisperSegment, len(segments))
+		for i, s := range segments {
+			whisperSegments[i] = WhisperSegment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+		status.Result = &WhisperResult{
+			Language: t.Language,
+			Duration: t.Duration,
+			Text:     t.FullText,
+			Segments: whisperSegments,
+		}
+	}
+
+	return status
 }
 
 func main() {
@@ -166,6 +215,15 @@ func main() {
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
 	}
+
+	// Initialize database
+	var err error
+	database, err = db.Open(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+	log.Printf("Database initialized at %s", dbPath)
 
 	mux := http.NewServeMux()
 
@@ -252,10 +310,37 @@ func main() {
 
 		log.Printf("Uploaded file: %s (%d bytes) -> %s", header.Filename, written, destPath)
 
-		// Initialize transcription status as pending
-		transcriptions[uploadID] = &TranscriptionStatus{
-			Status:  "pending",
-			Message: "Video uploaded, ready for transcription",
+		// Save video to database
+		video := &db.Video{
+			ID:          uploadID,
+			Filename:    header.Filename,
+			Size:        written,
+			ContentType: contentType,
+			FilePath:    destPath,
+			CreatedAt:   time.Now(),
+		}
+		if err := database.CreateVideo(video); err != nil {
+			log.Printf("Error saving video to database: %v", err)
+			os.Remove(destPath) // Clean up file
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to save video record",
+			})
+			return
+		}
+
+		// Create initial transcription record
+		transcription := &db.Transcription{
+			ID:        generateID(),
+			VideoID:   uploadID,
+			Status:    "pending",
+			Message:   "Video uploaded, ready for transcription",
+			Progress:  0,
+			CreatedAt: time.Now(),
+		}
+		if err := database.CreateTranscription(transcription); err != nil {
+			log.Printf("Error creating transcription record: %v", err)
+			// Don't fail the upload, transcription record can be created later
 		}
 
 		// Return success with upload ID
@@ -291,26 +376,40 @@ func main() {
 			return
 		}
 
-		// Check if already processing
-		if status, exists := transcriptions[uploadID]; exists {
-			if status.Status == "processing" {
+		// Check if already processing from database
+		existingTranscription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+		}
+		if existingTranscription != nil {
+			if existingTranscription.Status == "processing" {
 				json.NewEncoder(w).Encode(map[string]string{
 					"status":  "processing",
 					"message": "Transcription already in progress",
 				})
 				return
 			}
-			if status.Status == "complete" {
-				json.NewEncoder(w).Encode(status)
+			if existingTranscription.Status == "complete" {
+				json.NewEncoder(w).Encode(dbTranscriptionToStatus(existingTranscription))
 				return
 			}
 		}
 
-		// Update status to processing
-		transcriptions[uploadID] = &TranscriptionStatus{
-			Status:   "processing",
-			Message:  "Extracting audio...",
-			Progress: 10,
+		// Create or update transcription record
+		if existingTranscription == nil {
+			transcription := &db.Transcription{
+				ID:        generateID(),
+				VideoID:   uploadID,
+				Status:    "processing",
+				Message:   "Extracting audio...",
+				Progress:  10,
+				CreatedAt: time.Now(),
+			}
+			if err := database.CreateTranscription(transcription); err != nil {
+				log.Printf("Error creating transcription record: %v", err)
+			}
+		} else {
+			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 		}
 
 		// Process in background
@@ -321,35 +420,36 @@ func main() {
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := extractAudio(videoPath, audioPath); err != nil {
 				log.Printf("Audio extraction failed: %v", err)
-				transcriptions[uploadID] = &TranscriptionStatus{
-					Status:  "error",
-					Message: fmt.Sprintf("Audio extraction failed: %v", err),
-				}
+				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
 
-			transcriptions[uploadID].Message = "Running transcription..."
-			transcriptions[uploadID].Progress = 30
+			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
 			// Run whisper
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
 			result, err := transcribeAudio(audioPath, outputPath)
 			if err != nil {
 				log.Printf("Transcription failed: %v", err)
-				transcriptions[uploadID] = &TranscriptionStatus{
-					Status:  "error",
-					Message: fmt.Sprintf("Transcription failed: %v", err),
-				}
+				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
 				return
 			}
 
-			// Success!
+			// Convert segments to database format
+			segments := make([]db.Segment, len(result.Segments))
+			for i, s := range result.Segments {
+				segments[i] = db.Segment{
+					ID:    s.ID,
+					Start: s.Start,
+					End:   s.End,
+					Text:  s.Text,
+				}
+			}
+
+			// Success - save to database
 			log.Printf("Transcription complete for %s: %d segments", uploadID, len(result.Segments))
-			transcriptions[uploadID] = &TranscriptionStatus{
-				Status:   "complete",
-				Message:  "Transcription complete",
-				Progress: 100,
-				Result:   result,
+			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
+				log.Printf("Error saving transcription result: %v", err)
 			}
 
 			// Clean up intermediate files
@@ -376,8 +476,17 @@ func main() {
 			return
 		}
 
-		status, exists := transcriptions[uploadID]
-		if !exists {
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription status",
+			})
+			return
+		}
+
+		if transcription == nil {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "No transcription found for this upload",
@@ -385,7 +494,7 @@ func main() {
 			return
 		}
 
-		json.NewEncoder(w).Encode(status)
+		json.NewEncoder(w).Encode(dbTranscriptionToStatus(transcription))
 	})
 
 	// Download SRT file for a transcription
@@ -400,8 +509,18 @@ func main() {
 			return
 		}
 
-		status, exists := transcriptions[uploadID]
-		if !exists {
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription",
+			})
+			return
+		}
+
+		if transcription == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -410,17 +529,18 @@ func main() {
 			return
 		}
 
-		if status.Status != "complete" {
+		if transcription.Status != "complete" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error":  "Transcription not yet complete",
-				"status": status.Status,
+				"status": transcription.Status,
 			})
 			return
 		}
 
-		if status.Result == nil || len(status.Result.Segments) == 0 {
+		segments, err := transcription.GetSegments()
+		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -429,8 +549,24 @@ func main() {
 			return
 		}
 
+		// Convert to WhisperResult for SRT generation
+		whisperResult := &WhisperResult{
+			Language: transcription.Language,
+			Duration: transcription.Duration,
+			Text:     transcription.FullText,
+			Segments: make([]WhisperSegment, len(segments)),
+		}
+		for i, s := range segments {
+			whisperResult.Segments[i] = WhisperSegment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
 		// Generate SRT content
-		srtContent := generateSRT(status.Result)
+		srtContent := generateSRT(whisperResult)
 
 		// Set headers for file download
 		w.Header().Set("Content-Type", "text/srt; charset=utf-8")
