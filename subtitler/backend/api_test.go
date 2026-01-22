@@ -435,7 +435,7 @@ func (ts *testServer) registerHandlers() {
 
 		srtContent := generateSRT(whisperResult)
 
-		w.Header().Set("Content-Type", "text/srt; charset=utf-8")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".srt\"")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(srtContent))
@@ -1039,8 +1039,8 @@ func TestDownloadSRT(t *testing.T) {
 
 	// Check content type
 	contentType := resp.Header().Get("Content-Type")
-	if !strings.Contains(contentType, "text/srt") {
-		t.Errorf("Expected Content-Type text/srt, got %s", contentType)
+	if !strings.Contains(contentType, "text/plain") {
+		t.Errorf("Expected Content-Type text/plain, got %s", contentType)
 	}
 
 	// Check SRT content

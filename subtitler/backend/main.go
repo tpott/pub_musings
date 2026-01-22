@@ -1046,9 +1046,32 @@ func main() {
 
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
+			// Start a goroutine to simulate progress updates during transcription
+			// Since whisper doesn't provide progress callbacks, we estimate based on time
+			progressDone := make(chan struct{})
+			go func() {
+				ticker := time.NewTicker(5 * time.Second)
+				defer ticker.Stop()
+				progress := 30
+				for {
+					select {
+					case <-progressDone:
+						return
+					case <-ticker.C:
+						// Increment progress slowly from 30% to 90% during transcription
+						if progress < 90 {
+							progress += 5
+							database.UpdateTranscriptionStatus(uploadID, "processing", "Transcribing audio...", progress)
+						}
+					}
+				}
+			}()
+
 			// Run whisper
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
 			result, err := transcribeAudio(audioPath, outputPath)
+			close(progressDone) // Stop progress simulation
+
 			if err != nil {
 				log.Printf("Transcription failed: %v", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
@@ -1390,7 +1413,9 @@ func main() {
 		srtContent := generateSRT(whisperResult)
 
 		// Set headers for file download
-		w.Header().Set("Content-Type", "text/srt; charset=utf-8")
+		// Use text/plain as it's universally supported by browsers for download
+		// application/x-subrip is the registered MIME type but has limited browser support
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.srt\"", uploadID))
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(srtContent))

@@ -98,3 +98,26 @@ webServer: [
 ```
 
 **Lesson:** Be consistent - the same Go PATH issue applies everywhere, not just direct bash commands.
+
+---
+
+### 2026-01-22: Progress stuck at 30% during transcription
+
+**Problem:** Frontend showed progress stuck at 30% during whisper transcription because:
+- Backend only updated progress at discrete stages: 5% (decrypt), 10% (extract audio), 30% (start transcription)
+- Whisper subprocess provides no progress callbacks
+- Users saw frozen progress bar for potentially minutes on long videos
+
+**Solution:** Added a background goroutine that simulates progress updates every 5 seconds during transcription, incrementing from 30% to 90% in 5% steps. Channel closes when whisper completes.
+
+**Lesson:** For long-running subprocess operations without progress callbacks, simulate progress to provide user feedback. Users prefer any visible progress over a frozen UI.
+
+---
+
+### 2026-01-22: SRT download MIME type compatibility
+
+**Problem:** SRT download used `Content-Type: text/srt; charset=utf-8` which is a non-standard MIME type. Some browsers might not handle this well for downloads.
+
+**Solution:** Changed to `text/plain; charset=utf-8` which is universally supported. The `Content-Disposition: attachment` header is what triggers the download behavior, not the Content-Type.
+
+**Lesson:** For file downloads, use standard MIME types. `Content-Disposition: attachment` controls download behavior, not the Content-Type. When in doubt, `text/plain` is the safe choice for text files.

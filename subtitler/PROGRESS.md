@@ -709,9 +709,28 @@ Created comprehensive design documentation for the three major security features
 
 All specs cross-link to each other for easy navigation.
 
+### Task 28: Fix upload progress and SRT download
+
+**Date**: 2026-01-22
+
+Fixed two UX issues with upload flow:
+
+**Upload Progress Fix:**
+- Problem: Progress bar stuck at 30% during whisper transcription
+- Root cause: Whisper subprocess provides no progress callbacks
+- Solution: Added background goroutine that simulates progress updates every 5 seconds during transcription (30% → 90%)
+- Uses a channel to signal when whisper completes
+
+**SRT Download Fix:**
+- Problem: Used non-standard `Content-Type: text/srt` MIME type
+- Solution: Changed to `text/plain; charset=utf-8` for universal browser support
+- The `Content-Disposition: attachment` header controls download behavior
+
+Updated tests to match new Content-Type.
+
 ## Summary
 
-26 of 31 tasks completed. The subtitler application is feature-complete with:
+27 of 31 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
