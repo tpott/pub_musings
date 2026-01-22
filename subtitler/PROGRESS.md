@@ -825,9 +825,35 @@ Implemented whisper-server HTTP API integration as an alternative to spawning wh
 - No subprocess spawning overhead
 - Supports remote transcription (GPU server)
 
+### Task 32: Document whisper-server passthrough for qemu VM
+
+**Date**: 2026-01-22
+
+Created comprehensive `backend/README.md` documentation:
+
+**Environment Variables:**
+- Complete table of all backend env vars (PORT, WHISPER_MODEL, WHISPER_SERVER_URL, USE_WHISPER_SERVER)
+- Explanation of CLI vs Server mode selection
+- Example configurations for both modes
+
+**qemu VM Networking:**
+- Option 1: User-mode networking with hostfwd (recommended for simplicity)
+  - VM accesses host at `10.0.2.2` (default qemu gateway)
+- Option 2: Bridge networking for advanced setups
+  - Create br0 bridge, assign IPs, configure VM
+- Option 3: macvtap for production (VM gets LAN IP)
+
+**Additional Documentation:**
+- Firewall configuration (ufw rules)
+- Connectivity verification commands
+- Full API endpoint reference table
+- Project structure overview
+- Testing commands
+- Links to related specs and docs
+
 ## Summary
 
-31 of 35 tasks completed. The subtitler application is feature-complete with:
+32 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
