@@ -166,3 +166,13 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 - L (letter) - looks like 1 or I
 
 **Lesson:** For user-facing codes that may be manually entered, exclude visually ambiguous characters. This reduces support burden and user frustration.
+
+---
+
+### 2026-01-22: Go binary name depends on directory
+
+**Problem:** `.gitignore` had `backend/subtitler` but `go build` in the backend directory produced `backend/backend` (named after the directory, not the module).
+
+**Solution:** Added both patterns to `.gitignore`: `backend/subtitler` and `backend/backend`.
+
+**Lesson:** Go builds name the binary after the directory by default. When adding gitignore patterns for Go binaries, add both the expected name AND the directory name pattern.
