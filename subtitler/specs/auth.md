@@ -237,10 +237,11 @@ Anonymous uploads are tracked by session. The retention cleanup runs hourly.
 - Generic login error messages
 - Session expiration with cleanup
 - 2FA support via TOTP
+- 2FA recovery codes (see [recovery-codes.md](recovery-codes.md))
+- Rate limiting on auth endpoints (5 req/min per IP, see `backend/ratelimit/`)
 
 ### Not Implemented
 
-- Rate limiting on login/register
 - Account lockout after failed attempts
 - CAPTCHA integration
 - Password complexity requirements beyond length
@@ -259,4 +260,5 @@ validateTotpCode(code: string)  // Exactly 6 digits
 ## Related Specs
 
 - [totp.md](totp.md) - Two-factor authentication details
+- [recovery-codes.md](recovery-codes.md) - 2FA recovery codes
 - [encryption.md](encryption.md) - File encryption at rest
