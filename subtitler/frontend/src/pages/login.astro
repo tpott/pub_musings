@@ -146,6 +146,47 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.footer a:hover {
 				text-decoration: underline;
 			}
+			.recovery-link {
+				text-align: center;
+				margin-top: 1rem;
+				font-size: 0.85rem;
+			}
+			.recovery-link a {
+				color: var(--accent-color);
+				text-decoration: none;
+				cursor: pointer;
+			}
+			.recovery-link a:hover {
+				text-decoration: underline;
+			}
+			.recovery-code-input {
+				font-family: 'Menlo', 'Monaco', monospace;
+				font-size: 1.2rem;
+				letter-spacing: 0.1rem;
+				text-align: center;
+			}
+			.back-link {
+				display: block;
+				text-align: center;
+				margin-top: 0.75rem;
+				font-size: 0.85rem;
+				color: var(--accent-color);
+				text-decoration: none;
+				cursor: pointer;
+			}
+			.back-link:hover {
+				text-decoration: underline;
+			}
+			.success-message {
+				background-color: #c6f6d5;
+				border: 1px solid #9ae6b4;
+				color: #276749;
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1.25rem;
+				font-size: 0.9rem;
+				display: none;
+			}
 		</style>
 	</head>
 	<body>
@@ -159,6 +200,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				</div>
 
 				<div id="error" class="error-message"></div>
+				<div id="success" class="success-message"></div>
 
 				<form id="loginForm">
 					<div id="credentialsSection">
@@ -177,6 +219,17 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							<label for="totpCode">Authentication Code</label>
 							<input type="text" id="totpCode" name="totpCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" />
 						</div>
+						<div class="recovery-link">
+							<a id="showRecoveryLink">Lost access to authenticator?</a>
+						</div>
+					</div>
+					<div id="recoverySection" class="hidden">
+						<p class="totp-info">Enter one of your recovery codes to disable 2FA and log in</p>
+						<div class="form-group">
+							<label for="recoveryCode">Recovery Code</label>
+							<input type="text" id="recoveryCode" name="recoveryCode" class="recovery-code-input" maxlength="9" placeholder="XXXX-XXXX" autocomplete="off" />
+						</div>
+						<a id="backToTotpLink" class="back-link">Back to authenticator code</a>
 					</div>
 					<button type="submit" class="btn btn-primary" id="submitBtn">Log in</button>
 				</form>
@@ -190,44 +243,86 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 		<script>
 			const form = document.getElementById('loginForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
+			const successDiv = document.getElementById('success') as HTMLElement;
 			const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 			const emailInput = document.getElementById('email') as HTMLInputElement;
 			const passwordInput = document.getElementById('password') as HTMLInputElement;
 			const totpInput = document.getElementById('totpCode') as HTMLInputElement;
+			const recoveryCodeInput = document.getElementById('recoveryCode') as HTMLInputElement;
 			const credentialsSection = document.getElementById('credentialsSection') as HTMLElement;
 			const totpSection = document.getElementById('totpSection') as HTMLElement;
+			const recoverySection = document.getElementById('recoverySection') as HTMLElement;
+			const showRecoveryLink = document.getElementById('showRecoveryLink') as HTMLElement;
+			const backToTotpLink = document.getElementById('backToTotpLink') as HTMLElement;
 
 			let totpRequired = false;
+			let recoveryMode = false;
 
 			function showError(message: string) {
 				errorDiv.textContent = message;
 				errorDiv.style.display = 'block';
+				successDiv.style.display = 'none';
 			}
 
-			function hideError() {
+			function showSuccess(message: string) {
+				successDiv.textContent = message;
+				successDiv.style.display = 'block';
 				errorDiv.style.display = 'none';
+			}
+
+			function hideMessages() {
+				errorDiv.style.display = 'none';
+				successDiv.style.display = 'none';
 			}
 
 			function setLoading(loading: boolean) {
 				submitBtn.disabled = loading;
-				submitBtn.textContent = loading ? 'Logging in...' : 'Log in';
+				if (recoveryMode) {
+					submitBtn.textContent = loading ? 'Recovering...' : 'Recover Account';
+				} else {
+					submitBtn.textContent = loading ? 'Logging in...' : 'Log in';
+				}
 			}
 
 			function showTotpInput() {
 				totpRequired = true;
+				recoveryMode = false;
 				credentialsSection.classList.add('hidden');
 				totpSection.classList.remove('hidden');
+				recoverySection.classList.add('hidden');
+				submitBtn.textContent = 'Log in';
 				totpInput.focus();
 			}
 
+			function showRecoveryInput() {
+				recoveryMode = true;
+				totpSection.classList.add('hidden');
+				recoverySection.classList.remove('hidden');
+				submitBtn.textContent = 'Recover Account';
+				recoveryCodeInput.focus();
+			}
+
+			function backToTotp() {
+				recoveryMode = false;
+				recoverySection.classList.add('hidden');
+				totpSection.classList.remove('hidden');
+				submitBtn.textContent = 'Log in';
+				recoveryCodeInput.value = '';
+				totpInput.focus();
+			}
+
+			showRecoveryLink.addEventListener('click', showRecoveryInput);
+			backToTotpLink.addEventListener('click', backToTotp);
+
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
-				hideError();
+				hideMessages();
 				setLoading(true);
 
 				const email = emailInput.value.trim();
 				const password = passwordInput.value;
 				const totpCode = totpInput.value.trim();
+				const recoveryCode = recoveryCodeInput.value.trim().toUpperCase();
 
 				if (!email || !password) {
 					showError('Please fill in all fields');
@@ -235,6 +330,45 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					return;
 				}
 
+				// Handle recovery mode
+				if (recoveryMode) {
+					if (!recoveryCode) {
+						showError('Please enter a recovery code');
+						setLoading(false);
+						return;
+					}
+
+					try {
+						const response = await fetch('/api/auth/totp/recover', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								email,
+								password,
+								recovery_code: recoveryCode,
+							}),
+						});
+
+						const data = await response.json();
+
+						if (!response.ok) {
+							showError(data.error || 'Recovery failed');
+							setLoading(false);
+							return;
+						}
+
+						// Recovery successful - 2FA has been disabled, redirect to videos
+						window.location.href = '/videos';
+					} catch (err) {
+						showError('Network error. Please try again.');
+						setLoading(false);
+					}
+					return;
+				}
+
+				// Normal login flow
 				if (totpRequired && (!totpCode || totpCode.length !== 6)) {
 					showError('Please enter a 6-digit code');
 					setLoading(false);

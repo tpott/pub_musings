@@ -723,8 +723,8 @@ func main() {
 		})
 	})
 
-	// 2FA: Start TOTP setup - generates a new secret
-	mux.HandleFunc("POST /api/auth/totp/setup", func(w http.ResponseWriter, r *http.Request) {
+	// 2FA: Start TOTP setup - generates a new secret (rate limited)
+	mux.HandleFunc("POST /api/auth/totp/setup", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Require authentication
@@ -779,7 +779,7 @@ func main() {
 			"uri":            uri,
 			"issuer":         issuer,
 		})
-	})
+	}))
 
 	// 2FA: Verify TOTP code and enable 2FA (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -887,8 +887,8 @@ func main() {
 		})
 	}))
 
-	// 2FA: Disable TOTP
-	mux.HandleFunc("POST /api/auth/totp/disable", func(w http.ResponseWriter, r *http.Request) {
+	// 2FA: Disable TOTP (rate limited)
+	mux.HandleFunc("POST /api/auth/totp/disable", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Require authentication
@@ -963,7 +963,7 @@ func main() {
 			"message":      "2FA has been disabled successfully",
 			"totp_enabled": false,
 		})
-	})
+	}))
 
 	// 2FA: Recover account using recovery code (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/recover", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {

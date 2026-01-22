@@ -156,30 +156,33 @@ func (db *DB) DeleteRecoveryCodes(userID string) error
 
 ## Frontend Changes
 
+**Status: IMPLEMENTED (Tasks 39, 40)**
+
 ### Security Page (`security.astro`)
 
 After successful 2FA verification, display recovery codes:
 
-1. Show codes in a clear, copyable format
+1. Show codes in a clear, copyable grid format (2 columns)
 2. Warning: "Save these codes. They won't be shown again."
-3. Copy all button
-4. Print button (optional)
-5. Confirmation checkbox: "I have saved my recovery codes"
-6. Only then show "Continue" button
+3. "Copy All Codes" button with clipboard API
+4. Confirmation checkbox: "I have saved my recovery codes"
+5. "Continue" button only enabled after checkbox checked
 
 ### Login Page (`login.astro`)
 
-Add "Lost access to authenticator?" link that:
-1. Shows email/password fields
-2. Shows recovery code input field
-3. Calls /api/auth/totp/recover
+"Lost access to authenticator?" link that:
+1. Appears after 2FA is required during login
+2. Shows recovery code input field (keeps email/password from previous step)
+3. Calls `/api/auth/totp/recover` endpoint
+4. "Back to authenticator code" link to return to TOTP input
+5. Redirects to videos page on successful recovery
 
 ## Security Considerations
 
 1. **One-time display:** Recovery codes shown only once after setup
 2. **Hashed storage:** Codes stored as bcrypt hashes
 3. **Single use:** Each code can only be used once
-4. **Rate limiting:** Recovery endpoint should be rate limited (Task 38)
+4. **Rate limiting:** All TOTP endpoints rate limited (5 req/min per IP) - Tasks 38, 41
 5. **Password required:** Recovery still requires valid password
 6. **Audit trail:** `used_at` timestamp for compliance
 

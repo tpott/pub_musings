@@ -314,7 +314,7 @@ cd backend && /home/trevor/go/bin/go test -run "TOTP|Recovery" -v
 
 ### Considerations
 
-- No rate limiting on TOTP attempts (see Task 38)
+- Rate limiting (5 req/min per IP) on all TOTP endpoints (setup, verify, disable, recover) - Task 38 & 41
 - QR codes use external service (qrserver.com)
 - No TOTP resynchronization mechanism
 

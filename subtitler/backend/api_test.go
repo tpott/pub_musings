@@ -1905,3 +1905,75 @@ func TestRateLimitingXForwardedFor(t *testing.T) {
 		t.Errorf("Different X-Forwarded-For IP should not be rate limited, got %d", w.Code)
 	}
 }
+
+// TestRateLimitingTOTPSetup tests that TOTP setup endpoint is rate limited
+func TestRateLimitingTOTPSetup(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/totp/setup", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/totp/setup", nil)
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/totp/setup", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestRateLimitingTOTPDisable tests that TOTP disable endpoint is rate limited
+func TestRateLimitingTOTPDisable(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/totp/disable", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/totp/disable", strings.NewReader(`{"password":"test123","code":"123456"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/totp/disable", strings.NewReader(`{"password":"test123","code":"123456"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}

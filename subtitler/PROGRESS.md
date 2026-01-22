@@ -1032,17 +1032,69 @@ Implemented IP-based rate limiting for authentication endpoints to protect again
 - 10 unit tests in `ratelimit/ratelimit_test.go` (limiter, GetClientIP, Wrap middleware)
 - 5 API integration tests in `api_test.go` (login, register, TOTP verify, TOTP recover, X-Forwarded-For)
 
+### Task 39: Frontend - Display recovery codes after 2FA setup
+
+**Date**: 2026-01-22
+
+Implemented recovery code display on the security settings page:
+
+**Frontend changes (`security.astro`):**
+- Added recovery codes section that appears after successful 2FA verification
+- Shows all 10 recovery codes in a copyable grid format
+- Warning message: "Save these codes. They won't be shown again."
+- "Copy All Codes" button with clipboard API support
+- Confirmation checkbox: "I have saved my recovery codes"
+- "Continue" button only enabled after checkbox checked
+- Proper styling with warning box and monospace font for codes
+
+This closes a critical gap where recovery codes were generated but never shown to users.
+
+### Task 40: Frontend - Add recovery option to login page
+
+**Date**: 2026-01-22
+
+Implemented account recovery via recovery codes on the login page:
+
+**Frontend changes (`login.astro`):**
+- Added "Lost access to authenticator?" link on TOTP input step
+- Recovery mode shows email, password, and recovery code fields
+- Recovery code input with XXXX-XXXX format placeholder
+- Calls `/api/auth/totp/recover` endpoint to disable 2FA
+- "Back to authenticator code" link to return to normal TOTP flow
+- Success message display after successful recovery
+- Automatic redirect to videos page after recovery
+
+Users can now regain access to their accounts if they lose their authenticator device.
+
+### Task 41: Backend - Rate limit TOTP setup and disable endpoints
+
+**Date**: 2026-01-22
+
+Added rate limiting to previously unprotected TOTP endpoints:
+
+**Backend changes (`main.go`):**
+- Wrapped `/api/auth/totp/setup` with `authLimiter.Wrap()`
+- Wrapped `/api/auth/totp/disable` with `authLimiter.Wrap()`
+- Both endpoints now limited to 5 requests per minute per IP
+
+**Tests added (`api_test.go`):**
+- `TestRateLimitingTOTPSetup` - verifies setup endpoint is rate limited
+- `TestRateLimitingTOTPDisable` - verifies disable endpoint is rate limited
+
+This closes a security gap where these endpoints could be abused for spam/brute-force attacks.
+
 ## Summary
 
-38 tasks completed. The subtitler application is feature-complete with:
+41 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
 - User authentication with optional 2FA (TOTP) and recovery codes
-- Rate limiting on auth endpoints (5 req/min per IP)
+- Rate limiting on ALL auth endpoints (5 req/min per IP)
+- Recovery codes displayed to users and usable from login page
 - File encryption at rest
 - Anonymous and registered user support with retention policies
 - Frontend console log forwarding to backend for dev debugging
-- Comprehensive test coverage (175+ tests including 6 E2E tests)
+- Comprehensive test coverage (180+ tests including 6 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
 - Working E2E test infrastructure with Playwright

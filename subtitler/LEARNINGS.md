@@ -176,3 +176,22 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 **Solution:** Added both patterns to `.gitignore`: `backend/subtitler` and `backend/backend`.
 
 **Lesson:** Go builds name the binary after the directory by default. When adding gitignore patterns for Go binaries, add both the expected name AND the directory name pattern.
+
+---
+
+### 2026-01-22: Backend returns data but frontend ignores it
+
+**Problem:** After 38 tasks were "complete", a spec-vs-implementation audit revealed that:
+- Backend's `/api/auth/totp/verify` returned `recovery_codes` in the response
+- Frontend's `security.astro` didn't handle or display the codes
+- Users would enable 2FA but never see their recovery codes (critical security gap!)
+
+Similar pattern: `/api/auth/totp/recover` endpoint existed but no frontend UI to access it.
+
+**Solution:**
+1. Created Tasks 39-41 from audit findings
+2. Added recovery codes display section to security.astro with copy button and confirmation
+3. Added "Lost access to authenticator?" recovery flow to login.astro
+4. Added rate limiting to previously unprotected TOTP endpoints
+
+**Lesson:** When completing backend tasks, verify the frontend actually USES the data returned. API responses being "correct" doesn't mean the feature is complete. Run the full user flow end-to-end.
