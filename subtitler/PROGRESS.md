@@ -769,9 +769,32 @@ Created helper scripts in `scripts/` directory for development workflow:
 
 Updated AGENTS.md with script documentation and usage table.
 
+### Task 29: Audit - Compare capabilities vs specs/docs
+
+**Date**: 2026-01-22
+
+Performed systematic audit of all documentation against actual implementation.
+
+**Verification completed:**
+- INSTALL.md: All commands work (Node 22+, Go 1.22+, ffmpeg, whisper-cli)
+- TESTING.md: All commands work (86 backend + 64 frontend tests pass)
+- BROWSER_TESTING.md: E2E tests exist and configured (6 tests in home.spec.ts)
+- LINTERS.md: Go fmt/vet work; ESLint documented but intentionally not installed (guide only)
+- Backend API: All documented endpoints implemented
+
+**Bug fixed:**
+- `scripts/lint.sh` had relative path bug: after `cd` to backend, `cd "$PROJECT_ROOT/frontend"` failed
+- Fixed by making `SCRIPT_DIR` absolute via `$(cd "$(dirname "$0")" && pwd)`
+
+**Gaps identified:**
+- No `backend/README.md` for env var documentation (covered by Task 32)
+- LINTERS.md shows ESLint setup but it's not installed (intentional - guide for optional setup)
+
+Added learning to LEARNINGS.md about shell script cd with relative paths.
+
 ## Summary
 
-29 of 35 tasks completed. The subtitler application is feature-complete with:
+30 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
