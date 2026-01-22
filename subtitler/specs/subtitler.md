@@ -33,7 +33,31 @@ visual feedback that my upload is happening. I should get interesting informatio
 indicates text from my upload is getting transcribed. I should have the most accurate
 transcription possible.
 
-TODO write a plan for evaluating competitors on accuracy and speed.
+### Accuracy Evaluation Plan
+
+To evaluate transcription accuracy against competitors, we should:
+
+1. **Create a test corpus**:
+   - 10-20 diverse audio/video samples (accents, noise levels, domains)
+   - Ground truth transcripts for each
+   - Include edge cases: numbers, technical terms, multiple speakers
+
+2. **Measure Word Error Rate (WER)**:
+   - WER = (Substitutions + Insertions + Deletions) / Total Reference Words
+   - Industry standard benchmark metric
+   - Baseline comparison: Whisper Large V3 achieves ~7.88% WER
+
+3. **Speed metrics**:
+   - Real-time factor (RTF): Processing time / Audio duration
+   - Whisper Large V3: ~10-30 min per hour of audio
+   - Whisper Turbo: 6x faster with ~1-2% accuracy loss
+
+4. **Test against competitors**:
+   - Rev: Claims 90% AI accuracy, 99% human accuracy
+   - Assembly AI Universal-2: ~6.68% WER
+   - NVIDIA Canary/Parakeet: Currently best open-source WER
+
+See [benchmarks](#competitor-benchmarks) in competitors section for detailed numbers.
 
 ## Design
 
@@ -53,9 +77,8 @@ or it should run whisper-server itself. Tests should use a smaller, faster model
 Production should use a larger, more accurate model. Cost vs speed tradeoff is still TBD.
 Default to using the fastest whisper model you can. Allow for overriding the whisper model
 via an env var. Allow for overriding the whisper server so we can run whisper server on
-a baremetal Mac Mini. TODO document how to passthrough the whisper server IP:port into
-the qemu VM and what the env var the backend needs to use that for transcoding. If
-running the whisper server process, then pipe all whisper-server logs to the backend logs
+a baremetal Mac Mini. See **Task 32** for whisper-server passthrough documentation.
+If running the whisper server process, then pipe all whisper-server logs to the backend logs
 so its easier for debugging. Make sure to document all useful env vars in `backend/README.md`
 
 Whisper cpp's source code is available in https://github.com/ggml-org/whisper.cpp . I
@@ -80,20 +103,53 @@ that are useful to include in our [documentation](#Documentation).
 
 Environment variables should be encrypted with `sops`.
 
-Deploys are TBD. Writing a plan is TODO. Implementing requires human intervention. I plan
-to run the website on a Mac Mini in a qemu VM, and ideally in a docker container inside
-of the VM. I would like to figure out how to passthrough Mac Metal via MoltenVK to qemu.
-Write a plan for that is TODO. Write a plan for how to leverage
-`pub_musings/webhook-deployer/` which was described in
-`pub_musings/personal/001_INITIALIZATION.md` to trigger deploys for subtitler, frontend
-and backend.
+Deploys are TBD. Implementing requires human intervention. See **Task 33** for deployment
+plan. I plan to run the website on a Mac Mini in a qemu VM, and ideally in a docker
+container inside of the VM. I would like to figure out how to passthrough Mac Metal via
+MoltenVK to qemu - see **Task 34** for research. See **Task 35** for webhook-deployer
+integration plan leveraging `pub_musings/webhook-deployer/` for frontend and backend deploys.
 
 Production deploys will leverage astro built static files with Caddy as the frontend load
 balancer. Caddy can route all /api/* requests to the backend.
 
 ## Competitors
 
-TODO research their landing pages, new user signup flows, pricing and performance.
+### Key Players
+
+| Service | AI Pricing | Human Pricing | Accuracy | Speed |
+|---------|-----------|---------------|----------|-------|
+| Rev | $0.25/min | $1.50/min | 90% AI, 99% human | 5 min AI, 12hr human |
+| Happy Scribe | $5/hour | varies | Good | Fast |
+| GoTranscript | $0.02/min | $1.02-2.34/min | 99%+ human | Fast AI |
+| Otter.ai | Free tier, $8.33/mo Pro | N/A | Good | Real-time |
+| Sonix | $5/hour | N/A | Good | Fast |
+| VEED | SaaS pricing | N/A | Good | Seconds |
+| Descript | SaaS pricing | N/A | Good | Fast |
+
+### Competitor Benchmarks
+
+Word Error Rate (WER) comparison (lower is better):
+- **Assembly AI Universal-2**: 6.68% WER - current best commercial
+- **Whisper Large V3**: 7.88% WER - our baseline model
+- **Whisper Turbo**: 7.75% WER, 6x faster than Large V3
+- **NVIDIA Canary Qwen 2.5B**: Best open-source accuracy
+- **Granite-Speech-3.3**: 8.18% WER (edge deployment)
+- **Distil-Whisper**: 14.93% WER, 6x faster, 756M params
+
+### Competitive Advantages We Can Offer
+
+1. **Self-hosted**: Privacy-focused, no data leaves user's control
+2. **No per-minute fees**: One-time infrastructure cost
+3. **Open-source models**: Whisper is free to run
+4. **Customizable**: Can fine-tune or swap models as better ones emerge
+5. **Subtitle editing**: Built-in correction and timing adjustment
+6. **Transcript paste-and-match**: Unique feature for known transcripts
+
+### Areas to Improve
+
+1. Speed: Whisper Large is slow (~10-30min/hour). Consider Turbo or Distil.
+2. Accuracy: Consider supporting newer models (Canary, Granite) as alternatives.
+3. Multi-speaker diarization: Not currently supported.
 
 ## Documentation
 

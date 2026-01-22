@@ -28,4 +28,8 @@
 {"id": 28, "name": "Fix upload progress and SRT download", "done_when": "Upload progress updates smoothly (not stuck at 30%), SRT download works after transcription completes", "status": "done"}
 {"id": 29, "name": "Audit: Compare capabilities vs specs/docs", "done_when": "Read specs/subtitler.md, README.md, and all documentation. Test each advertised feature. Add new TASKS for any gaps between what's documented and what actually works", "status": "todo"}
 {"id": 30, "name": "Create verification scripts and pre-commit hook", "done_when": "Helper scripts exist for linting, unit tests, and browser tests. Pre-commit hook runs all verification scripts. Scripts documented in AGENTS.md", "status": "todo"}
-{"id": 31, "name": "Fill in TODOs in specs/subtitler.md", "done_when": "All TODO items in specs/subtitler.md are either completed (research done, plans written) or converted to explicit tasks in TASKS.jsonl", "status": "todo"}
+{"id": 31, "name": "Fill in TODOs in specs/subtitler.md", "done_when": "All TODO items in specs/subtitler.md are either completed (research done, plans written) or converted to explicit tasks in TASKS.jsonl", "status": "done"}
+{"id": 32, "name": "Document whisper-server passthrough for qemu VM", "done_when": "Documentation exists for how to pass whisper-server IP:port into qemu VM, env vars documented in backend/README.md", "status": "todo"}
+{"id": 33, "name": "Write deployment plan", "done_when": "specs/deployment.md exists with plan for Mac Mini qemu VM deployment, Caddy frontend, and static file hosting", "status": "todo"}
+{"id": 34, "name": "Research Mac Metal via MoltenVK to qemu", "done_when": "Research doc exists explaining feasibility and steps for Metal GPU passthrough to qemu VM", "status": "todo"}
+{"id": 35, "name": "Plan webhook-deployer integration", "done_when": "Plan exists for triggering deploys via pub_musings/webhook-deployer for frontend and backend", "status": "todo"}

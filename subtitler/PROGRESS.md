@@ -728,9 +728,29 @@ Fixed two UX issues with upload flow:
 
 Updated tests to match new Content-Type.
 
+### Task 31: Fill in TODOs in specs/subtitler.md
+
+**Date**: 2026-01-22
+
+Addressed all TODO items in the main spec file:
+
+**Completed directly:**
+- Added accuracy/speed evaluation plan with WER benchmarks
+- Researched and documented competitors (Rev, Happy Scribe, GoTranscript, Otter.ai, etc.)
+- Added competitor pricing, accuracy, and speed comparison table
+- Added competitive advantages and improvement areas
+
+**Converted to explicit tasks:**
+- Task 32: Document whisper-server passthrough for qemu VM
+- Task 33: Write deployment plan for Mac Mini qemu VM
+- Task 34: Research Mac Metal via MoltenVK to qemu
+- Task 35: Plan webhook-deployer integration
+
+The spec file now has zero TODO markers - all are either completed or tracked as tasks.
+
 ## Summary
 
-27 of 31 tasks completed. The subtitler application is feature-complete with:
+28 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
