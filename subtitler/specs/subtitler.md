@@ -1,6 +1,6 @@
 # subtitler
 
-Lets design a fun website for discovering subtitles for our content. 
+A website for generating and editing subtitles for music videos and language learning content. Subtitles should be written in the script most native for reading that language—for example, Hindi subtitles should be in Devanagari (देवनागरी), not romanized transliteration.
 
 ## Core Function
 
@@ -111,6 +111,68 @@ integration plan leveraging `pub_musings/webhook-deployer/` for frontend and bac
 
 Production deploys will leverage astro built static files with Caddy as the frontend load
 balancer. Caddy can route all /api/* requests to the backend.
+
+## Known Transcripts and Script Normalization
+
+### The Problem
+
+Whisper and other transcription engines often output text in romanized/transliterated form
+rather than native scripts. For example:
+- Hindi audio may be transcribed as "devanagari" instead of "देवनागरी"
+- Japanese may come out as romaji ("arigatou") instead of hiragana/kanji ("ありがとう")
+- Arabic may be romanized instead of using Arabic script
+
+Similarly, users may paste known lyrics or transcripts that are already transliterated
+(common on lyrics websites) when native script subtitles would be more appropriate for
+language learners.
+
+### Multi-Script Languages
+
+Some languages have multiple valid writing systems:
+- **Urdu/Hindi**: Mutually intelligible spoken languages, but Urdu uses Nastaliq (Arabic-derived)
+  script while Hindi uses Devanagari
+- **Serbian**: Uses both Cyrillic and Latin scripts
+- **Japanese**: Uses Hiragana, Katakana, and Kanji (often mixed)
+- **Chinese**: Simplified vs Traditional characters
+- **Punjabi**: Gurmukhi (India) vs Shahmukhi (Pakistan)
+
+### Backend: Script Conversion Library
+
+The backend should include a script conversion/transliteration library that can:
+1. Detect the current script of input text
+2. Convert between scripts for the same language (e.g., romanized → Devanagari)
+3. Handle mixed-script input gracefully
+4. Preserve timing information when converting subtitle segments
+
+Potential libraries to evaluate:
+- **ICU (International Components for Unicode)**: Comprehensive transliteration support
+- **Aksharamukha**: Supports 100+ scripts, especially strong for Indic languages
+- **OpenCC**: Chinese simplified ↔ traditional conversion
+- **Language-specific libraries**: polyglot, indic-transliteration, etc.
+
+### Frontend: Language and Script Selection
+
+The upload/edit interface should allow users to:
+1. **Specify source language**: What language is being spoken in the video
+2. **Choose target script**: Which writing system to use for subtitles
+   - Show only valid scripts for the selected language
+   - Default to the most common native script
+3. **Request re-transliteration**: Convert existing subtitles to a different script
+
+Example UI flow:
+```
+Language: Hindi
+Script:   ○ Devanagari (देवनागरी) [default]
+          ○ Romanized (IAST)
+          ○ Romanized (casual)
+```
+
+### Quality Considerations
+
+- Romanized → native script conversion is lossy in some cases (ambiguous spellings)
+- Some content is intentionally romanized (song lyrics for international audiences)
+- Consider showing confidence scores or highlighting uncertain conversions
+- Allow manual correction of script conversion errors in the subtitle editor
 
 ## Competitors
 

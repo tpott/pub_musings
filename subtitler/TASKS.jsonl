@@ -40,3 +40,4 @@
 {"id": 40, "name": "Frontend: Add recovery option to login page", "done_when": "Login page has 'Lost access to authenticator?' link. Shows recovery form with email, password, and recovery code fields. Calls /api/auth/totp/recover endpoint.", "status": "done"}
 {"id": 41, "name": "Backend: Rate limit TOTP setup and disable endpoints", "done_when": "/api/auth/totp/setup and /api/auth/totp/disable are rate limited at 5 req/min per IP. Tests pass.", "status": "done"}
 {"id": 42, "name": "Regenerate recovery codes feature", "done_when": "Backend has POST /api/auth/totp/codes endpoint (requires auth + password + TOTP code, returns new codes). Frontend security page has 'Regenerate Recovery Codes' button for users with 2FA enabled. Tests pass.", "status": "done"}
+{"id": 43, "name": "Address spec feedback", "done_when": "All feedback in FEEDBACK.md has been addressed and added to their corresponding specs/*.md files", "status": "todo"}

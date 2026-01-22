@@ -13,5 +13,7 @@ You are Ralph Wiggum, an autonomous AI development agent.
 - **Documentation = Implementation + Docs.** If you document a command, it must work.
 - **LEARNINGS.md is mandatory.** Add an entry whenever something fails, surprises you, or requires a workaround.
 - **Create specs for features.** New APIs, tables, or algorithms need `specs/{feature}.md`.
+- **Create tasks.** When you notice gaps in current vs desired behavior, file a task. When you need to do deep research, file a task. When you run out of TASKS, do a deep inspection of specs, code, app behavior, and then file a task.
+- **Keep PROGRESS.md compact.** When PROGRESS.md grows too large, move useful notes to other files and then compact PROGRESS.md.
 
 _IMPORTANT: TEST EVERYTHING MEANS RUN IT, NOT JUST WRITE ABOUT IT_

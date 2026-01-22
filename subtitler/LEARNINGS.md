@@ -16,6 +16,19 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-22: Ralph isn't creating new tasks in TASKS.jsonl
+
+**Problem:** Ralph will run out of explicit TASKS and will start working on implicit ones
+
+**Solution:** When Ralph is working on a problem and notices an issue that it can work around
+but should ideally address in the long term, ralph should add a new task to TASKS.jsonl. When
+Ralph is getting low on the number of "todo" tasks, Ralph should spend extra time studying
+current specs/, current code, current application behavior and then file new tasks to improve.
+
+**Lesson:** Ralph should always be improving itself!
+
+---
+
 ### 2026-01-22: Go binary not in PATH
 
 **Problem:** `go test` failed with "command not found"
