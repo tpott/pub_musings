@@ -202,8 +202,7 @@ After successful 2FA verification, display recovery codes:
 ## Migration Notes
 
 - Existing users with 2FA enabled won't have recovery codes
-- They should regenerate via security settings
-- Add "Regenerate Recovery Codes" button to security page
+- They can regenerate via security settings using the "Regenerate Recovery Codes" button (Task 42)
 
 ## Related Specs
 

@@ -401,20 +401,63 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					</div>
 
 					<div id="disableSection" class="hidden">
-						<p class="card-description" style="margin-top: 0;">
-							To disable 2FA, enter your current password and a code from your authenticator app.
-						</p>
-						<form id="disableForm">
-							<div class="form-group">
-								<label for="disablePassword">Password</label>
-								<input type="password" id="disablePassword" autocomplete="current-password" required />
+						<div id="managementOptions">
+							<div style="margin-bottom: 1.5rem;">
+								<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Recovery Codes</h3>
+								<p class="card-description" style="margin-top: 0;">
+									Recovery codes can be used to access your account if you lose your authenticator device.
+								</p>
+								<button type="button" class="btn btn-secondary" id="startRegenBtn">Regenerate Recovery Codes</button>
 							</div>
-							<div class="form-group">
-								<label for="disableCode">Authentication Code</label>
-								<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+
+							<div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+								<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Disable 2FA</h3>
+								<p class="card-description" style="margin-top: 0;">
+									Remove two-factor authentication from your account.
+								</p>
+								<button type="button" class="btn btn-danger" id="startDisableBtn">Disable 2FA</button>
 							</div>
-							<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
-						</form>
+						</div>
+
+						<div id="regenSection" class="hidden">
+							<p class="card-description" style="margin-top: 0;">
+								To regenerate recovery codes, enter your current password and a code from your authenticator app.
+							</p>
+							<form id="regenForm">
+								<div class="form-group">
+									<label for="regenPassword">Password</label>
+									<input type="password" id="regenPassword" autocomplete="current-password" required />
+								</div>
+								<div class="form-group">
+									<label for="regenCode">Authentication Code</label>
+									<input type="text" id="regenCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+								</div>
+								<div class="btn-group">
+									<button type="submit" class="btn btn-primary" id="regenBtn">Regenerate Codes</button>
+									<button type="button" class="btn btn-secondary" id="cancelRegenBtn">Cancel</button>
+								</div>
+							</form>
+						</div>
+
+						<div id="disableFormSection" class="hidden">
+							<p class="card-description" style="margin-top: 0;">
+								To disable 2FA, enter your current password and a code from your authenticator app.
+							</p>
+							<form id="disableForm">
+								<div class="form-group">
+									<label for="disablePassword">Password</label>
+									<input type="password" id="disablePassword" autocomplete="current-password" required />
+								</div>
+								<div class="form-group">
+									<label for="disableCode">Authentication Code</label>
+									<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+								</div>
+								<div class="btn-group">
+									<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
+									<button type="button" class="btn btn-secondary" id="cancelDisableBtn">Cancel</button>
+								</div>
+							</form>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -450,6 +493,21 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const savedCodesCheckbox = document.getElementById('savedCodesCheckbox') as HTMLInputElement;
 			const continueBtn = document.getElementById('continueBtn') as HTMLButtonElement;
 
+			// New elements for regenerate/disable flow
+			const managementOptions = document.getElementById('managementOptions') as HTMLElement;
+			const regenSection = document.getElementById('regenSection') as HTMLElement;
+			const disableFormSection = document.getElementById('disableFormSection') as HTMLElement;
+			const startRegenBtn = document.getElementById('startRegenBtn') as HTMLButtonElement;
+			const startDisableBtn = document.getElementById('startDisableBtn') as HTMLButtonElement;
+			const cancelRegenBtn = document.getElementById('cancelRegenBtn') as HTMLButtonElement;
+			const cancelDisableBtn = document.getElementById('cancelDisableBtn') as HTMLButtonElement;
+			const regenForm = document.getElementById('regenForm') as HTMLFormElement;
+			const regenBtn = document.getElementById('regenBtn') as HTMLButtonElement;
+			const regenPassword = document.getElementById('regenPassword') as HTMLInputElement;
+			const regenCode = document.getElementById('regenCode') as HTMLInputElement;
+
+			let isRegenerating = false;
+
 			let currentUser: { id: string; email: string; totp_enabled: boolean } | null = null;
 			let setupSecret: string = '';
 			let recoveryCodes: string[] = [];
@@ -480,6 +538,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					enableSection.classList.add('hidden');
 					setupSection.classList.add('hidden');
 					disableSection.classList.remove('hidden');
+					// Show management options, hide forms
+					managementOptions.classList.remove('hidden');
+					regenSection.classList.add('hidden');
+					disableFormSection.classList.add('hidden');
 				} else {
 					totpStatus.textContent = 'Disabled';
 					totpStatus.className = 'status-badge status-disabled';
@@ -627,7 +689,14 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			function finishSetup() {
 				recoveryCodesSection.classList.add('hidden');
 				recoveryCodes = [];
-				showSuccess('Two-factor authentication has been enabled successfully!');
+				if (isRegenerating) {
+					isRegenerating = false;
+					showSuccess('Recovery codes have been regenerated successfully!');
+					regenBtn.disabled = false;
+					regenBtn.textContent = 'Regenerate Codes';
+				} else {
+					showSuccess('Two-factor authentication has been enabled successfully!');
+				}
 				updateUI();
 			}
 
@@ -734,6 +803,92 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				}
 			}
 
+		// Show regenerate form
+			function showRegenForm() {
+				hideMessages();
+				managementOptions.classList.add('hidden');
+				regenSection.classList.remove('hidden');
+				disableFormSection.classList.add('hidden');
+				regenPassword.focus();
+			}
+
+			// Show disable form
+			function showDisableForm() {
+				hideMessages();
+				managementOptions.classList.add('hidden');
+				regenSection.classList.add('hidden');
+				disableFormSection.classList.remove('hidden');
+				disablePassword.focus();
+			}
+
+			// Cancel regenerate
+			function cancelRegen() {
+				hideMessages();
+				regenPassword.value = '';
+				regenCode.value = '';
+				managementOptions.classList.remove('hidden');
+				regenSection.classList.add('hidden');
+			}
+
+			// Cancel disable
+			function cancelDisable() {
+				hideMessages();
+				disablePassword.value = '';
+				disableCode.value = '';
+				managementOptions.classList.remove('hidden');
+				disableFormSection.classList.add('hidden');
+			}
+
+			// Regenerate recovery codes
+			async function regenerateCodes(e: Event) {
+				e.preventDefault();
+				hideMessages();
+
+				const password = regenPassword.value;
+				const code = regenCode.value.trim();
+
+				if (!password) {
+					showError('Please enter your password');
+					return;
+				}
+				if (!code || code.length !== 6) {
+					showError('Please enter a 6-digit code');
+					return;
+				}
+
+				regenBtn.disabled = true;
+				regenBtn.textContent = 'Regenerating...';
+
+				try {
+					const response = await fetch('/api/auth/totp/codes', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ password, code }),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Failed to regenerate recovery codes');
+						regenBtn.disabled = false;
+						regenBtn.textContent = 'Regenerate Codes';
+						return;
+					}
+
+					// Success - show the new recovery codes
+					regenPassword.value = '';
+					regenCode.value = '';
+					regenSection.classList.add('hidden');
+					isRegenerating = true;
+					displayRecoveryCodes(data.recovery_codes);
+
+				} catch (err) {
+					showError('Network error. Please try again.');
+					regenBtn.disabled = false;
+					regenBtn.textContent = 'Regenerate Codes';
+				}
+			}
+
 			startSetupBtn.addEventListener('click', startSetup);
 			cancelSetupBtn.addEventListener('click', cancelSetup);
 			verifyForm.addEventListener('submit', verifyAndEnable);
@@ -741,6 +896,13 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			copyCodesBtn.addEventListener('click', copyAllCodes);
 			savedCodesCheckbox.addEventListener('change', onSavedCodesChange);
 			continueBtn.addEventListener('click', finishSetup);
+
+			// New event listeners for regenerate/disable flow
+			startRegenBtn.addEventListener('click', showRegenForm);
+			startDisableBtn.addEventListener('click', showDisableForm);
+			cancelRegenBtn.addEventListener('click', cancelRegen);
+			cancelDisableBtn.addEventListener('click', cancelDisable);
+			regenForm.addEventListener('submit', regenerateCodes);
 
 			checkAuth();
 		</script>

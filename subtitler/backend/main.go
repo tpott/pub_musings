@@ -1111,6 +1111,103 @@ func main() {
 		})
 	}))
 
+	// 2FA: Regenerate recovery codes (rate limited)
+	mux.HandleFunc("POST /api/auth/totp/codes", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check if user is authenticated
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		// Check if 2FA is enabled
+		if !user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "2FA is not enabled",
+			})
+			return
+		}
+
+		// Parse request body - require password and TOTP code for security
+		var req struct {
+			Code     string `json:"code"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Verify password
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid password",
+			})
+			return
+		}
+
+		// Validate the TOTP code
+		if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.Code) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid 2FA code",
+			})
+			return
+		}
+
+		// Generate new recovery codes
+		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
+		if err != nil {
+			log.Printf("Error generating recovery codes: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to generate recovery codes",
+			})
+			return
+		}
+
+		// Hash and store recovery codes (this deletes old codes first)
+		codeHashes := make([]string, len(recoveryCodes))
+		for i, code := range recoveryCodes {
+			hash, err := totp.HashCode(code)
+			if err != nil {
+				log.Printf("Error hashing recovery code: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to generate recovery codes",
+				})
+				return
+			}
+			codeHashes[i] = hash
+		}
+
+		if err := database.SaveRecoveryCodes(user.ID, codeHashes); err != nil {
+			log.Printf("Error saving recovery codes: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to save recovery codes",
+			})
+			return
+		}
+
+		log.Printf("Regenerated recovery codes for user: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":        "Recovery codes regenerated successfully",
+			"recovery_codes": recoveryCodes,
+		})
+	}))
+
 	// Upload endpoint - accepts video files
 	mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

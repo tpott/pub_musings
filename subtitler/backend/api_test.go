@@ -512,6 +512,83 @@ func (ts *testServer) registerHandlers() {
 		})
 	}))
 
+	// 2FA: Regenerate recovery codes (rate limited)
+	ts.mux.HandleFunc("POST /api/auth/totp/codes", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check if user is authenticated
+		tokenStr := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(ts.db, tokenStr)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		// Check if 2FA is enabled
+		if !user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "2FA is not enabled"})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Code     string `json:"code"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Verify password
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid password"})
+			return
+		}
+
+		// Validate the TOTP code
+		if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.Code) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid 2FA code"})
+			return
+		}
+
+		// Generate new recovery codes
+		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate recovery codes"})
+			return
+		}
+
+		// Hash and store recovery codes
+		codeHashes := make([]string, len(recoveryCodes))
+		for i, code := range recoveryCodes {
+			hash, err := totp.HashCode(code)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate recovery codes"})
+				return
+			}
+			codeHashes[i] = hash
+		}
+
+		if err := ts.db.SaveRecoveryCodes(user.ID, codeHashes); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save recovery codes"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":        "Recovery codes regenerated successfully",
+			"recovery_codes": recoveryCodes,
+		})
+	}))
+
 	// List videos
 	ts.mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1669,6 +1746,209 @@ func TestTOTPRecoverCodeSingleUse(t *testing.T) {
 
 	if resp.Code != http.StatusUnauthorized {
 		t.Errorf("Expected second recovery with same code to fail with 401, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRegenerateRecoveryCodes(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user
+	email := "regen@example.com"
+	password := "ValidPassword123!"
+	token := ts.createTestUser(t, email, password)
+
+	// Set up and enable TOTP
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate TOTP code: %v", err)
+	}
+	resp = ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	var verifyResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&verifyResp)
+	originalCodes := verifyResp["recovery_codes"].([]interface{})
+
+	if len(originalCodes) != 10 {
+		t.Errorf("Expected 10 original recovery codes, got %d", len(originalCodes))
+	}
+
+	// Regenerate codes - need a fresh TOTP code
+	newCode, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate new TOTP code: %v", err)
+	}
+
+	resp = ts.doRequest("POST", "/api/auth/totp/codes", map[string]string{
+		"password": password,
+		"code":     newCode,
+	}, token)
+
+	if resp.Code != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected status 200 for regenerate, got %d: %s", resp.Code, body)
+	}
+
+	var regenResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&regenResp)
+
+	newCodes, ok := regenResp["recovery_codes"].([]interface{})
+	if !ok {
+		t.Fatal("Expected recovery_codes in response")
+	}
+
+	if len(newCodes) != 10 {
+		t.Errorf("Expected 10 new recovery codes, got %d", len(newCodes))
+	}
+
+	// Verify old codes are different from new codes
+	oldCodeSet := make(map[string]bool)
+	for _, c := range originalCodes {
+		oldCodeSet[c.(string)] = true
+	}
+
+	allNew := true
+	for _, c := range newCodes {
+		if oldCodeSet[c.(string)] {
+			allNew = false
+			break
+		}
+	}
+
+	if !allNew {
+		t.Error("New recovery codes should be different from original codes")
+	}
+}
+
+func TestTOTPRegenerateRequiresAuth(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to regenerate without authentication
+	resp := ts.doRequest("POST", "/api/auth/totp/codes", map[string]string{
+		"password": "test",
+		"code":     "123456",
+	}, "")
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 without auth, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRegenerateRequires2FAEnabled(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user without 2FA
+	token := ts.createTestUser(t, "no2fa@example.com", "ValidPassword123!")
+
+	resp := ts.doRequest("POST", "/api/auth/totp/codes", map[string]string{
+		"password": "ValidPassword123!",
+		"code":     "123456",
+	}, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 without 2FA enabled, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRegenerateInvalidPassword(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with 2FA
+	token := ts.createTestUser(t, "badpwd@example.com", "ValidPassword123!")
+
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, _ := totp.GenerateCode(secret)
+	ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	// Try with wrong password
+	newCode, _ := totp.GenerateCode(secret)
+	resp = ts.doRequest("POST", "/api/auth/totp/codes", map[string]string{
+		"password": "WrongPassword123!",
+		"code":     newCode,
+	}, token)
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 with wrong password, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRegenerateInvalidCode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with 2FA
+	password := "ValidPassword123!"
+	token := ts.createTestUser(t, "badcode@example.com", password)
+
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, _ := totp.GenerateCode(secret)
+	ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	// Try with invalid TOTP code
+	resp = ts.doRequest("POST", "/api/auth/totp/codes", map[string]string{
+		"password": password,
+		"code":     "000000",
+	}, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 with invalid TOTP code, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRegenerateRateLimited(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/totp/codes", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/totp/codes", strings.NewReader(`{"password":"test123","code":"123456"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/totp/codes", strings.NewReader(`{"password":"test123","code":"123456"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
 	}
 }
 

@@ -1083,18 +1083,51 @@ Added rate limiting to previously unprotected TOTP endpoints:
 
 This closes a security gap where these endpoints could be abused for spam/brute-force attacks.
 
+### Task 42: Regenerate recovery codes feature
+
+**Date**: 2026-01-22
+
+Implemented the ability for users to regenerate their 2FA recovery codes from the security settings page:
+
+**Backend changes (`main.go`):**
+- Added `POST /api/auth/totp/codes` endpoint for regenerating recovery codes
+- Requires authentication (logged-in session)
+- Requires 2FA to be enabled
+- Requires password and current TOTP code for verification
+- Generates 10 new recovery codes and replaces old ones
+- Rate limited at 5 req/min per IP
+
+**Frontend changes (`security.astro`):**
+- Reorganized 2FA management UI when enabled:
+  - "Recovery Codes" section with "Regenerate Recovery Codes" button
+  - "Disable 2FA" section with "Disable 2FA" button
+- Added regenerate form requiring password + TOTP code
+- Reuses existing recovery codes display section for showing new codes
+- Success message "Recovery codes have been regenerated successfully!"
+- Cancel buttons to return to management options
+
+**Tests added:**
+- `TestTOTPRegenerateRecoveryCodes` - full regeneration flow
+- `TestTOTPRegenerateRequiresAuth` - 401 without authentication
+- `TestTOTPRegenerateRequires2FAEnabled` - 400 without 2FA
+- `TestTOTPRegenerateInvalidPassword` - 401 with wrong password
+- `TestTOTPRegenerateInvalidCode` - 400 with wrong TOTP code
+- `TestTOTPRegenerateRateLimited` - rate limiting verification
+
+This closes a UX gap identified in specs/recovery-codes.md where users who enabled 2FA before recovery codes were implemented, or who used some of their codes, had no way to get new ones.
+
 ## Summary
 
-41 tasks completed. The subtitler application is feature-complete with:
+42 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
 - User authentication with optional 2FA (TOTP) and recovery codes
 - Rate limiting on ALL auth endpoints (5 req/min per IP)
-- Recovery codes displayed to users and usable from login page
+- Recovery codes displayed to users, usable from login page, and regenerable from security settings
 - File encryption at rest
 - Anonymous and registered user support with retention policies
 - Frontend console log forwarding to backend for dev debugging
-- Comprehensive test coverage (180+ tests including 6 E2E tests)
+- Comprehensive test coverage (186+ tests including 6 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
 - Working E2E test infrastructure with Playwright
