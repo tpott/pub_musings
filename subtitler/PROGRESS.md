@@ -973,16 +973,48 @@ Added debugging section to README.md covering:
 
 This resolves the final TODO item in README.md.
 
+### Task 37: Backend - 2FA recovery codes
+
+**Date**: 2026-01-22
+
+Implemented recovery codes for 2FA to prevent users from being permanently locked out of their accounts:
+
+**New files:**
+- `backend/totp/recovery.go` - Recovery code generation and hashing
+- `backend/totp/recovery_test.go` - Unit tests for recovery code functions
+- `specs/recovery-codes.md` - Feature specification
+
+**Database changes:**
+- Added `recovery_codes` table with user_id, code_hash, used, created_at, used_at
+- Added index on user_id for efficient lookups
+
+**API changes:**
+- `POST /api/auth/totp/verify` now returns 10 recovery codes when 2FA is enabled
+- New `POST /api/auth/totp/recover` endpoint for account recovery using a code
+- `POST /api/auth/totp/disable` now deletes recovery codes
+
+**Recovery code features:**
+- 10 single-use codes generated when 2FA is enabled
+- Format: XXXX-XXXX (8 chars, uppercase + digits, no ambiguous chars)
+- Stored as bcrypt hashes (cost 10)
+- Recovery requires email + password + valid code
+- Using a code disables 2FA and clears all sessions
+
+**Tests added:**
+- 8 unit tests in `totp/recovery_test.go`
+- 3 DB tests in `db/db_test.go` (lifecycle, regenerate, delete)
+- 5 API integration tests (verify returns codes, valid/invalid recovery, single-use)
+
 ## Summary
 
-36 tasks completed. The subtitler application is feature-complete with:
+37 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
-- User authentication with optional 2FA (TOTP)
+- User authentication with optional 2FA (TOTP) and recovery codes
 - File encryption at rest
 - Anonymous and registered user support with retention policies
 - Frontend console log forwarding to backend for dev debugging
-- Comprehensive test coverage (150+ tests including 6 E2E tests)
+- Comprehensive test coverage (160+ tests including 6 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
 - Working E2E test infrastructure with Playwright

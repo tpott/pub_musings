@@ -16,6 +16,7 @@ import (
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/totp"
 )
 
 // testServer holds all dependencies needed for testing
@@ -302,6 +303,209 @@ func (ts *testServer) registerHandlers() {
 				"created_at":   user.CreatedAt,
 				"totp_enabled": user.TOTPEnabled,
 			},
+		})
+	})
+
+	// 2FA: Setup TOTP
+	ts.mux.HandleFunc("POST /api/auth/totp/setup", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(ts.db, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		if user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "2FA is already enabled"})
+			return
+		}
+
+		secret, err := totp.GenerateSecret()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate secret"})
+			return
+		}
+
+		if err := ts.db.SetTOTPSecret(user.ID, secret); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save secret"})
+			return
+		}
+
+		issuer := "Subtitler"
+		uri := totp.GenerateProvisioningURI(secret, user.Email, issuer)
+		secretDisplay := totp.FormatSecretForDisplay(secret)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"secret":         secret,
+			"secret_display": secretDisplay,
+			"uri":            uri,
+			"issuer":         issuer,
+		})
+	})
+
+	// 2FA: Verify TOTP code and enable 2FA
+	ts.mux.HandleFunc("POST /api/auth/totp/verify", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, err := auth.ValidateSession(ts.db, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		if user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "2FA is already enabled"})
+			return
+		}
+
+		if user.TOTPSecret == nil || *user.TOTPSecret == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No TOTP secret found"})
+			return
+		}
+
+		var req struct {
+			Code string `json:"code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if !totp.Validate(*user.TOTPSecret, req.Code) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid code"})
+			return
+		}
+
+		if err := ts.db.EnableTOTP(user.ID); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to enable 2FA"})
+			return
+		}
+
+		// Generate recovery codes
+		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":        "2FA has been enabled successfully",
+				"totp_enabled":   true,
+				"recovery_codes": []string{},
+			})
+			return
+		}
+
+		// Hash and store recovery codes
+		codeHashes := make([]string, len(recoveryCodes))
+		for i, code := range recoveryCodes {
+			hash, err := totp.HashCode(code)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate recovery codes"})
+				return
+			}
+			codeHashes[i] = hash
+		}
+
+		ts.db.SaveRecoveryCodes(user.ID, codeHashes)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":        "2FA has been enabled successfully",
+			"totp_enabled":   true,
+			"recovery_codes": recoveryCodes,
+		})
+	})
+
+	// 2FA: Recover account using recovery code
+	ts.mux.HandleFunc("POST /api/auth/totp/recover", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email        string `json:"email"`
+			Password     string `json:"password"`
+			RecoveryCode string `json:"recovery_code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if req.Email == "" || req.Password == "" || req.RecoveryCode == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Email, password, and recovery code are required"})
+			return
+		}
+
+		user, err := ts.db.GetUserByEmail(req.Email)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid email or password"})
+			return
+		}
+
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid email or password"})
+			return
+		}
+
+		if !user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "2FA is not enabled for this account"})
+			return
+		}
+
+		codes, err := ts.db.GetUnusedRecoveryCodes(user.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Server error"})
+			return
+		}
+
+		var matchedCodeID string
+		normalizedInput := totp.NormalizeCode(req.RecoveryCode)
+		for _, code := range codes {
+			if totp.CheckCode(normalizedInput, code.CodeHash) {
+				matchedCodeID = code.ID
+				break
+			}
+		}
+
+		if matchedCodeID == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid recovery code"})
+			return
+		}
+
+		ts.db.UseRecoveryCode(matchedCodeID)
+		ts.db.DisableTOTP(user.ID)
+		ts.db.DeleteRecoveryCodes(user.ID)
+		ts.db.DeleteUserSessions(user.ID)
+
+		session, err := auth.CreateSession(ts.db, user.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create session"})
+			return
+		}
+
+		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":      "2FA has been disabled",
+			"token":        session.Token,
+			"totp_enabled": false,
 		})
 	})
 
@@ -1206,5 +1410,261 @@ func TestSessionCookie(t *testing.T) {
 		if !sessionCookie.HttpOnly {
 			t.Error("Session cookie should be HttpOnly")
 		}
+	}
+}
+
+// ========== TOTP Recovery Code Tests ==========
+
+func TestTOTPVerifyReturnsRecoveryCodes(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user
+	token := ts.createTestUser(t, "totp@example.com", "ValidPassword123!")
+
+	// Set up TOTP
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status 200 for setup, got %d", resp.Code)
+	}
+
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	// Generate valid TOTP code
+	code, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate TOTP code: %v", err)
+	}
+
+	// Verify TOTP
+	resp = ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.Code)
+	}
+
+	var verifyResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&verifyResp)
+
+	if verifyResp["totp_enabled"] != true {
+		t.Error("Expected totp_enabled to be true")
+	}
+
+	recoveryCodes, ok := verifyResp["recovery_codes"].([]interface{})
+	if !ok {
+		t.Fatal("Expected recovery_codes in response")
+	}
+
+	if len(recoveryCodes) != 10 {
+		t.Errorf("Expected 10 recovery codes, got %d", len(recoveryCodes))
+	}
+
+	// Check code format (XXXX-XXXX)
+	for _, code := range recoveryCodes {
+		codeStr := code.(string)
+		if len(codeStr) != 9 || codeStr[4] != '-' {
+			t.Errorf("Recovery code %q has wrong format", codeStr)
+		}
+	}
+}
+
+func TestTOTPRecoverWithValidCode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with 2FA enabled
+	email := "recover@example.com"
+	password := "ValidPassword123!"
+	token := ts.createTestUser(t, email, password)
+
+	// Set up and enable TOTP
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate TOTP code: %v", err)
+	}
+	resp = ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	var verifyResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&verifyResp)
+	recoveryCodes := verifyResp["recovery_codes"].([]interface{})
+
+	// Use the first recovery code to recover
+	recoveryCode := recoveryCodes[0].(string)
+
+	resp = ts.doRequest("POST", "/api/auth/totp/recover", map[string]string{
+		"email":         email,
+		"password":      password,
+		"recovery_code": recoveryCode,
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected status 200, got %d: %s", resp.Code, body)
+	}
+
+	var recoverResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&recoverResp)
+
+	if recoverResp["totp_enabled"] != false {
+		t.Error("Expected totp_enabled to be false after recovery")
+	}
+
+	if recoverResp["token"] == nil {
+		t.Error("Expected new session token in response")
+	}
+}
+
+func TestTOTPRecoverWithInvalidCode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with 2FA enabled
+	email := "invalid@example.com"
+	password := "ValidPassword123!"
+	token := ts.createTestUser(t, email, password)
+
+	// Set up and enable TOTP
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate TOTP code: %v", err)
+	}
+	ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	// Try to recover with invalid code
+	resp = ts.doRequest("POST", "/api/auth/totp/recover", map[string]string{
+		"email":         email,
+		"password":      password,
+		"recovery_code": "INVALID-CODE",
+	}, "")
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRecoverWithWrongPassword(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with 2FA enabled
+	email := "wrongpwd@example.com"
+	password := "ValidPassword123!"
+	token := ts.createTestUser(t, email, password)
+
+	// Set up and enable TOTP
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate TOTP code: %v", err)
+	}
+	resp = ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	var verifyResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&verifyResp)
+	recoveryCodes := verifyResp["recovery_codes"].([]interface{})
+
+	// Try to recover with wrong password
+	resp = ts.doRequest("POST", "/api/auth/totp/recover", map[string]string{
+		"email":         email,
+		"password":      "WrongPassword123!",
+		"recovery_code": recoveryCodes[0].(string),
+	}, "")
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.Code)
+	}
+}
+
+func TestTOTPRecoverCodeSingleUse(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with 2FA enabled
+	email := "singleuse@example.com"
+	password := "ValidPassword123!"
+	token := ts.createTestUser(t, email, password)
+
+	// Set up and enable TOTP
+	resp := ts.doRequest("POST", "/api/auth/totp/setup", nil, token)
+	var setupResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	secret := setupResp["secret"].(string)
+
+	code, err := totp.GenerateCode(secret)
+	if err != nil {
+		t.Fatalf("Failed to generate TOTP code: %v", err)
+	}
+	resp = ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": code,
+	}, token)
+
+	var verifyResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&verifyResp)
+	recoveryCodes := verifyResp["recovery_codes"].([]interface{})
+	recoveryCode := recoveryCodes[0].(string)
+
+	// Use the recovery code first time - should work
+	resp = ts.doRequest("POST", "/api/auth/totp/recover", map[string]string{
+		"email":         email,
+		"password":      password,
+		"recovery_code": recoveryCode,
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected first recovery to succeed, got %d", resp.Code)
+	}
+
+	// Re-enable 2FA
+	var recoverResp map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&recoverResp)
+	newToken := recoverResp["token"].(string)
+
+	ts.doRequest("POST", "/api/auth/totp/setup", nil, newToken)
+	// Get the new secret
+	resp = ts.doRequest("POST", "/api/auth/totp/setup", nil, newToken)
+	json.NewDecoder(resp.Body).Decode(&setupResp)
+	newSecret := setupResp["secret"].(string)
+
+	newCode, err := totp.GenerateCode(newSecret)
+	if err != nil {
+		t.Fatalf("Failed to generate new TOTP code: %v", err)
+	}
+	ts.doRequest("POST", "/api/auth/totp/verify", map[string]string{
+		"code": newCode,
+	}, newToken)
+
+	// Try to use the same recovery code again - should fail since 2FA was disabled and codes deleted
+	resp = ts.doRequest("POST", "/api/auth/totp/recover", map[string]string{
+		"email":         email,
+		"password":      password,
+		"recovery_code": recoveryCode,
+	}, "")
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected second recovery with same code to fail with 401, got %d", resp.Code)
 	}
 }

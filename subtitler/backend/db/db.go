@@ -1,6 +1,7 @@
 package db
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -80,6 +81,16 @@ type BurnJob struct {
 	OutputPath  string     `json:"output_path,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
+// RecoveryCode represents a hashed 2FA recovery code
+type RecoveryCode struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	CodeHash  string     `json:"-"` // Never serialize
+	Used      bool       `json:"used"`
+	CreatedAt time.Time  `json:"created_at"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
 }
 
 // Open opens or creates a SQLite database at the given path
@@ -177,6 +188,15 @@ func (db *DB) migrate() error {
 			completed_at DATETIME
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_burn_jobs_video_id ON burn_jobs(video_id)`,
+		`CREATE TABLE IF NOT EXISTS recovery_codes (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			code_hash TEXT NOT NULL,
+			used INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			used_at DATETIME
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_id ON recovery_codes(user_id)`,
 	}
 
 	for _, migration := range migrations {
@@ -634,4 +654,100 @@ func (db *DB) DeleteVideo(videoID string) (string, error) {
 	}
 
 	return video.FilePath, nil
+}
+
+// SaveRecoveryCodes stores hashed recovery codes for a user.
+// Deletes any existing unused codes first.
+func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
+	// Delete existing unused codes
+	_, err := db.conn.Exec(`DELETE FROM recovery_codes WHERE user_id = ? AND used = 0`, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete old recovery codes: %w", err)
+	}
+
+	// Insert new codes
+	for _, hash := range codeHashes {
+		id := generateID()
+		_, err := db.conn.Exec(`
+			INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
+			VALUES (?, ?, ?, ?)
+		`, id, userID, hash, time.Now())
+		if err != nil {
+			return fmt.Errorf("failed to insert recovery code: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// generateID generates a random 16-character hex ID
+func generateID() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
+
+// GetUnusedRecoveryCodes returns all unused recovery codes for a user
+func (db *DB) GetUnusedRecoveryCodes(userID string) ([]RecoveryCode, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, user_id, code_hash, used, created_at, used_at
+		FROM recovery_codes
+		WHERE user_id = ? AND used = 0
+		ORDER BY created_at
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var codes []RecoveryCode
+	for rows.Next() {
+		var c RecoveryCode
+		var usedAt sql.NullTime
+		if err := rows.Scan(&c.ID, &c.UserID, &c.CodeHash, &c.Used, &c.CreatedAt, &usedAt); err != nil {
+			return nil, err
+		}
+		if usedAt.Valid {
+			c.UsedAt = &usedAt.Time
+		}
+		codes = append(codes, c)
+	}
+
+	return codes, rows.Err()
+}
+
+// UseRecoveryCode marks a recovery code as used.
+// Returns true if successful, false if code not found or already used.
+func (db *DB) UseRecoveryCode(codeID string) (bool, error) {
+	now := time.Now()
+	result, err := db.conn.Exec(`
+		UPDATE recovery_codes
+		SET used = 1, used_at = ?
+		WHERE id = ? AND used = 0
+	`, now, codeID)
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return affected > 0, nil
+}
+
+// DeleteRecoveryCodes deletes all recovery codes for a user
+func (db *DB) DeleteRecoveryCodes(userID string) error {
+	_, err := db.conn.Exec(`DELETE FROM recovery_codes WHERE user_id = ?`, userID)
+	return err
+}
+
+// CountUnusedRecoveryCodes returns the number of unused recovery codes for a user
+func (db *DB) CountUnusedRecoveryCodes(userID string) (int, error) {
+	var count int
+	err := db.conn.QueryRow(`
+		SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used = 0
+	`, userID).Scan(&count)
+	return count, err
 }

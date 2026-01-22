@@ -243,20 +243,21 @@ Uses `inputmode="numeric"` for mobile keyboard.
 
 ## Recovery Mechanisms
 
-**Current Status: NOT IMPLEMENTED**
+**Status: IMPLEMENTED** (Task 37)
 
-Missing features:
-- Backup/recovery codes
-- Account lockout recovery
-- Lost device procedures
-- Alternative authentication
+See [recovery-codes.md](recovery-codes.md) for full specification.
 
-**Risk:** Users who lose their authenticator app cannot regain account access.
+**Features:**
+- 10 single-use recovery codes generated when 2FA is enabled
+- Codes stored as bcrypt hashes in `recovery_codes` table
+- Format: XXXX-XXXX (8 characters, uppercase + digits)
+- Recovery endpoint: `POST /api/auth/totp/recover`
+- Requires email + password + recovery code
+- Using a code disables 2FA and clears remaining codes
 
-**Recommended Enhancement:**
-- Generate 10 single-use recovery codes during setup
-- Store hashed codes in database
-- Allow code-based recovery (one-time use)
+**Still missing:**
+- Account lockout recovery without recovery code
+- Alternative authentication methods
 
 ## Testing
 
@@ -271,9 +272,33 @@ Tests in `backend/totp/totp_test.go`:
 - Time-based code changes
 - Invalid secret handling
 
+Tests in `backend/totp/recovery_test.go`:
+
+- Recovery code generation (10 unique codes)
+- Code format validation (XXXX-XXXX)
+- Alphabet validation (no ambiguous characters)
+- Normalization (case-insensitive, hyphen removal)
+- Hash and verify codes
+- Wrong code rejection
+
+Tests in `backend/db/db_test.go`:
+
+- Recovery codes lifecycle (save, get, use, count)
+- Regeneration replaces old unused codes
+- Delete all codes
+
+API tests in `backend/api_test.go`:
+
+- TOTP verify returns 10 recovery codes
+- Recover with valid code succeeds
+- Recover with invalid code fails
+- Recover with wrong password fails
+- Recovery codes are single-use
+
 Run tests:
 ```bash
 cd backend && /home/trevor/go/bin/go test ./totp -v
+cd backend && /home/trevor/go/bin/go test -run "TOTP|Recovery" -v
 ```
 
 ## Security Characteristics
@@ -289,8 +314,7 @@ cd backend && /home/trevor/go/bin/go test ./totp -v
 
 ### Considerations
 
-- No recovery codes (users can be locked out)
-- No rate limiting on TOTP attempts
+- No rate limiting on TOTP attempts (see Task 38)
 - QR codes use external service (qrserver.com)
 - No TOTP resynchronization mechanism
 

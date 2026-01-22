@@ -135,3 +135,34 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ```
 
 **Lesson:** When a shell script uses multiple `cd` commands, always use absolute paths. Relative paths break after the first `cd`. The pattern `$(cd "$(dirname "$0")" && pwd)` converts a relative path to absolute.
+
+---
+
+### 2026-01-22: Self-audit to find gaps in implementation
+
+**Problem:** After completing 36 tasks, I ran a self-audit comparing specs to implementation. Found several documented gaps including:
+- 2FA recovery codes not implemented (critical security issue)
+- Rate limiting not implemented (security concern)
+- Several features marked "NOT IMPLEMENTED" in specs
+
+**Solution:**
+1. Created Task 37 for recovery codes and Task 38 for rate limiting
+2. Implemented recovery codes immediately as it's security-critical
+3. Updated specs to reflect current status
+
+**Lesson:** Periodically run self-audits by reading all specs and comparing to implementation. The specs document what SHOULD exist; if "NOT IMPLEMENTED" appears, create a task. Critical security gaps (like 2FA recovery) should be prioritized.
+
+---
+
+### 2026-01-22: Recovery codes alphabet excludes ambiguous characters
+
+**Problem:** Users copying recovery codes manually could confuse similar characters: 0/O, 1/I/L.
+
+**Solution:** Used alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789` which excludes:
+- 0 (zero) - looks like O
+- O (letter) - looks like 0
+- 1 (one) - looks like I or L
+- I (letter) - looks like 1 or L
+- L (letter) - looks like 1 or I
+
+**Lesson:** For user-facing codes that may be manually entered, exclude visually ambiguous characters. This reduces support burden and user frustration.

@@ -841,10 +841,45 @@ func main() {
 			return
 		}
 
-		log.Printf("2FA enabled for user: %s", user.Email)
+		// Generate recovery codes
+		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
+		if err != nil {
+			log.Printf("Error generating recovery codes: %v", err)
+			// 2FA is enabled but we failed to generate codes - still return success
+			// but log the error so we can investigate
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":        "2FA has been enabled successfully",
+				"totp_enabled":   true,
+				"recovery_codes": []string{},
+			})
+			return
+		}
+
+		// Hash and store recovery codes
+		codeHashes := make([]string, len(recoveryCodes))
+		for i, code := range recoveryCodes {
+			hash, err := totp.HashCode(code)
+			if err != nil {
+				log.Printf("Error hashing recovery code: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to generate recovery codes",
+				})
+				return
+			}
+			codeHashes[i] = hash
+		}
+
+		if err := database.SaveRecoveryCodes(user.ID, codeHashes); err != nil {
+			log.Printf("Error saving recovery codes: %v", err)
+			// Continue - 2FA is enabled even if codes couldn't be saved
+		}
+
+		log.Printf("2FA enabled for user: %s with %d recovery codes", user.Email, len(recoveryCodes))
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"message":      "2FA has been enabled successfully",
-			"totp_enabled": true,
+			"message":        "2FA has been enabled successfully",
+			"totp_enabled":   true,
+			"recovery_codes": recoveryCodes,
 		})
 	})
 
@@ -913,9 +948,161 @@ func main() {
 			return
 		}
 
+		// Delete recovery codes
+		if err := database.DeleteRecoveryCodes(user.ID); err != nil {
+			log.Printf("Error deleting recovery codes: %v", err)
+			// Continue - 2FA is disabled even if codes couldn't be deleted
+		}
+
 		log.Printf("2FA disabled for user: %s", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":      "2FA has been disabled successfully",
+			"totp_enabled": false,
+		})
+	})
+
+	// 2FA: Recover account using recovery code
+	mux.HandleFunc("POST /api/auth/totp/recover", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse request body
+		var req struct {
+			Email        string `json:"email"`
+			Password     string `json:"password"`
+			RecoveryCode string `json:"recovery_code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Validate required fields
+		if req.Email == "" || req.Password == "" || req.RecoveryCode == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Email, password, and recovery code are required",
+			})
+			return
+		}
+
+		// Get user by email
+		user, err := database.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Error getting user: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Server error",
+			})
+			return
+		}
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid email or password",
+			})
+			return
+		}
+
+		// Verify password
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid email or password",
+			})
+			return
+		}
+
+		// Check if 2FA is enabled
+		if !user.TOTPEnabled {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "2FA is not enabled for this account",
+			})
+			return
+		}
+
+		// Get unused recovery codes
+		codes, err := database.GetUnusedRecoveryCodes(user.ID)
+		if err != nil {
+			log.Printf("Error getting recovery codes: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Server error",
+			})
+			return
+		}
+
+		// Check each code until we find a match
+		var matchedCodeID string
+		normalizedInput := totp.NormalizeCode(req.RecoveryCode)
+		for _, code := range codes {
+			if totp.CheckCode(normalizedInput, code.CodeHash) {
+				matchedCodeID = code.ID
+				break
+			}
+		}
+
+		if matchedCodeID == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid recovery code",
+			})
+			return
+		}
+
+		// Mark the code as used
+		success, err := database.UseRecoveryCode(matchedCodeID)
+		if err != nil || !success {
+			log.Printf("Error using recovery code: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to use recovery code",
+			})
+			return
+		}
+
+		// Disable 2FA
+		if err := database.DisableTOTP(user.ID); err != nil {
+			log.Printf("Error disabling TOTP: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to disable 2FA",
+			})
+			return
+		}
+
+		// Delete remaining recovery codes
+		if err := database.DeleteRecoveryCodes(user.ID); err != nil {
+			log.Printf("Error deleting recovery codes: %v", err)
+			// Continue - 2FA is disabled
+		}
+
+		// Clear all existing sessions for security
+		if err := database.DeleteUserSessions(user.ID); err != nil {
+			log.Printf("Error clearing sessions: %v", err)
+		}
+
+		// Create a new session
+		session, err := auth.CreateSession(database, user.ID)
+		if err != nil {
+			log.Printf("Error creating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to create session",
+			})
+			return
+		}
+
+		// Set session cookie
+		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		log.Printf("2FA disabled via recovery code for user: %s", user.Email)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":      "2FA has been disabled. Please set up 2FA again if you want to re-enable it.",
+			"token":        session.Token,
 			"totp_enabled": false,
 		})
 	})

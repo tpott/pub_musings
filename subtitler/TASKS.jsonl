@@ -34,3 +34,5 @@
 {"id": 34, "name": "Research Mac Metal via MoltenVK to qemu", "done_when": "Research doc exists explaining feasibility and steps for Metal GPU passthrough to qemu VM", "status": "done"}
 {"id": 35, "name": "Plan webhook-deployer integration", "done_when": "Plan exists for triggering deploys via pub_musings/webhook-deployer for frontend and backend", "status": "done"}
 {"id": 36, "name": "Add debugging documentation", "done_when": "README.md has Debugging section with instructions for Go Delve and frontend TypeScript debugging", "status": "done"}
+{"id": 37, "name": "Backend: 2FA recovery codes", "done_when": "Users get 10 single-use recovery codes when enabling 2FA. Codes are hashed and stored in database. Users can use one recovery code to disable 2FA. Tests pass.", "status": "done"}
+{"id": 38, "name": "Backend: Rate limiting for auth endpoints", "done_when": "Login, register, and TOTP verify endpoints have rate limiting (e.g., 5 attempts per minute per IP). Returns 429 Too Many Requests when exceeded. Tests pass.", "status": "pending"}

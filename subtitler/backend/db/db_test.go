@@ -956,3 +956,191 @@ func TestGetUserByEmailWithTOTP(t *testing.T) {
 		t.Error("Expected TOTP secret to match")
 	}
 }
+
+func TestRecoveryCodesLifecycle(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-recovery",
+		Email:        "recovery@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Initially no recovery codes
+	codes, err := db.GetUnusedRecoveryCodes("user-recovery")
+	if err != nil {
+		t.Fatalf("Failed to get recovery codes: %v", err)
+	}
+	if len(codes) != 0 {
+		t.Errorf("Expected 0 codes initially, got %d", len(codes))
+	}
+
+	// Save 10 hashed recovery codes
+	hashes := []string{
+		"$2a$10$hash1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash3xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash4xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash5xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash6xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash7xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash8xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash9xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$hash10xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	}
+	if err := db.SaveRecoveryCodes("user-recovery", hashes); err != nil {
+		t.Fatalf("Failed to save recovery codes: %v", err)
+	}
+
+	// Verify all 10 codes exist
+	codes, err = db.GetUnusedRecoveryCodes("user-recovery")
+	if err != nil {
+		t.Fatalf("Failed to get recovery codes: %v", err)
+	}
+	if len(codes) != 10 {
+		t.Errorf("Expected 10 codes, got %d", len(codes))
+	}
+
+	// Count unused codes
+	count, err := db.CountUnusedRecoveryCodes("user-recovery")
+	if err != nil {
+		t.Fatalf("Failed to count codes: %v", err)
+	}
+	if count != 10 {
+		t.Errorf("Expected count 10, got %d", count)
+	}
+
+	// Use one code
+	codeID := codes[0].ID
+	success, err := db.UseRecoveryCode(codeID)
+	if err != nil {
+		t.Fatalf("Failed to use recovery code: %v", err)
+	}
+	if !success {
+		t.Error("Expected use to succeed")
+	}
+
+	// Verify count reduced
+	count, _ = db.CountUnusedRecoveryCodes("user-recovery")
+	if count != 9 {
+		t.Errorf("Expected count 9 after using one, got %d", count)
+	}
+
+	// Try to use the same code again
+	success, err = db.UseRecoveryCode(codeID)
+	if err != nil {
+		t.Fatalf("Failed to check used code: %v", err)
+	}
+	if success {
+		t.Error("Expected second use to fail")
+	}
+}
+
+func TestRecoveryCodesRegenerate(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-regen",
+		Email:        "regen@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Save initial codes
+	initialHashes := []string{"$2a$10$initialxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+	if err := db.SaveRecoveryCodes("user-regen", initialHashes); err != nil {
+		t.Fatalf("Failed to save initial codes: %v", err)
+	}
+
+	// Regenerate with new codes (old ones should be deleted)
+	newHashes := []string{
+		"$2a$10$new1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"$2a$10$new2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	}
+	if err := db.SaveRecoveryCodes("user-regen", newHashes); err != nil {
+		t.Fatalf("Failed to save new codes: %v", err)
+	}
+
+	// Should have exactly 2 new codes
+	codes, err := db.GetUnusedRecoveryCodes("user-regen")
+	if err != nil {
+		t.Fatalf("Failed to get codes: %v", err)
+	}
+	if len(codes) != 2 {
+		t.Errorf("Expected 2 codes after regeneration, got %d", len(codes))
+	}
+}
+
+func TestRecoveryCodesDelete(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-delete-codes",
+		Email:        "delete@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Save codes
+	hashes := []string{"$2a$10$deletexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+	if err := db.SaveRecoveryCodes("user-delete-codes", hashes); err != nil {
+		t.Fatalf("Failed to save codes: %v", err)
+	}
+
+	// Delete all codes
+	if err := db.DeleteRecoveryCodes("user-delete-codes"); err != nil {
+		t.Fatalf("Failed to delete codes: %v", err)
+	}
+
+	// Verify all deleted
+	count, _ := db.CountUnusedRecoveryCodes("user-delete-codes")
+	if count != 0 {
+		t.Errorf("Expected 0 codes after delete, got %d", count)
+	}
+}
