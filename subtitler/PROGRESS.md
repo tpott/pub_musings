@@ -673,9 +673,45 @@ Implemented the E2E testing infrastructure that was documented but never created
 
 This closes the gap identified in LEARNINGS.md where Task 23 documented testing but never implemented it.
 
+### Task 26: Create specs for major features
+
+**Date**: 2026-01-22
+
+Created comprehensive design documentation for the three major security features:
+
+**specs/auth.md** - Authentication System Specification:
+- Database schema for users and sessions tables
+- All authentication API endpoints (register, login, logout, me)
+- Session management with cookie and Bearer token support
+- Password security (bcrypt cost 12)
+- Video upload limits (anonymous: 2 uploads/48hr, registered: unlimited/90 days)
+- Security considerations (implemented and not implemented)
+- Frontend validation utilities
+
+**specs/encryption.md** - File Encryption Specification:
+- `age` library (filippo.io/age) with X25519 + ChaCha20-Poly1305
+- Encryptor type and all methods
+- Key management (data/age.key with 0600 permissions)
+- Encryption flow for upload, transcription, serving, and burning
+- Database integration (file_path stores .age extension)
+- Error handling and security characteristics
+- Test coverage documentation
+
+**specs/totp.md** - TOTP 2FA Specification:
+- Pure Go RFC 6238 compliant implementation
+- Configuration (20 bytes secret, 6 digits, 30s period, ±1 window)
+- API endpoints (setup, verify, disable)
+- Login integration with two-step flow
+- Algorithm details (HMAC-SHA1 with time-based counter)
+- Provisioning URI format for authenticator apps
+- Frontend implementation notes
+- Recovery mechanism gap identified (not implemented)
+
+All specs cross-link to each other for easy navigation.
+
 ## Summary
 
-25 of 31 tasks completed. The subtitler application is feature-complete with:
+26 of 31 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files

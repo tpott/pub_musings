@@ -23,7 +23,7 @@
 {"id": 23, "name": "Create BROWSER_TESTING.md documentation", "done_when": "BROWSER_TESTING.md exists with browser automation testing instructions", "status": "done"}
 {"id": 24, "name": "Frontend: Console log forwarding to backend", "done_when": "Frontend forwards console.log/warn/error to backend /api/log endpoint in dev mode only", "status": "done"}
 {"id": 25, "name": "Implement BROWSER_TESTING.md setup", "done_when": "Playwright installed, e2e/ directory exists, npm run test:e2e runs with at least one passing test", "status": "done"}
-{"id": 26, "name": "Create specs for major features", "done_when": "specs/auth.md, specs/encryption.md, specs/totp.md exist with design docs", "status": "todo"}
+{"id": 26, "name": "Create specs for major features", "done_when": "specs/auth.md, specs/encryption.md, specs/totp.md exist with design docs", "status": "done"}
 {"id": 27, "name": "Backend: Switch from whisper-cli to whisper-server", "done_when": "Backend uses whisper-server API instead of spawning whisper-cli process, configurable server URL via env var", "status": "todo"}
 {"id": 28, "name": "Fix upload progress and SRT download", "done_when": "Upload progress updates smoothly (not stuck at 30%), SRT download works after transcription completes", "status": "todo"}
 {"id": 29, "name": "Audit: Compare capabilities vs specs/docs", "done_when": "Read specs/subtitler.md, README.md, and all documentation. Test each advertised feature. Add new TASKS for any gaps between what's documented and what actually works", "status": "todo"}
