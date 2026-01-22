@@ -914,9 +914,49 @@ Created research document `specs/metal-moltenvk.md`:
 
 **Verdict:** Continue with current architecture (whisper-server on host). GPU passthrough is unlikely to be supported by Apple due to their security model.
 
+### Task 35: Plan webhook-deployer integration
+
+**Date**: 2026-01-22
+
+Created comprehensive integration plan in `specs/webhook-deployer.md`:
+
+**Current State Analysis:**
+- Reviewed existing webhook-deployer code
+- Identified single-site limitation
+- Documented GitHub webhook payload structure
+
+**Multi-Site Architecture:**
+- Site configuration struct with path, branch, repository
+- Config file (`config.yaml`) for managing multiple sites
+- Path-based routing using GitHub commit file lists
+- Extended `GitHubPushEvent` to include commit details
+
+**Subtitler Deployment Plans:**
+
+Frontend deploy:
+- `npm ci && npm run build`
+- `rsync` to `/var/www/subtitler/`
+
+Backend deploy:
+- `go build` to temp location
+- Atomic binary swap
+- `systemctl restart` via sudoers entry
+- Health check verification
+
+**Implementation Phases:**
+1. Multi-site support in webhook-deployer (2-3 hours)
+2. Deploy scripts for subtitler (1 hour)
+3. Integration and testing (1-2 hours)
+4. Monitoring and notifications (optional, 2-3 hours)
+
+**Rollback Strategy:**
+- Keep N backups of frontend builds
+- Keep N versions of backend binary
+- Simple restoration commands
+
 ## Summary
 
-34 of 35 tasks completed. The subtitler application is feature-complete with:
+35 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
