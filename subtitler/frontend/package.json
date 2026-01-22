@@ -8,12 +8,17 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "astro": "^5.16.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "vitest": "^3.2.0"
   }
 }

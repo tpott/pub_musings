@@ -638,9 +638,44 @@ Tests:
 - Frontend: 64 tests (44 + 20 new)
 - Total: 150 tests
 
+### Task 25: Implement BROWSER_TESTING.md setup
+
+**Date**: 2026-01-22
+
+Implemented the E2E testing infrastructure that was documented but never created:
+
+**Playwright Setup**:
+- Installed `@playwright/test` and Chromium browser
+- Created `playwright.config.ts` with:
+  - Test directory: `./e2e`
+  - Base URL: `http://localhost:4321`
+  - Screenshot on failure, trace on retry
+  - WebServer configuration to auto-start backend (with full Go path) and frontend
+
+**Test Scripts** (`package.json`):
+- `npm run test:e2e` - Run all E2E tests
+- `npm run test:e2e:ui` - Run with interactive UI
+- `npm run test:e2e:headed` - Run with visible browser
+- `npm run test:e2e:debug` - Run in debug mode
+
+**E2E Tests** (`e2e/home.spec.ts`):
+- 6 passing tests for the homepage:
+  - Title verification
+  - Hero section with tagline
+  - Navigation buttons presence
+  - Navigate to upload page
+  - Navigate to videos page
+  - Auth links for unauthenticated users
+
+**Verification**:
+- Ran `npm run test:e2e` - all 6 tests pass
+- Ran `npm test` - all 64 unit tests still pass
+
+This closes the gap identified in LEARNINGS.md where Task 23 documented testing but never implemented it.
+
 ## Summary
 
-All 24 tasks have been completed! The subtitler application is feature-complete with:
+25 of 31 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -648,5 +683,6 @@ All 24 tasks have been completed! The subtitler application is feature-complete 
 - File encryption at rest
 - Anonymous and registered user support with retention policies
 - Frontend console log forwarding to backend for dev debugging
-- Comprehensive test coverage (150 tests)
+- Comprehensive test coverage (150+ tests including 6 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
+- Working E2E test infrastructure with Playwright

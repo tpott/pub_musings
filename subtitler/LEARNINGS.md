@@ -80,3 +80,21 @@ deviating from spec (whisper-cli vs whisper-server).
 Ralph isn't just a task executor - Ralph should be self-improving. File tasks to fix
 gaps. Update specs when requirements change. Keep LEARNINGS.md current. The goal is
 that each Ralph iteration leaves the project in a better state than it found it.
+
+---
+
+### 2026-01-22: Playwright webServer needs full Go path
+
+**Problem:** When setting up Playwright's webServer config for the backend, using just `go run main.go` fails because Go isn't in PATH.
+
+**Solution:** Use full path in playwright.config.ts:
+```typescript
+webServer: [
+  {
+    command: 'cd ../backend && /home/trevor/go/bin/go run main.go',
+    ...
+  }
+]
+```
+
+**Lesson:** Be consistent - the same Go PATH issue applies everywhere, not just direct bash commands.
