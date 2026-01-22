@@ -22,3 +22,10 @@
 {"id": 22, "name": "Create LINTERS.md documentation", "done_when": "LINTERS.md exists with linting setup and commands", "status": "done"}
 {"id": 23, "name": "Create BROWSER_TESTING.md documentation", "done_when": "BROWSER_TESTING.md exists with browser automation testing instructions", "status": "done"}
 {"id": 24, "name": "Frontend: Console log forwarding to backend", "done_when": "Frontend forwards console.log/warn/error to backend /api/log endpoint in dev mode only", "status": "done"}
+{"id": 25, "name": "Implement BROWSER_TESTING.md setup", "done_when": "Playwright installed, e2e/ directory exists, npm run test:e2e runs with at least one passing test", "status": "todo"}
+{"id": 26, "name": "Create specs for major features", "done_when": "specs/auth.md, specs/encryption.md, specs/totp.md exist with design docs", "status": "todo"}
+{"id": 27, "name": "Backend: Switch from whisper-cli to whisper-server", "done_when": "Backend uses whisper-server API instead of spawning whisper-cli process, configurable server URL via env var", "status": "todo"}
+{"id": 28, "name": "Fix upload progress and SRT download", "done_when": "Upload progress updates smoothly (not stuck at 30%), SRT download works after transcription completes", "status": "todo"}
+{"id": 29, "name": "Audit: Compare capabilities vs specs/docs", "done_when": "Read specs/subtitler.md, README.md, and all documentation. Test each advertised feature. Add new TASKS for any gaps between what's documented and what actually works", "status": "todo"}
+{"id": 30, "name": "Create verification scripts and pre-commit hook", "done_when": "Helper scripts exist for linting, unit tests, and browser tests. Pre-commit hook runs all verification scripts. Scripts documented in AGENTS.md", "status": "todo"}
+{"id": 31, "name": "Fill in TODOs in specs/subtitler.md", "done_when": "All TODO items in specs/subtitler.md are either completed (research done, plans written) or converted to explicit tasks in TASKS.jsonl", "status": "todo"}
