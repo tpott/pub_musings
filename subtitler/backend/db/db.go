@@ -18,29 +18,29 @@ type DB struct {
 
 // Video represents an uploaded video
 type Video struct {
-	ID           string    `json:"id"`
-	Filename     string    `json:"filename"`
-	Size         int64     `json:"size"`
-	ContentType  string    `json:"content_type"`
-	FilePath     string    `json:"file_path"`
-	CreatedAt    time.Time `json:"created_at"`
-	UserID       *string   `json:"user_id,omitempty"` // null for anonymous uploads
-	SessionID    *string   `json:"session_id,omitempty"`
+	ID          string    `json:"id"`
+	Filename    string    `json:"filename"`
+	Size        int64     `json:"size"`
+	ContentType string    `json:"content_type"`
+	FilePath    string    `json:"file_path"`
+	CreatedAt   time.Time `json:"created_at"`
+	UserID      *string   `json:"user_id,omitempty"` // null for anonymous uploads
+	SessionID   *string   `json:"session_id,omitempty"`
 }
 
 // Transcription represents a transcription job and its result
 type Transcription struct {
-	ID          string    `json:"id"`
-	VideoID     string    `json:"video_id"`
-	Status      string    `json:"status"` // pending, processing, complete, error
-	Message     string    `json:"message,omitempty"`
-	Progress    int       `json:"progress"`
-	Language    string    `json:"language,omitempty"`
-	Duration    float64   `json:"duration,omitempty"`
-	FullText    string    `json:"full_text,omitempty"`
-	SegmentsJSON string   `json:"-"` // JSON-encoded segments
-	CreatedAt   time.Time `json:"created_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ID           string     `json:"id"`
+	VideoID      string     `json:"video_id"`
+	Status       string     `json:"status"` // pending, processing, complete, error
+	Message      string     `json:"message,omitempty"`
+	Progress     int        `json:"progress"`
+	Language     string     `json:"language,omitempty"`
+	Duration     float64    `json:"duration,omitempty"`
+	FullText     string     `json:"full_text,omitempty"`
+	SegmentsJSON string     `json:"-"` // JSON-encoded segments
+	CreatedAt    time.Time  `json:"created_at"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
 }
 
 // Segment represents a single subtitle segment

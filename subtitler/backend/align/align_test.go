@@ -84,11 +84,11 @@ func TestWordSimilarity(t *testing.T) {
 		minScore float64
 	}{
 		{"hello", "hello", 1.0},
-		{"Hello", "hello", 1.0},    // case insensitive
-		{"hello,", "hello", 1.0},   // punctuation removed
-		{"hello", "hallo", 0.8},    // 1 char different
-		{"cat", "dog", 0.0},        // completely different
-		{"", "hello", 0.0},         // empty string
+		{"Hello", "hello", 1.0},  // case insensitive
+		{"hello,", "hello", 1.0}, // punctuation removed
+		{"hello", "hallo", 0.8},  // 1 char different
+		{"cat", "dog", 0.0},      // completely different
+		{"", "hello", 0.0},       // empty string
 	}
 
 	for _, tc := range tests {

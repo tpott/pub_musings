@@ -748,9 +748,30 @@ Addressed all TODO items in the main spec file:
 
 The spec file now has zero TODO markers - all are either completed or tracked as tasks.
 
+### Task 30: Create verification scripts and pre-commit hook
+
+**Date**: 2026-01-22
+
+Created helper scripts in `scripts/` directory for development workflow:
+
+**Scripts created:**
+- `lint.sh` - Run Go fmt/vet and frontend build
+- `test-backend.sh` - Run backend Go tests
+- `test-frontend.sh` - Run frontend Vitest tests
+- `test-e2e.sh` - Run Playwright E2E tests
+- `verify-all.sh` - Run lint + all unit tests
+- `pre-commit` - Git pre-commit hook
+
+**Pre-commit hook:**
+- Runs lint and unit tests before each commit
+- Skips E2E tests (too slow for pre-commit)
+- Install with: `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`
+
+Updated AGENTS.md with script documentation and usage table.
+
 ## Summary
 
-28 of 35 tasks completed. The subtitler application is feature-complete with:
+29 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files

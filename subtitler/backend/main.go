@@ -79,11 +79,11 @@ func getWhisperModel() string {
 func extractAudio(videoPath, audioPath string) error {
 	cmd := exec.Command("ffmpeg",
 		"-i", videoPath,
-		"-vn",                 // no video
+		"-vn",                  // no video
 		"-acodec", "pcm_s16le", // WAV format
-		"-ar", "16000",        // 16kHz sample rate (whisper expects this)
-		"-ac", "1",            // mono
-		"-y",                  // overwrite output
+		"-ar", "16000", // 16kHz sample rate (whisper expects this)
+		"-ac", "1", // mono
+		"-y", // overwrite output
 		audioPath,
 	)
 	output, err := cmd.CombinedOutput()
@@ -106,10 +106,10 @@ func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
 	cmd := exec.Command("whisper-cli",
 		"-m", model,
 		"-f", audioPath,
-		"-oj",               // output JSON
-		"-of", outputPath,   // output file (without extension, whisper adds .json)
-		"-t", "4",           // 4 threads
-		"-l", "auto",        // auto-detect language
+		"-oj",             // output JSON
+		"-of", outputPath, // output file (without extension, whisper adds .json)
+		"-t", "4", // 4 threads
+		"-l", "auto", // auto-detect language
 	)
 
 	output, err := cmd.CombinedOutput()

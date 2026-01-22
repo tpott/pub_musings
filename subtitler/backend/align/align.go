@@ -140,7 +140,7 @@ func wordSimilarity(a, b string) float64 {
 
 // AlignmentResult represents the result of aligning user text with whisper output
 type AlignmentResult struct {
-	Segments []Segment `json:"segments"`
+	Segments []Segment  `json:"segments"`
 	Stats    AlignStats `json:"stats"`
 }
 

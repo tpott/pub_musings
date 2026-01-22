@@ -104,9 +104,9 @@ func TestValidatePassword(t *testing.T) {
 		wantErr  bool
 	}{
 		{"password123", false},
-		{"short", true},           // Too short
-		{"1234567", true},         // Too short (7 chars)
-		{"12345678", false},       // Exactly 8 chars (minimum)
+		{"short", true},     // Too short
+		{"1234567", true},   // Too short (7 chars)
+		{"12345678", false}, // Exactly 8 chars (minimum)
 		{"", true},
 	}
 

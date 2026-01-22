@@ -1,0 +1,28 @@
+#!/bin/bash
+# Git pre-commit hook
+# Runs linting and unit tests before allowing a commit
+#
+# To install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+
+set -e
+
+SCRIPT_DIR="$(dirname "$0")"
+
+# If running as a git hook, SCRIPT_DIR will be .git/hooks
+# Adjust path accordingly
+if [[ "$SCRIPT_DIR" == *".git/hooks"* ]]; then
+    SCRIPT_DIR="$(git rev-parse --show-toplevel)/scripts"
+fi
+
+echo "Pre-commit verification..."
+echo ""
+
+# Run lint check
+"$SCRIPT_DIR/lint.sh"
+
+# Run unit tests (not E2E - those are too slow for pre-commit)
+"$SCRIPT_DIR/test-backend.sh"
+"$SCRIPT_DIR/test-frontend.sh"
+
+echo ""
+echo "Pre-commit checks passed!"
