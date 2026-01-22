@@ -33,3 +33,4 @@
 {"id": 33, "name": "Write deployment plan", "done_when": "specs/deployment.md exists with plan for Mac Mini qemu VM deployment, Caddy frontend, and static file hosting", "status": "done"}
 {"id": 34, "name": "Research Mac Metal via MoltenVK to qemu", "done_when": "Research doc exists explaining feasibility and steps for Metal GPU passthrough to qemu VM", "status": "done"}
 {"id": 35, "name": "Plan webhook-deployer integration", "done_when": "Plan exists for triggering deploys via pub_musings/webhook-deployer for frontend and backend", "status": "done"}
+{"id": 36, "name": "Add debugging documentation", "done_when": "README.md has Debugging section with instructions for Go Delve and frontend TypeScript debugging", "status": "done"}

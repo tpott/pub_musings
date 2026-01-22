@@ -66,5 +66,69 @@ See [LINTERS.md](LINTERS.md) for linting setup:
 
 See [BROWSER_TESTING.md](BROWSER_TESTING.md) for E2E testing with Playwright.
 
-### TODO
-* Debugging section, how to attach debuggers
+### Debugging
+
+#### Go Backend (Delve)
+
+Install Delve debugger:
+```bash
+go install github.com/go-delve/delve/cmd/dlv@latest
+```
+
+**Run with debugger:**
+```bash
+cd backend
+dlv debug . --
+# or with full path: /home/trevor/go/bin/dlv debug .
+```
+
+**Attach VS Code:**
+1. Create `.vscode/launch.json`:
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/backend",
+      "cwd": "${workspaceFolder}/backend"
+    }
+  ]
+}
+```
+2. Press F5 in VS Code to start debugging
+
+**Remote debugging (attach to running server):**
+```bash
+cd backend
+dlv debug . --headless --listen=:2345 --api-version=2
+# Then attach from VS Code or dlv connect :2345
+```
+
+#### Frontend (TypeScript)
+
+**Browser DevTools:**
+- Open http://localhost:4321, press F12
+- Sources tab shows TypeScript files (with source maps)
+- Console logs are forwarded to backend in dev mode (see terminal)
+
+**VS Code:**
+1. Install "Debugger for Chrome" or use built-in Edge debugger
+2. Add to `.vscode/launch.json`:
+```json
+{
+  "name": "Frontend (Chrome)",
+  "type": "chrome",
+  "request": "launch",
+  "url": "http://localhost:4321",
+  "webRoot": "${workspaceFolder}/frontend/src"
+}
+```
+3. Start frontend (`npm run dev`), then press F5
+
+**Console log forwarding:**
+
+In development mode, frontend console.log/error/warn calls are forwarded to the backend terminal via `/api/log`. This helps debug frontend issues without switching windows.

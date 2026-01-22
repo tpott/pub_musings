@@ -954,9 +954,28 @@ Backend deploy:
 - Keep N versions of backend binary
 - Simple restoration commands
 
+### Task 36: Add debugging documentation to README
+
+**Date**: 2026-01-22
+
+Added debugging section to README.md covering:
+
+**Go Backend (Delve):**
+- Installation command (`go install github.com/go-delve/delve/cmd/dlv@latest`)
+- Running with debugger (`dlv debug .`)
+- VS Code launch.json configuration for F5 debugging
+- Remote debugging setup (headless mode on port 2345)
+
+**Frontend (TypeScript):**
+- Browser DevTools instructions
+- VS Code launch.json for Chrome debugging
+- Console log forwarding explanation (dev mode feature)
+
+This resolves the final TODO item in README.md.
+
 ## Summary
 
-35 of 35 tasks completed. The subtitler application is feature-complete with:
+36 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
