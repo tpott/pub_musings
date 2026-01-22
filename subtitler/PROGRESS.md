@@ -851,9 +851,42 @@ Created comprehensive `backend/README.md` documentation:
 - Testing commands
 - Links to related specs and docs
 
+### Task 33: Write deployment plan
+
+**Date**: 2026-01-22
+
+Created comprehensive deployment specification in `specs/deployment.md`:
+
+**Architecture:**
+- ASCII diagram showing Mac Mini host with qemu VM
+- VM runs Caddy + Go backend
+- Host runs whisper-server (GPU-accelerated)
+- Network: User-mode with port forwarding
+
+**Component Documentation:**
+- qemu VM specs and launch command (hvf acceleration, virtio devices)
+- Caddy configuration (static files, API proxy, TLS, security headers)
+- Go backend systemd service file
+- whisper-server launchd plist for macOS
+
+**Operational Guides:**
+- Directory structure for deployment
+- Initial setup steps
+- Update/deployment workflow
+- SSL/TLS certificate handling
+- Health check commands
+- Log locations
+- Backup strategy (database + encryption key)
+
+**Security Considerations:**
+- Firewall configuration
+- Backend isolation
+- File encryption
+- Permission hardening
+
 ## Summary
 
-32 of 35 tasks completed. The subtitler application is feature-complete with:
+33 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
