@@ -1005,16 +1005,44 @@ Implemented recovery codes for 2FA to prevent users from being permanently locke
 - 3 DB tests in `db/db_test.go` (lifecycle, regenerate, delete)
 - 5 API integration tests (verify returns codes, valid/invalid recovery, single-use)
 
+### Task 38: Backend - Rate limiting for auth endpoints
+
+**Date**: 2026-01-22
+
+Implemented IP-based rate limiting for authentication endpoints to protect against brute force attacks:
+
+**New files:**
+- `backend/ratelimit/ratelimit.go` - Rate limiter implementation with sliding window
+- `backend/ratelimit/ratelimit_test.go` - Unit tests for rate limiter
+
+**Rate limiter features:**
+- Sliding window algorithm: 5 requests per minute per IP
+- Supports X-Forwarded-For and X-Real-IP headers for proxy environments
+- Automatic cleanup of stale entries (every 5 minutes)
+- Thread-safe using sync.RWMutex
+- Returns 429 Too Many Requests with Retry-After header when exceeded
+
+**Endpoints protected:**
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/totp/verify`
+- `POST /api/auth/totp/recover`
+
+**Tests added:**
+- 10 unit tests in `ratelimit/ratelimit_test.go` (limiter, GetClientIP, Wrap middleware)
+- 5 API integration tests in `api_test.go` (login, register, TOTP verify, TOTP recover, X-Forwarded-For)
+
 ## Summary
 
-37 tasks completed. The subtitler application is feature-complete with:
+38 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
 - User authentication with optional 2FA (TOTP) and recovery codes
+- Rate limiting on auth endpoints (5 req/min per IP)
 - File encryption at rest
 - Anonymous and registered user support with retention policies
 - Frontend console log forwarding to backend for dev debugging
-- Comprehensive test coverage (160+ tests including 6 E2E tests)
+- Comprehensive test coverage (175+ tests including 6 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
 - Working E2E test infrastructure with Playwright

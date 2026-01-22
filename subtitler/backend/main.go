@@ -21,6 +21,7 @@ import (
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/totp"
 )
 
@@ -60,6 +61,9 @@ var database *db.DB
 
 // Global encryptor for file encryption
 var encryptor *crypto.Encryptor
+
+// Global rate limiter for auth endpoints (5 requests per minute per IP)
+var authLimiter = ratelimit.New(5, time.Minute)
 
 func generateID() string {
 	bytes := make([]byte, 16)
@@ -446,8 +450,8 @@ func main() {
 		})
 	})
 
-	// Auth: Register new user
-	mux.HandleFunc("POST /api/auth/register", func(w http.ResponseWriter, r *http.Request) {
+	// Auth: Register new user (rate limited)
+	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body
@@ -570,10 +574,10 @@ func main() {
 			},
 			"token": session.Token,
 		})
-	})
+	}))
 
-	// Auth: Login
-	mux.HandleFunc("POST /api/auth/login", func(w http.ResponseWriter, r *http.Request) {
+	// Auth: Login (rate limited)
+	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body
@@ -666,7 +670,7 @@ func main() {
 			},
 			"token": session.Token,
 		})
-	})
+	}))
 
 	// Auth: Logout
 	mux.HandleFunc("POST /api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
@@ -777,8 +781,8 @@ func main() {
 		})
 	})
 
-	// 2FA: Verify TOTP code and enable 2FA
-	mux.HandleFunc("POST /api/auth/totp/verify", func(w http.ResponseWriter, r *http.Request) {
+	// 2FA: Verify TOTP code and enable 2FA (rate limited)
+	mux.HandleFunc("POST /api/auth/totp/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Require authentication
@@ -881,7 +885,7 @@ func main() {
 			"totp_enabled":   true,
 			"recovery_codes": recoveryCodes,
 		})
-	})
+	}))
 
 	// 2FA: Disable TOTP
 	mux.HandleFunc("POST /api/auth/totp/disable", func(w http.ResponseWriter, r *http.Request) {
@@ -961,8 +965,8 @@ func main() {
 		})
 	})
 
-	// 2FA: Recover account using recovery code
-	mux.HandleFunc("POST /api/auth/totp/recover", func(w http.ResponseWriter, r *http.Request) {
+	// 2FA: Recover account using recovery code (rate limited)
+	mux.HandleFunc("POST /api/auth/totp/recover", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body
@@ -1105,7 +1109,7 @@ func main() {
 			"token":        session.Token,
 			"totp_enabled": false,
 		})
-	})
+	}))
 
 	// Upload endpoint - accepts video files
 	mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {

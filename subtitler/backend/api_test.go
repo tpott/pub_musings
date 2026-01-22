@@ -16,16 +16,18 @@ import (
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/totp"
 )
 
 // testServer holds all dependencies needed for testing
 type testServer struct {
-	mux       *http.ServeMux
-	db        *db.DB
-	encryptor *crypto.Encryptor
-	uploadDir string
-	cleanup   func()
+	mux         *http.ServeMux
+	db          *db.DB
+	encryptor   *crypto.Encryptor
+	uploadDir   string
+	authLimiter *ratelimit.Limiter
+	cleanup     func()
 }
 
 // setupTestServer creates a test server with a temporary database and encryptor
@@ -63,10 +65,11 @@ func setupTestServer(t *testing.T) *testServer {
 	}
 
 	ts := &testServer{
-		mux:       http.NewServeMux(),
-		db:        testDB,
-		encryptor: enc,
-		uploadDir: uploadDir,
+		mux:         http.NewServeMux(),
+		db:          testDB,
+		encryptor:   enc,
+		uploadDir:   uploadDir,
+		authLimiter: ratelimit.New(5, time.Minute),
 		cleanup: func() {
 			testDB.Close()
 			os.RemoveAll(tempDir)
@@ -116,8 +119,8 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	// Auth: Register
-	ts.mux.HandleFunc("POST /api/auth/register", func(w http.ResponseWriter, r *http.Request) {
+	// Auth: Register (rate limited)
+	ts.mux.HandleFunc("POST /api/auth/register", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
@@ -206,10 +209,10 @@ func (ts *testServer) registerHandlers() {
 			},
 			"token": session.Token,
 		})
-	})
+	}))
 
-	// Auth: Login
-	ts.mux.HandleFunc("POST /api/auth/login", func(w http.ResponseWriter, r *http.Request) {
+	// Auth: Login (rate limited)
+	ts.mux.HandleFunc("POST /api/auth/login", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
@@ -260,7 +263,7 @@ func (ts *testServer) registerHandlers() {
 			},
 			"token": session.Token,
 		})
-	})
+	}))
 
 	// Auth: Logout
 	ts.mux.HandleFunc("POST /api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
@@ -349,8 +352,8 @@ func (ts *testServer) registerHandlers() {
 		})
 	})
 
-	// 2FA: Verify TOTP code and enable 2FA
-	ts.mux.HandleFunc("POST /api/auth/totp/verify", func(w http.ResponseWriter, r *http.Request) {
+	// 2FA: Verify TOTP code and enable 2FA (rate limited)
+	ts.mux.HandleFunc("POST /api/auth/totp/verify", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		token := auth.GetTokenFromRequest(r)
@@ -424,10 +427,10 @@ func (ts *testServer) registerHandlers() {
 			"totp_enabled":   true,
 			"recovery_codes": recoveryCodes,
 		})
-	})
+	}))
 
-	// 2FA: Recover account using recovery code
-	ts.mux.HandleFunc("POST /api/auth/totp/recover", func(w http.ResponseWriter, r *http.Request) {
+	// 2FA: Recover account using recovery code (rate limited)
+	ts.mux.HandleFunc("POST /api/auth/totp/recover", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
@@ -507,7 +510,7 @@ func (ts *testServer) registerHandlers() {
 			"token":        session.Token,
 			"totp_enabled": false,
 		})
-	})
+	}))
 
 	// List videos
 	ts.mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
@@ -1666,5 +1669,239 @@ func TestTOTPRecoverCodeSingleUse(t *testing.T) {
 
 	if resp.Code != http.StatusUnauthorized {
 		t.Errorf("Expected second recovery with same code to fail with 401, got %d", resp.Code)
+	}
+}
+
+// TestRateLimitingLogin tests that login endpoint is rate limited
+func TestRateLimitingLogin(t *testing.T) {
+	// Create a test server with a strict rate limiter for testing (2 requests per minute)
+	tempDir, err := os.MkdirTemp("", "subtitler-ratelimit-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	testDB, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer testDB.Close()
+
+	enc, err := crypto.NewEncryptor("")
+	if err != nil {
+		t.Fatalf("Failed to create encryptor: %v", err)
+	}
+
+	// Create a strict rate limiter for testing (2 requests per minute)
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/login", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+
+	// Check for Retry-After header
+	if w.Header().Get("Retry-After") != "60" {
+		t.Errorf("Expected Retry-After: 60 header")
+	}
+
+	// Different IP should still work
+	req = httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.200:12345" // Different IP
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Different IP should not be rate limited, got %d", w.Code)
+	}
+
+	// Unused variables to satisfy compiler
+	_ = testDB
+	_ = enc
+}
+
+// TestRateLimitingRegister tests that register endpoint is rate limited
+func TestRateLimitingRegister(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/register", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestRateLimitingTOTPVerify tests that TOTP verify endpoint is rate limited
+func TestRateLimitingTOTPVerify(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/totp/verify", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/totp/verify", strings.NewReader(`{"code":"123456"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/totp/verify", strings.NewReader(`{"code":"123456"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestRateLimitingTOTPRecover tests that TOTP recover endpoint is rate limited
+func TestRateLimitingTOTPRecover(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/totp/recover", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/totp/recover", strings.NewReader(`{"email":"test@example.com","password":"pass123","recovery_code":"ABC123"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/totp/recover", strings.NewReader(`{"email":"test@example.com","password":"pass123","recovery_code":"ABC123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestRateLimitingXForwardedFor tests that rate limiting respects X-Forwarded-For header
+func TestRateLimitingXForwardedFor(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/login", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// Simulate requests from same real IP behind a proxy
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Forwarded-For", "203.0.113.50") // Real client IP
+		req.RemoteAddr = "10.0.0.1:12345"                 // Proxy IP
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request from same real IP should be rate limited
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", "203.0.113.50")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 for X-Forwarded-For IP, got %d", w.Code)
+	}
+
+	// Different real client IP behind same proxy should work
+	req = httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", "203.0.113.100") // Different real IP
+	req.RemoteAddr = "10.0.0.1:12345"
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Different X-Forwarded-For IP should not be rate limited, got %d", w.Code)
 	}
 }
