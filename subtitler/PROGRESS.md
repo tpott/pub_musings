@@ -792,9 +792,42 @@ Performed systematic audit of all documentation against actual implementation.
 
 Added learning to LEARNINGS.md about shell script cd with relative paths.
 
+### Task 27: Backend - Switch from whisper-cli to whisper-server
+
+**Date**: 2026-01-22
+
+Implemented whisper-server HTTP API integration as an alternative to spawning whisper-cli:
+
+**New functions in `backend/main.go`:**
+- `getWhisperServerURL()` - returns whisper-server URL from env or default `http://127.0.0.1:8765`
+- `isWhisperServerEnabled()` - checks if server mode should be used
+- `transcribeAudioServer(audioPath)` - sends audio via multipart POST to `/inference`
+- `transcribe(audioPath, outputPath)` - dispatcher that chooses server or CLI based on config
+
+**Server Mode Features:**
+- Sends WAV audio file to whisper-server `/inference` endpoint
+- Uses `response_format=verbose_json` to get segments with timing
+- Parses response into existing `WhisperResult` struct
+- 30-minute timeout for long transcriptions
+- Falls back to CLI mode when server not configured
+
+**Environment Variables:**
+- `WHISPER_SERVER_URL` - URL of whisper-server (enables server mode when set)
+- `USE_WHISPER_SERVER=true` - enables server mode with default URL
+
+**Documentation:**
+- Updated `INSTALL.md` with whisper-server build/run instructions
+- Updated environment variables table with new options
+- Added mode selection explanation
+
+**Benefits of Server Mode:**
+- Model stays loaded in memory (faster transcriptions)
+- No subprocess spawning overhead
+- Supports remote transcription (GPU server)
+
 ## Summary
 
-30 of 35 tasks completed. The subtitler application is feature-complete with:
+31 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files

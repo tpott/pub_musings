@@ -116,6 +116,39 @@ whisper-cli --help
 ls ~/Github/whisper.cpp/models/  # Should show ggml-*.bin files
 ```
 
+### 5. whisper-server (Alternative to whisper-cli)
+
+For better performance, you can run whisper-server instead of spawning whisper-cli for each transcription. The server keeps the model loaded in memory.
+
+**Build and run whisper-server:**
+```bash
+cd ~/Github/whisper.cpp
+
+# Build with server support
+cmake -B build
+cmake --build build --config Release -j
+
+# Run the server (example with medium model)
+./build/bin/whisper-server \
+  -m models/ggml-medium.bin \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --convert  # Auto-convert audio formats via ffmpeg
+```
+
+**Server options:**
+- `--host`: Bind address (default: 127.0.0.1)
+- `--port`: Port number (default: 8080, but use 8765 to avoid conflict with backend)
+- `--convert`: Enable automatic audio format conversion via ffmpeg
+- `-t N`: Number of threads (default: 4)
+- `-l LANG`: Default language (use 'auto' for auto-detect)
+
+**Verify server is running:**
+```bash
+curl http://127.0.0.1:8765/health
+# Expected: {"status":"ok"}
+```
+
 ## Optional Dependencies
 
 ### SQLite3 (usually pre-installed)
@@ -139,12 +172,28 @@ The backend supports the following environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | Backend server port |
-| `WHISPER_MODEL` | `$HOME/Github/whisper.cpp/models/ggml-medium.bin` | Path to whisper model file |
+| `WHISPER_MODEL` | `$HOME/Github/whisper.cpp/models/ggml-medium.bin` | Path to whisper model file (CLI mode only) |
+| `WHISPER_SERVER_URL` | `http://127.0.0.1:8765` | URL of whisper-server (enables server mode when set) |
+| `USE_WHISPER_SERVER` | `false` | Set to `true` to use whisper-server even without custom URL |
 
-**Example configuration:**
+**Whisper Mode Selection:**
+- **CLI mode (default):** Uses `whisper-cli` spawned as subprocess. Simple but slower (model loaded each time).
+- **Server mode:** Uses HTTP API to whisper-server. Faster (model stays in memory).
+
+Server mode is enabled when:
+1. `WHISPER_SERVER_URL` is set (to any URL), OR
+2. `USE_WHISPER_SERVER=true` (uses default URL `http://127.0.0.1:8765`)
+
+**Example configurations:**
 ```bash
-# Add to ~/.bashrc or ~/.zshrc
+# CLI mode with custom model
 export WHISPER_MODEL="$HOME/Github/whisper.cpp/models/ggml-large-v3-turbo.bin"
+
+# Server mode with default URL
+export USE_WHISPER_SERVER=true
+
+# Server mode with custom URL (e.g., remote server)
+export WHISPER_SERVER_URL="http://192.168.1.100:8765"
 ```
 
 ## Quick Start

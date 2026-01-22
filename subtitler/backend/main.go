@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -75,6 +77,26 @@ func getWhisperModel() string {
 	return model
 }
 
+// getWhisperServerURL returns the whisper-server URL from env or default
+func getWhisperServerURL() string {
+	url := os.Getenv("WHISPER_SERVER_URL")
+	if url == "" {
+		// Default to local whisper-server (different port to avoid conflict with backend)
+		url = "http://127.0.0.1:8765"
+	}
+	return url
+}
+
+// isWhisperServerEnabled returns true if WHISPER_SERVER_URL is set or USE_WHISPER_SERVER=true
+func isWhisperServerEnabled() bool {
+	// If WHISPER_SERVER_URL is explicitly set, use server mode
+	if os.Getenv("WHISPER_SERVER_URL") != "" {
+		return true
+	}
+	// Otherwise check USE_WHISPER_SERVER flag
+	return os.Getenv("USE_WHISPER_SERVER") == "true"
+}
+
 // extractAudio uses ffmpeg to extract audio from video as WAV
 func extractAudio(videoPath, audioPath string) error {
 	cmd := exec.Command("ffmpeg",
@@ -131,6 +153,110 @@ func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
 	}
 
 	return &result, nil
+}
+
+// transcribeAudioServer sends audio to whisper-server HTTP API
+func transcribeAudioServer(audioPath string) (*WhisperResult, error) {
+	serverURL := getWhisperServerURL()
+
+	// Open the audio file
+	file, err := os.Open(audioPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open audio file: %v", err)
+	}
+	defer file.Close()
+
+	// Create multipart form
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	// Add the audio file
+	part, err := writer.CreateFormFile("file", filepath.Base(audioPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %v", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return nil, fmt.Errorf("failed to copy file to form: %v", err)
+	}
+
+	// Add request parameters
+	// Use verbose_json to get segments with timing
+	writer.WriteField("response_format", "verbose_json")
+	writer.WriteField("temperature", "0.0")
+	writer.WriteField("language", "auto")
+
+	writer.Close()
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", serverURL+"/inference", &body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Send request (with long timeout for transcription)
+	client := &http.Client{Timeout: 30 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("whisper-server request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("whisper-server error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse verbose_json response
+	// verbose_json format has: task, language, duration, text, segments[]
+	var serverResp struct {
+		Task     string  `json:"task"`
+		Language string  `json:"language"`
+		Duration float64 `json:"duration"`
+		Text     string  `json:"text"`
+		Segments []struct {
+			ID    int     `json:"id"`
+			Start float64 `json:"start"`
+			End   float64 `json:"end"`
+			Text  string  `json:"text"`
+		} `json:"segments"`
+	}
+	if err := json.Unmarshal(respBody, &serverResp); err != nil {
+		return nil, fmt.Errorf("failed to parse whisper-server response: %v (body: %s)", err, string(respBody))
+	}
+
+	// Convert to our WhisperResult format
+	result := &WhisperResult{
+		Language: serverResp.Language,
+		Duration: serverResp.Duration,
+		Text:     serverResp.Text,
+		Segments: make([]WhisperSegment, len(serverResp.Segments)),
+	}
+	for i, seg := range serverResp.Segments {
+		result.Segments[i] = WhisperSegment{
+			ID:    seg.ID,
+			Start: seg.Start,
+			End:   seg.End,
+			Text:  seg.Text,
+		}
+	}
+
+	return result, nil
+}
+
+// transcribe sends audio for transcription, using server if enabled, otherwise CLI
+func transcribe(audioPath, outputPath string) (*WhisperResult, error) {
+	if isWhisperServerEnabled() {
+		log.Printf("Using whisper-server at %s", getWhisperServerURL())
+		return transcribeAudioServer(audioPath)
+	}
+	log.Printf("Using whisper-cli with model %s", getWhisperModel())
+	return transcribeAudio(audioPath, outputPath)
 }
 
 // formatSRTTimestamp formats seconds as SRT timestamp (HH:MM:SS,mmm)
@@ -1067,9 +1193,9 @@ func main() {
 				}
 			}()
 
-			// Run whisper
+			// Run whisper (server or CLI based on configuration)
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
-			result, err := transcribeAudio(audioPath, outputPath)
+			result, err := transcribe(audioPath, outputPath)
 			close(progressDone) // Stop progress simulation
 
 			if err != nil {
