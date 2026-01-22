@@ -1,18 +1,18 @@
 # Metal GPU Passthrough via MoltenVK to qemu VM
 
-Research document exploring the feasibility of passing Apple Metal GPU capabilities through to a qemu virtual machine for accelerated Whisper transcription.
+Research document exploring building a custom qemu with MoltenVK support to expose Vulkan-compatible GPU to guest VMs on Apple Silicon.
 
 ## Executive Summary
 
-**Verdict: Not feasible with current technology.**
+**Goal:** Compile qemu with MoltenVK integration so guest VMs can access GPU compute via Vulkan API.
 
-Metal GPU passthrough to qemu VMs is not currently possible on macOS. The recommended approach is to run whisper-server directly on the Mac Mini host (outside the VM) and have the VM access it via network, which is already implemented in our architecture.
+**Current Status:** Requires research and testing. This document outlines the approach and test plan.
 
 ## Background
 
 ### The Problem
 
-We want to run Whisper AI transcription with GPU acceleration inside a qemu VM on a Mac Mini. The Mac Mini has Apple Silicon (M-series) or discrete AMD GPU, using Apple's Metal API for GPU compute.
+We want to run Whisper AI transcription with GPU acceleration inside a qemu VM on a Mac Mini M1. The guest VM should be able to use Vulkan/GPU compute APIs that get translated to Metal on the host.
 
 ### Why GPU Matters for Whisper
 
@@ -22,50 +22,182 @@ We want to run Whisper AI transcription with GPU acceleration inside a qemu VM o
 | Metal GPU | 2-5 minutes | 3-6x faster |
 | CUDA (NVIDIA) | 1-3 minutes | Fastest, not on Mac |
 
-## Technology Analysis
+## Approach: Custom qemu with MoltenVK
 
-### MoltenVK
+### What is MoltenVK?
 
-MoltenVK is a Vulkan implementation that translates Vulkan API calls to Metal.
+[MoltenVK](https://github.com/KhronosGroup/MoltenVK) is a Vulkan implementation that translates Vulkan API calls to Metal at runtime.
 
-**What it does:**
-- Provides Vulkan API on macOS/iOS
-- Translates Vulkan to Metal at runtime
-- Used by games (e.g., DXVK + Wine) and applications
+**Key capabilities:**
+- Provides full Vulkan 1.2 API on macOS
+- Translates Vulkan → Metal at runtime
+- Used by games (DXVK + Wine), applications, and potentially VMs
+- Open source, actively maintained by Khronos Group
 
-**Limitations:**
-- Runs on the HOST, not guest
-- Cannot expose Metal to a VM guest OS
-- No support for GPU passthrough to VMs
+### The Idea
 
-### qemu GPU Options on macOS
+Build qemu with a GPU backend that:
+1. Guest sees a Vulkan-compatible GPU (virtio-gpu with Vulkan)
+2. Guest Vulkan calls are forwarded to host
+3. Host uses MoltenVK to translate Vulkan → Metal
+4. Metal executes on Apple GPU
 
-| Option | Description | Metal Support |
-|--------|-------------|---------------|
-| virtio-gpu | Paravirtualized GPU | No (software rendering) |
-| virtio-gpu-gl | OpenGL passthrough | No (basic 3D only) |
-| vmsvga | VMware SVGA | No (2D only) |
-| Cocoa display | macOS native | No (display only) |
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Guest VM (Linux)                      │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │           whisper.cpp (Vulkan backend)           │    │
+│  └──────────────────────┬──────────────────────────┘    │
+│                         │ Vulkan API calls               │
+│                         ▼                                │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │         virtio-gpu (Vulkan passthrough)          │    │
+│  └──────────────────────┬──────────────────────────┘    │
+└─────────────────────────┼───────────────────────────────┘
+                          │ virtio transport
+┌─────────────────────────┼───────────────────────────────┐
+│                    Host (macOS)                          │
+│                         ▼                                │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │              qemu virtio-gpu backend             │    │
+│  └──────────────────────┬──────────────────────────┘    │
+│                         │ Vulkan API calls               │
+│                         ▼                                │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │                   MoltenVK                        │    │
+│  └──────────────────────┬──────────────────────────┘    │
+│                         │ Metal API calls                │
+│                         ▼                                │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │                Apple M1 GPU                       │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+```
 
-**Why no passthrough exists:**
-1. Apple doesn't provide SR-IOV (Single Root I/O Virtualization) for GPUs
-2. Metal is tightly coupled to macOS kernel extensions
-3. No PCIe passthrough support in HVF (Hypervisor.framework)
-4. Apple Silicon uses unified memory architecture with no discrete GPU to pass
+### Related Projects to Study
 
-### What About VT-d / IOMMU?
+1. **Venus** - Vulkan passthrough for virtio-gpu
+   - Linux-only currently, but shows the architecture
+   - https://docs.mesa3d.org/drivers/venus.html
 
-Intel VT-d and AMD IOMMU enable GPU passthrough on x86 hardware. However:
+2. **virglrenderer** - OpenGL passthrough for virtio-gpu
+   - Similar concept but for OpenGL
+   - Could be a template for Vulkan support
 
-- **Intel Macs:** VT-d exists but macOS doesn't expose it to qemu/HVF
-- **Apple Silicon:** No equivalent IOMMU exposed to userspace
-- **Conclusion:** Even with theoretically capable hardware, Apple doesn't support this use case
+3. **crosvm** (Chrome OS VM) - Has Vulkan passthrough work
+   - Google's VM for Chrome OS
+   - May have macOS-relevant code
 
-## Alternative Approaches
+## Research Tasks
 
-### Option 1: Host-based whisper-server (Recommended)
+### Step 1: Clone and Study MoltenVK
 
-**Current architecture - already implemented.**
+```bash
+cd ~/Github
+git clone https://github.com/KhronosGroup/MoltenVK.git
+cd MoltenVK
+
+# Study the architecture
+cat README.md
+ls -la MoltenVK/
+```
+
+Questions to answer:
+- How does MoltenVK expose the Vulkan API?
+- Can it be linked as a library by other applications?
+- What Metal features does it require?
+
+### Step 2: Study qemu virtio-gpu Vulkan Support
+
+```bash
+# Clone qemu source
+git clone https://gitlab.com/qemu-project/qemu.git
+cd qemu
+
+# Look for Vulkan/Venus support
+grep -r "vulkan\|venus" hw/display/
+grep -r "virtio-gpu" --include="*.c" hw/display/
+```
+
+Questions to answer:
+- Does qemu have virtio-gpu Vulkan support?
+- What's the status of Venus integration?
+- What host backends are supported?
+
+### Step 3: Check whisper.cpp Vulkan Support
+
+```bash
+cd ~/Github/whisper.cpp
+
+# Check for Vulkan backend
+grep -r "vulkan\|VULKAN" .
+cat README.md | grep -i vulkan
+```
+
+Questions to answer:
+- Does whisper.cpp support Vulkan compute?
+- What GPU backends does it support? (Metal, CUDA, Vulkan, OpenCL)
+- Can we add Vulkan support if missing?
+
+## Test Plan
+
+### Phase 1: Verify MoltenVK Works
+
+**Prerequisites:**
+- Xcode installed
+- MoltenVK cloned
+
+**Test:**
+```bash
+cd ~/Github/MoltenVK
+
+# Build MoltenVK
+./fetchDependencies --macos
+make macos
+
+# Run the Vulkan cube demo
+./build/macos/Demos/vkcube
+```
+
+**Expected:** See a spinning Vulkan cube rendered via Metal.
+
+### Phase 2: Build qemu with Vulkan Support
+
+**Prerequisites:**
+- qemu source
+- MoltenVK built
+
+**Test:** (Requires human assistance - commands TBD after research)
+```bash
+# Configure qemu with Vulkan support
+cd ~/Github/qemu
+./configure --enable-virtio-gpu-vulkan # flag TBD
+
+# Build
+make -j8
+```
+
+### Phase 3: Test in VM
+
+**Test:**
+```bash
+# Start VM with Vulkan GPU
+./qemu-system-aarch64 \
+  -device virtio-gpu-vulkan # device name TBD
+  ...
+
+# In VM: run vulkaninfo
+vulkaninfo
+
+# In VM: run whisper with Vulkan
+./whisper-cli --gpu vulkan ...
+```
+
+**Expected:** vulkaninfo shows GPU, whisper runs with GPU acceleration.
+
+## Fallback: Host-based whisper-server
+
+If qemu+MoltenVK doesn't work, continue with current architecture:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -79,162 +211,44 @@ Intel VT-d and AMD IOMMU enable GPU passthrough on x86 hardware. However:
 └─────────────────────────────────────────────────────┘
 ```
 
-**Pros:**
-- Works today, no research needed
-- Full Metal GPU acceleration
-- Simple networking (VM talks to host on 10.0.2.2)
+This is already implemented and working. VM accesses host via `10.0.2.2:8765`.
 
-**Cons:**
-- whisper-server runs outside container/VM (less isolated)
-- Must manage two processes separately
+## Other Options
 
-### Option 2: Remote GPU Server
+### Remote GPU Server
 
-Use a dedicated Linux machine with NVIDIA GPU.
+Use a dedicated Linux machine with NVIDIA GPU for best performance.
 
-```
-┌─────────────────┐         ┌─────────────────┐
-│   Mac Mini      │         │  GPU Server     │
-│   qemu VM       │────────▶│  (NVIDIA CUDA)  │
-│                 │ network │  whisper-server │
-└─────────────────┘         └─────────────────┘
-```
+### Cloud GPU (On-Demand)
 
-**Pros:**
-- Best performance (CUDA)
-- True isolation
-- Scalable (multiple workers)
+Use cloud GPU instances (AWS g4dn, RunPod) for burst transcription.
 
-**Cons:**
-- Requires additional hardware
-- Network latency for large files
-- More complex infrastructure
+### Apple Neural Engine
 
-### Option 3: Cloud GPU (On-Demand)
+whisper.cpp has experimental Core ML support for ANE acceleration.
 
-Use cloud GPU instances for burst transcription.
+## Known Challenges
 
-**Services:**
-- AWS EC2 g4dn instances (NVIDIA T4)
-- Google Cloud GPU VMs
-- RunPod / Vast.ai (cheaper spot instances)
+1. **Venus is Linux-only** - The main Vulkan passthrough project targets Linux hosts
+2. **virtio-gpu Vulkan** - May not be fully supported in upstream qemu for macOS
+3. **MoltenVK limitations** - Some Vulkan features may not translate cleanly to Metal
+4. **whisper.cpp Vulkan** - May not have a Vulkan backend (Metal is native)
 
-**Pros:**
-- No hardware investment
-- Scale to zero when not in use
-- Access to latest GPUs
+## Next Steps
 
-**Cons:**
-- Per-minute/hour costs
-- Network transfer time for videos
-- Dependency on external service
-
-### Option 4: Apple Neural Engine (ANE)
-
-Use Core ML with the Neural Engine instead of Metal GPU.
-
-**Current state:**
-- whisper.cpp has experimental Core ML support
-- Requires model conversion to Core ML format
-- ANE provides ~2-3x speedup over CPU
-
-**Pros:**
-- Lower power consumption
-- Available on Apple Silicon
-
-**Cons:**
-- Limited model support
-- Still requires running on host (same issue as Metal)
-- Performance lower than Metal GPU
-
-## Verdict
-
-### Short Term
-
-Continue with **Option 1** (host-based whisper-server). This is already implemented and provides full Metal GPU acceleration with minimal complexity.
-
-### Medium Term
-
-If demand increases, consider **Option 2** (remote GPU server) with NVIDIA hardware for best performance and true isolation.
-
-### Long Term
-
-Monitor Apple's virtualization developments. Apple has been improving Virtualization.framework, but GPU passthrough is unlikely in the near term given their security model.
-
-## Technical Deep Dive
-
-### Why MoltenVK Can't Help
-
-MoltenVK sits at the wrong layer:
-
-```
-Application (whisper-server)
-       │
-       ▼
-   Vulkan API
-       │
-       ▼
-   MoltenVK (translation layer)
-       │
-       ▼
-   Metal API
-       │
-       ▼
-   Metal Driver (kernel)
-       │
-       ▼
-   Apple GPU Hardware
-```
-
-For GPU passthrough, we'd need:
-
-```
-VM Guest Application
-       │
-       ▼
-   Vulkan/Metal API (in guest)
-       │
-       ▼
-   Virtual GPU Driver (guest ──▶ host)
-       │
-       ▼
-   Metal API (host)
-       │
-       ▼
-   Apple GPU Hardware
-```
-
-This "Virtual GPU Driver" doesn't exist for Metal. The closest concept is:
-- **virgl** (Virtio 3D) - OpenGL only, no compute shaders
-- **Venus** (Vulkan passthrough) - Linux host only
-
-### whisper.cpp GPU Backend Status
-
-| Backend | macOS Support | Notes |
-|---------|---------------|-------|
-| Metal | Yes | Default for Apple Silicon |
-| CUDA | No | NVIDIA only |
-| OpenCL | Limited | Deprecated on macOS |
-| Vulkan | Via MoltenVK | Works but no VM passthrough |
+1. File a task to execute Phase 1 (verify MoltenVK works)
+2. Research qemu Vulkan support status
+3. Check if whisper.cpp can be modified to use Vulkan on Linux guest
+4. Report findings and update this spec
 
 ## References
 
 - [MoltenVK GitHub](https://github.com/KhronosGroup/MoltenVK)
-- [whisper.cpp Metal support](https://github.com/ggerganov/whisper.cpp#metal-support)
-- [QEMU macOS documentation](https://wiki.qemu.org/Hosts/Mac)
-- [Apple Virtualization.framework](https://developer.apple.com/documentation/virtualization)
-- [virgl project](https://virgil3d.github.io/)
-
-## Conclusion
-
-Metal GPU passthrough to qemu VMs is not feasible with current technology due to:
-1. No Apple-provided SR-IOV or IOMMU support for GPUs
-2. No virtual GPU driver for Metal
-3. Metal is tightly integrated with macOS kernel
-
-The recommended architecture (whisper-server on host, accessed via network) provides the same GPU acceleration benefit without the complexity of passthrough.
+- [Venus Documentation](https://docs.mesa3d.org/drivers/venus.html)
+- [virglrenderer](https://virgil3d.github.io/)
+- [qemu virtio-gpu](https://www.qemu.org/docs/master/system/devices/virtio-gpu.html)
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 ## See Also
 
-- [../specs/deployment.md](deployment.md) - Current deployment architecture
-- [../backend/README.md](../backend/README.md) - whisper-server configuration
+- [deployment.md](deployment.md) - Current deployment architecture (fallback approach)

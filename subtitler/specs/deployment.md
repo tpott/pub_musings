@@ -5,34 +5,32 @@ This document describes the deployment architecture for the Subtitler applicatio
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Mac Mini (Host)                             │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                     qemu VM (Linux)                          │   │
-│  │                                                              │   │
-│  │   ┌──────────────┐      ┌──────────────┐                    │   │
-│  │   │    Caddy     │─────▶│   Backend    │                    │   │
-│  │   │   (443/80)   │ /api │   (8080)     │                    │   │
-│  │   └──────┬───────┘      └──────────────┘                    │   │
-│  │          │                                                   │   │
-│  │          │ Static files                                      │   │
-│  │          ▼                                                   │   │
-│  │   ┌──────────────┐                                          │   │
-│  │   │ /var/www/    │                                          │   │
-│  │   │ subtitler/   │                                          │   │
-│  │   └──────────────┘                                          │   │
-│  │                                                              │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                              │                                       │
-│                              │ Host access (10.0.2.2:8765)          │
-│                              ▼                                       │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    whisper-server                             │   │
-│  │              (GPU-accelerated on host)                        │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                          Mac Mini M1 (Host)                            │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │                     qemu VM (Ubuntu ARM64)                        │ │
+│  │                                                                   │ │
+│  │   ┌────────────────┐     ┌──────────────┐                        │ │
+│  │   │  cloudflared   │────▶│    Caddy     │───▶ Backend (8080)     │ │
+│  │   │(tunnel client) │     │  (443/80)    │                        │ │
+│  │   └────────────────┘     └──────┬───────┘                        │ │
+│  │                                 │ Static files                    │ │
+│  │                                 ▼                                 │ │
+│  │                          /var/www/subtitler/                      │ │
+│  │                                                                   │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│          │                                                             │
+│          │ VM accesses host via 10.0.2.2 (qemu user-mode gateway)     │
+│          ▼                                                             │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │                    whisper-server (port 8765)                     │ │
+│  │              (Metal GPU-accelerated on host)                      │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+External traffic: Cloudflare → cloudflared tunnel → Caddy → Backend
 ```
 
 ## Components
@@ -42,7 +40,7 @@ This document describes the deployment architecture for the Subtitler applicatio
 Runs the web application in an isolated environment.
 
 **Specifications:**
-- OS: Ubuntu Server 24.04 LTS (minimal)
+- OS: Ubuntu Server 24.04 LTS (ARM64)
 - vCPUs: 2-4
 - RAM: 4-8 GB
 - Disk: 50 GB (qcow2)
@@ -50,23 +48,79 @@ Runs the web application in an isolated environment.
 
 **qemu launch command:**
 ```bash
-qemu-system-x86_64 \
+qemu-system-aarch64 \
   -name subtitler-vm \
-  -machine type=q35,accel=hvf \
+  -machine virt,accel=hvf \
   -cpu host \
   -smp cores=4 \
   -m 8G \
   -drive file=subtitler.qcow2,format=qcow2,if=virtio \
-  -netdev user,id=net0,hostfwd=tcp::8443-:443,hostfwd=tcp::8080-:80 \
+  -netdev user,id=net0,hostfwd=tcp::2222-:22 \
   -device virtio-net,netdev=net0 \
   -nographic
 ```
 
-Port forwarding:
-- Host `8443` → VM `443` (HTTPS)
-- Host `8080` → VM `80` (HTTP redirect)
+**Port forwarding:**
+- Host `2222` → VM `22` (SSH access)
+- No HTTP/HTTPS ports needed - traffic comes through Cloudflare tunnel
 
-### 2. Caddy Web Server
+**Networking notes:**
+- With qemu user-mode networking, the VM can access the host at IP `10.0.2.2`
+- This is qemu's default gateway for the virtual NAT network
+- The backend uses `http://10.0.2.2:8765` to reach whisper-server on the host
+
+### 2. Cloudflare Tunnel (cloudflared)
+
+Routes external traffic into the VM without exposing ports publicly.
+
+**Installation (Ubuntu ARM64):**
+```bash
+# Download cloudflared for ARM64
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 -o /usr/local/bin/cloudflared
+chmod +x /usr/local/bin/cloudflared
+```
+
+**Setup:**
+```bash
+# Authenticate (one-time)
+cloudflared tunnel login
+
+# Create tunnel
+cloudflared tunnel create subtitler
+
+# Configure tunnel
+cat > ~/.cloudflared/config.yml << 'EOF'
+tunnel: <tunnel-id>
+credentials-file: /home/subtitler/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: subtitler.example.com
+    service: http://localhost:80
+  - service: http_status:404
+EOF
+```
+
+**Service file (`/etc/systemd/system/cloudflared.service`):**
+```ini
+[Unit]
+Description=Cloudflare Tunnel
+After=network.target
+
+[Service]
+Type=simple
+User=subtitler
+ExecStart=/usr/local/bin/cloudflared tunnel run subtitler
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**DNS:**
+Configure DNS in Cloudflare dashboard to point `subtitler.example.com` to the tunnel.
+
+### 3. Caddy Web Server
 
 Serves static frontend files and proxies API requests to the backend.
 
@@ -112,7 +166,7 @@ sudo apt update
 sudo apt install caddy
 ```
 
-### 3. Go Backend
+### 4. Go Backend
 
 Runs as a systemd service.
 
@@ -152,7 +206,7 @@ sudo systemctl start subtitler
 sudo systemctl status subtitler
 ```
 
-### 4. whisper-server (Host)
+### 5. whisper-server (Host)
 
 Runs on the Mac Mini host for GPU acceleration.
 
@@ -256,7 +310,7 @@ launchctl start com.user.whisper-server
 5. **Deploy backend:**
    ```bash
    # Build on dev machine
-   CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o subtitler
+   CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -o subtitler
 
    # Copy to VM
    scp subtitler vm:/opt/subtitler/backend/
@@ -291,17 +345,74 @@ rsync -avz dist/ vm:/var/www/subtitler/
 
 ## SSL/TLS Certificates
 
-Caddy automatically obtains and renews Let's Encrypt certificates when:
-1. Domain is publicly accessible
-2. DNS A record points to server
-3. Ports 80/443 are open
+With Cloudflare tunnel, TLS is handled by Cloudflare. Caddy runs on HTTP inside the VM.
 
-For local/dev deployments, use self-signed:
+For local/dev deployments without tunnel:
 ```caddyfile
 localhost {
     tls internal
     # ... rest of config
 }
+```
+
+## qemu Networking Details
+
+### Understanding 10.0.2.2
+
+In qemu user-mode networking, the VM gets a private network:
+- **10.0.2.2** - The host machine (qemu's virtual gateway)
+- **10.0.2.3** - DNS server (forwarded to host)
+- **10.0.2.15** - VM's default IP
+
+The VM can access any service running on the host via `10.0.2.2`. No port forwarding needed for outbound connections (VM→host).
+
+### Alternative: Bridge Networking
+
+For more advanced setups where VM needs direct LAN access:
+
+```bash
+# On host: Create bridge (one-time setup)
+sudo ip link add br0 type bridge
+sudo ip link set br0 up
+sudo ip addr add 192.168.100.1/24 dev br0
+
+# qemu with bridge
+qemu-system-aarch64 \
+  -netdev bridge,id=net0,br=br0 \
+  -device virtio-net,netdev=net0 \
+  ...
+```
+
+Configure VM:
+```bash
+sudo ip addr add 192.168.100.2/24 dev eth0
+export WHISPER_SERVER_URL="http://192.168.100.1:8765"
+```
+
+### Firewall Configuration
+
+Ensure host firewall allows whisper-server connections from VM:
+
+```bash
+# For user-mode networking
+sudo ufw allow from 10.0.2.0/24 to any port 8765
+
+# For bridge networking
+sudo ufw allow from 192.168.100.0/24 to any port 8765
+```
+
+### Verifying Connectivity
+
+From inside the VM:
+```bash
+# Test whisper-server health endpoint
+curl http://10.0.2.2:8765/health
+# Expected: {"status":"ok"}
+
+# Test inference (requires a WAV file)
+curl http://10.0.2.2:8765/inference \
+  -F file=@test.wav \
+  -F response_format=json
 ```
 
 ## Monitoring

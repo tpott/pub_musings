@@ -74,90 +74,14 @@ Options:
 - `--convert`: Auto-convert audio formats via ffmpeg
 - `-t N`: Number of threads (default: 4)
 
-## qemu VM Configuration
+## Deployment
 
-When running the backend inside a qemu VM with whisper-server on the host, configure networking to allow the VM to reach the host.
+For qemu VM deployment (running backend in VM with whisper-server on host), see [specs/deployment.md](../specs/deployment.md).
 
-### Option 1: User-mode networking with hostfwd (Recommended)
-
-This is the simplest setup - the VM can access the host via the gateway IP.
-
+Quick reference for VM networking:
 ```bash
-# Start qemu with user networking (default)
-qemu-system-x86_64 \
-  -netdev user,id=net0 \
-  -device e1000,netdev=net0 \
-  ...
-```
-
-Inside the VM, the host is accessible at `10.0.2.2` (default qemu gateway):
-
-```bash
-# In the VM
+# In the VM, whisper-server on host is accessible at 10.0.2.2 (qemu gateway)
 export WHISPER_SERVER_URL="http://10.0.2.2:8765"
-```
-
-### Option 2: Bridge networking
-
-For more advanced networking, create a bridge on the host:
-
-```bash
-# On host: Create bridge (one-time setup)
-sudo ip link add br0 type bridge
-sudo ip link set br0 up
-sudo ip addr add 192.168.100.1/24 dev br0
-
-# Start qemu with bridge
-qemu-system-x86_64 \
-  -netdev bridge,id=net0,br=br0 \
-  -device virtio-net,netdev=net0 \
-  ...
-```
-
-Configure VM network:
-```bash
-# In the VM
-sudo ip addr add 192.168.100.2/24 dev eth0
-export WHISPER_SERVER_URL="http://192.168.100.1:8765"
-```
-
-### Option 3: macvtap (Direct host NIC access)
-
-For production deployments where the VM needs its own IP on the LAN:
-
-```bash
-qemu-system-x86_64 \
-  -netdev tap,id=net0,ifname=macvtap0,script=no,downscript=no \
-  -device virtio-net,netdev=net0 \
-  ...
-```
-
-The VM gets a LAN IP via DHCP. Configure `WHISPER_SERVER_URL` with the host's LAN IP.
-
-### Firewall Configuration
-
-Ensure the host firewall allows connections to whisper-server:
-
-```bash
-# Allow port 8765 from VM network
-sudo ufw allow from 10.0.2.0/24 to any port 8765
-# Or for bridge network
-sudo ufw allow from 192.168.100.0/24 to any port 8765
-```
-
-### Verifying Connectivity
-
-From inside the VM:
-
-```bash
-# Test whisper-server health endpoint
-curl http://10.0.2.2:8765/health
-# Expected: {"status":"ok"}
-
-# Test inference (requires a WAV file)
-curl http://10.0.2.2:8765/inference \
-  -F file=@test.wav \
-  -F response_format=json
 ```
 
 ## API Endpoints

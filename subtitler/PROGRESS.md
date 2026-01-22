@@ -1116,9 +1116,57 @@ Implemented the ability for users to regenerate their 2FA recovery codes from th
 
 This closes a UX gap identified in specs/recovery-codes.md where users who enabled 2FA before recovery codes were implemented, or who used some of their codes, had no way to get new ones.
 
+### Task 43: Address spec feedback
+
+**Date**: 2026-01-22
+
+Addressed all feedback from FEEDBACK.md:
+
+**specs/subtitler.md updates:**
+- Updated mission focus to music videos and language learning
+- Fixed "Competitive Advantages" section to reflect SaaS pricing model
+- Added timing alignment metrics to accuracy evaluation plan
+- Converted task references (Task 32, 33, 34, 35) to markdown links to specs
+- Added reference to clean room evaluation framework
+
+**backend/README.md updates:**
+- Moved qemu networking details to specs/deployment.md
+- Simplified to quick reference + link to deployment spec
+
+**specs/deployment.md updates:**
+- Changed from qemu-system-x86_64 to qemu-system-aarch64 (ARM for M1)
+- Removed unnecessary port forwarding (only SSH needed: 2222→22)
+- Added cloudflared tunnel section for Cloudflare tunnels
+- Added explanation of 10.0.2.2 host access (qemu gateway)
+- Added detailed qemu networking section
+- Fixed build architecture to arm64
+
+**specs/metal-moltenvk.md updates:**
+- Rewrote with correct approach: compile custom qemu with MoltenVK
+- Added architecture diagram for Vulkan passthrough concept
+- Added research tasks (clone MoltenVK, study qemu virtio-gpu)
+- Added 3-phase test plan
+- Listed related projects to study (Venus, virglrenderer, crosvm)
+
+**specs/totp.md updates:**
+- Added self-hosted QR code generation section using go-qrcode library
+- Documented planned API change (qr_code field with base64 PNG)
+
+**New tasks filed:**
+- Task 44: Smart lyrics alignment
+- Task 45: Clean room model evaluation framework
+- Task 46: Design template analysis with Playwright
+- Task 47: Self-hosted QR code generation
+- Task 48: Research MoltenVK for qemu GPU passthrough
+
+**New spec created:**
+- specs/evaluation-cleanroom.md - Framework for model comparison with TTS-generated test audio
+
+FEEDBACK.md deleted after all items addressed.
+
 ## Summary
 
-42 tasks completed. The subtitler application is feature-complete with:
+43 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1128,6 +1176,9 @@ This closes a UX gap identified in specs/recovery-codes.md where users who enabl
 - File encryption at rest
 - Anonymous and registered user support with retention policies
 - Frontend console log forwarding to backend for dev debugging
-- Comprehensive test coverage (186+ tests including 6 E2E tests)
+- Comprehensive test coverage (150+ tests including 6 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
 - Working E2E test infrastructure with Playwright
+- Comprehensive specs for deployment, evaluation, and future GPU passthrough research
+
+**5 new tasks queued:** lyrics alignment, clean room evaluation, design template, QR codes, MoltenVK research
