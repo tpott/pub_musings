@@ -884,9 +884,39 @@ Created comprehensive deployment specification in `specs/deployment.md`:
 - File encryption
 - Permission hardening
 
+### Task 34: Research Mac Metal via MoltenVK to qemu
+
+**Date**: 2026-01-22
+
+Created research document `specs/metal-moltenvk.md`:
+
+**Key Finding: Not feasible with current technology.**
+
+**Research Covered:**
+- MoltenVK capabilities (Vulkan→Metal translation, but HOST-side only)
+- qemu GPU options on macOS (virtio-gpu, vmsvga - no Metal support)
+- Why passthrough doesn't exist:
+  - No Apple SR-IOV/IOMMU for GPUs
+  - Metal tightly coupled to macOS kernel
+  - Apple Silicon unified memory architecture
+  - HVF doesn't support PCIe passthrough
+
+**Alternative Approaches Evaluated:**
+1. Host-based whisper-server (Recommended - already implemented)
+2. Remote GPU server with NVIDIA CUDA
+3. Cloud GPU on-demand (AWS, GCP, RunPod)
+4. Apple Neural Engine via Core ML
+
+**Technical Deep Dive:**
+- MoltenVK architecture diagram showing why it can't help
+- whisper.cpp GPU backend status table
+- Comparison of passthrough requirements vs available tech
+
+**Verdict:** Continue with current architecture (whisper-server on host). GPU passthrough is unlikely to be supported by Apple due to their security model.
+
 ## Summary
 
-33 of 35 tasks completed. The subtitler application is feature-complete with:
+34 of 35 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
