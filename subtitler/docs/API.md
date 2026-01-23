@@ -571,7 +571,7 @@ List all active sessions for the current user.
       "user_agent": "Mozilla/5.0...",
       "expires_at": "2026-01-29T12:00:00Z",
       "created_at": "2026-01-22T12:00:00Z",
-      "current": true
+      "is_current": true
     }
   ]
 }
@@ -684,11 +684,16 @@ List uploaded videos.
       "size": 12345678,
       "content_type": "video/mp4",
       "created_at": "2026-01-22T10:00:00Z",
-      "transcription_status": "complete"
+      "transcription_status": "complete",
+      "expires_at": "2026-04-22T10:00:00Z"
     }
   ]
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `expires_at` | When the video will be deleted (48h for anonymous, 90d for registered users) |
 
 | `transcription_status` | Description |
 |------------------------|-------------|
@@ -1179,6 +1184,11 @@ curl -X POST http://localhost:8080/api/text/convert \
 | `WHISPER_MODEL` | `~/Github/whisper.cpp/models/ggml-medium.bin` | Path to whisper model (CLI mode) |
 | `WHISPER_SERVER_URL` | `http://127.0.0.1:8765` | Whisper server URL |
 | `USE_WHISPER_SERVER` | `false` | Set to `true` to use whisper-server |
+| `HTTPS_ONLY` | `false` | Set to `true` to enable Secure flag on session cookies |
+| `RESEND_API_KEY` | *(none)* | Resend API key for transactional emails |
+| `EMAIL_FROM` | `noreply@subtitler.app` | Sender email address |
+| `APP_URL` | `http://localhost:4321` | Base URL for email links |
+| `EMAIL_ENABLED` | `true` | Set to `false` to disable email sending |
 
 See [backend/README.md](../backend/README.md) for detailed environment configuration.
 

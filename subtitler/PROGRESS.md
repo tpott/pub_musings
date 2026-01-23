@@ -1640,6 +1640,24 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 67: Update API.md with missing endpoints
+
+**Date**: 2026-01-22
+
+Updated docs/API.md with corrections and missing information:
+
+**Corrections:**
+- Fixed `current` to `is_current` in session response example
+- Added `expires_at` field to /api/videos response documentation
+
+**Additions:**
+- Added missing environment variables: HTTPS_ONLY, RESEND_API_KEY, EMAIL_FROM, APP_URL, EMAIL_ENABLED
+
+**Verified existing documentation:**
+- Session management endpoints (GET /api/auth/sessions, DELETE /api/auth/sessions/{id}) already documented
+- Script conversion endpoints (/api/text/detect-script, /api/text/convert) already documented
+- Password reset endpoints (/api/auth/forgot-password, /api/auth/reset-password) already documented
+
 ### Task 64: Add retry logic to whisper-server requests
 
 **Date**: 2026-01-22
@@ -1725,7 +1743,7 @@ Implemented retention countdown display on the videos list page:
 
 ## Summary
 
-64 tasks completed (63 done + 1 requiring macOS). The subtitler application is feature-complete with:
+65 tasks completed (64 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1744,6 +1762,6 @@ Implemented retention countdown display on the videos list page:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**3 tasks remaining:**
+**2 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 65-67: Security/UX improvements filed during audit
+- Task 65-66: UX improvements (upload progress bar, per-email rate limiting)
