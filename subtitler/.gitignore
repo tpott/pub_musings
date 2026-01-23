@@ -11,3 +11,10 @@ backend/subtitler
 backend/backend
 backend/uploads/
 backend/data/
+
+# Design analysis artifacts (large binary files)
+design-analysis/
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/

@@ -1230,9 +1230,43 @@ Implemented self-hosted QR code generation for 2FA setup, eliminating external d
 
 Updated `specs/totp.md` to document completed implementation.
 
+### Task 46: Design template analysis with Playwright
+
+**Date**: 2026-01-22
+
+Used Playwright to capture and analyze design patterns from anthropic.com and ampcode.com:
+
+**Capture Implementation:**
+- Created `frontend/e2e/capture-design.spec.ts` - Playwright test for capturing design data
+- Captures screenshots (viewport, full-page, mobile) for each target page
+- Captures HAR files for network analysis
+- Extracts page metadata (colors, fonts, headings, nav links, CTAs)
+
+**Pages captured:**
+- anthropic.com: home, research, company (claude page timed out)
+- ampcode.com: home
+
+**Design Analysis Output:**
+- `specs/design-template.md` - Comprehensive design analysis with:
+  - Color palette recommendations (warm cream backgrounds, near-black text, coral accents)
+  - Typography scale (serif headlines, system-ui body)
+  - Layout structure (hero patterns, feature cards, mobile adaptations)
+  - Component patterns (buttons, cards, navigation)
+  - Content writing guidelines
+  - Spacing system
+  - Responsive breakpoints
+  - Implementation checklist
+
+**Raw data stored in `design-analysis/` (gitignored):**
+- Screenshots (PNG)
+- HAR files
+- Metadata JSON files
+
+Updated `.gitignore` to exclude large binary capture files and Playwright artifacts.
+
 ## Summary
 
-45 tasks completed. The subtitler application is feature-complete with:
+46 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1247,4 +1281,4 @@ Updated `specs/totp.md` to document completed implementation.
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 
-**3 tasks remaining:** design template analysis, MoltenVK research, and evaluation framework was already completed (Task 45 spec exists)
+**2 tasks remaining:** MoltenVK research (Task 48 - requires macOS with Xcode) and evaluation framework (Task 45 spec exists - implementation pending)
