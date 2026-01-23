@@ -1266,7 +1266,7 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 
 ## Summary
 
-46 tasks completed. The subtitler application is feature-complete with:
+47 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1281,4 +1281,34 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 
-**2 tasks remaining:** MoltenVK research (Task 48 - requires macOS with Xcode) and evaluation framework (Task 45 spec exists - implementation pending)
+**6 tasks remaining:**
+- Task 48: MoltenVK research (requires macOS with Xcode)
+- Task 50: Add E2E auth flow tests
+- Task 51: Add lyrics mode toggle to upload page
+- Task 52: Rate limit upload/transcribe/burn endpoints
+- Task 53: Add session management API
+- Task 54: Create API documentation
+
+### Task 49: Frontend - Use validation utilities in forms
+
+**Date**: 2026-01-22
+
+Integrated the unused validation.ts utilities into all authentication forms for inline validation feedback.
+
+**Files updated:**
+- `frontend/src/pages/login.astro`
+- `frontend/src/pages/register.astro`
+- `frontend/src/pages/security.astro`
+
+**Features added:**
+- Imports validateEmail, validatePassword, validateTotpCode from utils/validation.ts
+- Blur validation: Shows errors when user leaves a field with invalid input
+- Submit validation: Validates all fields before form submission
+- Visual feedback: Red border on invalid inputs with error message below
+- Input clearing: Errors clear when user starts typing
+
+**CSS additions:**
+- `.input-error` class for red border styling
+- `.field-error` class for error message display
+
+This closes a gap where validation utilities existed but were never actually used in the frontend.

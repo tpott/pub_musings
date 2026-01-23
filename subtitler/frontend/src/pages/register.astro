@@ -86,6 +86,18 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				border-color: var(--accent-color);
 				box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
 			}
+			input.input-error {
+				border-color: var(--error-color);
+			}
+			input.input-error:focus {
+				box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
+			}
+			.field-error {
+				color: var(--error-color);
+				font-size: 0.8rem;
+				margin-top: 0.25rem;
+				display: none;
+			}
 			.hint {
 				font-size: 0.8rem;
 				color: #666;
@@ -153,15 +165,18 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					<div class="form-group">
 						<label for="email">Email</label>
 						<input type="email" id="email" name="email" required autocomplete="email" />
+						<div id="emailError" class="field-error"></div>
 					</div>
 					<div class="form-group">
 						<label for="password">Password</label>
 						<input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" />
 						<p class="hint">At least 8 characters</p>
+						<div id="passwordError" class="field-error"></div>
 					</div>
 					<div class="form-group">
 						<label for="confirmPassword">Confirm Password</label>
 						<input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" />
+						<div id="confirmPasswordError" class="field-error"></div>
 					</div>
 					<button type="submit" class="btn btn-primary" id="submitBtn">Create account</button>
 				</form>
@@ -173,12 +188,61 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 		</div>
 
 		<script>
+			import { validateEmail, validatePassword } from '../utils/validation';
+
 			const form = document.getElementById('registerForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
 			const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 			const emailInput = document.getElementById('email') as HTMLInputElement;
 			const passwordInput = document.getElementById('password') as HTMLInputElement;
 			const confirmPasswordInput = document.getElementById('confirmPassword') as HTMLInputElement;
+			const emailError = document.getElementById('emailError') as HTMLElement;
+			const passwordError = document.getElementById('passwordError') as HTMLElement;
+			const confirmPasswordError = document.getElementById('confirmPasswordError') as HTMLElement;
+
+			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
+				input.classList.remove('input-error');
+				errorEl.style.display = 'none';
+				errorEl.textContent = '';
+			}
+
+			function showFieldError(input: HTMLInputElement, errorEl: HTMLElement, message: string) {
+				input.classList.add('input-error');
+				errorEl.textContent = message;
+				errorEl.style.display = 'block';
+			}
+
+			// Add blur validation
+			emailInput.addEventListener('blur', () => {
+				const error = validateEmail(emailInput.value);
+				if (error) {
+					showFieldError(emailInput, emailError, error);
+				} else {
+					clearFieldError(emailInput, emailError);
+				}
+			});
+
+			passwordInput.addEventListener('blur', () => {
+				const error = validatePassword(passwordInput.value);
+				if (error) {
+					showFieldError(passwordInput, passwordError, error);
+				} else {
+					clearFieldError(passwordInput, passwordError);
+				}
+			});
+
+			confirmPasswordInput.addEventListener('blur', () => {
+				if (confirmPasswordInput.value && confirmPasswordInput.value !== passwordInput.value) {
+					showFieldError(confirmPasswordInput, confirmPasswordError, 'Passwords do not match');
+				} else {
+					clearFieldError(confirmPasswordInput, confirmPasswordError);
+				}
+			});
+
+			// Clear errors on input
+			emailInput.addEventListener('input', () => clearFieldError(emailInput, emailError));
+			passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
+			confirmPasswordInput.addEventListener('input', () => clearFieldError(confirmPasswordInput, confirmPasswordError));
 
 			function showError(message: string) {
 				errorDiv.textContent = message;
@@ -197,29 +261,36 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				hideError();
-				setLoading(true);
 
 				const email = emailInput.value.trim();
 				const password = passwordInput.value;
 				const confirmPassword = confirmPasswordInput.value;
 
-				if (!email || !password || !confirmPassword) {
-					showError('Please fill in all fields');
-					setLoading(false);
-					return;
+				// Validate fields
+				let hasErrors = false;
+
+				const emailValidation = validateEmail(email);
+				if (emailValidation) {
+					showFieldError(emailInput, emailError, emailValidation);
+					hasErrors = true;
 				}
 
-				if (password.length < 8) {
-					showError('Password must be at least 8 characters');
-					setLoading(false);
-					return;
+				const passwordValidation = validatePassword(password);
+				if (passwordValidation) {
+					showFieldError(passwordInput, passwordError, passwordValidation);
+					hasErrors = true;
 				}
 
 				if (password !== confirmPassword) {
-					showError('Passwords do not match');
-					setLoading(false);
+					showFieldError(confirmPasswordInput, confirmPasswordError, 'Passwords do not match');
+					hasErrors = true;
+				}
+
+				if (hasErrors) {
 					return;
 				}
+
+				setLoading(true);
 
 				try {
 					const response = await fetch('/api/auth/register', {

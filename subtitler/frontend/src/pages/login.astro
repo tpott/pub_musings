@@ -102,6 +102,18 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				border-color: var(--accent-color);
 				box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
 			}
+			input.input-error {
+				border-color: var(--error-color);
+			}
+			input.input-error:focus {
+				box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
+			}
+			.field-error {
+				color: var(--error-color);
+				font-size: 0.8rem;
+				margin-top: 0.25rem;
+				display: none;
+			}
 			.btn {
 				width: 100%;
 				padding: 0.875rem 1rem;
@@ -207,10 +219,12 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 						<div class="form-group">
 							<label for="email">Email</label>
 							<input type="email" id="email" name="email" required autocomplete="email" />
+							<div id="emailError" class="field-error"></div>
 						</div>
 						<div class="form-group">
 							<label for="password">Password</label>
 							<input type="password" id="password" name="password" required autocomplete="current-password" />
+							<div id="passwordError" class="field-error"></div>
 						</div>
 					</div>
 					<div id="totpSection" class="hidden">
@@ -218,6 +232,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 						<div class="form-group">
 							<label for="totpCode">Authentication Code</label>
 							<input type="text" id="totpCode" name="totpCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" />
+							<div id="totpError" class="field-error"></div>
 						</div>
 						<div class="recovery-link">
 							<a id="showRecoveryLink">Lost access to authenticator?</a>
@@ -241,6 +256,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 		</div>
 
 		<script>
+			import { validateEmail, validatePassword, validateTotpCode } from '../utils/validation';
+
 			const form = document.getElementById('loginForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
 			const successDiv = document.getElementById('success') as HTMLElement;
@@ -254,9 +271,59 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const recoverySection = document.getElementById('recoverySection') as HTMLElement;
 			const showRecoveryLink = document.getElementById('showRecoveryLink') as HTMLElement;
 			const backToTotpLink = document.getElementById('backToTotpLink') as HTMLElement;
+			const emailError = document.getElementById('emailError') as HTMLElement;
+			const passwordError = document.getElementById('passwordError') as HTMLElement;
+			const totpError = document.getElementById('totpError') as HTMLElement;
 
 			let totpRequired = false;
 			let recoveryMode = false;
+
+			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
+				input.classList.remove('input-error');
+				errorEl.style.display = 'none';
+				errorEl.textContent = '';
+			}
+
+			function showFieldError(input: HTMLInputElement, errorEl: HTMLElement, message: string) {
+				input.classList.add('input-error');
+				errorEl.textContent = message;
+				errorEl.style.display = 'block';
+			}
+
+			// Add blur validation
+			emailInput.addEventListener('blur', () => {
+				const error = validateEmail(emailInput.value);
+				if (error) {
+					showFieldError(emailInput, emailError, error);
+				} else {
+					clearFieldError(emailInput, emailError);
+				}
+			});
+
+			passwordInput.addEventListener('blur', () => {
+				const error = validatePassword(passwordInput.value);
+				if (error) {
+					showFieldError(passwordInput, passwordError, error);
+				} else {
+					clearFieldError(passwordInput, passwordError);
+				}
+			});
+
+			totpInput.addEventListener('blur', () => {
+				if (totpRequired && totpInput.value) {
+					const error = validateTotpCode(totpInput.value);
+					if (error) {
+						showFieldError(totpInput, totpError, error);
+					} else {
+						clearFieldError(totpInput, totpError);
+					}
+				}
+			});
+
+			// Clear errors on input
+			emailInput.addEventListener('input', () => clearFieldError(emailInput, emailError));
+			passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
+			totpInput.addEventListener('input', () => clearFieldError(totpInput, totpError));
 
 			function showError(message: string) {
 				errorDiv.textContent = message;
@@ -317,18 +384,40 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				hideMessages();
-				setLoading(true);
 
 				const email = emailInput.value.trim();
 				const password = passwordInput.value;
 				const totpCode = totpInput.value.trim();
 				const recoveryCode = recoveryCodeInput.value.trim().toUpperCase();
 
-				if (!email || !password) {
-					showError('Please fill in all fields');
-					setLoading(false);
+				// Validate fields
+				let hasErrors = false;
+
+				const emailValidation = validateEmail(email);
+				if (emailValidation) {
+					showFieldError(emailInput, emailError, emailValidation);
+					hasErrors = true;
+				}
+
+				const passwordValidation = validatePassword(password);
+				if (passwordValidation) {
+					showFieldError(passwordInput, passwordError, passwordValidation);
+					hasErrors = true;
+				}
+
+				if (totpRequired && !recoveryMode) {
+					const totpValidation = validateTotpCode(totpCode);
+					if (totpValidation) {
+						showFieldError(totpInput, totpError, totpValidation);
+						hasErrors = true;
+					}
+				}
+
+				if (hasErrors) {
 					return;
 				}
+
+				setLoading(true);
 
 				// Handle recovery mode
 				if (recoveryMode) {
@@ -369,11 +458,6 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				}
 
 				// Normal login flow
-				if (totpRequired && (!totpCode || totpCode.length !== 6)) {
-					showError('Please enter a 6-digit code');
-					setLoading(false);
-					return;
-				}
 
 				try {
 					const body: { email: string; password: string; totp_code?: string } = { email, password };

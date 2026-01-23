@@ -227,6 +227,18 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				border-color: var(--accent-color);
 				box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
 			}
+			input.input-error {
+				border-color: var(--error-color);
+			}
+			input.input-error:focus {
+				box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
+			}
+			.field-error {
+				color: var(--error-color);
+				font-size: 0.8rem;
+				margin-top: 0.25rem;
+				display: none;
+			}
 			.totp-input {
 				font-family: 'Menlo', 'Monaco', monospace;
 				font-size: 1.5rem;
@@ -374,6 +386,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							<div class="form-group">
 								<label for="verifyCode">Verification Code</label>
 								<input type="text" id="verifyCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+								<div id="verifyCodeError" class="field-error"></div>
 							</div>
 							<div class="btn-group">
 								<button type="submit" class="btn btn-primary" id="verifyBtn">Verify & Enable</button>
@@ -427,10 +440,12 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 								<div class="form-group">
 									<label for="regenPassword">Password</label>
 									<input type="password" id="regenPassword" autocomplete="current-password" required />
+									<div id="regenPasswordError" class="field-error"></div>
 								</div>
 								<div class="form-group">
 									<label for="regenCode">Authentication Code</label>
 									<input type="text" id="regenCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+									<div id="regenCodeError" class="field-error"></div>
 								</div>
 								<div class="btn-group">
 									<button type="submit" class="btn btn-primary" id="regenBtn">Regenerate Codes</button>
@@ -447,10 +462,12 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 								<div class="form-group">
 									<label for="disablePassword">Password</label>
 									<input type="password" id="disablePassword" autocomplete="current-password" required />
+									<div id="disablePasswordError" class="field-error"></div>
 								</div>
 								<div class="form-group">
 									<label for="disableCode">Authentication Code</label>
 									<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+									<div id="disableCodeError" class="field-error"></div>
 								</div>
 								<div class="btn-group">
 									<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
@@ -464,6 +481,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 		</div>
 
 		<script>
+			import { validatePassword, validateTotpCode } from '../utils/validation';
+
 			const loading = document.getElementById('loading') as HTMLElement;
 			const notLoggedIn = document.getElementById('notLoggedIn') as HTMLElement;
 			const content = document.getElementById('content') as HTMLElement;
@@ -478,10 +497,13 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const verifyForm = document.getElementById('verifyForm') as HTMLFormElement;
 			const verifyBtn = document.getElementById('verifyBtn') as HTMLButtonElement;
 			const verifyCode = document.getElementById('verifyCode') as HTMLInputElement;
+			const verifyCodeError = document.getElementById('verifyCodeError') as HTMLElement;
 			const disableForm = document.getElementById('disableForm') as HTMLFormElement;
 			const disableBtn = document.getElementById('disableBtn') as HTMLButtonElement;
 			const disablePassword = document.getElementById('disablePassword') as HTMLInputElement;
+			const disablePasswordError = document.getElementById('disablePasswordError') as HTMLElement;
 			const disableCode = document.getElementById('disableCode') as HTMLInputElement;
+			const disableCodeError = document.getElementById('disableCodeError') as HTMLElement;
 			const qrCode = document.getElementById('qrCode') as HTMLImageElement;
 			const secretDisplay = document.getElementById('secretDisplay') as HTMLElement;
 			const nav = document.getElementById('nav') as HTMLElement;
@@ -504,13 +526,80 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const regenForm = document.getElementById('regenForm') as HTMLFormElement;
 			const regenBtn = document.getElementById('regenBtn') as HTMLButtonElement;
 			const regenPassword = document.getElementById('regenPassword') as HTMLInputElement;
+			const regenPasswordError = document.getElementById('regenPasswordError') as HTMLElement;
 			const regenCode = document.getElementById('regenCode') as HTMLInputElement;
+			const regenCodeError = document.getElementById('regenCodeError') as HTMLElement;
 
 			let isRegenerating = false;
 
 			let currentUser: { id: string; email: string; totp_enabled: boolean } | null = null;
 			let setupSecret: string = '';
 			let recoveryCodes: string[] = [];
+
+			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
+				input.classList.remove('input-error');
+				errorEl.style.display = 'none';
+				errorEl.textContent = '';
+			}
+
+			function showFieldError(input: HTMLInputElement, errorEl: HTMLElement, message: string) {
+				input.classList.add('input-error');
+				errorEl.textContent = message;
+				errorEl.style.display = 'block';
+			}
+
+			// Add blur validation for verify code
+			verifyCode.addEventListener('blur', () => {
+				const error = validateTotpCode(verifyCode.value);
+				if (error) {
+					showFieldError(verifyCode, verifyCodeError, error);
+				} else {
+					clearFieldError(verifyCode, verifyCodeError);
+				}
+			});
+			verifyCode.addEventListener('input', () => clearFieldError(verifyCode, verifyCodeError));
+
+			// Add blur validation for disable form
+			disablePassword.addEventListener('blur', () => {
+				const error = validatePassword(disablePassword.value);
+				if (error) {
+					showFieldError(disablePassword, disablePasswordError, error);
+				} else {
+					clearFieldError(disablePassword, disablePasswordError);
+				}
+			});
+			disablePassword.addEventListener('input', () => clearFieldError(disablePassword, disablePasswordError));
+
+			disableCode.addEventListener('blur', () => {
+				const error = validateTotpCode(disableCode.value);
+				if (error) {
+					showFieldError(disableCode, disableCodeError, error);
+				} else {
+					clearFieldError(disableCode, disableCodeError);
+				}
+			});
+			disableCode.addEventListener('input', () => clearFieldError(disableCode, disableCodeError));
+
+			// Add blur validation for regen form
+			regenPassword.addEventListener('blur', () => {
+				const error = validatePassword(regenPassword.value);
+				if (error) {
+					showFieldError(regenPassword, regenPasswordError, error);
+				} else {
+					clearFieldError(regenPassword, regenPasswordError);
+				}
+			});
+			regenPassword.addEventListener('input', () => clearFieldError(regenPassword, regenPasswordError));
+
+			regenCode.addEventListener('blur', () => {
+				const error = validateTotpCode(regenCode.value);
+				if (error) {
+					showFieldError(regenCode, regenCodeError, error);
+				} else {
+					clearFieldError(regenCode, regenCodeError);
+				}
+			});
+			regenCode.addEventListener('input', () => clearFieldError(regenCode, regenCodeError));
 
 			function showError(message: string) {
 				errorMessage.textContent = message;
@@ -704,8 +793,9 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				hideMessages();
 
 				const code = verifyCode.value.trim();
-				if (!code || code.length !== 6) {
-					showError('Please enter a 6-digit code');
+				const codeValidation = validateTotpCode(code);
+				if (codeValidation) {
+					showFieldError(verifyCode, verifyCodeError, codeValidation);
 					return;
 				}
 
@@ -757,12 +847,21 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				const password = disablePassword.value;
 				const code = disableCode.value.trim();
 
-				if (!password) {
-					showError('Please enter your password');
-					return;
+				let hasErrors = false;
+
+				const passwordValidation = validatePassword(password);
+				if (passwordValidation) {
+					showFieldError(disablePassword, disablePasswordError, passwordValidation);
+					hasErrors = true;
 				}
-				if (!code || code.length !== 6) {
-					showError('Please enter a 6-digit code');
+
+				const codeValidation = validateTotpCode(code);
+				if (codeValidation) {
+					showFieldError(disableCode, disableCodeError, codeValidation);
+					hasErrors = true;
+				}
+
+				if (hasErrors) {
 					return;
 				}
 
@@ -846,12 +945,21 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				const password = regenPassword.value;
 				const code = regenCode.value.trim();
 
-				if (!password) {
-					showError('Please enter your password');
-					return;
+				let hasErrors = false;
+
+				const passwordValidation = validatePassword(password);
+				if (passwordValidation) {
+					showFieldError(regenPassword, regenPasswordError, passwordValidation);
+					hasErrors = true;
 				}
-				if (!code || code.length !== 6) {
-					showError('Please enter a 6-digit code');
+
+				const codeValidation = validateTotpCode(code);
+				if (codeValidation) {
+					showFieldError(regenCode, regenCodeError, codeValidation);
+					hasErrors = true;
+				}
+
+				if (hasErrors) {
 					return;
 				}
 

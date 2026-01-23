@@ -208,3 +208,13 @@ Similar pattern: `/api/auth/totp/recover` endpoint existed but no frontend UI to
 4. Added rate limiting to previously unprotected TOTP endpoints
 
 **Lesson:** When completing backend tasks, verify the frontend actually USES the data returned. API responses being "correct" doesn't mean the feature is complete. Run the full user flow end-to-end.
+
+---
+
+### 2026-01-22: Utility functions written but never used
+
+**Problem:** validation.ts contains well-tested utility functions (validateEmail, validatePassword, validateTotpCode, validateVideoFile, validateSegmentTiming), but none of the .astro pages actually import or use them. Forms rely on basic HTML5 validation instead.
+
+**Solution:** Filed Task 49 to integrate validation.ts into login.astro, register.astro, and security.astro pages.
+
+**Lesson:** When writing utility functions, grep for their imports to verify actual usage. Tests existing doesn't mean the code is being used. Check: `grep -r "from.*validation" frontend/src/pages/`
