@@ -1640,6 +1640,31 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 66: Per-email rate limiting for login failures
+
+**Date**: 2026-01-22
+
+Implemented per-email rate limiting to prevent distributed brute force attacks:
+
+**Database changes (`db/db.go`):**
+- Added `login_attempts` table with email, success flag, IP address, and timestamp
+- Added `LoginAttempt` struct
+- Functions: `RecordLoginAttempt`, `GetRecentFailedLoginAttempts`, `ClearLoginAttempts`, `DeleteExpiredLoginAttempts`, `IsEmailLocked`
+
+**Backend changes (`main.go`):**
+- Login endpoint now checks `IsEmailLocked()` before processing
+- Records failed attempts on password/2FA failures
+- Clears attempts on successful login
+- Returns 429 with `retry_after_min` when locked
+- Configuration: 5 failed attempts = 15 minute lockout
+
+**Cleanup (`runCleanup()`):**
+- Added deletion of login attempts older than 1 hour
+
+**Tests added (`db/db_test.go`):**
+- `TestLoginAttempts`: Tests recording, counting, locking, and clearing
+- `TestDeleteExpiredLoginAttempts`: Tests cleanup of old attempts
+
 ### Task 65: Upload progress bar (already implemented)
 
 **Date**: 2026-01-22
@@ -1759,7 +1784,7 @@ Implemented retention countdown display on the videos list page:
 
 ## Summary
 
-66 tasks completed (65 done + 1 requiring macOS). The subtitler application is feature-complete with:
+67 tasks completed (66 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1780,4 +1805,3 @@ Implemented retention countdown display on the videos list page:
 
 **1 task remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 66: Per-email rate limiting for login failures

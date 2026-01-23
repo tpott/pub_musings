@@ -105,6 +105,15 @@ type PasswordResetToken struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// LoginAttempt tracks failed login attempts for rate limiting
+type LoginAttempt struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Success   bool      `json:"success"`
+	IPAddress string    `json:"ip_address,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Open opens or creates a SQLite database at the given path
 func Open(dbPath string) (*DB, error) {
 	// Ensure directory exists
@@ -221,6 +230,15 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at)`,
+		`CREATE TABLE IF NOT EXISTS login_attempts (
+			id TEXT PRIMARY KEY,
+			email TEXT NOT NULL,
+			success INTEGER NOT NULL DEFAULT 0,
+			ip_address TEXT,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email)`,
+		`CREATE INDEX IF NOT EXISTS idx_login_attempts_created_at ON login_attempts(created_at)`,
 	}
 
 	for _, migration := range migrations {
@@ -919,4 +937,91 @@ func (db *DB) DeleteExpiredPasswordResetTokens() (int64, error) {
 func (db *DB) UpdateUserPassword(userID, passwordHash string) error {
 	_, err := db.conn.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
 	return err
+}
+
+// RecordLoginAttempt records a login attempt for rate limiting
+func (db *DB) RecordLoginAttempt(email, ipAddress string, success bool) error {
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		return err
+	}
+
+	successInt := 0
+	if success {
+		successInt = 1
+	}
+
+	_, err := db.conn.Exec(`
+		INSERT INTO login_attempts (id, email, success, ip_address, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, fmt.Sprintf("%x", id), email, successInt, ipAddress, time.Now())
+	return err
+}
+
+// GetRecentFailedLoginAttempts returns the number of failed login attempts for an email
+// in the given time window
+func (db *DB) GetRecentFailedLoginAttempts(email string, since time.Time) (int, error) {
+	var count int
+	err := db.conn.QueryRow(`
+		SELECT COUNT(*) FROM login_attempts
+		WHERE email = ? AND success = 0 AND created_at > ?
+	`, email, since).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// ClearLoginAttempts clears login attempts for an email (e.g., after successful login)
+func (db *DB) ClearLoginAttempts(email string) error {
+	_, err := db.conn.Exec(`DELETE FROM login_attempts WHERE email = ?`, email)
+	return err
+}
+
+// DeleteExpiredLoginAttempts deletes login attempts older than the given time
+func (db *DB) DeleteExpiredLoginAttempts(olderThan time.Time) (int64, error) {
+	result, err := db.conn.Exec(`DELETE FROM login_attempts WHERE created_at < ?`, olderThan)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// IsEmailLocked checks if an email is locked due to too many failed login attempts
+// Returns true if locked, along with the time when the lock expires
+func (db *DB) IsEmailLocked(email string, maxAttempts int, lockDuration time.Duration) (bool, time.Time, error) {
+	since := time.Now().Add(-lockDuration)
+	count, err := db.GetRecentFailedLoginAttempts(email, since)
+	if err != nil {
+		return false, time.Time{}, err
+	}
+
+	if count >= maxAttempts {
+		// Get the oldest failed attempt in the window to calculate unlock time
+		var oldestAttemptStr string
+		err := db.conn.QueryRow(`
+			SELECT MIN(created_at) FROM login_attempts
+			WHERE email = ? AND success = 0 AND created_at > ?
+		`, email, since).Scan(&oldestAttemptStr)
+		if err != nil {
+			return false, time.Time{}, err
+		}
+		// Parse the datetime string (SQLite format)
+		oldestAttempt, err := time.Parse("2006-01-02 15:04:05.999999999-07:00", oldestAttemptStr)
+		if err != nil {
+			// Try without timezone
+			oldestAttempt, err = time.Parse("2006-01-02 15:04:05.999999999", oldestAttemptStr)
+			if err != nil {
+				// Try RFC3339
+				oldestAttempt, err = time.Parse(time.RFC3339Nano, oldestAttemptStr)
+				if err != nil {
+					return false, time.Time{}, fmt.Errorf("failed to parse oldest attempt time: %v", err)
+				}
+			}
+		}
+		unlockTime := oldestAttempt.Add(lockDuration)
+		return true, unlockTime, nil
+	}
+
+	return false, time.Time{}, nil
 }

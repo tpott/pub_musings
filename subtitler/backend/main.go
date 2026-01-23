@@ -640,6 +640,10 @@ func main() {
 	}))
 
 	// Auth: Login (rate limited)
+	// Email rate limiting: 5 failed attempts = 15 minute lockout
+	const maxLoginAttempts = 5
+	const loginLockDuration = 15 * time.Minute
+
 	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -659,6 +663,29 @@ func main() {
 
 		// Normalize email
 		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+		clientIP := ratelimit.GetClientIP(r)
+
+		// Check if email is locked due to too many failed attempts
+		locked, unlockTime, err := database.IsEmailLocked(req.Email, maxLoginAttempts, loginLockDuration)
+		if err != nil {
+			log.Printf("Error checking email lock: %v", err)
+		}
+		if locked {
+			remainingMins := int(time.Until(unlockTime).Minutes()) + 1
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":           "Too many failed login attempts. Please try again later.",
+				"retry_after_min": remainingMins,
+			})
+			return
+		}
+
+		// Helper to record failed attempt
+		recordFailure := func() {
+			if err := database.RecordLoginAttempt(req.Email, clientIP, false); err != nil {
+				log.Printf("Error recording login attempt: %v", err)
+			}
+		}
 
 		// Get user by email
 		user, err := database.GetUserByEmail(req.Email)
@@ -671,6 +698,7 @@ func main() {
 			return
 		}
 		if user == nil {
+			recordFailure()
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid email or password",
@@ -680,6 +708,7 @@ func main() {
 
 		// Check password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			recordFailure()
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid email or password",
@@ -690,7 +719,7 @@ func main() {
 		// Check 2FA if enabled
 		if user.TOTPEnabled {
 			if req.TOTPCode == "" {
-				// Indicate that 2FA is required
+				// Don't record as failed attempt - just needs 2FA code
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]interface{}{
 					"error":         "2FA code required",
@@ -701,6 +730,7 @@ func main() {
 
 			// Validate the TOTP code
 			if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.TOTPCode) {
+				recordFailure()
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Invalid 2FA code",
@@ -709,8 +739,12 @@ func main() {
 			}
 		}
 
+		// Login successful - clear failed attempts for this email
+		if err := database.ClearLoginAttempts(req.Email); err != nil {
+			log.Printf("Error clearing login attempts: %v", err)
+		}
+
 		// Create session with IP and user agent
-		clientIP := ratelimit.GetClientIP(r)
 		userAgent := r.Header.Get("User-Agent")
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
@@ -2866,6 +2900,14 @@ func runCleanup() {
 		log.Printf("Error deleting expired sessions: %v", err)
 	} else if sessionCount > 0 {
 		log.Printf("Deleted %d expired sessions", sessionCount)
+	}
+
+	// Clean up old login attempts (older than 1 hour to be safe)
+	loginAttemptCount, err := database.DeleteExpiredLoginAttempts(time.Now().Add(-1 * time.Hour))
+	if err != nil {
+		log.Printf("Error deleting expired login attempts: %v", err)
+	} else if loginAttemptCount > 0 {
+		log.Printf("Deleted %d expired login attempts", loginAttemptCount)
 	}
 
 	log.Printf("Cleanup complete: %d videos deleted", deletedCount)

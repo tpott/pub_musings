@@ -1367,3 +1367,143 @@ func TestUpdateUserPassword(t *testing.T) {
 		t.Errorf("Expected password hash %s, got %s", newHash, updated.PasswordHash)
 	}
 }
+
+func TestLoginAttempts(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	email := "test@example.com"
+	ip := "192.168.1.1"
+
+	// Initially should have 0 failed attempts
+	count, err := db.GetRecentFailedLoginAttempts(email, time.Now().Add(-15*time.Minute))
+	if err != nil {
+		t.Fatalf("Failed to get login attempts: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 failed attempts, got %d", count)
+	}
+
+	// Record 3 failed attempts
+	for i := 0; i < 3; i++ {
+		if err := db.RecordLoginAttempt(email, ip, false); err != nil {
+			t.Fatalf("Failed to record login attempt: %v", err)
+		}
+	}
+
+	// Should now have 3 failed attempts
+	count, err = db.GetRecentFailedLoginAttempts(email, time.Now().Add(-15*time.Minute))
+	if err != nil {
+		t.Fatalf("Failed to get login attempts: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("Expected 3 failed attempts, got %d", count)
+	}
+
+	// Email should not be locked yet (under 5 attempts)
+	locked, _, err := db.IsEmailLocked(email, 5, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("Failed to check email lock: %v", err)
+	}
+	if locked {
+		t.Error("Email should not be locked with only 3 failed attempts")
+	}
+
+	// Record 2 more failed attempts (total 5)
+	for i := 0; i < 2; i++ {
+		if err := db.RecordLoginAttempt(email, ip, false); err != nil {
+			t.Fatalf("Failed to record login attempt: %v", err)
+		}
+	}
+
+	// Email should now be locked
+	locked, unlockTime, err := db.IsEmailLocked(email, 5, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("Failed to check email lock: %v", err)
+	}
+	if !locked {
+		t.Error("Email should be locked with 5 failed attempts")
+	}
+	if unlockTime.Before(time.Now()) {
+		t.Error("Unlock time should be in the future")
+	}
+
+	// Clear attempts (simulating successful login)
+	if err := db.ClearLoginAttempts(email); err != nil {
+		t.Fatalf("Failed to clear login attempts: %v", err)
+	}
+
+	// Should no longer be locked
+	locked, _, err = db.IsEmailLocked(email, 5, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("Failed to check email lock: %v", err)
+	}
+	if locked {
+		t.Error("Email should not be locked after clearing attempts")
+	}
+
+	// Count should be 0 again
+	count, err = db.GetRecentFailedLoginAttempts(email, time.Now().Add(-15*time.Minute))
+	if err != nil {
+		t.Fatalf("Failed to get login attempts: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 failed attempts after clearing, got %d", count)
+	}
+}
+
+func TestDeleteExpiredLoginAttempts(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	email := "test@example.com"
+	ip := "192.168.1.1"
+
+	// Record 3 failed attempts
+	for i := 0; i < 3; i++ {
+		if err := db.RecordLoginAttempt(email, ip, false); err != nil {
+			t.Fatalf("Failed to record login attempt: %v", err)
+		}
+	}
+
+	// Verify we have 3 attempts
+	count, _ := db.GetRecentFailedLoginAttempts(email, time.Now().Add(-1*time.Hour))
+	if count != 3 {
+		t.Errorf("Expected 3 attempts, got %d", count)
+	}
+
+	// Delete attempts older than "now" (should delete all)
+	deleted, err := db.DeleteExpiredLoginAttempts(time.Now().Add(1 * time.Second))
+	if err != nil {
+		t.Fatalf("Failed to delete expired attempts: %v", err)
+	}
+	if deleted != 3 {
+		t.Errorf("Expected to delete 3 attempts, deleted %d", deleted)
+	}
+
+	// Should have 0 attempts now
+	count, _ = db.GetRecentFailedLoginAttempts(email, time.Now().Add(-1*time.Hour))
+	if count != 0 {
+		t.Errorf("Expected 0 attempts after deletion, got %d", count)
+	}
+}
