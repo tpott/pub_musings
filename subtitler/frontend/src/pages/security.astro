@@ -619,9 +619,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					setupSecret = data.secret;
 					secretDisplay.textContent = data.secret_display;
 
-					// Generate QR code using a simple QR code API
-					const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.uri)}`;
-					qrCode.src = qrUrl;
+					// Use QR code from backend (self-hosted, no external requests)
+					qrCode.src = data.qr_code;
 
 					enableSection.classList.add('hidden');
 					setupSection.classList.remove('hidden');

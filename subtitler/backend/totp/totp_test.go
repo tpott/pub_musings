@@ -1,6 +1,7 @@
 package totp
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
@@ -215,5 +216,58 @@ func TestCodeChangesEvery30Seconds(t *testing.T) {
 	// Should be different
 	if code1 == code3 {
 		t.Error("Code didn't change across 30-second periods")
+	}
+}
+
+func TestGenerateQRCode(t *testing.T) {
+	uri := "otpauth://totp/Subtitler:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Subtitler"
+
+	dataURL, err := GenerateQRCode(uri)
+	if err != nil {
+		t.Fatalf("GenerateQRCode() error = %v", err)
+	}
+
+	// Should be a data URL
+	prefix := "data:image/png;base64,"
+	if !strings.HasPrefix(dataURL, prefix) {
+		t.Errorf("GenerateQRCode() result doesn't start with %s: got %s...", prefix, dataURL[:min(len(dataURL), 50)])
+	}
+
+	// Should be valid base64
+	b64Data := strings.TrimPrefix(dataURL, prefix)
+	pngData, err := base64.StdEncoding.DecodeString(b64Data)
+	if err != nil {
+		t.Fatalf("GenerateQRCode() returned invalid base64: %v", err)
+	}
+
+	// Should be a PNG (check magic bytes)
+	if len(pngData) < 8 {
+		t.Fatal("GenerateQRCode() returned too small PNG data")
+	}
+	pngMagic := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+	for i, b := range pngMagic {
+		if pngData[i] != b {
+			t.Errorf("GenerateQRCode() PNG magic byte %d: got %02x, want %02x", i, pngData[i], b)
+		}
+	}
+}
+
+func TestGenerateQRCodeDifferentInputs(t *testing.T) {
+	uri1 := "otpauth://totp/Test:user1@example.com?secret=AAAA"
+	uri2 := "otpauth://totp/Test:user2@example.com?secret=BBBB"
+
+	qr1, err := GenerateQRCode(uri1)
+	if err != nil {
+		t.Fatalf("GenerateQRCode(uri1) error = %v", err)
+	}
+
+	qr2, err := GenerateQRCode(uri2)
+	if err != nil {
+		t.Fatalf("GenerateQRCode(uri2) error = %v", err)
+	}
+
+	// Different inputs should produce different QR codes
+	if qr1 == qr2 {
+		t.Error("GenerateQRCode() returned same QR code for different URIs")
 	}
 }

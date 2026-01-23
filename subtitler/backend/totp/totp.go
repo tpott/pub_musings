@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/skip2/go-qrcode"
 )
 
 const (
@@ -136,4 +139,18 @@ func FormatSecretForDisplay(secret string) string {
 		parts = append(parts, secret[i:end])
 	}
 	return strings.Join(parts, " ")
+}
+
+// GenerateQRCode generates a QR code PNG as a base64 data URL
+// The returned string can be used directly as an img src attribute
+func GenerateQRCode(uri string) (string, error) {
+	// Generate QR code at medium recovery level, 200x200 pixels
+	png, err := qrcode.Encode(uri, qrcode.Medium, 200)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate QR code: %w", err)
+	}
+
+	// Encode as base64 data URL
+	b64 := base64.StdEncoding.EncodeToString(png)
+	return "data:image/png;base64," + b64, nil
 }

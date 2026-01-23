@@ -772,12 +772,24 @@ func main() {
 		issuer := "Subtitler"
 		uri := totp.GenerateProvisioningURI(secret, user.Email, issuer)
 
+		// Generate QR code as base64 data URL
+		qrCode, err := totp.GenerateQRCode(uri)
+		if err != nil {
+			log.Printf("Error generating QR code: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to generate QR code",
+			})
+			return
+		}
+
 		log.Printf("TOTP setup initiated for user: %s", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"secret":         secret,
 			"secret_display": totp.FormatSecretForDisplay(secret),
 			"uri":            uri,
 			"issuer":         issuer,
+			"qr_code":        qrCode,
 		})
 	}))
 

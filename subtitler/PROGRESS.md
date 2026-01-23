@@ -1164,9 +1164,38 @@ Addressed all feedback from FEEDBACK.md:
 
 FEEDBACK.md deleted after all items addressed.
 
+### Task 47: Self-hosted QR code generation
+
+**Date**: 2026-01-22
+
+Implemented self-hosted QR code generation for 2FA setup, eliminating external dependency on qrserver.com:
+
+**Backend changes:**
+- Added `github.com/skip2/go-qrcode` dependency to `go.mod`
+- Added `GenerateQRCode(uri)` function to `backend/totp/totp.go`
+  - Generates 200x200 PNG at medium error correction level
+  - Returns base64 data URL (`data:image/png;base64,...`)
+- Updated `/api/auth/totp/setup` endpoint to include `qr_code` field in response
+
+**Frontend changes (`security.astro`):**
+- Simplified QR code display to use data URL directly from API response
+- Removed external API call to `api.qrserver.com`
+
+**Tests added (`totp/totp_test.go`):**
+- `TestGenerateQRCode` - validates data URL format, valid base64, PNG magic bytes
+- `TestGenerateQRCodeDifferentInputs` - verifies different URIs produce different QR codes
+
+**Benefits:**
+- No external API calls (improved privacy, no URI leakage)
+- No CSP exceptions needed for qrserver.com
+- Faster response times (no network round-trip)
+- Works offline
+
+Updated `specs/totp.md` to document completed implementation.
+
 ## Summary
 
-43 tasks completed. The subtitler application is feature-complete with:
+44 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1181,4 +1210,4 @@ FEEDBACK.md deleted after all items addressed.
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 
-**5 new tasks queued:** lyrics alignment, clean room evaluation, design template, QR codes, MoltenVK research
+**4 tasks remaining:** lyrics alignment, clean room evaluation, design template, MoltenVK research

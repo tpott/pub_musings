@@ -217,45 +217,53 @@ otpauth://totp/Subtitler:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Subtitl
 
 ## QR Code Generation
 
-**Current:** QR codes are generated using external service `qrserver.com`.
+**Status: IMPLEMENTED** (Task 47)
 
-**Planned:** Self-hosted QR code generation to avoid cross-origin requests.
+QR codes are generated server-side using `github.com/skip2/go-qrcode`. No external services required.
 
-### Backend QR Code Generation
-
-Use a Go QR code library to generate QR codes server-side.
-
-**Recommended library:** [github.com/skip2/go-qrcode](https://github.com/skip2/go-qrcode)
+### Implementation Details
 
 ```go
 import "github.com/skip2/go-qrcode"
 
-// Generate QR code as PNG bytes
-func GenerateQRCode(uri string) ([]byte, error) {
-    return qrcode.Encode(uri, qrcode.Medium, 200)
+// GenerateQRCode generates a QR code PNG as a base64 data URL
+func GenerateQRCode(uri string) (string, error) {
+    png, err := qrcode.Encode(uri, qrcode.Medium, 200)
+    if err != nil {
+        return "", err
+    }
+    b64 := base64.StdEncoding.EncodeToString(png)
+    return "data:image/png;base64," + b64, nil
 }
 ```
 
-**API change for `/api/auth/totp/setup`:**
+### API Response
 
-Response (200):
+`POST /api/auth/totp/setup` now returns `qr_code` field:
+
 ```json
 {
   "secret": "JBSWY3DPEHPK3PXP...",
   "secret_display": "JBSW Y3DP EHPK 3PXP ...",
   "uri": "otpauth://totp/...",
   "issuer": "Subtitler",
-  "qr_code": "data:image/png;base64,iVBOR..." // NEW: base64 PNG
+  "qr_code": "data:image/png;base64,iVBOR..."
 }
 ```
 
-**Frontend change:**
+### Frontend Usage
+
 ```html
-<!-- Instead of external URL -->
-<img src={qrCode} alt="Scan QR code with authenticator app" />
+<img src={data.qr_code} alt="Scan QR code with authenticator app" />
 ```
 
-This eliminates the need for CSP exceptions for qrserver.com.
+### Benefits
+
+- No external API calls (qrserver.com removed)
+- No CSP exceptions needed
+- Faster response times
+- Works offline
+- No privacy concerns about URI leakage to third parties
 
 ## Frontend Implementation
 
@@ -350,7 +358,6 @@ cd backend && /home/trevor/go/bin/go test -run "TOTP|Recovery" -v
 ### Considerations
 
 - Rate limiting (5 req/min per IP) on all TOTP endpoints (setup, verify, disable, recover)
-- QR codes currently use external service (qrserver.com) - should migrate to self-hosted
 - No TOTP resynchronization mechanism
 
 ## Related Specs
