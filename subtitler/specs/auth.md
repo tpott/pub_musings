@@ -203,12 +203,16 @@ http.Cookie{
     Name:     "session",
     Value:    token,
     Path:     "/",
-    HttpOnly: true,    // Prevents XSS access
+    HttpOnly: true,                  // Prevents XSS access
     SameSite: http.SameSiteLaxMode,  // CSRF protection
-    // Secure: true,   // Enable in production (HTTPS)
-    MaxAge:   7 * 24 * 60 * 60,  // 7 days
+    Secure:   IsHTTPSOnly(),         // Requires HTTPS when HTTPS_ONLY=true
+    MaxAge:   7 * 24 * 60 * 60,      // 7 days
 }
 ```
+
+The `Secure` flag is controlled by the `HTTPS_ONLY` environment variable:
+- When `HTTPS_ONLY=true` or `HTTPS_ONLY=1`, cookies have `Secure: true` (HTTPS required)
+- When unset or false, cookies work over HTTP (development mode)
 
 ## Password Security
 

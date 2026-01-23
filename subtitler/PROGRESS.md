@@ -1640,6 +1640,26 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 63: Enable Secure flag on session cookies
+
+**Date**: 2026-01-22
+
+Added HTTPS_ONLY environment variable to control the Secure flag on session cookies:
+
+**Backend changes (`auth/auth.go`):**
+- Added `IsHTTPSOnly()` function that checks HTTPS_ONLY env var
+- Accepts "1" or "true" (case-insensitive) as truthy values
+- Updated `SetSessionCookie()` and `ClearSessionCookie()` to set `Secure: IsHTTPSOnly()`
+
+**Tests added (`auth/auth_test.go`):**
+- `TestIsHTTPSOnly` with 8 test cases covering all expected env var values
+
+**Documentation updated:**
+- `backend/README.md`: Added HTTPS_ONLY to env vars table
+- `specs/auth.md`: Updated cookie configuration section with HTTPS_ONLY explanation
+
+This enables secure cookies in production while allowing HTTP for local development.
+
 ### Task 62: Add recovery codes download button
 
 **Date**: 2026-01-22
@@ -1685,7 +1705,7 @@ Implemented retention countdown display on the videos list page:
 
 ## Summary
 
-62 tasks completed (61 done + 1 requiring macOS). The subtitler application is feature-complete with:
+63 tasks completed (62 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1704,6 +1724,6 @@ Implemented retention countdown display on the videos list page:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**5 tasks remaining:**
+**4 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 63-67: Security/UX improvements filed during audit
+- Task 64-67: Security/UX improvements filed during audit

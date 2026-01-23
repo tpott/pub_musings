@@ -22,6 +22,7 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `EMAIL_FROM` | `noreply@subtitler.app` | Sender email address for outgoing emails |
 | `APP_URL` | `http://localhost:4321` | Base URL for email links (e.g., password reset) |
 | `EMAIL_ENABLED` | `true` | Set to `false` to disable email sending |
+| `HTTPS_ONLY` | `false` | Set to `true` or `1` to enable Secure flag on session cookies |
 
 ### Whisper Mode Selection
 

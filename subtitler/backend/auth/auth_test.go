@@ -281,3 +281,33 @@ func TestUserLifecycle(t *testing.T) {
 		t.Error("CheckPassword should return false for wrong password")
 	}
 }
+
+func TestIsHTTPSOnly(t *testing.T) {
+	// Save original env var and restore after test
+	original := os.Getenv("HTTPS_ONLY")
+	defer os.Setenv("HTTPS_ONLY", original)
+
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{"empty", "", false},
+		{"zero", "0", false},
+		{"one", "1", true},
+		{"true lowercase", "true", true},
+		{"TRUE uppercase", "TRUE", true},
+		{"True mixed", "True", true},
+		{"false", "false", false},
+		{"random", "yes", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("HTTPS_ONLY", tt.envValue)
+			if got := IsHTTPSOnly(); got != tt.expected {
+				t.Errorf("IsHTTPSOnly() with HTTPS_ONLY=%q = %v, want %v", tt.envValue, got, tt.expected)
+			}
+		})
+	}
+}

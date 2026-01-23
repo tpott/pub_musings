@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -12,6 +13,13 @@ import (
 
 	"github.com/trevor/subtitler/backend/db"
 )
+
+// IsHTTPSOnly returns true if HTTPS_ONLY env var is set to a truthy value.
+// When true, session cookies will have the Secure flag set.
+func IsHTTPSOnly() bool {
+	val := os.Getenv("HTTPS_ONLY")
+	return val == "1" || strings.ToLower(val) == "true"
+}
 
 const (
 	// SessionDuration is how long a session is valid
@@ -133,7 +141,8 @@ func GetTokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-// SetSessionCookie sets the session cookie on the response
+// SetSessionCookie sets the session cookie on the response.
+// The Secure flag is set when HTTPS_ONLY env var is set to "1" or "true".
 func SetSessionCookie(w http.ResponseWriter, token string, expires time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
@@ -142,12 +151,12 @@ func SetSessionCookie(w http.ResponseWriter, token string, expires time.Time) {
 		Expires:  expires,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		// Secure should be true in production with HTTPS
-		// Secure: true,
+		Secure:   IsHTTPSOnly(),
 	})
 }
 
-// ClearSessionCookie clears the session cookie
+// ClearSessionCookie clears the session cookie.
+// The Secure flag is set when HTTPS_ONLY env var is set to "1" or "true".
 func ClearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
@@ -156,6 +165,7 @@ func ClearSessionCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   IsHTTPSOnly(),
 	})
 }
 
