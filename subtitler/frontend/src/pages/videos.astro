@@ -195,6 +195,25 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				background-color: #e2e8f0;
 				color: #64748b;
 			}
+			.retention-badge {
+				display: inline-block;
+				padding: 0.125rem 0.5rem;
+				border-radius: 4px;
+				font-size: 0.75rem;
+				font-weight: 500;
+			}
+			.retention-info {
+				background-color: #e0f2fe;
+				color: #0369a1;
+			}
+			.retention-warning {
+				background-color: #fef3c7;
+				color: #92400e;
+			}
+			.retention-expired {
+				background-color: #fed7d7;
+				color: #c53030;
+			}
 			.nav {
 				display: flex;
 				justify-content: flex-end;
@@ -269,6 +288,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				content_type: string;
 				created_at: string;
 				transcription_status: string;
+				user_id?: string;
+				expires_at?: string;
 			}
 
 			function formatBytes(bytes: number): string {
@@ -286,6 +307,36 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					hour: '2-digit',
 					minute: '2-digit'
 				});
+			}
+
+			function formatRetention(video: Video): string {
+				if (!video.expires_at) return '';
+
+				const expiresAt = new Date(video.expires_at);
+				const now = new Date();
+				const msRemaining = expiresAt.getTime() - now.getTime();
+
+				// If already expired
+				if (msRemaining <= 0) {
+					return '<span class="retention-badge retention-expired">Expired</span>';
+				}
+
+				const hoursRemaining = Math.ceil(msRemaining / (1000 * 60 * 60));
+				const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+
+				// Anonymous videos (48 hour retention) - show hours
+				if (!video.user_id) {
+					if (hoursRemaining <= 6) {
+						return `<span class="retention-badge retention-warning">Expires in ${hoursRemaining}h</span>`;
+					}
+					return `<span class="retention-badge retention-info">Expires in ${hoursRemaining}h</span>`;
+				}
+
+				// Registered users (90 day retention) - show days
+				if (daysRemaining <= 7) {
+					return `<span class="retention-badge retention-warning">Expires in ${daysRemaining}d</span>`;
+				}
+				return `<span class="retention-badge retention-info">${daysRemaining}d remaining</span>`;
 			}
 
 			function getStatusBadge(status: string): string {
@@ -313,6 +364,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 								<span>${formatBytes(video.size)}</span>
 								<span>${formatDate(video.created_at)}</span>
 								${getStatusBadge(video.transcription_status)}
+								${formatRetention(video)}
 							</div>
 						</div>
 						<div class="video-actions">

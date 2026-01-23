@@ -822,7 +822,8 @@ func (ts *testServer) registerHandlers() {
 
 		type VideoWithStatus struct {
 			db.Video
-			TranscriptionStatus string `json:"transcription_status"`
+			TranscriptionStatus string     `json:"transcription_status"`
+			ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 		}
 
 		result := make([]VideoWithStatus, len(videos))
@@ -831,6 +832,15 @@ func (ts *testServer) registerHandlers() {
 			if t, err := ts.db.GetTranscription(v.ID); err == nil && t != nil {
 				result[i].TranscriptionStatus = t.Status
 			}
+
+			// Calculate expiration time based on user type
+			var expiresAt time.Time
+			if v.UserID == nil {
+				expiresAt = v.CreatedAt.Add(48 * time.Hour)
+			} else {
+				expiresAt = v.CreatedAt.Add(90 * 24 * time.Hour)
+			}
+			result[i].ExpiresAt = &expiresAt
 		}
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1634,6 +1644,92 @@ func TestListVideosBySession(t *testing.T) {
 
 	if len(listResult.Videos) != 1 {
 		t.Errorf("Expected 1 video, got %d", len(listResult.Videos))
+	}
+}
+
+func TestListVideosExpiresAt(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Test 1: Anonymous video should expire in 48 hours
+	sessionID := "anon-session"
+	ts.createTestVideo(t, nil, &sessionID)
+
+	resp := ts.doRequest("GET", "/api/videos?session_id="+sessionID, nil, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.Code)
+	}
+
+	var anonResult struct {
+		Videos []struct {
+			ID        string  `json:"id"`
+			UserID    *string `json:"user_id"`
+			ExpiresAt string  `json:"expires_at"`
+		} `json:"videos"`
+	}
+	json.NewDecoder(resp.Body).Decode(&anonResult)
+
+	if len(anonResult.Videos) != 1 {
+		t.Fatalf("Expected 1 video, got %d", len(anonResult.Videos))
+	}
+
+	if anonResult.Videos[0].ExpiresAt == "" {
+		t.Error("Expected expires_at to be set for anonymous video")
+	}
+
+	// Parse the expiry time and verify it's ~48 hours from now
+	expiresAt, err := time.Parse(time.RFC3339Nano, anonResult.Videos[0].ExpiresAt)
+	if err != nil {
+		t.Fatalf("Failed to parse expires_at: %v", err)
+	}
+	hoursUntilExpiry := time.Until(expiresAt).Hours()
+	if hoursUntilExpiry < 47 || hoursUntilExpiry > 49 {
+		t.Errorf("Expected ~48 hours until expiry, got %.1f", hoursUntilExpiry)
+	}
+
+	// Test 2: Registered user video should expire in 90 days
+	token := ts.createTestUser(t, "expires@example.com", "ValidPassword123!")
+	resp = ts.doRequest("GET", "/api/auth/me", nil, token)
+	var meResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&meResult)
+	userID := meResult.User.ID
+
+	ts.createTestVideo(t, &userID, nil)
+
+	resp = ts.doRequest("GET", "/api/videos", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.Code)
+	}
+
+	var userResult struct {
+		Videos []struct {
+			ID        string  `json:"id"`
+			UserID    *string `json:"user_id"`
+			ExpiresAt string  `json:"expires_at"`
+		} `json:"videos"`
+	}
+	json.NewDecoder(resp.Body).Decode(&userResult)
+
+	if len(userResult.Videos) != 1 {
+		t.Fatalf("Expected 1 video, got %d", len(userResult.Videos))
+	}
+
+	if userResult.Videos[0].ExpiresAt == "" {
+		t.Error("Expected expires_at to be set for registered user video")
+	}
+
+	// Parse the expiry time and verify it's ~90 days from now
+	expiresAt, err = time.Parse(time.RFC3339Nano, userResult.Videos[0].ExpiresAt)
+	if err != nil {
+		t.Fatalf("Failed to parse expires_at: %v", err)
+	}
+	daysUntilExpiry := time.Until(expiresAt).Hours() / 24
+	if daysUntilExpiry < 89 || daysUntilExpiry > 91 {
+		t.Errorf("Expected ~90 days until expiry, got %.1f", daysUntilExpiry)
 	}
 }
 

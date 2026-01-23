@@ -1640,9 +1640,34 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 61: Show retention countdown on videos list
+
+**Date**: 2026-01-22
+
+Implemented retention countdown display on the videos list page:
+
+**Backend changes (`main.go`):**
+- Added `expires_at` field to `/api/videos` response
+- Calculated from `created_at` based on user type:
+  - Anonymous videos: 48 hours
+  - Registered users: 90 days
+- Updated test server in `api_test.go` to match
+
+**Frontend changes (`videos.astro`):**
+- Added `expires_at` and `user_id` to Video interface
+- Created `formatRetention()` function with smart display:
+  - Anonymous: Shows "Expires in Xh" in hours
+  - Registered: Shows "Xd remaining" in days
+  - Warning styling (yellow) when near expiry (6h for anon, 7d for registered)
+  - Expired badge (red) when past due
+- Added retention badge CSS classes (info, warning, expired)
+
+**Tests added:**
+- `TestListVideosExpiresAt` in `api_test.go` verifying both anonymous (48h) and registered (90d) expiry times
+
 ## Summary
 
-60 tasks completed (59 done + 1 requiring macOS). The subtitler application is feature-complete with:
+61 tasks completed (60 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1652,6 +1677,7 @@ Enhanced video upload security with MIME type whitelist validation:
 - Recovery codes displayed to users, usable from login page, and regenerable from security settings
 - File encryption at rest
 - Anonymous and registered user support with retention policies
+- Retention countdown displayed on videos list
 - Frontend console log forwarding to backend for dev debugging
 - Comprehensive test coverage (150+ tests including 32 E2E tests)
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
@@ -1660,6 +1686,6 @@ Enhanced video upload security with MIME type whitelist validation:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**7 tasks remaining:**
+**6 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 61-67: Security/UX improvements filed during audit
+- Task 62-67: Security/UX improvements filed during audit

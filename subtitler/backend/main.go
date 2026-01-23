@@ -2259,10 +2259,11 @@ func main() {
 			return
 		}
 
-		// Get transcription status for each video
+		// Get transcription status and calculate expiry for each video
 		type VideoWithStatus struct {
 			db.Video
-			TranscriptionStatus string `json:"transcription_status"`
+			TranscriptionStatus string     `json:"transcription_status"`
+			ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 		}
 
 		result := make([]VideoWithStatus, len(videos))
@@ -2271,6 +2272,16 @@ func main() {
 			if t, err := database.GetTranscription(v.ID); err == nil && t != nil {
 				result[i].TranscriptionStatus = t.Status
 			}
+
+			// Calculate expiration time based on user type
+			// Anonymous: 48 hours, Registered: 90 days
+			var expiresAt time.Time
+			if v.UserID == nil {
+				expiresAt = v.CreatedAt.Add(48 * time.Hour)
+			} else {
+				expiresAt = v.CreatedAt.Add(90 * 24 * time.Hour)
+			}
+			result[i].ExpiresAt = &expiresAt
 		}
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
