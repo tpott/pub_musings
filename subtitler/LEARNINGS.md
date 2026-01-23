@@ -218,3 +218,23 @@ Similar pattern: `/api/auth/totp/recover` endpoint existed but no frontend UI to
 **Solution:** Filed Task 49 to integrate validation.ts into login.astro, register.astro, and security.astro pages.
 
 **Lesson:** When writing utility functions, grep for their imports to verify actual usage. Tests existing doesn't mean the code is being used. Check: `grep -r "from.*validation" frontend/src/pages/`
+
+---
+
+### 2026-01-22: E2E tests hit rate limiting when running full suite
+
+**Problem:** E2E auth tests passed individually but failed when running the full test suite. Each test registered a new user, and after 5 registrations in a minute (rate limit), all subsequent tests failed with "Too many requests".
+
+**Solution:**
+1. Restructured tests into groups:
+   - Client-side validation tests (no API calls) - can run freely
+   - Tests that share a single registered user via `test.describe.serial`
+   - Removed tests that duplicate backend unit test coverage (e.g., duplicate email rejection)
+2. Added comments explaining why certain tests are skipped in E2E
+3. Verified the skipped behaviors are covered by backend unit tests
+
+**Lesson:** When designing E2E tests with rate-limited APIs:
+- Minimize API calls per test
+- Use `test.describe.serial` to share test state (like a registered user)
+- Skip tests that would trigger rate limits if they're covered by unit tests
+- Document why tests are skipped to avoid future "why isn't this tested?" questions

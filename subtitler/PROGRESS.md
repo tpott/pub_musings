@@ -1357,3 +1357,35 @@ Created comprehensive API documentation in `docs/API.md`:
 - Links to related documentation
 
 Updated README.md with link to API documentation in Architecture section.
+
+### Task 50: E2E - Add auth flow tests
+
+**Date**: 2026-01-22
+
+Created comprehensive E2E tests for authentication flows in `frontend/e2e/auth.spec.ts`:
+
+**Test coverage:**
+- Registration form validation (invalid email, weak password, mismatched passwords)
+- Login form validation (invalid email format, non-existent user)
+- 2FA UI structure (TOTP section hidden initially, recovery section hidden)
+- Successful registration and login flow
+- Session persistence (across page navigations, after reload)
+- Logout functionality
+- Security settings page access
+
+**Test organization:**
+- Grouped tests to minimize API calls and avoid rate limiting
+- Registration validation tests: Pure client-side validation, no API calls
+- Login validation tests: Minimal API calls, tests form structure
+- Auth flows: Serial tests sharing a single user registration
+- Security settings: Reuses shared user
+
+**Rate limiting considerations:**
+- Tests are designed to stay under the 5 req/min rate limit per IP
+- Duplicate email registration test skipped (covered by backend unit tests)
+- 2FA setup tests limited due to rate limiting (covered in backend unit tests)
+
+**Results:**
+- 14 E2E auth tests passing
+- 6 E2E home tests passing (existing)
+- All 20 E2E tests pass in combined run (excluding external page timeout in capture-design)
