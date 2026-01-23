@@ -1640,6 +1640,26 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 64: Add retry logic to whisper-server requests
+
+**Date**: 2026-01-22
+
+Added exponential backoff retry logic to whisper-server HTTP requests:
+
+**Backend changes (`main.go`):**
+- Added retry loop in `transcribeAudioServer()` function
+- 3 attempts maximum with exponential backoff delays: 1s, 2s, 4s
+- Retries on:
+  - Network errors (connection refused, timeout, etc.)
+  - Server errors (5xx status codes)
+- Does NOT retry on:
+  - Client errors (4xx status codes)
+  - Successful responses (2xx)
+- Logs each retry attempt with attempt number, error, and delay
+- Returns final error after all retries exhausted
+
+This improves resilience when whisper-server is temporarily unavailable or experiencing load.
+
 ### Task 63: Enable Secure flag on session cookies
 
 **Date**: 2026-01-22
@@ -1705,7 +1725,7 @@ Implemented retention countdown display on the videos list page:
 
 ## Summary
 
-63 tasks completed (62 done + 1 requiring macOS). The subtitler application is feature-complete with:
+64 tasks completed (63 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1724,6 +1744,6 @@ Implemented retention countdown display on the videos list page:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**4 tasks remaining:**
+**3 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 64-67: Security/UX improvements filed during audit
+- Task 65-67: Security/UX improvements filed during audit

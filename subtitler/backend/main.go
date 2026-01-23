@@ -200,29 +200,73 @@ func transcribeAudioServer(audioPath string) (*WhisperResult, error) {
 
 	writer.Close()
 
-	// Create HTTP request
-	req, err := http.NewRequest("POST", serverURL+"/inference", &body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	// Retry configuration: 3 attempts with exponential backoff (1s, 2s, 4s)
+	maxRetries := 3
+	retryDelays := []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
+	formDataContentType := writer.FormDataContentType()
+	requestBody := body.Bytes()
 
-	// Send request (with long timeout for transcription)
-	client := &http.Client{Timeout: 30 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("whisper-server request failed: %v", err)
-	}
-	defer resp.Body.Close()
+	var resp *http.Response
+	var respBody []byte
+	var lastErr error
 
-	// Read response
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %v", err)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Create HTTP request (need fresh request for each attempt)
+		req, err := http.NewRequest("POST", serverURL+"/inference", bytes.NewReader(requestBody))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %v", err)
+		}
+		req.Header.Set("Content-Type", formDataContentType)
+
+		// Send request (with long timeout for transcription)
+		client := &http.Client{Timeout: 30 * time.Minute}
+		resp, err = client.Do(req)
+		if err != nil {
+			lastErr = err
+			if attempt < maxRetries-1 {
+				log.Printf("whisper-server request failed (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, retryDelays[attempt])
+				time.Sleep(retryDelays[attempt])
+				continue
+			}
+			return nil, fmt.Errorf("whisper-server request failed after %d attempts: %v", maxRetries, err)
+		}
+		defer resp.Body.Close()
+
+		// Read response
+		respBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			lastErr = err
+			if attempt < maxRetries-1 {
+				log.Printf("failed to read response (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, retryDelays[attempt])
+				time.Sleep(retryDelays[attempt])
+				continue
+			}
+			return nil, fmt.Errorf("failed to read response after %d attempts: %v", maxRetries, err)
+		}
+
+		// Check for server errors (5xx) that warrant a retry
+		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+			lastErr = fmt.Errorf("server error (status %d): %s", resp.StatusCode, string(respBody))
+			if attempt < maxRetries-1 {
+				log.Printf("whisper-server returned %d (attempt %d/%d): %s, retrying in %v", resp.StatusCode, attempt+1, maxRetries, string(respBody), retryDelays[attempt])
+				time.Sleep(retryDelays[attempt])
+				continue
+			}
+			return nil, fmt.Errorf("whisper-server error after %d attempts (status %d): %s", maxRetries, resp.StatusCode, string(respBody))
+		}
+
+		// Non-retryable error (4xx) or success (2xx)
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("whisper-server error (status %d): %s", resp.StatusCode, string(respBody))
+		}
+
+		// Success - break out of retry loop
+		break
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("whisper-server error (status %d): %s", resp.StatusCode, string(respBody))
+	// If we got here from exhausting retries without success
+	if resp == nil || (lastErr != nil && resp.StatusCode != http.StatusOK) {
+		return nil, fmt.Errorf("whisper-server request failed after %d attempts: %v", maxRetries, lastErr)
 	}
 
 	// Parse verbose_json response
