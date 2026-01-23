@@ -1287,7 +1287,6 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 - Task 51: Add lyrics mode toggle to upload page
 - Task 52: Rate limit upload/transcribe/burn endpoints
 - Task 53: Add session management API
-- Task 54: Create API documentation
 
 ### Task 49: Frontend - Use validation utilities in forms
 
@@ -1332,3 +1331,29 @@ Migrated from skip2/go-qrcode (last updated 2020) to piglig/go-qr (actively main
 - piglig/go-qr has recent commits (December 2024), active maintenance
 - API is clean and supports io.Writer interface for in-memory PNG generation
 - Described as "native, high-quality and minimalistic"
+
+### Task 54: Create API documentation
+
+**Date**: 2026-01-22
+
+Created comprehensive API documentation in `docs/API.md`:
+
+**Documentation coverage:**
+- Health and Debug endpoints (`/api/health`, `/api/log`)
+- Authentication endpoints (register, login, logout, me)
+- 2FA endpoints (setup, verify, disable, recover, regenerate codes)
+- Video endpoints (upload, list, stream)
+- Transcription endpoints (start, status, update segments, align)
+- Subtitle endpoints (download SRT, burn subtitles, download burned video)
+
+**Features included:**
+- Request/response schemas for every endpoint
+- Example curl commands for quick testing
+- Authentication method documentation (cookie and Bearer token)
+- Rate limiting information (which endpoints, limits, error response)
+- Error response format documentation
+- Validation rules for each endpoint
+- Environment variables table
+- Links to related documentation
+
+Updated README.md with link to API documentation in Architecture section.

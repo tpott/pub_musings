@@ -29,6 +29,14 @@ Visit http://localhost:4321 in your browser. The frontend proxies `/api/*` reque
 - **Backend**: Go on port 8080
 - Frontend proxies `/api/*` to backend
 
+### API Documentation
+
+See [docs/API.md](docs/API.md) for complete API documentation including:
+- All endpoints with request/response schemas
+- Authentication methods (session cookie, Bearer token)
+- Rate limiting information
+- Example curl commands
+
 ## Development
 
 ### Testing
