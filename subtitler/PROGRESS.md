@@ -1618,9 +1618,31 @@ Implemented the frontend password reset flow to complete the feature started in 
 
 **Total E2E tests:** 32 passing (excluding external page timeouts)
 
+### Task 60: Add video MIME type validation on upload
+
+**Date**: 2026-01-22
+
+Enhanced video upload security with MIME type whitelist validation:
+
+**Backend changes (`main.go`):**
+- Replaced simple `video/` prefix check with explicit whitelist of 8 allowed MIME types
+- Allowed types: `video/mp4`, `video/webm`, `video/quicktime`, `video/x-m4v`, `video/mpeg`, `video/x-msvideo`, `video/x-matroska`, `video/ogg`
+- Returns 400 with helpful error message listing allowed formats for unsupported types
+- Response includes `provided_mimetype` field for debugging
+
+**Frontend changes (`validation.ts`):**
+- Added `ALLOWED_VIDEO_MIME_TYPES` constant exported for use in upload UI
+- Updated `validateVideoFile()` to check against whitelist instead of prefix
+- Clear user-facing error message: "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV"
+
+**Tests added:**
+- Backend: 13 test cases covering all allowed types and rejected types
+- Frontend: 3 test cases for MIME type validation including unsupported video formats
+- Total new tests: 16
+
 ## Summary
 
-58 tasks completed. The subtitler application is feature-complete with:
+60 tasks completed (59 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1636,6 +1658,8 @@ Implemented the frontend password reset flow to complete the feature started in 
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 - Script detection and conversion for Indic languages (romanized → native scripts)
+- MIME type validation on video upload (whitelist of 8 video formats)
 
-**1 task remaining:**
+**7 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
+- Task 61-67: Security/UX improvements filed during audit

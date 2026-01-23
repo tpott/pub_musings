@@ -70,6 +70,20 @@ export function validateTotpCode(code: string): string | null {
 }
 
 /**
+ * Allowed video MIME types that the backend will accept
+ */
+export const ALLOWED_VIDEO_MIME_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime', // .mov files
+  'video/x-m4v', // .m4v files
+  'video/mpeg', // .mpeg, .mpg files
+  'video/x-msvideo', // .avi files
+  'video/x-matroska', // .mkv files
+  'video/ogg', // .ogv files
+];
+
+/**
  * Validate video file for upload
  * @param file - File to validate
  * @param maxSizeMB - Maximum file size in MB (default 500)
@@ -80,9 +94,9 @@ export function validateVideoFile(file: File | null, maxSizeMB: number = 500): s
     return 'No file selected';
   }
 
-  // Check file type
-  if (!file.type.startsWith('video/')) {
-    return 'File must be a video';
+  // Check file type against whitelist
+  if (!ALLOWED_VIDEO_MIME_TYPES.includes(file.type)) {
+    return 'Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV';
   }
 
   // Check file size

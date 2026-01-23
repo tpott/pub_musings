@@ -4,7 +4,8 @@ import {
   validatePassword,
   validateTotpCode,
   validateVideoFile,
-  validateSegmentTiming
+  validateSegmentTiming,
+  ALLOWED_VIDEO_MIME_TYPES
 } from './validation';
 
 describe('validateEmail', () => {
@@ -104,12 +105,25 @@ describe('validateVideoFile', () => {
     expect(validateVideoFile(null)).toBe('No file selected');
   });
 
+  it('should accept all allowed video MIME types', () => {
+    for (const mimeType of ALLOWED_VIDEO_MIME_TYPES) {
+      const file = createMockFile('test.video', mimeType, 1024 * 1024);
+      expect(validateVideoFile(file)).toBe(null);
+    }
+  });
+
   it('should reject non-video files', () => {
     const imageFile = createMockFile('test.jpg', 'image/jpeg', 1024);
-    expect(validateVideoFile(imageFile)).toBe('File must be a video');
+    expect(validateVideoFile(imageFile)).toContain('Unsupported video format');
 
     const textFile = createMockFile('test.txt', 'text/plain', 100);
-    expect(validateVideoFile(textFile)).toBe('File must be a video');
+    expect(validateVideoFile(textFile)).toContain('Unsupported video format');
+  });
+
+  it('should reject unsupported video formats', () => {
+    // video/3gpp is a video format but not in our whitelist
+    const unsupportedFile = createMockFile('test.3gp', 'video/3gpp', 1024);
+    expect(validateVideoFile(unsupportedFile)).toContain('Unsupported video format');
   });
 
   it('should reject files exceeding max size', () => {

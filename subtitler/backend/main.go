@@ -1586,12 +1586,23 @@ func main() {
 		}
 		defer file.Close()
 
-		// Validate file type by checking content type
+		// Validate file type by checking content type against whitelist
 		contentType := header.Header.Get("Content-Type")
-		if !strings.HasPrefix(contentType, "video/") {
+		allowedMIMETypes := map[string]bool{
+			"video/mp4":        true,
+			"video/webm":       true,
+			"video/quicktime":  true, // .mov files
+			"video/x-m4v":      true, // .m4v files
+			"video/mpeg":       true, // .mpeg, .mpg files
+			"video/x-msvideo":  true, // .avi files
+			"video/x-matroska": true, // .mkv files
+			"video/ogg":        true, // .ogv files
+		}
+		if !allowedMIMETypes[contentType] {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File must be a video",
+				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
+				"provided_mimetype": contentType,
 			})
 			return
 		}

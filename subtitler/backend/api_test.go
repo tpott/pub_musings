@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1088,6 +1089,58 @@ func (ts *testServer) registerHandlers() {
 			"source_script": string(sourceScript),
 			"target_script": string(targetScript),
 			"language":      req.Language,
+		})
+	})
+
+	// Upload endpoint with MIME type validation
+	ts.mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse multipart form
+		if err := r.ParseMultipartForm(500 << 20); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File too large or invalid form data",
+			})
+			return
+		}
+
+		// Get the file from the form
+		file, header, err := r.FormFile("video")
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No video file provided",
+			})
+			return
+		}
+		defer file.Close()
+
+		// Validate file type by checking content type against whitelist
+		contentType := header.Header.Get("Content-Type")
+		allowedMIMETypes := map[string]bool{
+			"video/mp4":        true,
+			"video/webm":       true,
+			"video/quicktime":  true,
+			"video/x-m4v":      true,
+			"video/mpeg":       true,
+			"video/x-msvideo":  true,
+			"video/x-matroska": true,
+			"video/ogg":        true,
+		}
+		if !allowedMIMETypes[contentType] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
+				"provided_mimetype": contentType,
+			})
+			return
+		}
+
+		// Success - in real handler would save file
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   "success",
+			"filename": header.Filename,
 		})
 	})
 }
@@ -3257,5 +3310,76 @@ func TestResetPasswordTokenSingleUse(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected second reset to fail with 400, got %d", w.Code)
+	}
+}
+
+// ========== Upload MIME Type Validation Tests ==========
+
+func TestUploadMIMETypeValidation(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	tests := []struct {
+		name        string
+		contentType string
+		expectCode  int
+		expectError bool
+	}{
+		// Allowed MIME types
+		{"MP4 allowed", "video/mp4", http.StatusOK, false},
+		{"WebM allowed", "video/webm", http.StatusOK, false},
+		{"QuickTime allowed", "video/quicktime", http.StatusOK, false},
+		{"M4V allowed", "video/x-m4v", http.StatusOK, false},
+		{"MPEG allowed", "video/mpeg", http.StatusOK, false},
+		{"AVI allowed", "video/x-msvideo", http.StatusOK, false},
+		{"MKV allowed", "video/x-matroska", http.StatusOK, false},
+		{"OGV allowed", "video/ogg", http.StatusOK, false},
+
+		// Disallowed MIME types
+		{"Image rejected", "image/jpeg", http.StatusBadRequest, true},
+		{"Text rejected", "text/plain", http.StatusBadRequest, true},
+		{"Audio rejected", "audio/mp3", http.StatusBadRequest, true},
+		{"3GPP rejected", "video/3gpp", http.StatusBadRequest, true},
+		{"Empty rejected", "", http.StatusBadRequest, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			writer := multipart.NewWriter(&buf)
+
+			// Create part with specified content type
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", `form-data; name="video"; filename="test.mp4"`)
+			h.Set("Content-Type", tc.contentType)
+			part, err := writer.CreatePart(h)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Write some fake video bytes
+			part.Write([]byte{0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70})
+			writer.Close()
+
+			req := httptest.NewRequest("POST", "/api/upload", &buf)
+			req.Header.Set("Content-Type", writer.FormDataContentType())
+			req.RemoteAddr = "192.168.1.1:12345" // Different IP to avoid rate limiting
+
+			w := httptest.NewRecorder()
+			ts.mux.ServeHTTP(w, req)
+
+			if w.Code != tc.expectCode {
+				t.Errorf("Expected status %d, got %d for MIME type %q: %s",
+					tc.expectCode, w.Code, tc.contentType, w.Body.String())
+			}
+
+			if tc.expectError {
+				var resp map[string]interface{}
+				json.NewDecoder(w.Body).Decode(&resp)
+				if resp["error"] == nil || !strings.Contains(resp["error"].(string), "Unsupported video format") {
+					t.Errorf("Expected 'Unsupported video format' error, got %v", resp["error"])
+				}
+			}
+		})
 	}
 }
