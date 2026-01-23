@@ -199,6 +199,19 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				font-size: 0.9rem;
 				display: none;
 			}
+			.forgot-link {
+				text-align: right;
+				margin-top: -0.5rem;
+				margin-bottom: 1.25rem;
+				font-size: 0.85rem;
+			}
+			.forgot-link a {
+				color: var(--accent-color);
+				text-decoration: none;
+			}
+			.forgot-link a:hover {
+				text-decoration: underline;
+			}
 		</style>
 	</head>
 	<body>
@@ -225,6 +238,9 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							<label for="password">Password</label>
 							<input type="password" id="password" name="password" required autocomplete="current-password" />
 							<div id="passwordError" class="field-error"></div>
+						</div>
+						<div class="forgot-link">
+							<a href="/forgot-password">Forgot password?</a>
 						</div>
 					</div>
 					<div id="totpSection" class="hidden">

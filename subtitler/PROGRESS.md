@@ -1580,3 +1580,62 @@ Added language and script selection UI to the upload page for script conversion:
 **Integration:**
 - When checkbox checked and transcript aligned, API receives script conversion parameters
 - Response shows "— converted to Devanagari" (or other script) in success message
+
+### Task 59: Frontend - Password reset flow
+
+**Date**: 2026-01-22
+
+Implemented the frontend password reset flow to complete the feature started in Task 58:
+
+**New pages:**
+- `frontend/src/pages/forgot-password.astro` - Request password reset email
+  - Clean centered card design matching Subtitler's aesthetic
+  - Email input with validation
+  - Success message after submission (doesn't reveal if email exists)
+  - Link back to login page
+- `frontend/src/pages/reset-password.astro` - Reset password with token
+  - Reads token from URL query parameter
+  - Shows invalid/expired token message when no token or invalid token
+  - Password and confirm password fields with validation
+  - Success message with redirect to login after reset
+  - Link to request new reset link when token invalid
+
+**Login page update:**
+- Added "Forgot password?" link below password field
+- Link navigates to /forgot-password page
+
+**E2E tests added (11 tests in auth.spec.ts):**
+- Forgot password page structure
+- Navigation between login and forgot password
+- Email validation on forgot password
+- Success message after forgot password submission
+- Reset password page structure
+- Invalid token message when no token provided
+- Form shown when token is provided
+- Password validation on reset
+- Password mismatch validation on reset
+- Invalid token error on submit
+
+**Total E2E tests:** 32 passing (excluding external page timeouts)
+
+## Summary
+
+58 tasks completed. The subtitler application is feature-complete with:
+- Video upload and transcription with Whisper AI
+- Subtitle generation, viewing, editing, and downloading (SRT format)
+- Subtitle burning into video files
+- User authentication with optional 2FA (TOTP) and recovery codes
+- Password reset via email with secure tokens
+- Rate limiting on ALL auth endpoints (5 req/min per IP)
+- Recovery codes displayed to users, usable from login page, and regenerable from security settings
+- File encryption at rest
+- Anonymous and registered user support with retention policies
+- Frontend console log forwarding to backend for dev debugging
+- Comprehensive test coverage (150+ tests including 32 E2E tests)
+- Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
+- Working E2E test infrastructure with Playwright
+- Comprehensive specs for deployment, evaluation, and future GPU passthrough research
+- Script detection and conversion for Indic languages (romanized → native scripts)
+
+**1 task remaining:**
+- Task 48: MoltenVK research (requires macOS with Xcode)

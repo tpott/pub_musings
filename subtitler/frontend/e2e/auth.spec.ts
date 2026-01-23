@@ -199,3 +199,115 @@ test.describe('Security Settings (reusing shared user)', () => {
     expect(hasSecurityContent).toBeTruthy();
   });
 });
+
+// Group 4: Password Reset Flow (no API calls for validation tests)
+test.describe('Password Reset Flow', () => {
+  test('should show forgot password page structure', async ({ page }) => {
+    await page.goto('/forgot-password');
+
+    await expect(page).toHaveTitle('Forgot Password - Subtitler');
+    await expect(page.locator('h1')).toContainText('Subtitler');
+    await expect(page.locator('.subtitle')).toContainText('Reset your password');
+    await expect(page.locator('#email')).toBeVisible();
+    await expect(page.locator('#submitBtn')).toContainText('Send Reset Link');
+  });
+
+  test('should have link from forgot password to login', async ({ page }) => {
+    await page.goto('/forgot-password');
+    await page.click('a:has-text("Log in")');
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('should have link from login to forgot password', async ({ page }) => {
+    await page.goto('/login');
+    await page.click('a:has-text("Forgot password")');
+    await expect(page).toHaveURL(/\/forgot-password/);
+  });
+
+  test('should show validation error for invalid email on forgot password', async ({ page }) => {
+    await page.goto('/forgot-password');
+
+    await page.fill('#email', 'invalid-email');
+    await page.locator('#email').blur();
+
+    const emailError = page.locator('#emailError');
+    await expect(emailError).toBeVisible();
+    await expect(emailError).toContainText('valid email');
+  });
+
+  test('should show success message after submitting forgot password', async ({ page }) => {
+    await page.goto('/forgot-password');
+
+    // Use a non-existent email - API should still return success (prevents email enumeration)
+    await page.fill('#email', 'nonexistent-test-email-12345@example.com');
+    await page.click('#submitBtn');
+
+    const successDiv = page.locator('#success');
+    await expect(successDiv).toBeVisible({ timeout: 10000 });
+    await expect(successDiv).toContainText('password reset link has been sent');
+  });
+
+  test('should show reset password page structure', async ({ page }) => {
+    await page.goto('/reset-password');
+
+    await expect(page).toHaveTitle('Reset Password - Subtitler');
+    await expect(page.locator('h1')).toContainText('Subtitler');
+    await expect(page.locator('.subtitle')).toContainText('Create a new password');
+  });
+
+  test('should show invalid token message when no token provided', async ({ page }) => {
+    await page.goto('/reset-password');
+
+    const invalidTokenSection = page.locator('#invalidTokenSection');
+    await expect(invalidTokenSection).toBeVisible();
+    await expect(invalidTokenSection).toContainText('invalid or has expired');
+    await expect(page.locator('a:has-text("Request a new link")')).toBeVisible();
+  });
+
+  test('should show form when token is provided', async ({ page }) => {
+    await page.goto('/reset-password?token=test-token-123');
+
+    const formSection = page.locator('#formSection');
+    const invalidTokenSection = page.locator('#invalidTokenSection');
+
+    await expect(formSection).toBeVisible();
+    await expect(invalidTokenSection).toBeHidden();
+    await expect(page.locator('#password')).toBeVisible();
+    await expect(page.locator('#confirmPassword')).toBeVisible();
+  });
+
+  test('should show validation error for weak password on reset', async ({ page }) => {
+    await page.goto('/reset-password?token=test-token-123');
+
+    await page.fill('#password', WEAK_PASSWORD);
+    await page.locator('#password').blur();
+
+    const passwordError = page.locator('#passwordError');
+    await expect(passwordError).toBeVisible();
+    await expect(passwordError).toContainText('8 characters');
+  });
+
+  test('should show validation error for mismatched passwords on reset', async ({ page }) => {
+    await page.goto('/reset-password?token=test-token-123');
+
+    await page.fill('#password', TEST_PASSWORD);
+    await page.fill('#confirmPassword', 'DifferentPassword123!');
+    await page.locator('#confirmPassword').blur();
+
+    const confirmError = page.locator('#confirmError');
+    await expect(confirmError).toBeVisible();
+    await expect(confirmError).toContainText('do not match');
+  });
+
+  test('should show invalid token error when submitting with invalid token', async ({ page }) => {
+    await page.goto('/reset-password?token=invalid-token-that-does-not-exist');
+
+    await page.fill('#password', TEST_PASSWORD);
+    await page.fill('#confirmPassword', TEST_PASSWORD);
+    await page.click('#submitBtn');
+
+    // Should show invalid token section after submission
+    const invalidTokenSection = page.locator('#invalidTokenSection');
+    await expect(invalidTokenSection).toBeVisible({ timeout: 10000 });
+  });
+});
