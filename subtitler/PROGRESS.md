@@ -1640,6 +1640,22 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 65: Upload progress bar (already implemented)
+
+**Date**: 2026-01-22
+
+Verified that upload progress bar functionality already exists in `upload.astro`:
+
+**Existing implementation:**
+- Uses XMLHttpRequest with progress events (lines 965-972)
+- `showProgress()` function displays progress bar with percentage
+- Shows "Uploading... X%" during file transfer
+- Shows "Upload complete! Starting transcription..." after upload
+- Shows "Processing..." during transcription via `pollTranscriptionStatus()`
+- Progress bar updates smoothly during upload
+
+No changes needed - task was already implemented.
+
 ### Task 67: Update API.md with missing endpoints
 
 **Date**: 2026-01-22
@@ -1743,7 +1759,7 @@ Implemented retention countdown display on the videos list page:
 
 ## Summary
 
-65 tasks completed (64 done + 1 requiring macOS). The subtitler application is feature-complete with:
+66 tasks completed (65 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1762,6 +1778,6 @@ Implemented retention countdown display on the videos list page:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**2 tasks remaining:**
+**1 task remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 65-66: UX improvements (upload progress bar, per-email rate limiting)
+- Task 66: Per-email rate limiting for login failures
