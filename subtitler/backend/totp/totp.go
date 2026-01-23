@@ -1,6 +1,7 @@
 package totp
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -12,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skip2/go-qrcode"
+	goqr "github.com/piglig/go-qr"
 )
 
 const (
@@ -144,13 +145,22 @@ func FormatSecretForDisplay(secret string) string {
 // GenerateQRCode generates a QR code PNG as a base64 data URL
 // The returned string can be used directly as an img src attribute
 func GenerateQRCode(uri string) (string, error) {
-	// Generate QR code at medium recovery level, 200x200 pixels
-	png, err := qrcode.Encode(uri, qrcode.Medium, 200)
+	// Generate QR code at medium recovery level
+	qr, err := goqr.EncodeText(uri, goqr.Medium)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate QR code: %w", err)
+		return "", fmt.Errorf("failed to encode QR code: %w", err)
+	}
+
+	// Configure QR code image: cell size 8, margin 4 (results in ~200x200 for typical TOTP URIs)
+	config := goqr.NewQrCodeImgConfig(8, 4)
+
+	// Write PNG to buffer
+	var buf bytes.Buffer
+	if err := qr.WriteAsPNG(config, &buf); err != nil {
+		return "", fmt.Errorf("failed to generate QR code PNG: %w", err)
 	}
 
 	// Encode as base64 data URL
-	b64 := base64.StdEncoding.EncodeToString(png)
+	b64 := base64.StdEncoding.EncodeToString(buf.Bytes())
 	return "data:image/png;base64," + b64, nil
 }

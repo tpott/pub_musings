@@ -1281,7 +1281,7 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 
-**6 tasks remaining:**
+**5 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
 - Task 50: Add E2E auth flow tests
 - Task 51: Add lyrics mode toggle to upload page
@@ -1312,3 +1312,23 @@ Integrated the unused validation.ts utilities into all authentication forms for 
 - `.field-error` class for error message display
 
 This closes a gap where validation utilities existed but were never actually used in the frontend.
+
+### Task 55: Backend - Migrate QR code library
+
+**Date**: 2026-01-22
+
+Migrated from skip2/go-qrcode (last updated 2020) to piglig/go-qr (actively maintained, last updated December 2024).
+
+**Changes:**
+- Replaced `github.com/skip2/go-qrcode` with `github.com/piglig/go-qr` in totp/totp.go
+- Updated GenerateQRCode() to use piglig/go-qr API:
+  - Uses `goqr.EncodeText()` for QR generation
+  - Uses `goqr.NewQrCodeImgConfig(8, 4)` for image configuration
+  - Uses `qr.WriteAsPNG()` with bytes.Buffer for in-memory PNG generation
+- Updated go.mod/go.sum with new dependency
+
+**Rationale:**
+- skip2/go-qrcode hasn't been updated since 2020 (4+ years)
+- piglig/go-qr has recent commits (December 2024), active maintenance
+- API is clean and supports io.Writer interface for in-memory PNG generation
+- Described as "native, high-quality and minimalistic"
