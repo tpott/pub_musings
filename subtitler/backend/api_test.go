@@ -941,6 +941,129 @@ func (ts *testServer) registerHandlers() {
 		w.Write([]byte(srtContent))
 	})
 
+	// Download VTT file
+	ts.mux.HandleFunc("GET /api/videos/{id}/subtitles.vtt", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload ID required"})
+			return
+		}
+
+		transcription, err := ts.db.GetTranscription(uploadID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get transcription"})
+			return
+		}
+
+		if transcription == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No transcription found for this upload"})
+			return
+		}
+
+		if transcription.Status != "complete" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Transcription not yet complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		segments, err := transcription.GetSegments()
+		if err != nil || len(segments) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No subtitle segments available"})
+			return
+		}
+
+		whisperResult := &WhisperResult{
+			Language: transcription.Language,
+			Duration: transcription.Duration,
+			Text:     transcription.FullText,
+			Segments: make([]WhisperSegment, len(segments)),
+		}
+		for i, s := range segments {
+			whisperResult.Segments[i] = WhisperSegment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
+		vttContent := generateVTT(whisperResult)
+
+		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".vtt\"")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(vttContent))
+	})
+
+	// Download JSON file
+	ts.mux.HandleFunc("GET /api/videos/{id}/subtitles.json", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload ID required"})
+			return
+		}
+
+		transcription, err := ts.db.GetTranscription(uploadID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get transcription"})
+			return
+		}
+
+		if transcription == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No transcription found for this upload"})
+			return
+		}
+
+		if transcription.Status != "complete" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Transcription not yet complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		segments, err := transcription.GetSegments()
+		if err != nil || len(segments) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No subtitle segments available"})
+			return
+		}
+
+		response := map[string]interface{}{
+			"video_id":  uploadID,
+			"language":  transcription.Language,
+			"duration":  transcription.Duration,
+			"full_text": transcription.FullText,
+			"segments":  segments,
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".json\"")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	})
+
 	// Update segments
 	ts.mux.HandleFunc("PUT /api/transcribe/{id}/segments", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1826,6 +1949,102 @@ func TestDownloadSRTNotComplete(t *testing.T) {
 	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+func TestDownloadVTT(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Download VTT
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Check content type
+	contentType := resp.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/vtt") {
+		t.Errorf("Expected Content-Type text/vtt, got %s", contentType)
+	}
+
+	// Check VTT content
+	vttContent := resp.Body.String()
+	if !strings.HasPrefix(vttContent, "WEBVTT") {
+		t.Error("VTT content should start with 'WEBVTT'")
+	}
+	if !strings.Contains(vttContent, "Hello world.") {
+		t.Error("VTT content should contain 'Hello world.'")
+	}
+	// VTT uses period instead of comma for milliseconds
+	if !strings.Contains(vttContent, "00:00:00.000 --> 00:00:02.500") {
+		t.Error("VTT content should contain timestamps with period separator")
+	}
+}
+
+func TestDownloadVTTNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to download VTT for non-existent video
+	resp := ts.doRequest("GET", "/api/videos/nonexistent/subtitles.vtt", nil, "")
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", resp.Code)
+	}
+}
+
+func TestDownloadJSON(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Download JSON
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Check content type
+	contentType := resp.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		t.Errorf("Expected Content-Type application/json, got %s", contentType)
+	}
+
+	// Check JSON content
+	var jsonResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&jsonResp); err != nil {
+		t.Errorf("Failed to decode JSON response: %v", err)
+		return
+	}
+
+	// Verify structure
+	if jsonResp["video_id"] != video.ID {
+		t.Errorf("Expected video_id %s, got %v", video.ID, jsonResp["video_id"])
+	}
+	if jsonResp["full_text"] == nil {
+		t.Error("Expected full_text field in response")
+	}
+	segments, ok := jsonResp["segments"].([]interface{})
+	if !ok || len(segments) == 0 {
+		t.Error("Expected non-empty segments array in response")
+	}
+}
+
+func TestDownloadJSONNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to download JSON for non-existent video
+	resp := ts.doRequest("GET", "/api/videos/nonexistent/subtitles.json", nil, "")
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", resp.Code)
 	}
 }
 
@@ -3477,5 +3696,43 @@ func TestUploadMIMETypeValidation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRateLimitingDetectScript tests that detect-script endpoint is rate limited
+func TestRateLimitingDetectScript(t *testing.T) {
+	strictLimiter := ratelimit.New(10, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/text/detect-script", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"detected_script": "Latin"})
+	}))
+
+	// First 10 requests should succeed
+	for i := 0; i < 10; i++ {
+		body := bytes.NewBufferString(`{"text":"hello"}`)
+		req := httptest.NewRequest("POST", "/api/text/detect-script", body)
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 11th request should be rate limited
+	body := bytes.NewBufferString(`{"text":"hello"}`)
+	req := httptest.NewRequest("POST", "/api/text/detect-script", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
 	}
 }

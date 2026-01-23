@@ -370,6 +370,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 						<div class="video-actions">
 							${showViewBtn ? `<a href="/upload?id=${video.id}" class="btn btn-primary">View</a>` : ''}
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary">SRT</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary">VTT</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary">JSON</a>` : ''}
 							${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
 						</div>
 					</div>

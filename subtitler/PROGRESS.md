@@ -1782,11 +1782,64 @@ Implemented retention countdown display on the videos list page:
 **Tests added:**
 - `TestListVideosExpiresAt` in `api_test.go` verifying both anonymous (48h) and registered (90d) expiry times
 
+### Task 68: Add rate limiting to detect-script endpoint
+
+**Date**: 2026-01-22
+
+Fixed missing rate limiting on `/api/text/detect-script` endpoint:
+
+- Wrapped handler with `scriptLimiter.Wrap()` to match `/api/text/convert`
+- Added `TestRateLimitingDetectScript` test verifying 429 after 10 requests/min
+
+This closes a security gap where detect-script could be called without limits.
+
+### Task 69: Add VTT export format
+
+**Date**: 2026-01-22
+
+Implemented WebVTT subtitle export format:
+
+**Backend changes:**
+- Added `formatVTTTimestamp()` function (uses period for milliseconds: `00:00:00.000`)
+- Added `generateVTT()` function with `WEBVTT` header
+- Added `GET /api/videos/{id}/subtitles.vtt` endpoint
+- Content-Type: `text/vtt; charset=utf-8`
+
+**Tests added:**
+- `TestFormatVTTTimestamp` - 5 test cases
+- `TestGenerateVTT` - validates header and format
+- `TestGenerateVTTEmpty` - validates empty segments produce header only
+- `TestDownloadVTT` - API integration test
+- `TestDownloadVTTNotFound` - 404 for missing video
+
+### Task 70: Add JSON export format
+
+**Date**: 2026-01-22
+
+Implemented JSON subtitle export format:
+
+**Backend changes:**
+- Added `GET /api/videos/{id}/subtitles.json` endpoint
+- Returns `video_id`, `language`, `duration`, `full_text`, and `segments` array
+- Content-Type: `application/json; charset=utf-8`
+
+**Frontend changes:**
+- Added VTT and JSON download buttons to upload page actions
+- Added VTT and JSON download buttons to videos list page
+- New `.download-group` and `.download-btn-secondary` CSS classes
+
+**Documentation:**
+- Updated `docs/API.md` with VTT and JSON endpoint documentation
+
+**Tests added:**
+- `TestDownloadJSON` - API integration test
+- `TestDownloadJSONNotFound` - 404 for missing video
+
 ## Summary
 
-67 tasks completed (66 done + 1 requiring macOS). The subtitler application is feature-complete with:
+70 tasks completed (69 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
-- Subtitle generation, viewing, editing, and downloading (SRT format)
+- Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
 - User authentication with optional 2FA (TOTP) and recovery codes
 - Password reset via email with secure tokens
@@ -1803,5 +1856,7 @@ Implemented retention countdown display on the videos list page:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**1 task remaining:**
+**4 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
+- Task 71: Frontend accessibility improvements
+- Task 72: Backend request ID tracing

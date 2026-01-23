@@ -971,6 +971,86 @@ curl -o subtitles.srt http://localhost:8080/api/videos/abc123/subtitles.srt
 
 ---
 
+### GET /api/videos/{id}/subtitles.vtt
+
+Download WebVTT subtitle file.
+
+**Authentication**: Not required
+
+**Response**: VTT file (`text/vtt; charset=utf-8`)
+```
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:02.500
+Hello world
+
+2
+00:00:02.500 --> 00:00:05.000
+This is line two
+
+```
+
+**Headers**:
+- `Content-Type: text/vtt; charset=utf-8`
+- `Content-Disposition: attachment; filename="abc123.vtt"`
+
+**Errors**:
+- `400 Bad Request`: Transcription not complete
+- `404 Not Found`: No transcription or segments found
+
+**Example**:
+```bash
+curl -o subtitles.vtt http://localhost:8080/api/videos/abc123/subtitles.vtt
+```
+
+---
+
+### GET /api/videos/{id}/subtitles.json
+
+Download JSON subtitle file with segments array.
+
+**Authentication**: Not required
+
+**Response** `200 OK`:
+```json
+{
+  "video_id": "abc123",
+  "language": "en",
+  "duration": 120.5,
+  "full_text": "Hello world. This is line two.",
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 2.5,
+      "text": "Hello world"
+    },
+    {
+      "id": 1,
+      "start": 2.5,
+      "end": 5.0,
+      "text": "This is line two"
+    }
+  ]
+}
+```
+
+**Headers**:
+- `Content-Type: application/json; charset=utf-8`
+- `Content-Disposition: attachment; filename="abc123.json"`
+
+**Errors**:
+- `400 Bad Request`: Transcription not complete
+- `404 Not Found`: No transcription or segments found
+
+**Example**:
+```bash
+curl -o subtitles.json http://localhost:8080/api/videos/abc123/subtitles.json
+```
+
+---
+
 ### POST /api/videos/{id}/burn
 
 Start burning subtitles into video file.

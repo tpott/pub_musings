@@ -201,11 +201,25 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.download-btn:hover {
 				background-color: #0052a3;
 			}
+			.download-btn-secondary {
+				padding: 0.75rem 1rem;
+				background-color: #6b7280;
+				font-size: 0.875rem;
+			}
+			.download-btn-secondary:hover {
+				background-color: #4b5563;
+			}
+			.download-group {
+				display: flex;
+				gap: 0.5rem;
+				align-items: center;
+			}
 			.actions {
 				margin-top: 1rem;
 				display: flex;
 				gap: 1rem;
 				flex-wrap: wrap;
+				align-items: center;
 			}
 			.full-text {
 				margin-top: 1rem;
@@ -763,7 +777,11 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				</div>
 				<div class="actions" id="actions" style="display: none;">
 					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
-					<a href="#" class="download-btn" id="downloadSrt">Download SRT</a>
+					<div class="download-group">
+						<a href="#" class="download-btn" id="downloadSrt">Download SRT</a>
+						<a href="#" class="download-btn download-btn-secondary" id="downloadVtt">VTT</a>
+						<a href="#" class="download-btn download-btn-secondary" id="downloadJson">JSON</a>
+					</div>
 					<button class="burn-btn" id="burnBtn">Burn Subtitles into Video</button>
 				</div>
 				<div class="burn-status" id="burnStatus">
@@ -793,6 +811,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const currentSubtitle = document.getElementById('currentSubtitle') as HTMLElement;
 			const actions = document.getElementById('actions') as HTMLElement;
 			const downloadSrt = document.getElementById('downloadSrt') as HTMLAnchorElement;
+			const downloadVtt = document.getElementById('downloadVtt') as HTMLAnchorElement;
+			const downloadJson = document.getElementById('downloadJson') as HTMLAnchorElement;
 			const editBtn = document.getElementById('editBtn') as HTMLButtonElement;
 			const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
 			const cancelBtn = document.getElementById('cancelBtn') as HTMLButtonElement;
@@ -1090,9 +1110,11 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				// Render segments
 				renderSegments();
 
-				// Show download button and paste transcript section
+				// Show download buttons and paste transcript section
 				if (currentUploadId) {
 					downloadSrt.href = `/api/videos/${currentUploadId}/subtitles.srt`;
+					downloadVtt.href = `/api/videos/${currentUploadId}/subtitles.vtt`;
+					downloadJson.href = `/api/videos/${currentUploadId}/subtitles.json`;
 					actions.style.display = 'flex';
 					pasteTranscript.classList.add('visible');
 				}

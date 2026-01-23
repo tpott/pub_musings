@@ -338,6 +338,29 @@ func generateSRT(result *WhisperResult) string {
 	return sb.String()
 }
 
+// formatVTTTimestamp formats seconds as WebVTT timestamp (HH:MM:SS.mmm)
+func formatVTTTimestamp(seconds float64) string {
+	hours := int(seconds) / 3600
+	minutes := (int(seconds) % 3600) / 60
+	secs := int(seconds) % 60
+	millis := int(math.Round((seconds - math.Floor(seconds)) * 1000))
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", hours, minutes, secs, millis)
+}
+
+// generateVTT converts WhisperResult segments to WebVTT format
+func generateVTT(result *WhisperResult) string {
+	var sb strings.Builder
+	sb.WriteString("WEBVTT\n\n")
+	for i, segment := range result.Segments {
+		// VTT cue identifiers are optional but helpful
+		sb.WriteString(fmt.Sprintf("%d\n", i+1))
+		sb.WriteString(fmt.Sprintf("%s --> %s\n", formatVTTTimestamp(segment.Start), formatVTTTimestamp(segment.End)))
+		sb.WriteString(strings.TrimSpace(segment.Text))
+		sb.WriteString("\n\n")
+	}
+	return sb.String()
+}
+
 // findVideoFile finds the video file for an upload ID
 func findVideoFile(uploadID string) (string, error) {
 	// First try to get from database
@@ -2306,6 +2329,153 @@ func main() {
 		w.Write([]byte(srtContent))
 	})
 
+	// Download VTT file for a transcription
+	mux.HandleFunc("GET /api/videos/{id}/subtitles.vtt", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription",
+			})
+			return
+		}
+
+		if transcription == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found for this upload",
+			})
+			return
+		}
+
+		if transcription.Status != "complete" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Transcription not yet complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		segments, err := transcription.GetSegments()
+		if err != nil || len(segments) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No subtitle segments available",
+			})
+			return
+		}
+
+		// Convert to WhisperResult for VTT generation
+		whisperResult := &WhisperResult{
+			Language: transcription.Language,
+			Duration: transcription.Duration,
+			Text:     transcription.FullText,
+			Segments: make([]WhisperSegment, len(segments)),
+		}
+		for i, s := range segments {
+			whisperResult.Segments[i] = WhisperSegment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
+		// Generate VTT content
+		vttContent := generateVTT(whisperResult)
+
+		// Set headers for file download
+		// text/vtt is the official MIME type for WebVTT
+		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.vtt\"", uploadID))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(vttContent))
+	})
+
+	// Download JSON file for a transcription
+	mux.HandleFunc("GET /api/videos/{id}/subtitles.json", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription",
+			})
+			return
+		}
+
+		if transcription == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found for this upload",
+			})
+			return
+		}
+
+		if transcription.Status != "complete" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Transcription not yet complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		segments, err := transcription.GetSegments()
+		if err != nil || len(segments) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No subtitle segments available",
+			})
+			return
+		}
+
+		// Return JSON with segments
+		response := map[string]interface{}{
+			"video_id":  uploadID,
+			"language":  transcription.Language,
+			"duration":  transcription.Duration,
+			"full_text": transcription.FullText,
+			"segments":  segments,
+		}
+
+		// Set headers for file download
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", uploadID))
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	})
+
 	// List all videos
 	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -2724,8 +2894,8 @@ func main() {
 	// Script conversion rate limiter (10/min, same as upload)
 	scriptLimiter := ratelimit.New(10, time.Minute)
 
-	// Script detection endpoint
-	mux.HandleFunc("POST /api/text/detect-script", func(w http.ResponseWriter, r *http.Request) {
+	// Script detection endpoint (rate limited)
+	mux.HandleFunc("POST /api/text/detect-script", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
@@ -2758,7 +2928,7 @@ func main() {
 			"detected_language": detectedLang,
 			"confidence":        confidence,
 		})
-	})
+	}))
 
 	// Script conversion endpoint (rate limited)
 	mux.HandleFunc("POST /api/text/convert", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
