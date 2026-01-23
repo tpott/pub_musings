@@ -547,8 +547,10 @@ func main() {
 			return
 		}
 
-		// Create session
-		session, err := auth.CreateSession(database, userID)
+		// Create session with IP and user agent
+		clientIP := ratelimit.GetClientIP(r)
+		userAgent := r.Header.Get("User-Agent")
+		session, err := auth.CreateSession(database, userID, clientIP, userAgent)
 		if err != nil {
 			log.Printf("Error creating session: %v", err)
 			// User was created, but session failed - still return success
@@ -649,8 +651,10 @@ func main() {
 			}
 		}
 
-		// Create session
-		session, err := auth.CreateSession(database, user.ID)
+		// Create session with IP and user agent
+		clientIP := ratelimit.GetClientIP(r)
+		userAgent := r.Header.Get("User-Agent")
+		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
 			log.Printf("Error creating session: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -723,6 +727,115 @@ func main() {
 				"created_at":   user.CreatedAt,
 				"totp_enabled": user.TOTPEnabled,
 			},
+		})
+	})
+
+	// Auth: Get all sessions for current user
+	mux.HandleFunc("GET /api/auth/sessions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, currentSession, err := auth.ValidateSession(database, token)
+		if err != nil {
+			log.Printf("Error validating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to validate session",
+			})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		sessions, err := database.GetSessionsByUserID(user.ID)
+		if err != nil {
+			log.Printf("Error getting sessions: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get sessions",
+			})
+			return
+		}
+
+		// Format sessions for API response, marking current session
+		var responseSessions []map[string]interface{}
+		for _, s := range sessions {
+			sessionData := map[string]interface{}{
+				"id":         s.ID,
+				"ip_address": s.IPAddress,
+				"user_agent": s.UserAgent,
+				"created_at": s.CreatedAt,
+				"expires_at": s.ExpiresAt,
+				"is_current": s.ID == currentSession.ID,
+			}
+			responseSessions = append(responseSessions, sessionData)
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"sessions": responseSessions,
+		})
+	})
+
+	// Auth: Revoke a specific session
+	mux.HandleFunc("DELETE /api/auth/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, currentSession, err := auth.ValidateSession(database, token)
+		if err != nil {
+			log.Printf("Error validating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to validate session",
+			})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		sessionID := r.PathValue("id")
+		if sessionID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Session ID required",
+			})
+			return
+		}
+
+		// Prevent deleting current session through this endpoint
+		if sessionID == currentSession.ID {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Cannot revoke current session. Use logout instead.",
+			})
+			return
+		}
+
+		err = database.DeleteSessionByID(sessionID, user.ID)
+		if err != nil {
+			log.Printf("Error deleting session: %v", err)
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Session not found",
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "success",
+			"message": "Session revoked",
 		})
 	})
 
@@ -1104,8 +1217,10 @@ func main() {
 			log.Printf("Error clearing sessions: %v", err)
 		}
 
-		// Create a new session
-		session, err := auth.CreateSession(database, user.ID)
+		// Create a new session with IP and user agent
+		clientIP := ratelimit.GetClientIP(r)
+		userAgent := r.Header.Get("User-Agent")
+		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
 			log.Printf("Error creating session: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)

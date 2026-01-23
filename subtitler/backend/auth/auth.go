@@ -86,8 +86,8 @@ func ValidatePassword(password string) error {
 	return nil
 }
 
-// CreateSession creates a new session for a user
-func CreateSession(database *db.DB, userID string) (*db.Session, error) {
+// CreateSession creates a new session for a user with optional IP address and user agent
+func CreateSession(database *db.DB, userID, ipAddress, userAgent string) (*db.Session, error) {
 	id, err := GenerateID()
 	if err != nil {
 		return nil, err
@@ -102,6 +102,8 @@ func CreateSession(database *db.DB, userID string) (*db.Session, error) {
 		ID:        id,
 		UserID:    userID,
 		Token:     token,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
 		ExpiresAt: time.Now().Add(SessionDuration),
 		CreatedAt: time.Now(),
 	}

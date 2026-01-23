@@ -185,7 +185,7 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
-		session, err := auth.CreateSession(ts.db, userID)
+		session, err := auth.CreateSession(ts.db, userID, "", "")
 		if err != nil {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"user": map[string]interface{}{
@@ -245,7 +245,7 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
-		session, err := auth.CreateSession(ts.db, user.ID)
+		session, err := auth.CreateSession(ts.db, user.ID, "", "")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Login failed"})
@@ -306,6 +306,93 @@ func (ts *testServer) registerHandlers() {
 				"created_at":   user.CreatedAt,
 				"totp_enabled": user.TOTPEnabled,
 			},
+		})
+	})
+
+	// Auth: Get all sessions for current user
+	ts.mux.HandleFunc("GET /api/auth/sessions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, currentSession, err := auth.ValidateSession(ts.db, token)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to validate session"})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		sessions, err := ts.db.GetSessionsByUserID(user.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get sessions"})
+			return
+		}
+
+		var responseSessions []map[string]interface{}
+		for _, s := range sessions {
+			sessionData := map[string]interface{}{
+				"id":         s.ID,
+				"ip_address": s.IPAddress,
+				"user_agent": s.UserAgent,
+				"created_at": s.CreatedAt,
+				"expires_at": s.ExpiresAt,
+				"is_current": s.ID == currentSession.ID,
+			}
+			responseSessions = append(responseSessions, sessionData)
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"sessions": responseSessions,
+		})
+	})
+
+	// Auth: Revoke a specific session
+	ts.mux.HandleFunc("DELETE /api/auth/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := auth.GetTokenFromRequest(r)
+		user, currentSession, err := auth.ValidateSession(ts.db, token)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to validate session"})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		sessionID := r.PathValue("id")
+		if sessionID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Session ID required"})
+			return
+		}
+
+		if sessionID == currentSession.ID {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Cannot revoke current session. Use logout instead."})
+			return
+		}
+
+		err = ts.db.DeleteSessionByID(sessionID, user.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Session not found"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "success",
+			"message": "Session revoked",
 		})
 	})
 
@@ -496,7 +583,7 @@ func (ts *testServer) registerHandlers() {
 		ts.db.DeleteRecoveryCodes(user.ID)
 		ts.db.DeleteUserSessions(user.ID)
 
-		session, err := auth.CreateSession(ts.db, user.ID)
+		session, err := auth.CreateSession(ts.db, user.ID, "", "")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create session"})
@@ -832,6 +919,29 @@ func (ts *testServer) createTestUser(t *testing.T, email, password string) strin
 	}
 	json.NewDecoder(resp.Body).Decode(&result)
 	return result.Token
+}
+
+// createTestUserWithID creates a user and returns both the user ID and auth token
+func (ts *testServer) createTestUserWithID(t *testing.T, email, password string) (userID string, token string) {
+	t.Helper()
+
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test user: %s", resp.Body.String())
+	}
+
+	var result struct {
+		Token string `json:"token"`
+		User  struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result.User.ID, result.Token
 }
 
 // createTestVideo creates a video record directly in the database
@@ -2357,5 +2467,148 @@ func TestRateLimitingBurn(t *testing.T) {
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestGetSessions tests listing user's sessions
+func TestGetSessions(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create user (registration creates first session)
+	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "password123")
+
+	// Create a second session
+	auth.CreateSession(ts.db, userID, "10.0.0.1", "Chrome/100")
+
+	req := httptest.NewRequest("GET", "/api/auth/sessions", nil)
+	req.Header.Set("Authorization", "Bearer "+regToken)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response struct {
+		Sessions []struct {
+			ID        string `json:"id"`
+			IPAddress string `json:"ip_address"`
+			UserAgent string `json:"user_agent"`
+			IsCurrent bool   `json:"is_current"`
+		} `json:"sessions"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if len(response.Sessions) != 2 {
+		t.Errorf("Expected 2 sessions, got %d", len(response.Sessions))
+	}
+
+	// Check that exactly one session is marked as current
+	var currentCount int
+	for _, s := range response.Sessions {
+		if s.IsCurrent {
+			currentCount++
+		}
+	}
+	if currentCount != 1 {
+		t.Errorf("Expected exactly 1 current session, got %d", currentCount)
+	}
+}
+
+// TestGetSessionsUnauthenticated tests listing sessions without auth
+func TestGetSessionsUnauthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	req := httptest.NewRequest("GET", "/api/auth/sessions", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401, got %d", w.Code)
+	}
+}
+
+// TestRevokeSession tests revoking another session
+func TestRevokeSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create user (registration creates first session)
+	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "password123")
+
+	// Create a second session that we'll revoke
+	otherSession, _ := auth.CreateSession(ts.db, userID, "10.0.0.1", "Other")
+
+	// Revoke the other session using the registration token
+	req := httptest.NewRequest("DELETE", "/api/auth/sessions/"+otherSession.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+regToken)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify the session was deleted - should have only the registration session left
+	sessions, _ := ts.db.GetSessionsByUserID(userID)
+	if len(sessions) != 1 {
+		t.Errorf("Expected 1 session, got %d", len(sessions))
+	}
+}
+
+// TestRevokeCurrentSession tests that you can't revoke your current session
+func TestRevokeCurrentSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create user (registration creates a session)
+	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "password123")
+
+	// Get the current session to find its ID
+	sessions, _ := ts.db.GetSessionsByUserID(userID)
+	if len(sessions) != 1 {
+		t.Fatalf("Expected 1 session, got %d", len(sessions))
+	}
+	currentSessionID := sessions[0].ID
+
+	req := httptest.NewRequest("DELETE", "/api/auth/sessions/"+currentSessionID, nil)
+	req.Header.Set("Authorization", "Bearer "+regToken)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 (can't revoke current), got %d", w.Code)
+	}
+}
+
+// TestRevokeOtherUserSession tests that you can't revoke another user's session
+func TestRevokeOtherUserSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create two users
+	_, token1 := ts.createTestUserWithID(t, "user1@example.com", "password123")
+	user2ID, _ := ts.createTestUserWithID(t, "user2@example.com", "password123")
+
+	// Get user2's session ID
+	sessions, _ := ts.db.GetSessionsByUserID(user2ID)
+	if len(sessions) != 1 {
+		t.Fatalf("Expected 1 session for user2, got %d", len(sessions))
+	}
+	user2SessionID := sessions[0].ID
+
+	// User1 tries to revoke User2's session
+	req := httptest.NewRequest("DELETE", "/api/auth/sessions/"+user2SessionID, nil)
+	req.Header.Set("Authorization", "Bearer "+token1)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	// Should fail - session not found (because it belongs to different user)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected 404, got %d", w.Code)
 	}
 }

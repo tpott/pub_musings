@@ -1436,3 +1436,40 @@ Added rate limiting to resource-intensive endpoints to prevent DoS attacks:
 - `TestRateLimitingBurn` - verifies burn endpoint returns 429 after limit
 
 All endpoints return HTTP 429 Too Many Requests with `Retry-After: 60` header when rate limited.
+
+### Task 53: Backend - Add session management API
+
+**Date**: 2026-01-22
+
+Implemented session management API and frontend UI:
+
+**Database changes (`db/db.go`):**
+- Added `ip_address` and `user_agent` columns to sessions table
+- Updated `Session` struct with IPAddress and UserAgent fields
+- Updated `CreateSession` to store IP and user agent
+- Updated `GetSessionByToken` to retrieve IP and user agent
+- Added `GetSessionsByUserID` to list all active sessions for a user
+- Added `DeleteSessionByID` to delete a specific session by ID and user ID
+
+**Auth changes (`auth/auth.go`):**
+- Updated `CreateSession` to accept `ipAddress` and `userAgent` parameters
+- Updated all callers in main.go and tests to pass these values
+
+**API endpoints (`main.go`):**
+- `GET /api/auth/sessions` - Returns list of user's active sessions with IP, user agent, and `is_current` flag
+- `DELETE /api/auth/sessions/{id}` - Revokes a specific session (cannot revoke current session)
+
+**Frontend (`security.astro`):**
+- Added "Active Sessions" card showing all user sessions
+- Shows device type (parsed from user agent), IP address, and creation time
+- Current session highlighted with badge, no revoke button
+- Revoke buttons for other sessions with confirmation
+- Success/error messages for session revocation
+
+**Tests (`api_test.go`):**
+- `TestGetSessions` - verifies listing sessions works
+- `TestGetSessionsUnauthenticated` - verifies 401 without auth
+- `TestRevokeSession` - verifies revoking another session
+- `TestRevokeCurrentSession` - verifies 400 when trying to revoke current
+- `TestRevokeOtherUserSession` - verifies 404 when trying to revoke another user's session
+- Added `createTestUserWithID` helper to get both user ID and token

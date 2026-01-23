@@ -67,6 +67,8 @@ type Session struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
 	Token     string    `json:"-"` // Never serialize token in JSON
+	IPAddress string    `json:"ip_address,omitempty"`
+	UserAgent string    `json:"user_agent,omitempty"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -171,6 +173,8 @@ func (db *DB) migrate() error {
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL REFERENCES users(id),
 			token TEXT UNIQUE NOT NULL,
+			ip_address TEXT,
+			user_agent TEXT,
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -432,26 +436,81 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 // CreateSession creates a new session record
 func (db *DB) CreateSession(session *Session) error {
 	_, err := db.conn.Exec(`
-		INSERT INTO sessions (id, user_id, token, expires_at, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, session.ID, session.UserID, session.Token, session.ExpiresAt, session.CreatedAt)
+		INSERT INTO sessions (id, user_id, token, ip_address, user_agent, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, session.ID, session.UserID, session.Token, session.IPAddress, session.UserAgent, session.ExpiresAt, session.CreatedAt)
 	return err
 }
 
 // GetSessionByToken retrieves a session by token
 func (db *DB) GetSessionByToken(token string) (*Session, error) {
 	session := &Session{}
+	var ipAddress, userAgent sql.NullString
 	err := db.conn.QueryRow(`
-		SELECT id, user_id, token, expires_at, created_at
+		SELECT id, user_id, token, ip_address, user_agent, expires_at, created_at
 		FROM sessions WHERE token = ?
-	`, token).Scan(&session.ID, &session.UserID, &session.Token, &session.ExpiresAt, &session.CreatedAt)
+	`, token).Scan(&session.ID, &session.UserID, &session.Token, &ipAddress, &userAgent, &session.ExpiresAt, &session.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	if ipAddress.Valid {
+		session.IPAddress = ipAddress.String
+	}
+	if userAgent.Valid {
+		session.UserAgent = userAgent.String
+	}
 	return session, nil
+}
+
+// GetSessionsByUserID retrieves all active sessions for a user
+func (db *DB) GetSessionsByUserID(userID string) ([]Session, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, user_id, token, ip_address, user_agent, expires_at, created_at
+		FROM sessions
+		WHERE user_id = ? AND expires_at > ?
+		ORDER BY created_at DESC
+	`, userID, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var ipAddress, userAgent sql.NullString
+		if err := rows.Scan(&session.ID, &session.UserID, &session.Token, &ipAddress, &userAgent, &session.ExpiresAt, &session.CreatedAt); err != nil {
+			return nil, err
+		}
+		if ipAddress.Valid {
+			session.IPAddress = ipAddress.String
+		}
+		if userAgent.Valid {
+			session.UserAgent = userAgent.String
+		}
+		sessions = append(sessions, session)
+	}
+	return sessions, rows.Err()
+}
+
+// DeleteSessionByID deletes a session by its ID (for session management)
+func (db *DB) DeleteSessionByID(sessionID, userID string) error {
+	// Require userID to ensure users can only delete their own sessions
+	result, err := db.conn.Exec(`DELETE FROM sessions WHERE id = ? AND user_id = ?`, sessionID, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("session not found or not owned by user")
+	}
+	return nil
 }
 
 // DeleteSession deletes a session by token

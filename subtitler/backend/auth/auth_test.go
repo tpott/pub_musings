@@ -146,8 +146,8 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("Failed to create user: %v", err)
 	}
 
-	// Create session
-	session, err := CreateSession(database, userID)
+	// Create session with IP and user agent
+	session, err := CreateSession(database, userID, "192.168.1.1", "Test Agent")
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
@@ -158,6 +158,14 @@ func TestSessionLifecycle(t *testing.T) {
 
 	if session.Token == "" {
 		t.Error("Session Token should not be empty")
+	}
+
+	if session.IPAddress != "192.168.1.1" {
+		t.Errorf("Session IPAddress = %v, want %v", session.IPAddress, "192.168.1.1")
+	}
+
+	if session.UserAgent != "Test Agent" {
+		t.Errorf("Session UserAgent = %v, want %v", session.UserAgent, "Test Agent")
 	}
 
 	// Validate session
