@@ -405,6 +405,163 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.unsaved-indicator.visible {
 				display: inline;
 			}
+			/* Paste transcript section */
+			.paste-transcript {
+				margin-top: 1.5rem;
+				padding: 1rem;
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 8px;
+				display: none;
+			}
+			.paste-transcript.visible {
+				display: block;
+			}
+			.paste-transcript h3 {
+				font-size: 1rem;
+				margin-bottom: 0.75rem;
+			}
+			.paste-transcript textarea {
+				width: 100%;
+				min-height: 120px;
+				padding: 0.75rem;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-family: inherit;
+				font-size: 0.9rem;
+				resize: vertical;
+				margin-bottom: 0.75rem;
+			}
+			.paste-transcript textarea:focus {
+				outline: none;
+				border-color: var(--accent-color);
+			}
+			.lyrics-mode-toggle {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+				margin-bottom: 0.75rem;
+			}
+			.toggle-switch {
+				position: relative;
+				width: 44px;
+				height: 24px;
+			}
+			.toggle-switch input {
+				opacity: 0;
+				width: 0;
+				height: 0;
+			}
+			.toggle-slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: #ccc;
+				transition: 0.3s;
+				border-radius: 24px;
+			}
+			.toggle-slider:before {
+				position: absolute;
+				content: "";
+				height: 18px;
+				width: 18px;
+				left: 3px;
+				bottom: 3px;
+				background-color: white;
+				transition: 0.3s;
+				border-radius: 50%;
+			}
+			.toggle-switch input:checked + .toggle-slider {
+				background-color: var(--accent-color);
+			}
+			.toggle-switch input:checked + .toggle-slider:before {
+				transform: translateX(20px);
+			}
+			.toggle-label {
+				font-size: 0.9rem;
+				color: var(--text-color);
+			}
+			.tooltip-container {
+				position: relative;
+				display: inline-block;
+				margin-left: 0.25rem;
+			}
+			.tooltip-icon {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 16px;
+				height: 16px;
+				border-radius: 50%;
+				background-color: #e5e5e5;
+				color: #666;
+				font-size: 11px;
+				cursor: help;
+			}
+			.tooltip-text {
+				visibility: hidden;
+				position: absolute;
+				z-index: 10;
+				width: 280px;
+				background-color: #1a1a1a;
+				color: #fff;
+				text-align: left;
+				padding: 0.75rem;
+				border-radius: 6px;
+				font-size: 0.8rem;
+				line-height: 1.4;
+				bottom: 125%;
+				left: 50%;
+				transform: translateX(-50%);
+				opacity: 0;
+				transition: opacity 0.2s;
+			}
+			.tooltip-text::after {
+				content: "";
+				position: absolute;
+				top: 100%;
+				left: 50%;
+				margin-left: -5px;
+				border-width: 5px;
+				border-style: solid;
+				border-color: #1a1a1a transparent transparent transparent;
+			}
+			.tooltip-container:hover .tooltip-text {
+				visibility: visible;
+				opacity: 1;
+			}
+			.align-btn {
+				display: inline-block;
+				padding: 0.5rem 1rem;
+				background-color: var(--accent-color);
+				color: #fff;
+				border: none;
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.align-btn:hover {
+				background-color: #0052a3;
+			}
+			.align-btn:disabled {
+				background-color: #9ca3af;
+				cursor: not-allowed;
+			}
+			.align-status {
+				margin-top: 0.5rem;
+				font-size: 0.85rem;
+				color: #666;
+			}
+			.align-status.success {
+				color: #276749;
+			}
+			.align-status.error {
+				color: #c53030;
+			}
 			/* Burn subtitles button */
 			.burn-btn {
 				display: inline-block;
@@ -499,6 +656,26 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				</div>
 				<div class="segments" id="segments"></div>
 				<button class="add-segment-btn" id="addSegmentBtn">+ Add Segment</button>
+				<div class="paste-transcript" id="pasteTranscript">
+					<h3>Replace with your own transcript</h3>
+					<textarea id="pasteText" placeholder="Paste your transcript or lyrics here..."></textarea>
+					<div class="lyrics-mode-toggle">
+						<label class="toggle-switch">
+							<input type="checkbox" id="lyricsMode" />
+							<span class="toggle-slider"></span>
+						</label>
+						<span class="toggle-label">Known lyrics mode</span>
+						<span class="tooltip-container">
+							<span class="tooltip-icon">?</span>
+							<span class="tooltip-text">
+								<strong>Standard mode:</strong> Best for spoken word, interviews, and presentations. Uses basic text matching.<br><br>
+								<strong>Lyrics mode:</strong> Best for music videos and songs. Handles elongated words ("loooove"), vocal substitutions ("you" → "ooh"), and repeated choruses.
+							</span>
+						</span>
+					</div>
+					<button class="align-btn" id="alignBtn">Align Transcript</button>
+					<div class="align-status" id="alignStatus"></div>
+				</div>
 				<div class="actions" id="actions" style="display: none;">
 					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
 					<a href="#" class="download-btn" id="downloadSrt">Download SRT</a>
@@ -543,6 +720,11 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const burnProgressBar = document.getElementById('burnProgressBar') as HTMLElement;
 			const burnProgressFill = document.getElementById('burnProgressFill') as HTMLElement;
 			const downloadBurnedBtn = document.getElementById('downloadBurnedBtn') as HTMLAnchorElement;
+			const pasteTranscript = document.getElementById('pasteTranscript') as HTMLElement;
+			const pasteText = document.getElementById('pasteText') as HTMLTextAreaElement;
+			const lyricsMode = document.getElementById('lyricsMode') as HTMLInputElement;
+			const alignBtn = document.getElementById('alignBtn') as HTMLButtonElement;
+			const alignStatus = document.getElementById('alignStatus') as HTMLElement;
 
 			let isUploading = false;
 			let currentUploadId: string | null = null;
@@ -764,10 +946,11 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				// Render segments
 				renderSegments();
 
-				// Show download button
+				// Show download button and paste transcript section
 				if (currentUploadId) {
 					downloadSrt.href = `/api/videos/${currentUploadId}/subtitles.srt`;
 					actions.style.display = 'flex';
+					pasteTranscript.classList.add('visible');
 				}
 
 				// Load video from server for playback (replacing blob URL)
@@ -778,6 +961,63 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				// Set up video timeupdate handler for subtitle syncing
 				setupSubtitleSync();
 			}
+
+			// Align pasted transcript with transcription timing
+			async function alignTranscript() {
+				if (!currentUploadId) return;
+
+				const text = pasteText.value.trim();
+				if (!text) {
+					alignStatus.textContent = 'Please paste some text first.';
+					alignStatus.className = 'align-status error';
+					return;
+				}
+
+				alignBtn.disabled = true;
+				alignBtn.textContent = 'Aligning...';
+				alignStatus.textContent = '';
+				alignStatus.className = 'align-status';
+
+				try {
+					const mode = lyricsMode.checked ? 'lyrics' : 'standard';
+					const response = await fetch(`/api/transcribe/${currentUploadId}/align`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ text, mode })
+					});
+
+					const result = await response.json();
+
+					if (!response.ok) {
+						throw new Error(result.error || 'Alignment failed');
+					}
+
+					// Refresh the transcription to show aligned segments
+					const transcriptionResponse = await fetch(`/api/transcribe/${currentUploadId}`);
+					const transcriptionResult = await transcriptionResponse.json();
+
+					if (transcriptionResult.status === 'complete' && transcriptionResult.result) {
+						transcriptionSegments = transcriptionResult.result.segments || [];
+						editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
+						fullText.textContent = transcriptionSegments.map((s: any) => s.text).join(' ');
+						renderSegments();
+					}
+
+					const matchPct = result.stats?.match_rate ? Math.round(result.stats.match_rate * 100) : 0;
+					alignStatus.textContent = `Aligned ${result.segments} segments (${matchPct}% match rate, ${result.mode} mode)`;
+					alignStatus.className = 'align-status success';
+					pasteText.value = ''; // Clear after successful alignment
+
+				} catch (error) {
+					alignStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
+					alignStatus.className = 'align-status error';
+				} finally {
+					alignBtn.disabled = false;
+					alignBtn.textContent = 'Align Transcript';
+				}
+			}
+
+			alignBtn.addEventListener('click', alignTranscript);
 
 			function renderSegments() {
 				const segsToRender = isEditMode ? editedSegments : transcriptionSegments;

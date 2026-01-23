@@ -1389,3 +1389,27 @@ Created comprehensive E2E tests for authentication flows in `frontend/e2e/auth.s
 - 14 E2E auth tests passing
 - 6 E2E home tests passing (existing)
 - All 20 E2E tests pass in combined run (excluding external page timeout in capture-design)
+
+### Task 51: Frontend - Add lyrics mode toggle to upload page
+
+**Date**: 2026-01-22
+
+Added paste transcript functionality with lyrics mode toggle to the upload page:
+
+**Frontend changes (`upload.astro`):**
+- Added "Replace with your own transcript" section that appears after transcription completes
+- Textarea for pasting transcript or lyrics text
+- Toggle switch for "Known lyrics mode" with tooltip explaining the difference:
+  - Standard mode: Best for spoken word, interviews, presentations
+  - Lyrics mode: Best for music videos and songs, handles elongated words, vocal substitutions, and choruses
+- "Align Transcript" button that sends text to `/api/transcribe/{id}/align` endpoint
+- Status message shows alignment results (segment count, match rate, mode used)
+- After successful alignment, segments are refreshed and displayed
+
+**CSS additions:**
+- `.paste-transcript` section styling
+- `.toggle-switch` and `.toggle-slider` for the mode toggle
+- `.tooltip-container` and `.tooltip-text` for hover tooltip
+- `.align-btn` and `.align-status` for button and feedback
+
+This completes the frontend integration of Task 44's lyrics alignment algorithm.
