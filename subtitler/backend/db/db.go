@@ -95,6 +95,16 @@ type RecoveryCode struct {
 	UsedAt    *time.Time `json:"used_at,omitempty"`
 }
 
+// PasswordResetToken represents a password reset request token
+type PasswordResetToken struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TokenHash string    `json:"-"` // Never serialize, SHA-256 hash of actual token
+	ExpiresAt time.Time `json:"expires_at"`
+	Used      bool      `json:"used"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Open opens or creates a SQLite database at the given path
 func Open(dbPath string) (*DB, error) {
 	// Ensure directory exists
@@ -201,6 +211,16 @@ func (db *DB) migrate() error {
 			used_at DATETIME
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_id ON recovery_codes(user_id)`,
+		`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			token_hash TEXT NOT NULL,
+			expires_at DATETIME NOT NULL,
+			used INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at)`,
 	}
 
 	for _, migration := range migrations {
@@ -809,4 +829,94 @@ func (db *DB) CountUnusedRecoveryCodes(userID string) (int, error) {
 		SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used = 0
 	`, userID).Scan(&count)
 	return count, err
+}
+
+// CreatePasswordResetToken creates a new password reset token for a user.
+// Deletes any existing unused tokens for the user first.
+func (db *DB) CreatePasswordResetToken(userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error) {
+	// Delete existing unused tokens for this user
+	_, err := db.conn.Exec(`DELETE FROM password_reset_tokens WHERE user_id = ? AND used = 0`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete old reset tokens: %w", err)
+	}
+
+	id := generateID()
+	token := &PasswordResetToken{
+		ID:        id,
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		Used:      false,
+		CreatedAt: time.Now(),
+	}
+
+	_, err = db.conn.Exec(`
+		INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, token.ID, token.UserID, token.TokenHash, token.ExpiresAt, 0, token.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reset token: %w", err)
+	}
+
+	return token, nil
+}
+
+// GetPasswordResetToken retrieves a password reset token by its hash.
+// Returns nil if not found.
+func (db *DB) GetPasswordResetToken(tokenHash string) (*PasswordResetToken, error) {
+	token := &PasswordResetToken{}
+	err := db.conn.QueryRow(`
+		SELECT id, user_id, token_hash, expires_at, used, created_at
+		FROM password_reset_tokens
+		WHERE token_hash = ?
+	`, tokenHash).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.Used, &token.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// UsePasswordResetToken marks a password reset token as used.
+// Returns true if the token was valid and unused, false otherwise.
+func (db *DB) UsePasswordResetToken(tokenHash string) (bool, error) {
+	result, err := db.conn.Exec(`
+		UPDATE password_reset_tokens
+		SET used = 1
+		WHERE token_hash = ? AND used = 0 AND expires_at > ?
+	`, tokenHash, time.Now())
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return affected > 0, nil
+}
+
+// DeletePasswordResetTokens deletes all password reset tokens for a user
+func (db *DB) DeletePasswordResetTokens(userID string) error {
+	_, err := db.conn.Exec(`DELETE FROM password_reset_tokens WHERE user_id = ?`, userID)
+	return err
+}
+
+// DeleteExpiredPasswordResetTokens deletes all expired password reset tokens
+func (db *DB) DeleteExpiredPasswordResetTokens() (int64, error) {
+	result, err := db.conn.Exec(`DELETE FROM password_reset_tokens WHERE expires_at < ?`, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// UpdateUserPassword updates a user's password hash
+func (db *DB) UpdateUserPassword(userID, passwordHash string) error {
+	_, err := db.conn.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
+	return err
 }

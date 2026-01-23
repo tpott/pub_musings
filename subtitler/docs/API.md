@@ -19,13 +19,15 @@ Authentication endpoints are rate limited to 5 requests per minute per IP addres
 When exceeded, returns `429 Too Many Requests` with `Retry-After` header.
 
 Rate-limited endpoints:
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/totp/setup`
-- `POST /api/auth/totp/verify`
-- `POST /api/auth/totp/disable`
-- `POST /api/auth/totp/recover`
-- `POST /api/auth/totp/codes`
+- `POST /api/auth/register` - 5/min per IP
+- `POST /api/auth/login` - 5/min per IP
+- `POST /api/auth/totp/setup` - 5/min per IP
+- `POST /api/auth/totp/verify` - 5/min per IP
+- `POST /api/auth/totp/disable` - 5/min per IP
+- `POST /api/auth/totp/recover` - 5/min per IP
+- `POST /api/auth/totp/codes` - 5/min per IP
+- `POST /api/auth/forgot-password` - 3/15min per IP (stricter)
+- `POST /api/auth/reset-password` - 5/min per IP
 
 ---
 
@@ -35,6 +37,8 @@ Rate-limited endpoints:
 - [Debug](#debug)
 - [Authentication](#authentication-endpoints)
 - [Two-Factor Authentication (2FA)](#two-factor-authentication-2fa)
+- [Password Reset](#password-reset)
+- [Session Management](#session-management)
 - [Videos](#videos)
 - [Transcription](#transcription)
 - [Subtitles](#subtitles)
@@ -473,6 +477,137 @@ curl -X POST http://localhost:8080/api/auth/totp/codes \
   -H "Authorization: Bearer your_token_here" \
   -H "Content-Type: application/json" \
   -d '{"password":"your_password","code":"123456"}'
+```
+
+---
+
+## Password Reset
+
+### POST /api/auth/forgot-password
+
+Request a password reset email.
+
+**Rate Limited**: 3 requests per 15 minutes per IP
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "If an account exists with that email, a password reset link has been sent."
+}
+```
+
+**Note**: Always returns the same response regardless of whether the email exists (prevents email enumeration).
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+---
+
+### POST /api/auth/reset-password
+
+Reset password using a token from the reset email.
+
+**Rate Limited**: 5 requests per minute per IP
+
+**Request Body**:
+```json
+{
+  "token": "reset_token_from_email",
+  "password": "new_secure_password"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "Password has been reset successfully. Please log in with your new password."
+}
+```
+
+**Errors**:
+- `400 Bad Request`: Missing fields, invalid password (8-72 chars), or invalid/expired token
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"token":"abc123...","password":"newpassword123"}'
+```
+
+**Notes**:
+- Tokens expire after 1 hour
+- Tokens can only be used once
+- All existing sessions are terminated after password reset
+
+---
+
+## Session Management
+
+### GET /api/auth/sessions
+
+List all active sessions for the current user.
+
+**Requires**: Authentication
+
+**Response (200)**:
+```json
+{
+  "sessions": [
+    {
+      "id": "session_id",
+      "user_id": "user_id",
+      "ip_address": "192.168.1.1",
+      "user_agent": "Mozilla/5.0...",
+      "expires_at": "2026-01-29T12:00:00Z",
+      "created_at": "2026-01-22T12:00:00Z",
+      "current": true
+    }
+  ]
+}
+```
+
+**Example**:
+```bash
+curl http://localhost:8080/api/auth/sessions \
+  -H "Authorization: Bearer your_token_here"
+```
+
+---
+
+### DELETE /api/auth/sessions/{id}
+
+Revoke a specific session.
+
+**Requires**: Authentication
+
+**Response (200)**:
+```json
+{
+  "message": "Session revoked"
+}
+```
+
+**Errors**:
+- `400 Bad Request`: Cannot revoke current session
+- `401 Unauthorized`: Not authenticated
+- `403 Forbidden`: Session belongs to different user
+- `404 Not Found`: Session not found
+
+**Example**:
+```bash
+curl -X DELETE http://localhost:8080/api/auth/sessions/session_id \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---

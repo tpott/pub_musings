@@ -1144,3 +1144,226 @@ func TestRecoveryCodesDelete(t *testing.T) {
 		t.Errorf("Expected 0 codes after delete, got %d", count)
 	}
 }
+
+func TestPasswordResetTokenLifecycle(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-reset-token",
+		Email:        "reset@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create a reset token
+	tokenHash := "abc123hashedtoken"
+	expiresAt := time.Now().Add(1 * time.Hour)
+	token, err := db.CreatePasswordResetToken(user.ID, tokenHash, expiresAt)
+	if err != nil {
+		t.Fatalf("Failed to create reset token: %v", err)
+	}
+
+	if token.UserID != user.ID {
+		t.Errorf("Expected user ID %s, got %s", user.ID, token.UserID)
+	}
+	if token.TokenHash != tokenHash {
+		t.Errorf("Expected token hash %s, got %s", tokenHash, token.TokenHash)
+	}
+	if token.Used {
+		t.Error("New token should not be marked as used")
+	}
+
+	// Get the token
+	retrieved, err := db.GetPasswordResetToken(tokenHash)
+	if err != nil {
+		t.Fatalf("Failed to get reset token: %v", err)
+	}
+	if retrieved == nil {
+		t.Fatal("Retrieved token is nil")
+	}
+	if retrieved.ID != token.ID {
+		t.Errorf("Expected token ID %s, got %s", token.ID, retrieved.ID)
+	}
+
+	// Use the token
+	used, err := db.UsePasswordResetToken(tokenHash)
+	if err != nil {
+		t.Fatalf("Failed to use reset token: %v", err)
+	}
+	if !used {
+		t.Error("UsePasswordResetToken should return true for valid token")
+	}
+
+	// Try to use again (should fail)
+	usedAgain, err := db.UsePasswordResetToken(tokenHash)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if usedAgain {
+		t.Error("UsePasswordResetToken should return false for already-used token")
+	}
+}
+
+func TestPasswordResetTokenExpired(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-expired-token",
+		Email:        "expired@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create an expired token
+	tokenHash := "expiredtokenhash"
+	expiresAt := time.Now().Add(-1 * time.Hour) // Already expired
+	_, err = db.CreatePasswordResetToken(user.ID, tokenHash, expiresAt)
+	if err != nil {
+		t.Fatalf("Failed to create reset token: %v", err)
+	}
+
+	// Try to use expired token
+	used, err := db.UsePasswordResetToken(tokenHash)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if used {
+		t.Error("UsePasswordResetToken should return false for expired token")
+	}
+}
+
+func TestPasswordResetTokenNotFound(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Try to get non-existent token
+	token, err := db.GetPasswordResetToken("nonexistent")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if token != nil {
+		t.Error("Expected nil for non-existent token")
+	}
+}
+
+func TestDeletePasswordResetTokens(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-delete-tokens",
+		Email:        "deletetokens@example.com",
+		PasswordHash: "hashedpassword",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create a token
+	tokenHash := "deletetokenhash"
+	_, err = db.CreatePasswordResetToken(user.ID, tokenHash, time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatalf("Failed to create reset token: %v", err)
+	}
+
+	// Delete all tokens for user
+	if err := db.DeletePasswordResetTokens(user.ID); err != nil {
+		t.Fatalf("Failed to delete tokens: %v", err)
+	}
+
+	// Verify token is deleted
+	token, _ := db.GetPasswordResetToken(tokenHash)
+	if token != nil {
+		t.Error("Token should be deleted")
+	}
+}
+
+func TestUpdateUserPassword(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "user-update-password",
+		Email:        "updatepwd@example.com",
+		PasswordHash: "oldhash",
+		CreatedAt:    time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Update password
+	newHash := "newhash"
+	if err := db.UpdateUserPassword(user.ID, newHash); err != nil {
+		t.Fatalf("Failed to update password: %v", err)
+	}
+
+	// Verify update
+	updated, _ := db.GetUserByID(user.ID)
+	if updated.PasswordHash != newHash {
+		t.Errorf("Expected password hash %s, got %s", newHash, updated.PasswordHash)
+	}
+}

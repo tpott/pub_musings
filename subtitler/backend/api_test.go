@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -16,6 +18,7 @@ import (
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
@@ -23,12 +26,14 @@ import (
 
 // testServer holds all dependencies needed for testing
 type testServer struct {
-	mux         *http.ServeMux
-	db          *db.DB
-	encryptor   *crypto.Encryptor
-	uploadDir   string
-	authLimiter *ratelimit.Limiter
-	cleanup     func()
+	mux                  *http.ServeMux
+	db                   *db.DB
+	encryptor            *crypto.Encryptor
+	uploadDir            string
+	authLimiter          *ratelimit.Limiter
+	passwordResetLimiter *ratelimit.Limiter
+	emailService         *email.MockService
+	cleanup              func()
 }
 
 // setupTestServer creates a test server with a temporary database and encryptor
@@ -66,11 +71,13 @@ func setupTestServer(t *testing.T) *testServer {
 	}
 
 	ts := &testServer{
-		mux:         http.NewServeMux(),
-		db:          testDB,
-		encryptor:   enc,
-		uploadDir:   uploadDir,
-		authLimiter: ratelimit.New(5, time.Minute),
+		mux:                  http.NewServeMux(),
+		db:                   testDB,
+		encryptor:            enc,
+		uploadDir:            uploadDir,
+		authLimiter:          ratelimit.New(5, time.Minute),
+		passwordResetLimiter: ratelimit.New(3, 15*time.Minute),
+		emailService:         email.NewMockService(),
 		cleanup: func() {
 			testDB.Close()
 			os.RemoveAll(tempDir)
@@ -674,6 +681,116 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":        "Recovery codes regenerated successfully",
 			"recovery_codes": recoveryCodes,
+		})
+	}))
+
+	// Auth: Forgot password - initiates password reset flow
+	ts.mux.HandleFunc("POST /api/auth/forgot-password", ts.passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Always return success to prevent email enumeration
+		defer func() {
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "If an account exists with that email, a password reset link has been sent.",
+			})
+		}()
+
+		user, err := ts.db.GetUserByEmail(req.Email)
+		if err != nil || user == nil {
+			return
+		}
+
+		// Generate reset token
+		tokenBytes := make([]byte, 32)
+		rand.Read(tokenBytes)
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
+
+		expiresAt := time.Now().Add(1 * time.Hour)
+		_, err = ts.db.CreatePasswordResetToken(user.ID, tokenHash, expiresAt)
+		if err != nil {
+			return
+		}
+
+		// Send email (uses mock service in tests)
+		ts.emailService.SendPasswordReset(r.Context(), user.Email, token)
+	}))
+
+	// Auth: Reset password - completes password reset with token
+	ts.mux.HandleFunc("POST /api/auth/reset-password", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Token    string `json:"token"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if req.Token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Reset token is required"})
+			return
+		}
+
+		if err := auth.ValidatePassword(req.Password); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		tokenHash := email.HashToken(req.Token)
+		resetToken, err := ts.db.GetPasswordResetToken(tokenHash)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to process reset request"})
+			return
+		}
+
+		if resetToken == nil || resetToken.Used || time.Now().After(resetToken.ExpiresAt) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired reset token"})
+			return
+		}
+
+		passwordHash, err := auth.HashPassword(req.Password)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to process reset request"})
+			return
+		}
+
+		if err := ts.db.UpdateUserPassword(resetToken.UserID, passwordHash); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update password"})
+			return
+		}
+
+		ts.db.UsePasswordResetToken(tokenHash)
+		ts.db.DeletePasswordResetTokens(resetToken.UserID)
+		ts.db.DeleteUserSessions(resetToken.UserID)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Password has been reset successfully. Please log in with your new password.",
 		})
 	}))
 
@@ -2881,5 +2998,264 @@ func TestConvertScriptMultipleWords(t *testing.T) {
 	// Should have two words separated by space
 	if !strings.Contains(converted, " ") {
 		t.Error("Expected converted text to have multiple words with space")
+	}
+}
+
+// Test forgot-password endpoint
+func TestForgotPassword(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test user
+	ts.createTestUser(t, "test@example.com", "password123")
+
+	// Request password reset
+	w := ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
+		"email": "test@example.com",
+	}, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp["message"] == "" {
+		t.Error("Expected message in response")
+	}
+
+	// Check that an email was sent
+	emails := ts.emailService.GetEmails()
+	if len(emails) != 1 {
+		t.Errorf("Expected 1 email sent, got %d", len(emails))
+	}
+	if len(emails) > 0 && emails[0].To != "test@example.com" {
+		t.Errorf("Expected email to test@example.com, got %s", emails[0].To)
+	}
+}
+
+func TestForgotPasswordNonexistentEmail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Request password reset for non-existent email
+	w := ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
+		"email": "nonexistent@example.com",
+	}, "")
+
+	// Should still return 200 to prevent email enumeration
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+	}
+
+	// No email should be sent
+	emails := ts.emailService.GetEmails()
+	if len(emails) != 0 {
+		t.Errorf("Expected 0 emails sent, got %d", len(emails))
+	}
+}
+
+func TestForgotPasswordInvalidEmail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	w := ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
+		"email": "not-an-email",
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d", w.Code)
+	}
+}
+
+func TestResetPasswordSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test user
+	ts.createTestUser(t, "test@example.com", "oldpassword123")
+
+	// Request password reset to get a token
+	ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
+		"email": "test@example.com",
+	}, "")
+
+	// Get the reset token from the email
+	emails := ts.emailService.GetEmails()
+	if len(emails) == 0 {
+		t.Fatal("No email sent")
+	}
+
+	// Extract token from email body (it should be in the URL)
+	emailBody := emails[0].TextBody
+	if emailBody == "" {
+		emailBody = emails[0].HtmlBody
+	}
+
+	// The token should be between "token=" and the next non-alphanumeric
+	tokenStart := strings.Index(emailBody, "token=")
+	if tokenStart == -1 {
+		t.Fatal("Could not find token in email")
+	}
+	tokenStart += 6 // len("token=")
+	tokenEnd := tokenStart
+	for tokenEnd < len(emailBody) && (emailBody[tokenEnd] >= 'a' && emailBody[tokenEnd] <= 'z' ||
+		emailBody[tokenEnd] >= 'A' && emailBody[tokenEnd] <= 'Z' ||
+		emailBody[tokenEnd] >= '0' && emailBody[tokenEnd] <= '9') {
+		tokenEnd++
+	}
+	token := emailBody[tokenStart:tokenEnd]
+
+	// Reset password with the token
+	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
+		"token":    token,
+		"password": "newpassword123",
+	}, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	// Verify we can login with new password
+	w = ts.doRequest("POST", "/api/auth/login", map[string]string{
+		"email":    "test@example.com",
+		"password": "newpassword123",
+	}, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected login to succeed with new password, got %d", w.Code)
+	}
+
+	// Verify old password no longer works
+	w = ts.doRequest("POST", "/api/auth/login", map[string]string{
+		"email":    "test@example.com",
+		"password": "oldpassword123",
+	}, "")
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected old password to fail, got %d", w.Code)
+	}
+}
+
+func TestResetPasswordInvalidToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
+		"token":    "invalid-token",
+		"password": "newpassword123",
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d", w.Code)
+	}
+
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if !strings.Contains(resp["error"], "Invalid or expired") {
+		t.Errorf("Expected 'Invalid or expired' error, got %s", resp["error"])
+	}
+}
+
+func TestResetPasswordExpiredToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test user
+	userID, _ := ts.createTestUserWithID(t, "test@example.com", "password123")
+
+	// Manually create an expired token
+	tokenBytes := make([]byte, 32)
+	rand.Read(tokenBytes)
+	token := hex.EncodeToString(tokenBytes)
+	tokenHash := email.HashToken(token)
+	expiresAt := time.Now().Add(-1 * time.Hour) // Already expired
+
+	ts.db.CreatePasswordResetToken(userID, tokenHash, expiresAt)
+
+	// Try to use expired token
+	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
+		"token":    token,
+		"password": "newpassword123",
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for expired token, got %d", w.Code)
+	}
+}
+
+func TestResetPasswordWeakPassword(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test user and get a valid token
+	ts.createTestUser(t, "test@example.com", "password123")
+	ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
+		"email": "test@example.com",
+	}, "")
+
+	emails := ts.emailService.GetEmails()
+	emailBody := emails[0].TextBody
+	tokenStart := strings.Index(emailBody, "token=") + 6
+	tokenEnd := tokenStart
+	for tokenEnd < len(emailBody) && (emailBody[tokenEnd] >= 'a' && emailBody[tokenEnd] <= 'z' ||
+		emailBody[tokenEnd] >= 'A' && emailBody[tokenEnd] <= 'Z' ||
+		emailBody[tokenEnd] >= '0' && emailBody[tokenEnd] <= '9') {
+		tokenEnd++
+	}
+	token := emailBody[tokenStart:tokenEnd]
+
+	// Try to reset with weak password
+	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
+		"token":    token,
+		"password": "short",
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for weak password, got %d", w.Code)
+	}
+}
+
+func TestResetPasswordTokenSingleUse(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test user and get a valid token
+	ts.createTestUser(t, "test@example.com", "password123")
+	ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
+		"email": "test@example.com",
+	}, "")
+
+	emails := ts.emailService.GetEmails()
+	emailBody := emails[0].TextBody
+	tokenStart := strings.Index(emailBody, "token=") + 6
+	tokenEnd := tokenStart
+	for tokenEnd < len(emailBody) && (emailBody[tokenEnd] >= 'a' && emailBody[tokenEnd] <= 'z' ||
+		emailBody[tokenEnd] >= 'A' && emailBody[tokenEnd] <= 'Z' ||
+		emailBody[tokenEnd] >= '0' && emailBody[tokenEnd] <= '9') {
+		tokenEnd++
+	}
+	token := emailBody[tokenStart:tokenEnd]
+
+	// First reset should succeed
+	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
+		"token":    token,
+		"password": "newpassword123",
+	}, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected first reset to succeed, got %d", w.Code)
+	}
+
+	// Second reset with same token should fail
+	w = ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
+		"token":    token,
+		"password": "anotherpassword123",
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected second reset to fail with 400, got %d", w.Code)
 	}
 }

@@ -18,6 +18,10 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `WHISPER_MODEL` | `$HOME/Github/whisper.cpp/models/ggml-medium.bin` | Path to whisper model (CLI mode only) |
 | `WHISPER_SERVER_URL` | `http://127.0.0.1:8765` | URL of whisper-server (enables server mode) |
 | `USE_WHISPER_SERVER` | `false` | Set to `true` to use whisper-server with default URL |
+| `RESEND_API_KEY` | *(none)* | Resend API key for transactional emails (starts with `re_`) |
+| `EMAIL_FROM` | `noreply@subtitler.app` | Sender email address for outgoing emails |
+| `APP_URL` | `http://localhost:4321` | Base URL for email links (e.g., password reset) |
+| `EMAIL_ENABLED` | `true` | Set to `false` to disable email sending |
 
 ### Whisper Mode Selection
 
@@ -107,6 +111,12 @@ export WHISPER_SERVER_URL="http://10.0.2.2:8765"
 | POST | `/api/auth/totp/setup` | Setup 2FA |
 | POST | `/api/auth/totp/verify` | Verify 2FA code |
 | POST | `/api/auth/totp/disable` | Disable 2FA |
+| POST | `/api/auth/totp/recover` | Use recovery code to disable 2FA |
+| POST | `/api/auth/totp/codes` | Regenerate recovery codes |
+| GET | `/api/auth/sessions` | List user's active sessions |
+| DELETE | `/api/auth/sessions/{id}` | Revoke a session |
+| POST | `/api/auth/forgot-password` | Request password reset email |
+| POST | `/api/auth/reset-password` | Reset password with token |
 | POST | `/api/log` | Frontend console log forwarding |
 
 ## Project Structure
@@ -120,6 +130,9 @@ backend/
 ├── auth/            # Authentication and sessions
 ├── crypto/          # File encryption (age)
 ├── db/              # SQLite database layer
+├── email/           # Email service (Resend API)
+├── ratelimit/       # Rate limiting middleware
+├── script/          # Script detection and conversion
 └── totp/            # TOTP 2FA implementation
 ```
 
@@ -144,3 +157,4 @@ backend/
 - [../specs/auth.md](../specs/auth.md) - Auth specification
 - [../specs/encryption.md](../specs/encryption.md) - Encryption specification
 - [../specs/totp.md](../specs/totp.md) - TOTP specification
+- [../specs/email.md](../specs/email.md) - Email service specification

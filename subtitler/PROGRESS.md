@@ -1266,7 +1266,7 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 
 ## Summary
 
-56 tasks completed. The subtitler application is feature-complete with:
+57 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1282,10 +1282,59 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 - Script detection and conversion for Indic languages (romanized → native scripts)
 
-**3 tasks remaining:**
+**2 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 58: Email service with Resend API
-- Task 59: Password reset flow
+- Task 59: Password reset flow (frontend)
+
+### Task 58: Backend - Email service with Resend API
+
+**Date**: 2026-01-22
+
+Implemented email service for transactional emails (password reset):
+
+**New files:**
+- `backend/email/email.go` - Email service interface and Resend implementation
+- `backend/email/mock.go` - Mock email service for testing
+- `backend/email/templates.go` - HTML and plain text email templates
+- `backend/email/email_test.go` - Unit tests for email package
+- `specs/email.md` - Email service specification
+
+**Email service features:**
+- `EmailService` interface with `SendEmail()` and `SendPasswordReset()` methods
+- `ResendService` implementation using Resend API v2
+- `MockService` for unit testing (records sent emails)
+- Password reset email template (HTML + plain text)
+- Token hashing using SHA-256 for storage
+
+**Database changes:**
+- Added `password_reset_tokens` table with user_id, token_hash, expires_at, used
+- Added `CreatePasswordResetToken()`, `GetPasswordResetToken()`, `UsePasswordResetToken()`, `DeletePasswordResetTokens()`, `DeleteExpiredPasswordResetTokens()` methods
+- Added `UpdateUserPassword()` method
+
+**API endpoints:**
+- `POST /api/auth/forgot-password` - Initiates password reset (3 req/15min rate limit)
+  - Always returns success (prevents email enumeration)
+  - Sends reset email with 1-hour token
+- `POST /api/auth/reset-password` - Completes password reset
+  - Validates token, updates password, invalidates all sessions
+
+**Environment variables:**
+- `RESEND_API_KEY` - Required for production email sending
+- `EMAIL_FROM` - Sender address (default: noreply@subtitler.app)
+- `APP_URL` - Base URL for email links (default: http://localhost:4321)
+- `EMAIL_ENABLED` - Set to "false" to disable
+
+**Security features:**
+- Tokens expire after 1 hour
+- Tokens are single-use
+- All sessions invalidated after password reset
+- Email enumeration prevention
+- Stricter rate limiting (3/15min) on forgot-password
+
+**Tests added:**
+- 8 unit tests for mock service and templates
+- 5 DB tests for password reset tokens
+- 8 API integration tests for password reset flow
 
 ### Task 49: Frontend - Use validation utilities in forms
 

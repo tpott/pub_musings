@@ -21,6 +21,7 @@ import (
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
@@ -64,10 +65,14 @@ var database *db.DB
 var encryptor *crypto.Encryptor
 
 // Global rate limiters (per IP, per minute)
-var authLimiter = ratelimit.New(5, time.Minute)       // Auth endpoints: 5/min
-var uploadLimiter = ratelimit.New(10, time.Minute)    // Upload endpoint: 10/min
-var transcribeLimiter = ratelimit.New(5, time.Minute) // Transcribe endpoints: 5/min
-var burnLimiter = ratelimit.New(2, time.Minute)       // Burn endpoint: 2/min
+var authLimiter = ratelimit.New(5, time.Minute)             // Auth endpoints: 5/min
+var passwordResetLimiter = ratelimit.New(3, 15*time.Minute) // Password reset: 3/15min (stricter)
+var uploadLimiter = ratelimit.New(10, time.Minute)          // Upload endpoint: 10/min
+var transcribeLimiter = ratelimit.New(5, time.Minute)       // Transcribe endpoints: 5/min
+var burnLimiter = ratelimit.New(2, time.Minute)             // Burn endpoint: 2/min
+
+// Global email service for transactional emails
+var emailService email.EmailService
 
 func generateID() string {
 	bytes := make([]byte, 16)
@@ -379,6 +384,14 @@ func main() {
 		log.Printf("Loaded encryption key from %s", keyPath)
 	}
 	log.Printf("Public key: %s", encryptor.PublicKey())
+
+	// Initialize email service
+	emailService = email.NewResendService()
+	if emailService.IsEnabled() {
+		log.Printf("Email service enabled")
+	} else {
+		log.Printf("Email service disabled (no RESEND_API_KEY set)")
+	}
 
 	mux := http.NewServeMux()
 
@@ -1336,6 +1349,190 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":        "Recovery codes regenerated successfully",
 			"recovery_codes": recoveryCodes,
+		})
+	}))
+
+	// Auth: Forgot password - initiates password reset flow (stricter rate limiting)
+	mux.HandleFunc("POST /api/auth/forgot-password", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Normalize email
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		// Validate email format
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Always return success to prevent email enumeration
+		// Do the actual work in background-ish but keep same timing
+		defer func() {
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "If an account exists with that email, a password reset link has been sent.",
+			})
+		}()
+
+		// Look up user (don't reveal if exists)
+		user, err := database.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Error looking up user for password reset: %v", err)
+			return
+		}
+		if user == nil {
+			// User doesn't exist - return success anyway
+			log.Printf("Password reset requested for non-existent email: %s", req.Email)
+			return
+		}
+
+		// Generate reset token (32 bytes = 256 bits entropy)
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			log.Printf("Error generating reset token: %v", err)
+			return
+		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
+
+		// Create reset token with 1-hour expiry
+		expiresAt := time.Now().Add(1 * time.Hour)
+		_, err = database.CreatePasswordResetToken(user.ID, tokenHash, expiresAt)
+		if err != nil {
+			log.Printf("Error creating password reset token: %v", err)
+			return
+		}
+
+		// Send password reset email
+		ctx := r.Context()
+		if err := emailService.SendPasswordReset(ctx, user.Email, token); err != nil {
+			log.Printf("Error sending password reset email: %v", err)
+			// Still return success to prevent enumeration
+			return
+		}
+
+		log.Printf("Password reset email sent to: %s", user.Email)
+	}))
+
+	// Auth: Reset password - completes password reset with token
+	mux.HandleFunc("POST /api/auth/reset-password", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Token    string `json:"token"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Validate token format
+		if req.Token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Reset token is required",
+			})
+			return
+		}
+
+		// Validate password
+		if err := auth.ValidatePassword(req.Password); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Hash the token and look it up
+		tokenHash := email.HashToken(req.Token)
+		resetToken, err := database.GetPasswordResetToken(tokenHash)
+		if err != nil {
+			log.Printf("Error looking up reset token: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to process reset request",
+			})
+			return
+		}
+
+		// Check if token exists and is valid
+		if resetToken == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired reset token",
+			})
+			return
+		}
+
+		// Check if token is used or expired
+		if resetToken.Used || time.Now().After(resetToken.ExpiresAt) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired reset token",
+			})
+			return
+		}
+
+		// Hash the new password
+		passwordHash, err := auth.HashPassword(req.Password)
+		if err != nil {
+			log.Printf("Error hashing new password: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to process reset request",
+			})
+			return
+		}
+
+		// Update the user's password
+		if err := database.UpdateUserPassword(resetToken.UserID, passwordHash); err != nil {
+			log.Printf("Error updating password: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to update password",
+			})
+			return
+		}
+
+		// Mark token as used
+		if _, err := database.UsePasswordResetToken(tokenHash); err != nil {
+			log.Printf("Error marking reset token as used: %v", err)
+			// Continue anyway - password was updated
+		}
+
+		// Delete all reset tokens for this user
+		if err := database.DeletePasswordResetTokens(resetToken.UserID); err != nil {
+			log.Printf("Error deleting reset tokens: %v", err)
+			// Continue anyway
+		}
+
+		// Delete all sessions for this user (force re-login with new password)
+		if err := database.DeleteUserSessions(resetToken.UserID); err != nil {
+			log.Printf("Error deleting user sessions: %v", err)
+			// Continue anyway
+		}
+
+		log.Printf("Password reset successful for user: %s", resetToken.UserID)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Password has been reset successfully. Please log in with your new password.",
 		})
 	}))
 
