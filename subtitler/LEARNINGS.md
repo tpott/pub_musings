@@ -238,3 +238,21 @@ Similar pattern: `/api/auth/totp/recover` endpoint existed but no frontend UI to
 - Use `test.describe.serial` to share test state (like a registered user)
 - Skip tests that would trigger rate limits if they're covered by unit tests
 - Document why tests are skipped to avoid future "why isn't this tested?" questions
+
+---
+
+### 2026-01-22: Hindi transliteration requires proper handling of consonant clusters
+
+**Problem:** When implementing romanized Hindi to Devanagari conversion, the basic character-by-character mapping produces readable but imperfect output. For example, "namaste" becomes "नमसते" instead of the correct "नमस्ते" (with halant to form the स्त cluster).
+
+**Solution:** Documented as a known limitation. For production-quality Hindi transliteration:
+- Use GoVarnam (native Go with CGO, designed for input method editing)
+- Or use Aksharamukha via Docker (120+ scripts, comprehensive)
+- The basic implementation is still useful for script detection and simple cases
+
+**Lesson:** Indic script transliteration is complex. Simple character mapping works for:
+- Script DETECTION (which is Unicode range checking)
+- Language DETECTION from romanized text (keyword matching)
+- Basic conversions that will be read by humans (phonetically close enough)
+
+But proper consonant cluster handling (halant/virama) requires sophisticated algorithms that understand syllable structure. File this as a future enhancement task rather than blocking on perfection.

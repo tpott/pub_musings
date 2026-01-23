@@ -22,6 +22,7 @@ import (
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/ratelimit"
+	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
 )
 
@@ -1811,8 +1812,10 @@ func main() {
 
 		// Parse request body
 		var req struct {
-			Text string `json:"text"`
-			Mode string `json:"mode"` // "lyrics" for music-specific alignment
+			Text            string `json:"text"`
+			Mode            string `json:"mode"`              // "lyrics" for music-specific alignment
+			ConvertToScript string `json:"convert_to_script"` // Optional: target script (e.g., "Devanagari")
+			Language        string `json:"language"`          // Required if convert_to_script is set
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -1828,6 +1831,29 @@ func main() {
 				"error": "Text is required",
 			})
 			return
+		}
+
+		// Script conversion if requested
+		scriptConverted := false
+		var targetScript script.Script
+		if req.ConvertToScript != "" {
+			targetScript = script.Script(req.ConvertToScript)
+			if !script.IsScriptSupported(targetScript) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":             "Unsupported target script",
+					"supported_scripts": script.SupportedScripts(),
+				})
+				return
+			}
+			if !script.IsLanguageSupported(req.Language) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":               "Language required for script conversion",
+					"supported_languages": script.SupportedLanguages(),
+				})
+				return
+			}
 		}
 
 		// Get existing segments
@@ -1871,6 +1897,19 @@ func main() {
 			}
 		}
 
+		// Apply script conversion if requested
+		if req.ConvertToScript != "" {
+			converter := script.NewConverter()
+			for i := range newSegments {
+				converted, err := converter.Convert(newSegments[i].Text, req.Language, targetScript)
+				if err == nil {
+					newSegments[i].Text = converted
+				}
+			}
+			scriptConverted = true
+			log.Printf("Applied script conversion to %s for upload %s", targetScript, uploadID)
+		}
+
 		// Update segments in database
 		if err := database.UpdateSegments(uploadID, newSegments); err != nil {
 			log.Printf("Error updating segments: %v", err)
@@ -1888,12 +1927,17 @@ func main() {
 		log.Printf("Aligned transcript for %s (mode=%s): %d segments, %.1f%% match rate",
 			uploadID, mode, len(newSegments), result.Stats.MatchRate*100)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		response := map[string]interface{}{
 			"status":   "success",
 			"segments": len(newSegments),
 			"stats":    result.Stats,
 			"mode":     mode,
-		})
+		}
+		if scriptConverted {
+			response["script_converted"] = true
+			response["target_script"] = string(targetScript)
+		}
+		json.NewEncoder(w).Encode(response)
 	})
 
 	// Download SRT file for a transcription
@@ -2379,6 +2423,113 @@ func main() {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadName))
 		http.ServeFile(w, r, servePath)
 	})
+
+	// Script conversion rate limiter (10/min, same as upload)
+	scriptLimiter := ratelimit.New(10, time.Minute)
+
+	// Script detection endpoint
+	mux.HandleFunc("POST /api/text/detect-script", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if len(req.Text) > 10240 { // 10KB limit
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Text too long (max 10KB)"})
+			return
+		}
+
+		detectedScript := script.DetectScript(req.Text)
+		detectedLang := script.DetectLanguageFromRomanized(req.Text)
+
+		// Calculate confidence based on character count
+		confidence := 0.0
+		if detectedScript != script.ScriptUnknown {
+			// Simple confidence: more characters = higher confidence
+			confidence = math.Min(float64(len(req.Text))/100.0, 1.0)
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"detected_script":   string(detectedScript),
+			"detected_language": detectedLang,
+			"confidence":        confidence,
+		})
+	})
+
+	// Script conversion endpoint (rate limited)
+	mux.HandleFunc("POST /api/text/convert", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Text         string `json:"text"`
+			SourceScript string `json:"source_script,omitempty"` // Optional, auto-detected if omitted
+			TargetScript string `json:"target_script"`
+			Language     string `json:"language"` // Required for romanized input
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate text length (10KB limit)
+		if len(req.Text) > 10240 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Text too long (max 10KB)"})
+			return
+		}
+
+		// Validate language
+		if !script.IsLanguageSupported(req.Language) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":               "Unsupported language",
+				"supported_languages": script.SupportedLanguages(),
+			})
+			return
+		}
+
+		// Validate target script
+		targetScript := script.Script(req.TargetScript)
+		if !script.IsScriptSupported(targetScript) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":             "Unsupported target script",
+				"supported_scripts": script.SupportedScripts(),
+			})
+			return
+		}
+
+		// Auto-detect source script if not provided
+		sourceScript := script.Script(req.SourceScript)
+		if sourceScript == "" {
+			sourceScript = script.DetectScript(req.Text)
+		}
+
+		// Perform conversion
+		converter := script.NewConverter()
+		converted, err := converter.Convert(req.Text, req.Language, targetScript)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Conversion failed: %v", err)})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"original":      req.Text,
+			"converted":     converted,
+			"source_script": string(sourceScript),
+			"target_script": string(targetScript),
+			"language":      req.Language,
+		})
+	}))
 
 	// Start the cleanup scheduler for expired videos
 	go startCleanupScheduler()

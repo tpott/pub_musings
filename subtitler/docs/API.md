@@ -38,6 +38,7 @@ Rate-limited endpoints:
 - [Videos](#videos)
 - [Transcription](#transcription)
 - [Subtitles](#subtitles)
+- [Script Conversion](#script-conversion)
 
 ---
 
@@ -933,6 +934,104 @@ Some endpoints include additional context:
   "error": "Cannot edit segments - transcription not complete",
   "status": "processing"
 }
+```
+
+---
+
+## Script Conversion
+
+Endpoints for detecting and converting scripts (e.g., romanized Hindi to Devanagari).
+
+### POST /api/text/detect-script
+
+Detect the writing script of text.
+
+**Authentication**: Not required
+
+**Rate Limiting**: 10 requests per minute per IP
+
+**Request**:
+```json
+{
+  "text": "namaste duniya"
+}
+```
+
+**Response** `200 OK`:
+```json
+{
+  "detected_script": "Latin",
+  "detected_language": "hi",
+  "confidence": 0.85
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `detected_script` | Detected writing system (Latin, Devanagari, Bengali, etc.) |
+| `detected_language` | Guessed language code for romanized text |
+| `confidence` | Confidence score (0-1) |
+
+**Errors**:
+- `400 Bad Request`: Text too long (max 10KB)
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/text/detect-script \
+  -H "Content-Type: application/json" \
+  -d '{"text": "namaste duniya"}'
+```
+
+---
+
+### POST /api/text/convert
+
+Convert text from one script to another (e.g., romanized to native script).
+
+**Authentication**: Not required
+
+**Rate Limiting**: 10 requests per minute per IP
+
+**Request**:
+```json
+{
+  "text": "namaste duniya",
+  "target_script": "Devanagari",
+  "language": "hi",
+  "source_script": "Latin"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `text` | Yes | Text to convert |
+| `target_script` | Yes | Target script (Devanagari, Bengali, Tamil, etc.) |
+| `language` | Yes | Language code (hi, ml, ta, te, kn, bn, gu, or, pa) |
+| `source_script` | No | Auto-detected if omitted |
+
+**Response** `200 OK`:
+```json
+{
+  "original": "namaste duniya",
+  "converted": "नमसते दुनिय",
+  "source_script": "Latin",
+  "target_script": "Devanagari",
+  "language": "hi"
+}
+```
+
+**Supported Scripts** (as targets):
+- Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Gurmukhi, Oriya
+
+**Errors**:
+- `400 Bad Request`: Unsupported language or script
+- `400 Bad Request`: Text too long (max 10KB)
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/text/convert \
+  -H "Content-Type: application/json" \
+  -d '{"text": "namaste", "target_script": "Devanagari", "language": "hi"}'
 ```
 
 ---

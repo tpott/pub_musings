@@ -1266,7 +1266,7 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 
 ## Summary
 
-47 tasks completed. The subtitler application is feature-complete with:
+56 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1280,13 +1280,12 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 - Complete documentation (INSTALL.md, TESTING.md, LINTERS.md, BROWSER_TESTING.md)
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
+- Script detection and conversion for Indic languages (romanized → native scripts)
 
-**5 tasks remaining:**
+**3 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 50: Add E2E auth flow tests
-- Task 51: Add lyrics mode toggle to upload page
-- Task 52: Rate limit upload/transcribe/burn endpoints
-- Task 53: Add session management API
+- Task 57: Frontend - Language and script selection UI
+- Task 58-59: Email service and password reset flow
 
 ### Task 49: Frontend - Use validation utilities in forms
 
@@ -1473,3 +1472,39 @@ Implemented session management API and frontend UI:
 - `TestRevokeCurrentSession` - verifies 400 when trying to revoke current
 - `TestRevokeOtherUserSession` - verifies 404 when trying to revoke another user's session
 - Added `createTestUserWithID` helper to get both user ID and token
+
+### Task 56: Backend - Script conversion/transliteration library
+
+**Date**: 2026-01-22
+
+Implemented script detection and transliteration for converting romanized text to native scripts (e.g., romanized Hindi to Devanagari):
+
+**New files:**
+- `backend/script/script.go` - Script detection and conversion logic
+- `backend/script/script_test.go` - Unit tests for script package
+- `specs/script-conversion.md` - Library evaluation and API design specification
+
+**Script package features:**
+- `DetectScript(text)` - Detects writing system (Latin, Devanagari, Bengali, Tamil, etc.) using Unicode ranges
+- `DetectLanguageFromRomanized(text)` - Heuristic language detection based on common words
+- `Converter` type with `Convert(text, language, targetScript)` method
+- Rule-based Hindi/Devanagari transliteration (basic implementation without consonant clusters)
+- Support for 9 Indic languages: Hindi, Malayalam, Tamil, Telugu, Kannada, Bengali, Gujarati, Oriya, Punjabi
+- Support for 9 target scripts: Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Gurmukhi, Oriya
+
+**API endpoints:**
+- `POST /api/text/detect-script` - Detect script and guess language of text
+- `POST /api/text/convert` - Convert text from Latin to native script (10 req/min rate limited)
+
+**Align API integration:**
+- Updated `POST /api/transcribe/{id}/align` to accept optional `convert_to_script` and `language` parameters
+- Script conversion applied as post-processing after alignment
+- Response includes `script_converted` and `target_script` fields when conversion was applied
+
+**Tests added:**
+- 12 unit tests in `script/script_test.go` (script detection, language detection, conversion, helper functions)
+- 6 API integration tests (detect-script endpoint, convert endpoint, validation errors)
+
+**Documentation:**
+- Added "Script Conversion" section to `docs/API.md` with endpoint documentation
+- Created `specs/script-conversion.md` with library evaluation (GoVarnam, go-aksharamukha, translitkit)

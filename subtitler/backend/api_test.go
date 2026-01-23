@@ -17,6 +17,7 @@ import (
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/ratelimit"
+	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
 )
 
@@ -878,6 +879,98 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":   "success",
 			"segments": len(req.Segments),
+		})
+	})
+
+	// Script detection endpoint
+	ts.mux.HandleFunc("POST /api/text/detect-script", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if len(req.Text) > 10240 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Text too long (max 10KB)"})
+			return
+		}
+
+		detectedScript := script.DetectScript(req.Text)
+		detectedLang := script.DetectLanguageFromRomanized(req.Text)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"detected_script":   string(detectedScript),
+			"detected_language": detectedLang,
+			"confidence":        0.5, // Simplified for tests
+		})
+	})
+
+	// Script conversion endpoint
+	ts.mux.HandleFunc("POST /api/text/convert", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Text         string `json:"text"`
+			SourceScript string `json:"source_script,omitempty"`
+			TargetScript string `json:"target_script"`
+			Language     string `json:"language"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if len(req.Text) > 10240 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Text too long (max 10KB)"})
+			return
+		}
+
+		if !script.IsLanguageSupported(req.Language) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":               "Unsupported language",
+				"supported_languages": script.SupportedLanguages(),
+			})
+			return
+		}
+
+		targetScript := script.Script(req.TargetScript)
+		if !script.IsScriptSupported(targetScript) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":             "Unsupported target script",
+				"supported_scripts": script.SupportedScripts(),
+			})
+			return
+		}
+
+		sourceScript := script.Script(req.SourceScript)
+		if sourceScript == "" {
+			sourceScript = script.DetectScript(req.Text)
+		}
+
+		converter := script.NewConverter()
+		converted, err := converter.Convert(req.Text, req.Language, targetScript)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Conversion failed"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"original":      req.Text,
+			"converted":     converted,
+			"source_script": string(sourceScript),
+			"target_script": string(targetScript),
+			"language":      req.Language,
 		})
 	})
 }
@@ -2610,5 +2703,183 @@ func TestRevokeOtherUserSession(t *testing.T) {
 	// Should fail - session not found (because it belongs to different user)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("Expected 404, got %d", w.Code)
+	}
+}
+
+// TestDetectScriptEndpoint tests the script detection API
+func TestDetectScriptEndpoint(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	tests := []struct {
+		name           string
+		text           string
+		expectedScript string
+		expectedLang   string
+	}{
+		{
+			name:           "Latin text",
+			text:           "Hello World",
+			expectedScript: "Latin",
+			expectedLang:   "hi", // Defaults to Hindi for ambiguous romanized text
+		},
+		{
+			name:           "Devanagari text",
+			text:           "नमस्ते दुनिया",
+			expectedScript: "Devanagari",
+			expectedLang:   "hi",
+		},
+		{
+			name:           "Hindi romanized with keywords",
+			text:           "main tumse pyar karta hoon",
+			expectedScript: "Latin",
+			expectedLang:   "hi",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := ts.doRequest("POST", "/api/text/detect-script", map[string]string{
+				"text": tt.text,
+			}, "")
+
+			if w.Code != http.StatusOK {
+				t.Errorf("Expected 200, got %d", w.Code)
+				return
+			}
+
+			var resp map[string]interface{}
+			if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+				t.Errorf("Failed to decode response: %v", err)
+				return
+			}
+
+			if resp["detected_script"] != tt.expectedScript {
+				t.Errorf("Expected script %q, got %q", tt.expectedScript, resp["detected_script"])
+			}
+			if resp["detected_language"] != tt.expectedLang {
+				t.Errorf("Expected language %q, got %q", tt.expectedLang, resp["detected_language"])
+			}
+		})
+	}
+}
+
+// TestDetectScriptTooLong tests script detection with text that's too long
+func TestDetectScriptTooLong(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create 11KB of text (over 10KB limit)
+	longText := strings.Repeat("a", 11*1024)
+
+	w := ts.doRequest("POST", "/api/text/detect-script", map[string]string{
+		"text": longText,
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for text too long, got %d", w.Code)
+	}
+}
+
+// TestConvertScriptEndpoint tests the script conversion API
+func TestConvertScriptEndpoint(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	w := ts.doRequest("POST", "/api/text/convert", map[string]string{
+		"text":          "namaste",
+		"target_script": "Devanagari",
+		"language":      "hi",
+	}, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+		return
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Errorf("Failed to decode response: %v", err)
+		return
+	}
+
+	if resp["original"] != "namaste" {
+		t.Errorf("Expected original %q, got %q", "namaste", resp["original"])
+	}
+	if resp["converted"] == "" {
+		t.Error("Expected non-empty converted text")
+	}
+	if resp["target_script"] != "Devanagari" {
+		t.Errorf("Expected target_script %q, got %q", "Devanagari", resp["target_script"])
+	}
+}
+
+// TestConvertScriptUnsupportedLanguage tests script conversion with unsupported language
+func TestConvertScriptUnsupportedLanguage(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	w := ts.doRequest("POST", "/api/text/convert", map[string]string{
+		"text":          "hello",
+		"target_script": "Devanagari",
+		"language":      "en", // English not supported
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for unsupported language, got %d", w.Code)
+	}
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "Unsupported language" {
+		t.Errorf("Expected unsupported language error, got %v", resp["error"])
+	}
+}
+
+// TestConvertScriptUnsupportedScript tests script conversion with unsupported target script
+func TestConvertScriptUnsupportedScript(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	w := ts.doRequest("POST", "/api/text/convert", map[string]string{
+		"text":          "namaste",
+		"target_script": "Latin", // Latin not supported as target
+		"language":      "hi",
+	}, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for unsupported script, got %d", w.Code)
+	}
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["error"] != "Unsupported target script" {
+		t.Errorf("Expected unsupported script error, got %v", resp["error"])
+	}
+}
+
+// TestConvertScriptMultipleWords tests script conversion with multiple words
+func TestConvertScriptMultipleWords(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	w := ts.doRequest("POST", "/api/text/convert", map[string]string{
+		"text":          "namaste duniya",
+		"target_script": "Devanagari",
+		"language":      "hi",
+	}, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+		return
+	}
+
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	converted := resp["converted"].(string)
+	// Should have two words separated by space
+	if !strings.Contains(converted, " ") {
+		t.Error("Expected converted text to have multiple words with space")
 	}
 }
