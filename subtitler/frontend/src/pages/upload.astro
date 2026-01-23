@@ -562,6 +562,62 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.align-status.error {
 				color: #c53030;
 			}
+			/* Script conversion selection */
+			.script-conversion-section {
+				margin-top: 0.75rem;
+				padding: 0.75rem;
+				background-color: #f8fafc;
+				border: 1px solid #e2e8f0;
+				border-radius: 6px;
+			}
+			.script-conversion-header {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+				margin-bottom: 0.5rem;
+			}
+			.script-conversion-header input[type="checkbox"] {
+				width: 16px;
+				height: 16px;
+			}
+			.script-conversion-header label {
+				font-size: 0.9rem;
+				font-weight: 500;
+			}
+			.script-selectors {
+				display: flex;
+				gap: 1rem;
+				margin-top: 0.5rem;
+			}
+			.script-selectors.hidden {
+				display: none;
+			}
+			.selector-group {
+				flex: 1;
+			}
+			.selector-group label {
+				display: block;
+				font-size: 0.8rem;
+				color: #64748b;
+				margin-bottom: 0.25rem;
+			}
+			.selector-group select {
+				width: 100%;
+				padding: 0.5rem;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-size: 0.9rem;
+				background-color: white;
+			}
+			.selector-group select:focus {
+				outline: none;
+				border-color: var(--accent-color);
+			}
+			.script-conversion-hint {
+				font-size: 0.75rem;
+				color: #64748b;
+				margin-top: 0.5rem;
+			}
 			/* Burn subtitles button */
 			.burn-btn {
 				display: inline-block;
@@ -673,6 +729,35 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							</span>
 						</span>
 					</div>
+					<div class="script-conversion-section">
+						<div class="script-conversion-header">
+							<input type="checkbox" id="convertScript" />
+							<label for="convertScript">Convert to native script (e.g., romanized Hindi → Devanagari)</label>
+						</div>
+						<div class="script-selectors hidden" id="scriptSelectors">
+							<div class="selector-group">
+								<label for="languageSelect">Language</label>
+								<select id="languageSelect">
+									<option value="hi">Hindi</option>
+									<option value="ml">Malayalam</option>
+									<option value="ta">Tamil</option>
+									<option value="te">Telugu</option>
+									<option value="kn">Kannada</option>
+									<option value="bn">Bengali</option>
+									<option value="gu">Gujarati</option>
+									<option value="or">Oriya</option>
+									<option value="pa">Punjabi</option>
+								</select>
+							</div>
+							<div class="selector-group">
+								<label for="scriptSelect">Target Script</label>
+								<select id="scriptSelect">
+									<option value="Devanagari">Devanagari</option>
+								</select>
+							</div>
+						</div>
+						<p class="script-conversion-hint" id="scriptHint"></p>
+					</div>
 					<button class="align-btn" id="alignBtn">Align Transcript</button>
 					<div class="align-status" id="alignStatus"></div>
 				</div>
@@ -722,6 +807,11 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const downloadBurnedBtn = document.getElementById('downloadBurnedBtn') as HTMLAnchorElement;
 			const pasteTranscript = document.getElementById('pasteTranscript') as HTMLElement;
 			const pasteText = document.getElementById('pasteText') as HTMLTextAreaElement;
+			const convertScript = document.getElementById('convertScript') as HTMLInputElement;
+			const scriptSelectors = document.getElementById('scriptSelectors') as HTMLElement;
+			const languageSelect = document.getElementById('languageSelect') as HTMLSelectElement;
+			const scriptSelect = document.getElementById('scriptSelect') as HTMLSelectElement;
+			const scriptHint = document.getElementById('scriptHint') as HTMLElement;
 			const lyricsMode = document.getElementById('lyricsMode') as HTMLInputElement;
 			const alignBtn = document.getElementById('alignBtn') as HTMLButtonElement;
 			const alignStatus = document.getElementById('alignStatus') as HTMLElement;
@@ -732,6 +822,60 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			let editedSegments: any[] = [];
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
+
+			// Language to native script mapping
+			const languageScriptMap: { [key: string]: string[] } = {
+				'hi': ['Devanagari'],
+				'ml': ['Malayalam'],
+				'ta': ['Tamil'],
+				'te': ['Telugu'],
+				'kn': ['Kannada'],
+				'bn': ['Bengali'],
+				'gu': ['Gujarati'],
+				'or': ['Oriya'],
+				'pa': ['Gurmukhi']
+			};
+
+			// Language display names
+			const languageNames: { [key: string]: string } = {
+				'hi': 'Hindi',
+				'ml': 'Malayalam',
+				'ta': 'Tamil',
+				'te': 'Telugu',
+				'kn': 'Kannada',
+				'bn': 'Bengali',
+				'gu': 'Gujarati',
+				'or': 'Oriya',
+				'pa': 'Punjabi'
+			};
+
+			// Update script options based on selected language
+			function updateScriptOptions() {
+				const lang = languageSelect.value;
+				const scripts = languageScriptMap[lang] || ['Devanagari'];
+
+				scriptSelect.innerHTML = scripts.map(s =>
+					`<option value="${s}">${s}</option>`
+				).join('');
+
+				// Update hint
+				const langName = languageNames[lang] || lang;
+				scriptHint.textContent = `Romanized ${langName} text will be converted to ${scripts[0]} script.`;
+			}
+
+			// Toggle script selectors visibility
+			convertScript.addEventListener('change', () => {
+				if (convertScript.checked) {
+					scriptSelectors.classList.remove('hidden');
+					updateScriptOptions();
+				} else {
+					scriptSelectors.classList.add('hidden');
+					scriptHint.textContent = '';
+				}
+			});
+
+			// Update scripts when language changes
+			languageSelect.addEventListener('change', updateScriptOptions);
 
 			dropzone.addEventListener('click', () => fileInput.click());
 
@@ -980,10 +1124,20 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 
 				try {
 					const mode = lyricsMode.checked ? 'lyrics' : 'standard';
+
+					// Build request payload
+					const payload: any = { text, mode };
+
+					// Add script conversion parameters if enabled
+					if (convertScript.checked) {
+						payload.convert_to_script = scriptSelect.value;
+						payload.language = languageSelect.value;
+					}
+
 					const response = await fetch(`/api/transcribe/${currentUploadId}/align`, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ text, mode })
+						body: JSON.stringify(payload)
 					});
 
 					const result = await response.json();
@@ -1004,7 +1158,11 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					}
 
 					const matchPct = result.stats?.match_rate ? Math.round(result.stats.match_rate * 100) : 0;
-					alignStatus.textContent = `Aligned ${result.segments} segments (${matchPct}% match rate, ${result.mode} mode)`;
+					let statusMsg = `Aligned ${result.segments} segments (${matchPct}% match rate, ${result.mode} mode)`;
+					if (result.script_converted) {
+						statusMsg += ` — converted to ${result.target_script}`;
+					}
+					alignStatus.textContent = statusMsg;
 					alignStatus.className = 'align-status success';
 					pasteText.value = ''; // Clear after successful alignment
 

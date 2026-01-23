@@ -1284,8 +1284,8 @@ Updated `.gitignore` to exclude large binary capture files and Playwright artifa
 
 **3 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 57: Frontend - Language and script selection UI
-- Task 58-59: Email service and password reset flow
+- Task 58: Email service with Resend API
+- Task 59: Password reset flow
 
 ### Task 49: Frontend - Use validation utilities in forms
 
@@ -1508,3 +1508,26 @@ Implemented script detection and transliteration for converting romanized text t
 **Documentation:**
 - Added "Script Conversion" section to `docs/API.md` with endpoint documentation
 - Created `specs/script-conversion.md` with library evaluation (GoVarnam, go-aksharamukha, translitkit)
+
+### Task 57: Frontend - Language and script selection UI
+
+**Date**: 2026-01-22
+
+Added language and script selection UI to the upload page for script conversion:
+
+**Frontend changes (`upload.astro`):**
+- Added "Convert to native script" checkbox in paste transcript section
+- Language dropdown with 9 supported languages (Hindi, Malayalam, Tamil, Telugu, Kannada, Bengali, Gujarati, Oriya, Punjabi)
+- Script dropdown that updates based on selected language
+- Hint text shows selected conversion (e.g., "Romanized Hindi text will be converted to Devanagari script")
+- Updated align transcript function to pass `convert_to_script` and `language` params to API
+- Success message now shows script conversion status when applied
+
+**CSS additions:**
+- `.script-conversion-section` styling for the conversion options panel
+- `.script-selectors` with hidden class for toggle visibility
+- `.selector-group` for dropdown styling
+
+**Integration:**
+- When checkbox checked and transcript aligned, API receives script conversion parameters
+- Response shows "— converted to Devanagari" (or other script) in success message
