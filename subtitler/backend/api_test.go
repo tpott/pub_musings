@@ -2257,3 +2257,105 @@ func TestRateLimitingTOTPDisable(t *testing.T) {
 		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
 	}
 }
+
+// TestRateLimitingUpload tests that upload endpoint is rate limited
+func TestRateLimitingUpload(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/upload", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/upload", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	reqLimited := httptest.NewRequest("POST", "/api/upload", nil)
+	reqLimited.RemoteAddr = "192.168.1.100:12345"
+	wLimited := httptest.NewRecorder()
+	mux.ServeHTTP(wLimited, reqLimited)
+
+	if wLimited.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", wLimited.Code)
+	}
+}
+
+// TestRateLimitingTranscribe tests that transcribe endpoint is rate limited
+func TestRateLimitingTranscribe(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/transcribe/{id}", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/transcribe/test123", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/transcribe/test123", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestRateLimitingBurn tests that burn endpoint is rate limited
+func TestRateLimitingBurn(t *testing.T) {
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/videos/{id}/burn", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// First 2 requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/videos/test123/burn", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be rate limited
+	req := httptest.NewRequest("POST", "/api/videos/test123/burn", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}

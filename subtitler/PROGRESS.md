@@ -1413,3 +1413,26 @@ Added paste transcript functionality with lyrics mode toggle to the upload page:
 - `.align-btn` and `.align-status` for button and feedback
 
 This completes the frontend integration of Task 44's lyrics alignment algorithm.
+
+### Task 52: Backend - Rate limit upload/transcribe/burn endpoints
+
+**Date**: 2026-01-22
+
+Added rate limiting to resource-intensive endpoints to prevent DoS attacks:
+
+**New rate limiters in `main.go`:**
+- `uploadLimiter`: 10 requests per minute per IP for `/api/upload`
+- `transcribeLimiter`: 5 requests per minute per IP for `POST /api/transcribe/{id}`
+- `burnLimiter`: 2 requests per minute per IP for `POST /api/videos/{id}/burn`
+
+**Endpoints wrapped:**
+- `POST /api/upload` - rate limited at 10/min
+- `POST /api/transcribe/{id}` - rate limited at 5/min
+- `POST /api/videos/{id}/burn` - rate limited at 2/min
+
+**Tests added (`api_test.go`):**
+- `TestRateLimitingUpload` - verifies upload endpoint returns 429 after limit
+- `TestRateLimitingTranscribe` - verifies transcribe endpoint returns 429 after limit
+- `TestRateLimitingBurn` - verifies burn endpoint returns 429 after limit
+
+All endpoints return HTTP 429 Too Many Requests with `Retry-After: 60` header when rate limited.

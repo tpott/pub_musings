@@ -62,8 +62,11 @@ var database *db.DB
 // Global encryptor for file encryption
 var encryptor *crypto.Encryptor
 
-// Global rate limiter for auth endpoints (5 requests per minute per IP)
-var authLimiter = ratelimit.New(5, time.Minute)
+// Global rate limiters (per IP, per minute)
+var authLimiter = ratelimit.New(5, time.Minute)       // Auth endpoints: 5/min
+var uploadLimiter = ratelimit.New(10, time.Minute)    // Upload endpoint: 10/min
+var transcribeLimiter = ratelimit.New(5, time.Minute) // Transcribe endpoints: 5/min
+var burnLimiter = ratelimit.New(2, time.Minute)       // Burn endpoint: 2/min
 
 func generateID() string {
 	bytes := make([]byte, 16)
@@ -1220,8 +1223,8 @@ func main() {
 		})
 	}))
 
-	// Upload endpoint - accepts video files
-	mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
+	// Upload endpoint - accepts video files (rate limited: 10/min per IP)
+	mux.HandleFunc("POST /api/upload", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Get authenticated user (if any)
@@ -1382,10 +1385,10 @@ func main() {
 			"size":      written,
 			"message":   fmt.Sprintf("File uploaded successfully (%d bytes)", written),
 		})
-	})
+	}))
 
-	// Start transcription for an upload
-	mux.HandleFunc("POST /api/transcribe/{id}", func(w http.ResponseWriter, r *http.Request) {
+	// Start transcription for an upload (rate limited: 5/min per IP)
+	mux.HandleFunc("POST /api/transcribe/{id}", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		uploadID := r.PathValue("id")
@@ -1530,7 +1533,7 @@ func main() {
 			"status":  "processing",
 			"message": "Transcription started",
 		})
-	})
+	}))
 
 	// Get transcription status/result
 	mux.HandleFunc("GET /api/transcribe/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -1952,8 +1955,8 @@ func main() {
 		http.ServeFile(w, r, videoPath)
 	})
 
-	// Start burning subtitles into video
-	mux.HandleFunc("POST /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
+	// Start burning subtitles into video (rate limited: 2/min per IP)
+	mux.HandleFunc("POST /api/videos/{id}/burn", burnLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		uploadID := r.PathValue("id")
@@ -2137,7 +2140,7 @@ func main() {
 			"message":  "Subtitle burn started",
 			"progress": 0,
 		})
-	})
+	}))
 
 	// Get burn job status
 	mux.HandleFunc("GET /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
