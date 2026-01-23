@@ -1694,6 +1694,7 @@ func main() {
 		// Parse request body
 		var req struct {
 			Text string `json:"text"`
+			Mode string `json:"mode"` // "lyrics" for music-specific alignment
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -1733,8 +1734,13 @@ func main() {
 			}
 		}
 
-		// Perform alignment
-		result := align.AlignTranscript(req.Text, alignSegments)
+		// Perform alignment - use lyrics mode if specified
+		var result align.AlignmentResult
+		if req.Mode == "lyrics" {
+			result = align.AlignLyrics(req.Text, alignSegments)
+		} else {
+			result = align.AlignTranscript(req.Text, alignSegments)
+		}
 
 		// Convert back to db.Segment
 		newSegments := make([]db.Segment, len(result.Segments))
@@ -1757,13 +1763,18 @@ func main() {
 			return
 		}
 
-		log.Printf("Aligned transcript for %s: %d segments, %.1f%% match rate",
-			uploadID, len(newSegments), result.Stats.MatchRate*100)
+		mode := "standard"
+		if req.Mode == "lyrics" {
+			mode = "lyrics"
+		}
+		log.Printf("Aligned transcript for %s (mode=%s): %d segments, %.1f%% match rate",
+			uploadID, mode, len(newSegments), result.Stats.MatchRate*100)
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":   "success",
 			"segments": len(newSegments),
 			"stats":    result.Stats,
+			"mode":     mode,
 		})
 	})
 

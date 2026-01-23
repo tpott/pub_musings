@@ -1164,6 +1164,43 @@ Addressed all feedback from FEEDBACK.md:
 
 FEEDBACK.md deleted after all items addressed.
 
+### Task 44: Smart lyrics alignment
+
+**Date**: 2026-01-22
+
+Implemented music-specific alignment algorithm for aligning known lyrics with Whisper transcription timing.
+
+**New files:**
+- `specs/lyrics-alignment.md` - Comprehensive algorithm design specification
+- `backend/align/lyrics.go` - Lyrics-specific alignment functions
+- `backend/align/lyrics_test.go` - Unit tests for lyrics alignment
+
+**Algorithm improvements:**
+- `MusicWordSimilarity()` - Enhanced similarity function accounting for:
+  - Vocal substitutions common in singing (you→ooh, I→ah, love→luv)
+  - Elongated words (loooove→love, yeaaaah→yeah)
+  - Collapsed repeated characters
+- `NeedlemanWunsch()` - Global alignment using dynamic programming
+  - Better than greedy matching for handling missing/extra words
+  - Configurable match/mismatch/gap penalties tuned for lyrics
+- `DetectStructure()` - Lyrics structure detection
+  - Recognizes section headers ([Verse], [Chorus], etc.)
+  - Detects repeated sections for chorus handling
+- `refineTiming()` - Timing refinement for subtitle display
+  - Minimum duration enforcement (0.8s for readability)
+  - Small gap filling between segments
+  - Overlap prevention
+
+**API changes:**
+- `/api/transcribe/{id}/align` now accepts optional `mode` parameter
+- When `mode: "lyrics"`, uses music-specific alignment
+- Response includes `mode` field to confirm which algorithm was used
+
+**Test coverage:**
+- 12 new tests for lyrics alignment functions
+- Tests for vocal substitution, elongation, structure detection
+- Tests for Needleman-Wunsch alignment with various scenarios
+
 ### Task 47: Self-hosted QR code generation
 
 **Date**: 2026-01-22
@@ -1195,7 +1232,7 @@ Updated `specs/totp.md` to document completed implementation.
 
 ## Summary
 
-44 tasks completed. The subtitler application is feature-complete with:
+45 tasks completed. The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1210,4 +1247,4 @@ Updated `specs/totp.md` to document completed implementation.
 - Working E2E test infrastructure with Playwright
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 
-**4 tasks remaining:** lyrics alignment, clean room evaluation, design template, MoltenVK research
+**3 tasks remaining:** design template analysis, MoltenVK research, and evaluation framework was already completed (Task 45 spec exists)
