@@ -1640,6 +1640,24 @@ Enhanced video upload security with MIME type whitelist validation:
 - Frontend: 3 test cases for MIME type validation including unsupported video formats
 - Total new tests: 16
 
+### Task 62: Add recovery codes download button
+
+**Date**: 2026-01-22
+
+Added "Download as File" button to the recovery codes section on the security settings page:
+
+**Frontend changes (`security.astro`):**
+- Added "Download as File" button alongside "Copy All Codes" button
+- `downloadCodes()` function creates a text file with:
+  - Header with app name and timestamp
+  - Instructions about single-use codes
+  - All 10 recovery codes
+- Uses Blob API and dynamic link creation for file download
+- Downloads as `subtitler-recovery-codes.txt`
+- Visual feedback after download ("Downloaded!")
+
+This allows users to save their recovery codes as a file for offline storage, in addition to the copy-to-clipboard option.
+
 ### Task 61: Show retention countdown on videos list
 
 **Date**: 2026-01-22
@@ -1667,7 +1685,7 @@ Implemented retention countdown display on the videos list page:
 
 ## Summary
 
-61 tasks completed (60 done + 1 requiring macOS). The subtitler application is feature-complete with:
+62 tasks completed (61 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT format)
 - Subtitle burning into video files
@@ -1686,6 +1704,6 @@ Implemented retention countdown display on the videos list page:
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 
-**6 tasks remaining:**
+**5 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 62-67: Security/UX improvements filed during audit
+- Task 63-67: Security/UX improvements filed during audit

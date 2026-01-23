@@ -459,6 +459,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 						<div id="recoveryCodesGrid" class="recovery-codes-grid"></div>
 						<div class="recovery-actions">
 							<button type="button" class="btn btn-secondary" id="copyCodesBtn">Copy All Codes</button>
+							<button type="button" class="btn btn-secondary" id="downloadCodesBtn">Download as File</button>
 						</div>
 						<div class="confirmation-checkbox">
 							<input type="checkbox" id="savedCodesCheckbox" />
@@ -579,6 +580,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const recoveryCodesSection = document.getElementById('recoveryCodesSection') as HTMLElement;
 			const recoveryCodesGrid = document.getElementById('recoveryCodesGrid') as HTMLElement;
 			const copyCodesBtn = document.getElementById('copyCodesBtn') as HTMLButtonElement;
+			const downloadCodesBtn = document.getElementById('downloadCodesBtn') as HTMLButtonElement;
 			const savedCodesCheckbox = document.getElementById('savedCodesCheckbox') as HTMLInputElement;
 			const continueBtn = document.getElementById('continueBtn') as HTMLButtonElement;
 
@@ -837,6 +839,32 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				}
 			}
 
+			function downloadCodes() {
+				const codesText = `Subtitler 2FA Recovery Codes
+============================
+Generated: ${new Date().toISOString()}
+
+Each code can only be used once.
+Store these codes in a safe place.
+
+${recoveryCodes.join('\n')}
+`;
+				const blob = new Blob([codesText], { type: 'text/plain' });
+				const url = URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.href = url;
+				link.download = 'subtitler-recovery-codes.txt';
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				URL.revokeObjectURL(url);
+
+				downloadCodesBtn.textContent = 'Downloaded!';
+				setTimeout(() => {
+					downloadCodesBtn.textContent = 'Download as File';
+				}, 2000);
+			}
+
 			function onSavedCodesChange() {
 				continueBtn.disabled = !savedCodesCheckbox.checked;
 			}
@@ -1068,6 +1096,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			verifyForm.addEventListener('submit', verifyAndEnable);
 			disableForm.addEventListener('submit', disable2FA);
 			copyCodesBtn.addEventListener('click', copyAllCodes);
+			downloadCodesBtn.addEventListener('click', downloadCodes);
 			savedCodesCheckbox.addEventListener('change', onSavedCodesChange);
 			continueBtn.addEventListener('click', finishSetup);
 
