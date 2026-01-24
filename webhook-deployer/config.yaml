@@ -1,0 +1,25 @@
+sites:
+  - name: personal
+    path: /home/trevor/pub_musings/personal
+    path_prefix: personal/
+    branch: trunk
+    repository: tpott/pub_musings
+    commands:
+      - "git pull origin trunk"
+      - ". ~/.nvm/nvm.sh && nvm use"
+      - "npm ci"
+      - "npm run build"
+
+  - name: subtitler-frontend
+    path: /home/trevor/pub_musings/subtitler/frontend
+    path_prefix: subtitler/frontend/
+    branch: subtitler_v3
+    repository: tpott/pub_musings
+    deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-subtitler-frontend.sh
+
+  - name: subtitler-backend
+    path: /home/trevor/pub_musings/subtitler/backend
+    path_prefix: subtitler/backend/
+    branch: subtitler_v3
+    repository: tpott/pub_musings
+    deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-subtitler-backend.sh

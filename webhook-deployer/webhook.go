@@ -8,13 +8,17 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 type WebhookHandler struct {
-	secret   string
-	sitePath string
+	secret     string
+	config     *Config
+	siteMutexs map[string]*sync.Mutex
+	mu         sync.Mutex // protects siteMutexs
 }
 
 type GitHubPushEvent struct {
@@ -25,12 +29,18 @@ type GitHubPushEvent struct {
 	Pusher struct {
 		Name string `json:"name"`
 	} `json:"pusher"`
+	Commits []struct {
+		Added    []string `json:"added"`
+		Modified []string `json:"modified"`
+		Removed  []string `json:"removed"`
+	} `json:"commits"`
 }
 
-func NewWebhookHandler(secret, sitePath string) *WebhookHandler {
+func NewWebhookHandler(secret string, config *Config) *WebhookHandler {
 	return &WebhookHandler{
-		secret:   secret,
-		sitePath: sitePath,
+		secret:     secret,
+		config:     config,
+		siteMutexs: make(map[string]*sync.Mutex),
 	}
 }
 
@@ -68,21 +78,38 @@ func (h *WebhookHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only deploy on push to trunk
-	if payload.Ref != "refs/heads/trunk" {
-		log.Printf("Ignoring push to %s", payload.Ref)
+	// Extract branch name from ref
+	branch := extractBranch(payload.Ref)
+	if branch == "" {
+		log.Printf("Could not extract branch from ref: %s", payload.Ref)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Not trunk branch, ignored"))
+		w.Write([]byte("Invalid ref format"))
 		return
 	}
 
-	log.Printf("Deploy triggered by %s for %s", payload.Pusher.Name, payload.Repository.FullName)
+	// Collect all changed files from all commits
+	changedFiles := extractChangedFiles(payload.Commits)
 
-	// Run deploy in background
-	go h.deploy()
+	// Find matching sites
+	matchingSites := h.config.FindMatchingSites(branch, payload.Repository.FullName, changedFiles)
+
+	if len(matchingSites) == 0 {
+		log.Printf("No matching sites for branch %q, repo %q, files: %v", branch, payload.Repository.FullName, changedFiles)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("No matching sites"))
+		return
+	}
+
+	log.Printf("Deploy triggered by %s for %s (branch: %s)", payload.Pusher.Name, payload.Repository.FullName, branch)
+	log.Printf("Matching sites: %v", siteNames(matchingSites))
+
+	// Run deploys in background
+	for _, site := range matchingSites {
+		go h.deploySite(site)
+	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Deploy started"))
+	w.Write([]byte("Deploy started for: " + strings.Join(siteNames(matchingSites), ", ")))
 }
 
 func (h *WebhookHandler) validateSignature(body []byte, signature string) bool {
@@ -103,24 +130,119 @@ func (h *WebhookHandler) validateSignature(body []byte, signature string) bool {
 	return hmac.Equal([]byte(signature), []byte(expected))
 }
 
-func (h *WebhookHandler) deploy() {
-	log.Println("Starting deploy...")
+// getSiteMutex returns a mutex for the given site, creating one if needed
+func (h *WebhookHandler) getSiteMutex(siteName string) *sync.Mutex {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	// Run deploy script
-	cmd := exec.Command("bash", "-c", `
-		cd `+h.sitePath+` && \
-		git pull origin trunk && \
-		. ~/.nvm/nvm.sh && \
-		nvm use && \
-		npm ci && \
-		npm run build
-	`)
+	if h.siteMutexs[siteName] == nil {
+		h.siteMutexs[siteName] = &sync.Mutex{}
+	}
+	return h.siteMutexs[siteName]
+}
 
-	output, err := cmd.CombinedOutput()
+func (h *WebhookHandler) deploySite(site SiteConfig) {
+	// Get per-site mutex to prevent concurrent deploys of the same site
+	mutex := h.getSiteMutex(site.Name)
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	log.Printf("[%s] Starting deploy...", site.Name)
+
+	var err error
+	var output []byte
+
+	if site.DeployScript != "" {
+		output, err = h.runDeployScript(site)
+	} else {
+		output, err = h.runInlineCommands(site)
+	}
+
 	if err != nil {
-		log.Printf("Deploy failed: %v\nOutput: %s", err, output)
+		log.Printf("[%s] Deploy failed: %v\nOutput: %s", site.Name, err, output)
 		return
 	}
 
-	log.Printf("Deploy completed successfully:\n%s", output)
+	log.Printf("[%s] Deploy completed successfully:\n%s", site.Name, output)
+}
+
+func (h *WebhookHandler) runDeployScript(site SiteConfig) ([]byte, error) {
+	cmd := exec.Command("bash", site.DeployScript)
+	cmd.Dir = site.Path
+
+	// Set environment variables
+	cmd.Env = os.Environ()
+	for k, v := range site.Environment {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
+	return cmd.CombinedOutput()
+}
+
+func (h *WebhookHandler) runInlineCommands(site SiteConfig) ([]byte, error) {
+	// Build a single bash script from all commands
+	script := strings.Join(site.Commands, " && ")
+
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Dir = site.Path
+
+	// Set environment variables
+	cmd.Env = os.Environ()
+	for k, v := range site.Environment {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
+	return cmd.CombinedOutput()
+}
+
+// extractBranch extracts the branch name from a git ref
+// e.g., "refs/heads/trunk" -> "trunk"
+func extractBranch(ref string) string {
+	const prefix = "refs/heads/"
+	if strings.HasPrefix(ref, prefix) {
+		return strings.TrimPrefix(ref, prefix)
+	}
+	return ""
+}
+
+// extractChangedFiles collects all added, modified, and removed files from commits
+func extractChangedFiles(commits []struct {
+	Added    []string `json:"added"`
+	Modified []string `json:"modified"`
+	Removed  []string `json:"removed"`
+}) []string {
+	seen := make(map[string]bool)
+	var files []string
+
+	for _, commit := range commits {
+		for _, f := range commit.Added {
+			if !seen[f] {
+				seen[f] = true
+				files = append(files, f)
+			}
+		}
+		for _, f := range commit.Modified {
+			if !seen[f] {
+				seen[f] = true
+				files = append(files, f)
+			}
+		}
+		for _, f := range commit.Removed {
+			if !seen[f] {
+				seen[f] = true
+				files = append(files, f)
+			}
+		}
+	}
+
+	return files
+}
+
+// siteNames extracts the names from a slice of SiteConfig
+func siteNames(sites []SiteConfig) []string {
+	names := make([]string, len(sites))
+	for i, s := range sites {
+		names[i] = s.Name
+	}
+	return names
 }

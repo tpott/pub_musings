@@ -37,13 +37,19 @@ func main() {
 		log.Fatal("ALLOWED_ORIGIN environment variable is required")
 	}
 
-	sitePath := os.Getenv("SITE_PATH")
-	if sitePath == "" {
-		sitePath = "/home/trevor/pub_musings/personal"
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "./config.yaml"
 	}
 
+	config, err := LoadConfig(configPath)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+	log.Printf("Loaded %d site configurations", len(config.Sites))
+
 	// Create handlers
-	webhookHandler := NewWebhookHandler(webhookSecret, sitePath)
+	webhookHandler := NewWebhookHandler(webhookSecret, config)
 	contactHandler := NewContactHandler(resendAPIKey, emailFrom, emailTo)
 
 	// Setup routes
@@ -56,7 +62,7 @@ func main() {
 	handler := corsMiddleware(mux, allowedOrigin)
 
 	log.Printf("Starting webhook-deployer on port %s", port)
-	log.Printf("Site path: %s", sitePath)
+	log.Printf("Config path: %s", configPath)
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
