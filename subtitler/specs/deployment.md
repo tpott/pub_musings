@@ -186,8 +186,8 @@ Restart=always
 RestartSec=5
 
 # Environment
-Environment=PORT=8080
-Environment=WHISPER_SERVER_URL=http://10.0.2.2:8765
+Environment=PORT=8070
+Environment=WHISPER_SERVER_URL=http://10.0.2.2:8050
 
 # Security
 NoNewPrivileges=true
