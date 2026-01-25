@@ -1,7 +1,7 @@
 # Webhook Deployer
 
 A Go HTTP service that handles:
-1. GitHub webhook deployments for the personal website
+1. GitHub webhook deployments for multiple sites/branches
 2. Contact form submissions with email via Resend
 
 ## Setup
@@ -28,10 +28,37 @@ go build -o webhook-deployer .
 | `EMAIL_FROM` | Yes | From address for contact form emails (e.g., `Contact Form <noreply@example.com>`) |
 | `EMAIL_TO` | Yes | Recipient address for contact form emails (e.g., `you@example.com`) |
 | `ALLOWED_ORIGIN` | Yes | Production origin for CORS (e.g., `https://example.com`) |
-| `SITE_PATH` | No | Path to Astro site (default: `/home/trevor/pub_musings/personal`) |
+| `CONFIG_PATH` | No | Path to config file (default: `./config.yaml`) |
 | `PORT` | No | HTTP port (default: `9000`) |
 
 **Note:** `http://localhost:4321` and `http://127.0.0.1:4321` are always allowed as CORS origins for local development.
+
+## Configuration
+
+Deployments are configured in `config.yaml`. Each site can match on branch, repository, and path prefix:
+
+```yaml
+sites:
+  - name: personal
+    path: /home/trevor/pub_musings/personal
+    path_prefix: personal/          # Only deploy if files here changed
+    branch: trunk
+    repository: tpott/pub_musings
+    commands:                        # Inline commands
+      - "git pull origin trunk"
+      - ". ~/.nvm/nvm.sh && nvm use"
+      - "npm ci"
+      - "npm run build"
+
+  - name: subtitler-backend
+    path: /home/trevor/pub_musings/subtitler/backend
+    path_prefix: subtitler/backend/
+    branch: subtitler_v3
+    repository: tpott/pub_musings
+    deploy_script: /path/to/deploy.sh  # Or use external script
+```
+
+**Path prefix filtering:** If `path_prefix` is set, the site only deploys when pushed commits contain files under that path. This allows granular deployments (e.g., frontend changes don't restart the backend).
 
 ## Endpoints
 

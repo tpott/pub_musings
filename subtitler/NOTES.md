@@ -15,9 +15,9 @@ The webhook-deployer runs **inside the Ubuntu VM**, not on the Mac host. This me
 | deployment.md Says | Reality |
 |--------------------|---------|
 | Build on Mac host with cross-compilation | Build natively on ARM64 VM |
-| `CGO_ENABLED=1 GOOS=linux GOARCH=arm64` | Just `go build` (native) |
+| `CGO_ENABLED=1 GOOS=linux GOARCH=arm64` | `CGO_ENABLED=1 go build` (native, CGO required for sqlite) |
 | SSH/SCP from host to VM | No SSH - webhook-deployer runs on VM |
-| `rsync -avz dist/ vm:/var/www/subtitler/` | `rsync` locally on VM |
+| `rsync -avz dist/ vm:/var/www/subtitler/` | No rsync needed - Caddy serves from `frontend/dist/` |
 
 ## Why This Matters
 

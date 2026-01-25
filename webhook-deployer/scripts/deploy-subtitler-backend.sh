@@ -9,16 +9,16 @@ git pull origin subtitler_v3
 cd subtitler/backend
 
 # Build to temp file first (atomic swap)
-/home/trevor/go/bin/go build -o subtitler-new
+CGO_ENABLED=1 go build -o subtitler-new
 
 # Backup current binary
-sudo cp /opt/subtitler/backend/subtitler /opt/subtitler/backend/subtitler-prev 2>/dev/null || true
+cp subtitler subtitler-prev 2>/dev/null || true
 
 # Atomic move
-sudo mv subtitler-new /opt/subtitler/backend/subtitler
+mv subtitler-new subtitler
 
 # Restart service
-sudo systemctl restart subtitler
+systemctl --user restart subtitler
 
 # Health check
 sleep 2

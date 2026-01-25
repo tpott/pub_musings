@@ -84,8 +84,7 @@ cd subtitler/frontend
 npm ci
 npm run build
 
-# Deploy to web root
-sudo rsync -av --delete dist/ /var/www/subtitler/
+# Caddy serves directly from dist/ - no rsync needed
 
 echo "Frontend deployed successfully"
 ```
@@ -103,20 +102,20 @@ git pull origin subtitler_v3
 cd subtitler/backend
 
 # Build to temp file first (atomic swap)
-/home/trevor/go/bin/go build -o subtitler-new
+CGO_ENABLED=1 go build -o subtitler-new
 
 # Backup current binary
-sudo cp /opt/subtitler/backend/subtitler /opt/subtitler/backend/subtitler-prev 2>/dev/null || true
+cp subtitler subtitler-prev 2>/dev/null || true
 
 # Atomic move
-sudo mv subtitler-new /opt/subtitler/backend/subtitler
+mv subtitler-new subtitler
 
-# Restart service
-sudo systemctl restart subtitler
+# Restart user service (no sudo required)
+systemctl --user restart subtitler
 
 # Health check
 sleep 2
-if curl -sf http://localhost:8080/api/health > /dev/null; then
+if curl -sf http://localhost:8070/api/health > /dev/null; then
     echo "Backend deployed successfully"
 else
     echo "WARNING: Health check failed!"
@@ -202,22 +201,173 @@ Document what's incorrect in `subtitler/specs/deployment.md`:
 Manual verification on VM:
 ```bash
 # Check frontend deployed
-curl http://localhost:8080/  # Or through Caddy
+curl http://localhost:8060/  # Through Caddy
 
 # Check backend running
-systemctl status subtitler
-curl http://localhost:8080/api/health
+systemctl --user status subtitler
+curl http://localhost:8070/api/health
 ```
 
 ## VM Prerequisites
-The deploy script needs `sudo` access for:
-- `rsync` to `/var/www/subtitler/`
-- `cp` to `/opt/subtitler/backend/`
-- `systemctl restart subtitler`
 
-Ensure the `trevor` user has passwordless sudo for these commands, or add to sudoers:
+The backend runs as a **user systemd service** (no sudo required for deploys).
+
+### One-time setup for user service:
+```bash
+# Create user systemd directory
+mkdir -p ~/.config/systemd/user
+
+# Create the service file at ~/.config/systemd/user/subtitler.service
+# (see example below)
+
+# Enable lingering so service starts at boot without login
+loginctl enable-linger trevor
+
+# Reload and enable
+systemctl --user daemon-reload
+systemctl --user enable subtitler
+systemctl --user start subtitler
 ```
-trevor ALL=(ALL) NOPASSWD: /usr/bin/rsync, /bin/cp, /bin/systemctl restart subtitler
+
+### Example `~/.config/systemd/user/subtitler.service`:
+```ini
+[Unit]
+Description=Subtitler Backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/trevor/pub_musings/subtitler/backend
+ExecStart=/home/trevor/pub_musings/subtitler/backend/subtitler
+Restart=always
+RestartSec=5
+
+# Environment (loaded from encrypted secrets via sops)
+EnvironmentFile=/home/trevor/pub_musings/subtitler/backend/.env
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/trevor/pub_musings/subtitler/backend/data
+ReadWritePaths=/home/trevor/pub_musings/subtitler/backend/uploads
+
+[Install]
+WantedBy=default.target
+```
+
+### Secrets Management with sops + age
+
+Subtitler uses **sops + age** for encrypted secrets, following the same pattern as `personal/` and `webhook-deployer/`.
+
+#### Required secrets for subtitler backend:
+| Secret | Purpose |
+|--------|---------|
+| `PORT` | HTTP port (default: 8080) |
+| `WHISPER_SERVER_URL` | URL of whisper-server (e.g., `http://10.0.2.2:8050`) |
+| `WHISPER_MODEL` | Whisper model name (optional) |
+| `USE_WHISPER_SERVER` | Set to `true` to use external whisper server |
+| `RESEND_API_KEY` | Resend API key for email service |
+| `EMAIL_FROM` | Sender email address (e.g., `noreply@subtitler.app`) |
+| `EMAIL_ENABLED` | Set to `false` to disable email (defaults to enabled) |
+| `APP_URL` | Application URL for email links (e.g., `https://subtitler.pottingers.us`) |
+| `HTTPS_ONLY` | Set to `true` for secure cookies in production |
+
+#### Add subtitler secrets to `pub_musings/secrets.enc.yaml`:
+
+If you already have sops+age set up (see `personal/001_INITIALIZATION.md`), decrypt, add subtitler secrets, and re-encrypt:
+
+```bash
+cd ~/pub_musings
+
+# Decrypt existing secrets
+sops -d secrets.enc.yaml > secrets.yaml
+
+# Add subtitler secrets to secrets.yaml:
+# SUBTITLER_PORT: "8080"
+# SUBTITLER_WHISPER_SERVER_URL: "http://10.0.2.2:8050"
+# SUBTITLER_WHISPER_MODEL: "base"
+# SUBTITLER_USE_WHISPER_SERVER: "true"
+# SUBTITLER_RESEND_API_KEY: "re_xxxxx"
+# SUBTITLER_EMAIL_FROM: "noreply@subtitler.pottingers.us"
+# SUBTITLER_EMAIL_ENABLED: "true"
+# SUBTITLER_APP_URL: "https://subtitler.pottingers.us"
+# SUBTITLER_HTTPS_ONLY: "true"
+
+# Re-encrypt
+sops -e secrets.yaml > secrets.enc.yaml
+rm secrets.yaml
+```
+
+#### Decrypt secrets for subtitler on the VM:
+
+```bash
+cd ~/pub_musings
+
+# Extract subtitler secrets to .env file
+sops -d secrets.enc.yaml | \
+  grep -E "^SUBTITLER_" | \
+  sed 's/^SUBTITLER_//' | \
+  sed 's/: /=/' | sed 's/"//g' > subtitler/backend/.env
+
+# Secure the file
+chmod 600 subtitler/backend/.env
+
+# Verify
+cat subtitler/backend/.env
+# Should show:
+# PORT=8080
+# WHISPER_SERVER_URL=http://10.0.2.2:8050
+# WHISPER_MODEL=base
+# USE_WHISPER_SERVER=true
+# RESEND_API_KEY=re_xxxxx
+# EMAIL_FROM=noreply@subtitler.pottingers.us
+# EMAIL_ENABLED=true
+# APP_URL=https://subtitler.pottingers.us
+# HTTPS_ONLY=true
+```
+
+#### After updating secrets, reload the service:
+```bash
+systemctl --user daemon-reload
+systemctl --user restart subtitler
+```
+
+### Cloudflare Tunnel DNS Setup
+
+The VM already has a Cloudflare tunnel configured. To route `subtitler.pottingers.us` through the existing tunnel:
+
+```bash
+# List existing tunnels to find the tunnel name
+cloudflared tunnel list
+
+# Check which tunnel ID is configured in /etc/cloudflared/config.yml
+cat /etc/cloudflared/config.yml | grep tunnel:
+# Example output: tunnel: abc123-def456-...
+
+# Match the tunnel ID to the name from `tunnel list`, then route DNS
+# This creates a CNAME record in Cloudflare DNS automatically
+cloudflared tunnel route dns <tunnel-name> subtitler.pottingers.us
+```
+
+Then update `/etc/cloudflared/config.yml` to add the subtitler ingress rule:
+
+```yaml
+tunnel: <tunnel-id>
+credentials-file: /home/trevor/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: t.pottingers.us
+    service: http://localhost:8080
+  - hostname: webhook.pottingers.us
+    service: http://localhost:9000
+  - hostname: subtitler.pottingers.us
+    service: http://localhost:8080  # or whatever port subtitler uses
+  - service: http_status:404
+```
+
+Restart cloudflared to pick up the new config:
+```bash
+sudo systemctl restart cloudflared
 ```
 
 ## Corrections to deployment.md
@@ -227,9 +377,9 @@ The existing `subtitler/specs/deployment.md` contains some incorrect assumptions
 | deployment.md Says | Reality |
 |--------------------|---------|
 | Build on Mac host with cross-compilation | Build natively on ARM64 VM |
-| `CGO_ENABLED=1 GOOS=linux GOARCH=arm64` | Just `go build` (native) |
+| `CGO_ENABLED=1 GOOS=linux GOARCH=arm64` | `CGO_ENABLED=1 go build` (native, CGO required for sqlite) |
 | SSH/SCP from host to VM | No SSH - webhook-deployer runs on VM |
-| `rsync -avz dist/ vm:/var/www/subtitler/` | `rsync` locally on VM |
+| `rsync -avz dist/ vm:/var/www/subtitler/` | No rsync needed - Caddy serves from `frontend/dist/` |
 
 The deployment spec was written assuming a "build on dev machine, deploy to VM" workflow. The actual architecture uses webhook-deployer running inside the VM, which simplifies deployment significantly.
 
@@ -273,14 +423,15 @@ curl -X POST http://localhost:9000/webhook \
 cd /home/trevor/pub_musings/subtitler/frontend
 git checkout HEAD~1
 npm ci && npm run build
-sudo rsync -av --delete dist/ /var/www/subtitler/
+# Caddy serves directly from dist/ - no rsync needed
 ```
 
 ### Backend Rollback
 ```bash
 # Restore previous binary (kept by deploy script)
-sudo cp /opt/subtitler/backend/subtitler-prev /opt/subtitler/backend/subtitler
-sudo systemctl restart subtitler
+cd /home/trevor/pub_musings/subtitler/backend
+cp subtitler-prev subtitler
+systemctl --user restart subtitler
 ```
 
 ### Full Git Rollback

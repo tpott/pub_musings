@@ -11,7 +11,6 @@ cd subtitler/frontend
 npm ci
 npm run build
 
-# Deploy to web root
-sudo rsync -av --delete dist/ /var/www/subtitler/
+# Caddy serves directly from dist/ - no rsync needed
 
 echo "Frontend deployed successfully"
