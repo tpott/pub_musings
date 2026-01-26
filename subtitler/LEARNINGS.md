@@ -341,3 +341,23 @@ The frontend called `/api/videos` without passing session_id for anonymous users
 2. Consider the maintenance burden of custom builds vs. simpler architectures
 3. 25% performance penalty plus complexity usually isn't worth it vs. host-based services
 4. Document research thoroughly so this doesn't get re-investigated later
+
+---
+
+### 2026-01-26: Go must be in PATH for automated agents
+
+**Problem:** Claude Code (Ralph) couldn't run `go` commands because Go wasn't in PATH. The workaround was hardcoding `/home/trevor/go/bin/go` in 40+ places across scripts, docs, and config files.
+
+**Root cause:** Claude's Bash tool runs non-interactive shells that don't source `~/.bashrc` by default. Even adding Go to `.bashrc` wasn't sufficient.
+
+**Solution:** Ensure Go is in PATH via `~/.profile` (sourced by login shells) or by setting `BASH_ENV` to point to a file that exports PATH:
+```bash
+# ~/.profile
+export PATH="$PATH:$HOME/go/bin"
+```
+
+**Lesson:**
+1. Automated tools often run non-interactive shells that skip `.bashrc`
+2. Use `~/.profile` for PATH exports needed by automated systems
+3. Avoid hardcoding paths - they break portability and create maintenance burden
+4. When a tool isn't found, fix the environment rather than hardcoding paths everywhere

@@ -127,32 +127,48 @@ Serves static frontend files and proxies API requests to the backend.
 **Caddyfile:**
 ```caddyfile
 subtitler.example.com {
-    # Serve static frontend files
-    root * /var/www/subtitler
-    file_server
-
-    # Proxy API requests to Go backend (default 8080, production uses 8060)
-    handle /api/* {
-        reverse_proxy localhost:8060
+    # Logging - JSON format for structured log analysis
+    log {
+        output file /var/log/caddy/subtitler-access.log
+        format json
     }
 
-    # SPA fallback - serve index.html for client-side routes
-    try_files {path} /index.html
+    # Proxy API requests to Go backend with extended timeouts for uploads
+    # Note: Large uploads may still fail due to Cloudflare's 100MB free-tier limit
+    handle /api/* {
+        reverse_proxy localhost:8060 {
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+            }
+        }
+    }
+
+    # Serve static frontend files
+    handle {
+        root * /var/www/subtitler
+        file_server
+
+        # SPA fallback - serve index.html for client-side routes
+        try_files {path} /index.html
+
+        # Compression
+        encode gzip
+
+        # Cache static assets (1 year, immutable)
+        @static path *.js *.css *.png *.jpg *.svg *.woff2
+        header @static Cache-Control "public, max-age=31536000, immutable"
+
+        # Don't cache HTML
+        @html path *.html /
+        header @html Cache-Control "no-cache"
+    }
 
     # Security headers
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
-    }
-
-    # Compression
-    encode gzip
-
-    # Logging
-    log {
-        output file /var/log/caddy/access.log
-        format json
     }
 }
 ```
@@ -481,6 +497,38 @@ chmod 600 /backup/age.key
 5. **Database:** SQLite in WAL mode, regular backups
 6. **Secrets:** Encryption key secured with restricted permissions
 
+## Known Limitations
+
+### Cloudflare Upload Size Limit
+
+**Cloudflare's free tier limits request bodies to 100MB.** This affects video uploads through the Cloudflare tunnel.
+
+**Symptoms:**
+- Upload progress stalls at 6-15% for large videos (500MB+)
+- `journalctl -u cloudflared` shows: `Request failed error="stream X canceled by remote with error code 0"`
+- `journalctl -u caddy` shows: `msg="aborting with incomplete response"`
+
+**Solutions:**
+1. **Chunked uploads** (recommended) - See TASKS.jsonl task 116 for implementation plan
+2. **Upgrade Cloudflare plan** - Pro tier allows 500MB uploads
+3. **Direct upload bypass** - For trusted networks, expose backend directly (not through tunnel)
+
+### Debugging Upload Issues
+
+```bash
+# Check cloudflared logs for stream cancellation
+journalctl -u cloudflared | grep -i "canceled\|error"
+
+# Check Caddy logs for incomplete responses
+journalctl -u caddy | grep -i "abort\|incomplete"
+
+# Check backend logs
+journalctl --user -u subtitler | grep -i "upload\|error"
+
+# View Caddy access logs (if configured)
+tail -f /var/log/caddy/subtitler-access.log | jq .
+```
+
 ## Future Improvements
 
 1. **Docker containerization:** Package backend + frontend in containers for easier deployment
@@ -488,6 +536,7 @@ chmod 600 /backup/age.key
 3. **CDN:** CloudFlare or similar for static asset caching
 4. **Monitoring:** Prometheus + Grafana for metrics
 5. **GPU passthrough:** See [Metal via MoltenVK research](../specs/metal-moltenvk.md)
+6. **Chunked uploads:** Implement resumable uploads to bypass Cloudflare's 100MB limit
 
 ## See Also
 

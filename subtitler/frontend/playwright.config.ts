@@ -24,7 +24,7 @@ export default defineConfig({
   // Start dev server before running tests
   webServer: [
     {
-      command: 'cd ../backend && /home/trevor/go/bin/go run main.go',
+      command: 'cd ../backend && go run main.go',
       url: 'http://localhost:8080/api/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

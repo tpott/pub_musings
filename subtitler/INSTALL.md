@@ -41,9 +41,6 @@ The backend is written in Go and requires version 1.22 or later.
 wget https://go.dev/dl/go1.22.10.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf go1.22.10.linux-amd64.tar.gz
-
-# Add to PATH (add to ~/.bashrc or ~/.zshrc)
-export PATH=$PATH:/usr/local/go/bin
 ```
 
 **macOS (Homebrew):**
@@ -51,11 +48,30 @@ export PATH=$PATH:/usr/local/go/bin
 brew install go
 ```
 
-**Note:** If Go is not in your PATH, use the full path: `/home/trevor/go/bin/go`
+**IMPORTANT: Add Go to PATH**
+
+Go must be in your PATH for scripts and automated tools (like Claude Code) to work. Add this to `~/.profile` (not just `~/.bashrc`, since automated tools may not source `.bashrc`):
+
+```bash
+# Add to ~/.profile for all shells including non-interactive
+export PATH="$PATH:/usr/local/go/bin"
+export PATH="$PATH:$HOME/go/bin"  # For go install'd binaries
+```
+
+Then reload:
+```bash
+source ~/.profile
+```
+
+**Why `~/.profile` instead of `~/.bashrc`?**
+- `~/.bashrc` is only sourced by interactive Bash shells
+- `~/.profile` is sourced by login shells and many automated tools
+- Automated systems (CI, Claude Code, cron) often run non-interactive shells that skip `.bashrc`
 
 **Verify installation:**
 ```bash
 go version  # Should be go1.22+
+which go    # Should show the Go binary path
 ```
 
 ### 3. FFmpeg
@@ -233,9 +249,12 @@ ls $HOME/Github/whisper.cpp/models/ggml-medium.bin
 ```
 
 ### "go: command not found"
-Use the full path to Go if it's not in PATH:
+Go is not in your PATH. Follow the "IMPORTANT: Add Go to PATH" instructions in the Go section above. Make sure to add the exports to `~/.profile` and run `source ~/.profile`.
+
+Verify with:
 ```bash
-/home/trevor/go/bin/go run main.go
+which go
+go version
 ```
 
 ### FFmpeg errors
