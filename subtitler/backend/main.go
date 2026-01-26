@@ -37,6 +37,20 @@ const (
 	defaultUploadDir     = "uploads"
 	defaultDBPath        = "data/subtitler.db"
 	defaultKeyPath       = "data/age.key"
+
+	// Rate limit defaults (requests per window)
+	defaultAuthRateLimit          = 5
+	defaultAuthRateWindow         = time.Minute
+	defaultPasswordResetRateLimit = 3
+	defaultPasswordResetWindow    = 15 * time.Minute
+	defaultUploadRateLimit        = 10
+	defaultUploadRateWindow       = time.Minute
+	defaultTranscribeRateLimit    = 5
+	defaultTranscribeRateWindow   = time.Minute
+	defaultBurnRateLimit          = 2
+	defaultBurnRateWindow         = time.Minute
+	defaultScriptRateLimit        = 10
+	defaultScriptRateWindow       = time.Minute
 )
 
 // Configuration values loaded from environment
@@ -45,6 +59,20 @@ var (
 	uploadDir     string
 	dbPath        string
 	keyPath       string
+
+	// Rate limit configuration
+	authRateLimit          int
+	authRateWindow         time.Duration
+	passwordResetRateLimit int
+	passwordResetWindow    time.Duration
+	uploadRateLimit        int
+	uploadRateWindow       time.Duration
+	transcribeRateLimit    int
+	transcribeRateWindow   time.Duration
+	burnRateLimit          int
+	burnRateWindow         time.Duration
+	scriptRateLimit        int
+	scriptRateWindow       time.Duration
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default
@@ -87,12 +115,67 @@ func getEnvSizeOrDefault(key string, defaultValue int64) int64 {
 	return size * multiplier
 }
 
+// parseRateLimit parses a rate limit string like "5/min" or "10/hour"
+// Returns (count, window) or (defaultCount, defaultWindow) if parsing fails
+func parseRateLimit(value string, defaultCount int, defaultWindow time.Duration) (int, time.Duration) {
+	if value == "" {
+		return defaultCount, defaultWindow
+	}
+
+	// Parse format: "count/window" where window is min, hour, or s
+	parts := strings.SplitN(value, "/", 2)
+	if len(parts) != 2 {
+		log.Printf("Warning: Invalid rate limit format '%s', using default", value)
+		return defaultCount, defaultWindow
+	}
+
+	var count int
+	if _, err := fmt.Sscanf(parts[0], "%d", &count); err != nil || count <= 0 {
+		log.Printf("Warning: Invalid rate limit count '%s', using default", parts[0])
+		return defaultCount, defaultWindow
+	}
+
+	windowStr := strings.TrimSpace(strings.ToLower(parts[1]))
+	var window time.Duration
+	switch windowStr {
+	case "s", "sec", "second":
+		window = time.Second
+	case "m", "min", "minute":
+		window = time.Minute
+	case "h", "hr", "hour":
+		window = time.Hour
+	default:
+		// Try parsing as duration (e.g., "15m", "1h")
+		var err error
+		window, err = time.ParseDuration(windowStr)
+		if err != nil {
+			log.Printf("Warning: Invalid rate limit window '%s', using default", windowStr)
+			return defaultCount, defaultWindow
+		}
+	}
+
+	return count, window
+}
+
+// getEnvRateLimitOrDefault parses a rate limit from environment variable
+func getEnvRateLimitOrDefault(key string, defaultCount int, defaultWindow time.Duration) (int, time.Duration) {
+	return parseRateLimit(os.Getenv(key), defaultCount, defaultWindow)
+}
+
 // initConfig initializes configuration from environment variables
 func initConfig() {
 	maxUploadSize = getEnvSizeOrDefault("MAX_UPLOAD_SIZE", defaultMaxUploadSize)
 	uploadDir = getEnvOrDefault("UPLOAD_DIR", defaultUploadDir)
 	dbPath = getEnvOrDefault("DB_PATH", defaultDBPath)
 	keyPath = getEnvOrDefault("KEY_PATH", defaultKeyPath)
+
+	// Rate limit configuration
+	authRateLimit, authRateWindow = getEnvRateLimitOrDefault("AUTH_RATE_LIMIT", defaultAuthRateLimit, defaultAuthRateWindow)
+	passwordResetRateLimit, passwordResetWindow = getEnvRateLimitOrDefault("PASSWORD_RESET_RATE_LIMIT", defaultPasswordResetRateLimit, defaultPasswordResetWindow)
+	uploadRateLimit, uploadRateWindow = getEnvRateLimitOrDefault("UPLOAD_RATE_LIMIT", defaultUploadRateLimit, defaultUploadRateWindow)
+	transcribeRateLimit, transcribeRateWindow = getEnvRateLimitOrDefault("TRANSCRIBE_RATE_LIMIT", defaultTranscribeRateLimit, defaultTranscribeRateWindow)
+	burnRateLimit, burnRateWindow = getEnvRateLimitOrDefault("BURN_RATE_LIMIT", defaultBurnRateLimit, defaultBurnRateWindow)
+	scriptRateLimit, scriptRateWindow = getEnvRateLimitOrDefault("SCRIPT_RATE_LIMIT", defaultScriptRateLimit, defaultScriptRateWindow)
 }
 
 // WhisperSegment represents a transcribed segment with timing
@@ -125,12 +208,24 @@ var database *db.DB
 // Global encryptor for file encryption
 var encryptor *crypto.Encryptor
 
-// Global rate limiters (per IP, per minute)
-var authLimiter = ratelimit.New(5, time.Minute)             // Auth endpoints: 5/min
-var passwordResetLimiter = ratelimit.New(3, 15*time.Minute) // Password reset: 3/15min (stricter)
-var uploadLimiter = ratelimit.New(10, time.Minute)          // Upload endpoint: 10/min
-var transcribeLimiter = ratelimit.New(5, time.Minute)       // Transcribe endpoints: 5/min
-var burnLimiter = ratelimit.New(2, time.Minute)             // Burn endpoint: 2/min
+// Global rate limiters (initialized by initRateLimiters after config is loaded)
+var authLimiter *ratelimit.Limiter
+var passwordResetLimiter *ratelimit.Limiter
+var uploadLimiter *ratelimit.Limiter
+var transcribeLimiter *ratelimit.Limiter
+var burnLimiter *ratelimit.Limiter
+var scriptLimiter *ratelimit.Limiter
+
+// initRateLimiters creates rate limiters based on configuration
+// Must be called after initConfig()
+func initRateLimiters() {
+	authLimiter = ratelimit.New(authRateLimit, authRateWindow)
+	passwordResetLimiter = ratelimit.New(passwordResetRateLimit, passwordResetWindow)
+	uploadLimiter = ratelimit.New(uploadRateLimit, uploadRateWindow)
+	transcribeLimiter = ratelimit.New(transcribeRateLimit, transcribeRateWindow)
+	burnLimiter = ratelimit.New(burnRateLimit, burnRateWindow)
+	scriptLimiter = ratelimit.New(scriptRateLimit, scriptRateWindow)
+}
 
 // Global email service for transactional emails
 var emailService email.EmailService
@@ -579,6 +674,7 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 func main() {
 	// Initialize configuration from environment variables
 	initConfig()
+	initRateLimiters()
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -588,6 +684,10 @@ func main() {
 	// Log configuration
 	log.Printf("Configuration: MAX_UPLOAD_SIZE=%d, UPLOAD_DIR=%s, DB_PATH=%s, KEY_PATH=%s",
 		maxUploadSize, uploadDir, dbPath, keyPath)
+	log.Printf("Rate limits: AUTH=%d/%v, UPLOAD=%d/%v, TRANSCRIBE=%d/%v, BURN=%d/%v, SCRIPT=%d/%v",
+		authRateLimit, authRateWindow, uploadRateLimit, uploadRateWindow,
+		transcribeRateLimit, transcribeRateWindow, burnRateLimit, burnRateWindow,
+		scriptRateLimit, scriptRateWindow)
 
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
@@ -3560,9 +3660,6 @@ func main() {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadName))
 		http.ServeFile(w, r, servePath)
 	})
-
-	// Script conversion rate limiter (10/min, same as upload)
-	scriptLimiter := ratelimit.New(10, time.Minute)
 
 	// Script detection endpoint (rate limited)
 	mux.HandleFunc("POST /api/text/detect-script", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {

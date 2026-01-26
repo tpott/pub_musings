@@ -29,6 +29,35 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `HTTPS_ONLY` | `false` | Set to `true` or `1` to enable Secure flag on session cookies |
 | `TRUST_PROXY` | `false` | Set to `true` or `1` to trust X-Forwarded-For headers (see below) |
 | `ENCRYPTION_ENABLED` | `true` | Set to `false` or `0` to disable file encryption (see below) |
+| `AUTH_RATE_LIMIT` | `5/min` | Rate limit for auth endpoints (login, register, TOTP) |
+| `PASSWORD_RESET_RATE_LIMIT` | `3/15m` | Rate limit for password reset endpoints |
+| `UPLOAD_RATE_LIMIT` | `10/min` | Rate limit for file uploads |
+| `TRANSCRIBE_RATE_LIMIT` | `5/min` | Rate limit for transcription requests |
+| `BURN_RATE_LIMIT` | `2/min` | Rate limit for subtitle burning |
+| `SCRIPT_RATE_LIMIT` | `10/min` | Rate limit for script detection/conversion |
+
+### Rate Limit Configuration
+
+Rate limits can be configured using the format `count/window` where:
+- `count` is the number of requests allowed
+- `window` is the time window (supports: `s`, `sec`, `min`, `minute`, `h`, `hr`, `hour`, or Go duration format like `15m`, `1h30m`)
+
+Examples:
+```bash
+# Allow 10 auth requests per minute (stricter for production)
+export AUTH_RATE_LIMIT="10/min"
+
+# Allow 20 uploads per hour
+export UPLOAD_RATE_LIMIT="20/hour"
+
+# Custom duration: 5 requests per 30 seconds
+export SCRIPT_RATE_LIMIT="5/30s"
+
+# Password reset: 3 attempts per 15 minutes (default)
+export PASSWORD_RESET_RATE_LIMIT="3/15m"
+```
+
+Rate limits are per-IP address and use a sliding window algorithm. When a rate limit is exceeded, the server returns HTTP 429 with a `Retry-After` header.
 
 ### Proxy Trust Configuration
 

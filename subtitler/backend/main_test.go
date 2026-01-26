@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFormatSRTTimestamp(t *testing.T) {
@@ -368,5 +369,186 @@ func TestInitConfigDefaults(t *testing.T) {
 	}
 	if keyPath != defaultKeyPath {
 		t.Errorf("keyPath = %s, expected default %s", keyPath, defaultKeyPath)
+	}
+}
+
+func TestParseRateLimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		defaultCount  int
+		defaultWindow time.Duration
+		expectCount   int
+		expectWindow  time.Duration
+	}{
+		{
+			name:          "empty uses defaults",
+			input:         "",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "parse 5/min",
+			input:         "5/min",
+			defaultCount:  10,
+			defaultWindow: time.Hour,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "parse 10/minute",
+			input:         "10/minute",
+			defaultCount:  5,
+			defaultWindow: time.Second,
+			expectCount:   10,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "parse 3/hour",
+			input:         "3/hour",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   3,
+			expectWindow:  time.Hour,
+		},
+		{
+			name:          "parse 100/s",
+			input:         "100/s",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   100,
+			expectWindow:  time.Second,
+		},
+		{
+			name:          "parse 3/15m duration format",
+			input:         "3/15m",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   3,
+			expectWindow:  15 * time.Minute,
+		},
+		{
+			name:          "parse 2/30s duration format",
+			input:         "2/30s",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   2,
+			expectWindow:  30 * time.Second,
+		},
+		{
+			name:          "invalid format uses defaults",
+			input:         "invalid",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "invalid count uses defaults",
+			input:         "abc/min",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "zero count uses defaults",
+			input:         "0/min",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "negative count uses defaults",
+			input:         "-1/min",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "invalid window uses defaults",
+			input:         "5/xyz",
+			defaultCount:  3,
+			defaultWindow: time.Hour,
+			expectCount:   3,
+			expectWindow:  time.Hour,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			count, window := parseRateLimit(tc.input, tc.defaultCount, tc.defaultWindow)
+			if count != tc.expectCount {
+				t.Errorf("parseRateLimit(%q) count = %d, expected %d", tc.input, count, tc.expectCount)
+			}
+			if window != tc.expectWindow {
+				t.Errorf("parseRateLimit(%q) window = %v, expected %v", tc.input, window, tc.expectWindow)
+			}
+		})
+	}
+}
+
+func TestGetEnvRateLimitOrDefault(t *testing.T) {
+	key := "TEST_RATE_LIMIT"
+
+	// Clear any existing value
+	os.Unsetenv(key)
+
+	// Test default when not set
+	count, window := getEnvRateLimitOrDefault(key, 5, time.Minute)
+	if count != 5 || window != time.Minute {
+		t.Errorf("expected (5, 1m), got (%d, %v)", count, window)
+	}
+
+	// Test with env var set
+	os.Setenv(key, "10/hour")
+	defer os.Unsetenv(key)
+
+	count, window = getEnvRateLimitOrDefault(key, 5, time.Minute)
+	if count != 10 || window != time.Hour {
+		t.Errorf("expected (10, 1h), got (%d, %v)", count, window)
+	}
+}
+
+func TestInitRateLimiters(t *testing.T) {
+	// Save original config values
+	origAuthRateLimit := authRateLimit
+	origAuthRateWindow := authRateWindow
+
+	// Restore after test
+	defer func() {
+		authRateLimit = origAuthRateLimit
+		authRateWindow = origAuthRateWindow
+	}()
+
+	// Set custom values
+	authRateLimit = 100
+	authRateWindow = time.Hour
+
+	// Initialize rate limiters
+	initRateLimiters()
+
+	// Verify limiters were created (not nil)
+	if authLimiter == nil {
+		t.Error("authLimiter should not be nil after initRateLimiters")
+	}
+	if passwordResetLimiter == nil {
+		t.Error("passwordResetLimiter should not be nil after initRateLimiters")
+	}
+	if uploadLimiter == nil {
+		t.Error("uploadLimiter should not be nil after initRateLimiters")
+	}
+	if transcribeLimiter == nil {
+		t.Error("transcribeLimiter should not be nil after initRateLimiters")
+	}
+	if burnLimiter == nil {
+		t.Error("burnLimiter should not be nil after initRateLimiters")
+	}
+	if scriptLimiter == nil {
+		t.Error("scriptLimiter should not be nil after initRateLimiters")
 	}
 }
