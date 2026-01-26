@@ -244,6 +244,33 @@ import '../styles/theme.css';
 				outline: 2px solid var(--accent-color);
 				outline-offset: 2px;
 			}
+			.divider {
+				display: flex;
+				align-items: center;
+				margin: 1.5rem 0;
+				color: var(--text-secondary);
+				font-size: 0.85rem;
+			}
+			.divider::before,
+			.divider::after {
+				content: '';
+				flex: 1;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.divider span {
+				padding: 0 1rem;
+			}
+			.btn-secondary {
+				background-color: transparent;
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+			}
+			.btn-secondary:hover:not(:disabled) {
+				background-color: var(--secondary-bg);
+			}
+			#magicLinkSection {
+				margin-top: 1rem;
+			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
 				.container {
@@ -333,6 +360,19 @@ import '../styles/theme.css';
 					</div>
 					<button type="submit" class="btn btn-primary" id="submitBtn">Log in</button>
 				</form>
+
+				<div class="divider"><span>or</span></div>
+
+				<div id="magicLinkSection">
+					<form id="magicLinkForm">
+						<div class="form-group">
+							<label for="magicEmail">Email</label>
+							<input type="email" id="magicEmail" name="magicEmail" required autocomplete="email" />
+							<div id="magicEmailError" class="field-error"></div>
+						</div>
+						<button type="submit" class="btn btn-secondary" id="magicLinkBtn">Email me a login link</button>
+					</form>
+				</div>
 
 				<div class="footer">
 					<p>Don't have an account? <a href="/register">Sign up</a></p>
@@ -632,6 +672,69 @@ import '../styles/theme.css';
 				} catch (err) {
 					showError('Network error. Please try again.');
 					setLoading(false);
+				}
+			});
+
+			// Magic link form handling
+			const magicLinkForm = document.getElementById('magicLinkForm') as HTMLFormElement;
+			const magicEmailInput = document.getElementById('magicEmail') as HTMLInputElement;
+			const magicEmailError = document.getElementById('magicEmailError') as HTMLElement;
+			const magicLinkBtn = document.getElementById('magicLinkBtn') as HTMLButtonElement;
+
+			magicEmailInput.addEventListener('blur', () => {
+				const error = validateEmail(magicEmailInput.value);
+				if (error) {
+					showFieldError(magicEmailInput, magicEmailError, error);
+				} else {
+					clearFieldError(magicEmailInput, magicEmailError);
+				}
+			});
+
+			magicEmailInput.addEventListener('input', () => clearFieldError(magicEmailInput, magicEmailError));
+
+			magicLinkForm.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				hideMessages();
+
+				const magicEmail = magicEmailInput.value.trim();
+
+				const emailValidation = validateEmail(magicEmail);
+				if (emailValidation) {
+					showFieldError(magicEmailInput, magicEmailError, emailValidation);
+					return;
+				}
+
+				magicLinkBtn.disabled = true;
+				magicLinkBtn.textContent = 'Sending...';
+
+				try {
+					const response = await fetch('/api/auth/magic-link', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: magicEmail }),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Failed to send login link');
+						magicLinkBtn.disabled = false;
+						magicLinkBtn.textContent = 'Email me a login link';
+						return;
+					}
+
+					showSuccess('Check your email for a login link!');
+					magicLinkBtn.textContent = 'Email sent!';
+					setTimeout(() => {
+						magicLinkBtn.disabled = false;
+						magicLinkBtn.textContent = 'Email me a login link';
+					}, 5000);
+				} catch (err) {
+					showError('Network error. Please try again.');
+					magicLinkBtn.disabled = false;
+					magicLinkBtn.textContent = 'Email me a login link';
 				}
 			});
 		</script>

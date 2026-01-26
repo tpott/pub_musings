@@ -6,6 +6,7 @@ This document describes the authentication system implementation in the Subtitle
 
 The authentication system provides:
 - Email/password registration with email verification
+- Magic link (passwordless) authentication
 - Cookie-based sessions with Bearer token support
 - Optional two-factor authentication via TOTP (see [totp.md](totp.md))
 
@@ -20,6 +21,7 @@ The authentication system provides:
 | `frontend/src/pages/login.astro` | Login page |
 | `frontend/src/pages/register.astro` | Registration page |
 | `frontend/src/pages/verify-email.astro` | Email verification page |
+| `frontend/src/pages/magic-link.astro` | Magic link login page |
 | `frontend/src/utils/validation.ts` | Client-side validation |
 
 ## Database Schema
@@ -53,6 +55,21 @@ CREATE TABLE email_verification_tokens (
 )
 CREATE INDEX idx_email_verification_user_id ON email_verification_tokens(user_id)
 CREATE INDEX idx_email_verification_expires ON email_verification_tokens(expires_at)
+```
+
+### Magic Link Tokens Table
+
+```sql
+CREATE TABLE magic_link_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    token_hash TEXT NOT NULL,                -- SHA-256 hash of token
+    expires_at DATETIME NOT NULL,            -- 15 minutes from creation
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+CREATE INDEX idx_magic_link_user_id ON magic_link_tokens(user_id)
+CREATE INDEX idx_magic_link_expires ON magic_link_tokens(expires_at)
 ```
 
 ### Sessions Table
@@ -235,6 +252,72 @@ Resends the email verification link. Rate limited (3 per 15 minutes per IP).
 5. Generate new verification token (32 random bytes)
 6. Store token hash with 24-hour expiry
 7. Send verification email
+
+### POST /api/auth/magic-link
+
+Sends a magic link login email. Rate limited (5 per minute per IP, 3 per 15 minutes per email).
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "If an account exists with that email, a login link has been sent."
+}
+```
+
+**Note:** Always returns success to prevent email enumeration.
+
+**Processing:**
+1. Normalize email
+2. Look up user by email
+3. If user doesn't exist or email not verified, return success (prevents enumeration)
+4. Delete any existing unused magic link tokens for user
+5. Generate new token (32 random bytes)
+6. Store token hash with 15-minute expiry
+7. Send magic link email
+
+### GET /api/auth/magic-link/verify
+
+Verifies a magic link token and creates a session. Bypasses 2FA if enabled (magic link proves email access).
+
+**Query Parameters:**
+- `token` (required): The magic link token from the email
+
+**Response (200):**
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "id": "abc123...",
+    "email": "user@example.com"
+  }
+}
+```
+
+**Errors:**
+- 400: Missing token or invalid/expired/used token
+
+**Processing:**
+1. Hash incoming token with SHA-256
+2. Look up token hash in database
+3. Check token is not expired and not used
+4. Mark token as used atomically
+5. Get user by user_id
+6. Create session (7-day expiry)
+7. Set httpOnly cookie
+8. Return user info
+
+**Security Notes:**
+- Magic links expire after 15 minutes
+- Each link can only be used once
+- Magic link login bypasses 2FA because email access proves identity
+- Rate limited to prevent abuse
 
 ### POST /api/auth/logout
 

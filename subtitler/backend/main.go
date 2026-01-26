@@ -2014,6 +2014,186 @@ func main() {
 		})
 	}))
 
+	// Auth: Request magic link - sends a login link via email (stricter rate limiting)
+	mux.HandleFunc("POST /api/auth/magic-link", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Normalize email
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		// Validate email format
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Always return success to prevent email enumeration
+		defer func() {
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "If an account exists with that email, a login link has been sent.",
+			})
+		}()
+
+		// Look up user (don't reveal if exists)
+		user, err := database.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Error looking up user for magic link: %v", err)
+			return
+		}
+		if user == nil {
+			// User doesn't exist - return success anyway
+			log.Printf("Magic link requested for non-existent email: %s", req.Email)
+			return
+		}
+
+		// Check if email is verified
+		if !user.EmailVerified {
+			log.Printf("Magic link requested for unverified email: %s", req.Email)
+			return
+		}
+
+		// Generate magic link token (32 bytes = 256 bits entropy)
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			log.Printf("Error generating magic link token: %v", err)
+			return
+		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
+
+		// Create magic link token with 15-minute expiry
+		expiresAt := time.Now().Add(15 * time.Minute)
+		_, err = database.CreateMagicLinkToken(user.ID, tokenHash, expiresAt)
+		if err != nil {
+			log.Printf("Error creating magic link token: %v", err)
+			return
+		}
+
+		// Send magic link email
+		ctx := r.Context()
+		if err := emailService.SendMagicLink(ctx, user.Email, token); err != nil {
+			log.Printf("Error sending magic link email: %v", err)
+			// Still return success to prevent enumeration
+			return
+		}
+
+		log.Printf("Magic link email sent to: %s", user.Email)
+	}))
+
+	// Auth: Verify magic link - logs user in with magic link token
+	mux.HandleFunc("GET /api/auth/magic-link/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Get token from query parameter
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Token is required",
+			})
+			return
+		}
+
+		// Hash the token and look it up
+		tokenHash := email.HashToken(token)
+		magicToken, err := database.GetMagicLinkToken(tokenHash)
+		if err != nil {
+			log.Printf("Error looking up magic link token: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to verify magic link",
+			})
+			return
+		}
+
+		// Check if token exists
+		if magicToken == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired magic link",
+			})
+			return
+		}
+
+		// Check if token is used or expired
+		if magicToken.Used || time.Now().After(magicToken.ExpiresAt) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired magic link",
+			})
+			return
+		}
+
+		// Mark token as used atomically
+		used, err := database.UseMagicLinkToken(tokenHash)
+		if err != nil {
+			log.Printf("Error marking magic link token as used: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to verify magic link",
+			})
+			return
+		}
+		if !used {
+			// Token was already used or expired
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired magic link",
+			})
+			return
+		}
+
+		// Get user
+		user, err := database.GetUserByID(magicToken.UserID)
+		if err != nil || user == nil {
+			log.Printf("Error getting user for magic link: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to complete login",
+			})
+			return
+		}
+
+		// Create session (similar to normal login)
+		clientIP := ratelimit.GetClientIP(r)
+		userAgent := r.Header.Get("User-Agent")
+		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
+		if err != nil {
+			log.Printf("Error creating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to create session",
+			})
+			return
+		}
+
+		// Set session cookie
+		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		log.Printf("Magic link login successful for user: %s", user.ID)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "Login successful",
+			"user": map[string]interface{}{
+				"id":    user.ID,
+				"email": user.Email,
+			},
+		})
+	}))
+
 	// Auth: Verify email - verifies email address with token
 	mux.HandleFunc("GET /api/auth/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

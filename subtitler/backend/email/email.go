@@ -20,6 +20,9 @@ type EmailService interface {
 	// SendEmailVerification sends an email verification email
 	SendEmailVerification(ctx context.Context, to, token string) error
 
+	// SendMagicLink sends a magic link login email
+	SendMagicLink(ctx context.Context, to, token string) error
+
 	// SendEmail sends a generic email
 	SendEmail(ctx context.Context, to, subject, htmlBody, textBody string) error
 
@@ -118,6 +121,17 @@ func (s *ResendService) SendEmailVerification(ctx context.Context, to, token str
 
 	htmlBody := EmailVerificationHTML(verifyURL)
 	textBody := EmailVerificationText(verifyURL)
+
+	return s.SendEmail(ctx, to, subject, htmlBody, textBody)
+}
+
+// SendMagicLink sends a magic link login email with a link containing the token
+func (s *ResendService) SendMagicLink(ctx context.Context, to, token string) error {
+	subject := "Sign in to Subtitler"
+	loginURL := fmt.Sprintf("%s/magic-link?token=%s", s.appURL, token)
+
+	htmlBody := MagicLinkHTML(loginURL)
+	textBody := MagicLinkText(loginURL)
 
 	return s.SendEmail(ctx, to, subject, htmlBody, textBody)
 }

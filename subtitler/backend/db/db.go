@@ -117,6 +117,16 @@ type EmailVerificationToken struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// MagicLinkToken represents a passwordless login token
+type MagicLinkToken struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TokenHash string    `json:"-"` // Never serialize, SHA-256 hash of actual token
+	ExpiresAt time.Time `json:"expires_at"`
+	Used      bool      `json:"used"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // LoginAttempt tracks failed login attempts for rate limiting
 type LoginAttempt struct {
 	ID        string    `json:"id"`
@@ -296,6 +306,17 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_email_verification_user_id ON email_verification_tokens(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_tokens(expires_at)`,
+		// Magic link tokens table for passwordless login
+		`CREATE TABLE IF NOT EXISTS magic_link_tokens (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			token_hash TEXT NOT NULL,
+			expires_at DATETIME NOT NULL,
+			used INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_magic_link_user_id ON magic_link_tokens(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_magic_link_expires ON magic_link_tokens(expires_at)`,
 	}
 
 	for _, migration := range migrations {
@@ -1148,6 +1169,93 @@ func (db *DB) GetUnusedEmailVerificationToken(userID string) (*EmailVerification
 		return nil, err
 	}
 	return token, nil
+}
+
+// CreateMagicLinkToken creates a new magic link token for passwordless login.
+// Deletes any existing unused tokens for the user first.
+func (db *DB) CreateMagicLinkToken(userID, tokenHash string, expiresAt time.Time) (*MagicLinkToken, error) {
+	// Delete existing unused tokens for this user
+	_, err := db.conn.Exec(`DELETE FROM magic_link_tokens WHERE user_id = ? AND used = 0`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete old magic link tokens: %w", err)
+	}
+
+	id, err := generateID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token ID: %w", err)
+	}
+	token := &MagicLinkToken{
+		ID:        id,
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		Used:      false,
+		CreatedAt: time.Now(),
+	}
+
+	_, err = db.conn.Exec(`
+		INSERT INTO magic_link_tokens (id, user_id, token_hash, expires_at, used, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, token.ID, token.UserID, token.TokenHash, token.ExpiresAt, 0, token.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create magic link token: %w", err)
+	}
+
+	return token, nil
+}
+
+// GetMagicLinkToken retrieves a magic link token by its hash.
+// Returns nil if not found.
+func (db *DB) GetMagicLinkToken(tokenHash string) (*MagicLinkToken, error) {
+	token := &MagicLinkToken{}
+	err := db.conn.QueryRow(`
+		SELECT id, user_id, token_hash, expires_at, used, created_at
+		FROM magic_link_tokens
+		WHERE token_hash = ?
+	`, tokenHash).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.Used, &token.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// UseMagicLinkToken marks a magic link token as used.
+// Returns true if the token was valid and unused, false otherwise.
+func (db *DB) UseMagicLinkToken(tokenHash string) (bool, error) {
+	result, err := db.conn.Exec(`
+		UPDATE magic_link_tokens
+		SET used = 1
+		WHERE token_hash = ? AND used = 0 AND expires_at > ?
+	`, tokenHash, time.Now())
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return affected > 0, nil
+}
+
+// DeleteMagicLinkTokens deletes all magic link tokens for a user
+func (db *DB) DeleteMagicLinkTokens(userID string) error {
+	_, err := db.conn.Exec(`DELETE FROM magic_link_tokens WHERE user_id = ?`, userID)
+	return err
+}
+
+// DeleteExpiredMagicLinkTokens deletes all expired magic link tokens
+func (db *DB) DeleteExpiredMagicLinkTokens() (int64, error) {
+	result, err := db.conn.Exec(`DELETE FROM magic_link_tokens WHERE expires_at < ?`, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 // UpdateUserPassword updates a user's password hash
