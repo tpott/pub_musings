@@ -48,7 +48,7 @@ describe('session utilities', () => {
 			const sessionId = getOrCreateSessionId();
 			expect(sessionId).toBe('0102030405060708090a0b0c0d0e0f10');
 			expect(localStorageMock.setItem).toHaveBeenCalledWith(
-				'session_id',
+				'subtitler:session_id',
 				'0102030405060708090a0b0c0d0e0f10'
 			);
 		});
@@ -82,7 +82,7 @@ describe('session utilities', () => {
 	describe('clearSessionId', () => {
 		it('should remove session ID from localStorage', () => {
 			clearSessionId();
-			expect(localStorageMock.removeItem).toHaveBeenCalledWith('session_id');
+			expect(localStorageMock.removeItem).toHaveBeenCalledWith('subtitler:session_id');
 		});
 	});
 

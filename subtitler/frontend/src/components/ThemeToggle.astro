@@ -22,9 +22,11 @@
 </button>
 
 <script>
+	const THEME_KEY = 'subtitler:theme';
+
 	// Initialize theme from localStorage or system preference
 	function initTheme() {
-		const savedTheme = localStorage.getItem('theme');
+		const savedTheme = localStorage.getItem(THEME_KEY);
 		const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 		if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
@@ -37,7 +39,7 @@
 	// Toggle theme and save preference
 	function toggleTheme() {
 		const isDark = document.documentElement.classList.toggle('dark');
-		localStorage.setItem('theme', isDark ? 'dark' : 'light');
+		localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
 	}
 
 	// Initialize on load
@@ -52,7 +54,7 @@
 	// Listen for system preference changes
 	window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
 		// Only apply system preference if user hasn't set a preference
-		if (!localStorage.getItem('theme')) {
+		if (!localStorage.getItem(THEME_KEY)) {
 			if (e.matches) {
 				document.documentElement.classList.add('dark');
 			} else {

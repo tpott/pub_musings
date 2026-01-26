@@ -6,8 +6,9 @@
 <script is:inline>
 	// Run immediately to set theme class before any styles are applied
 	(function() {
-		const savedTheme = localStorage.getItem('theme');
-		const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+		var THEME_KEY = 'subtitler:theme';
+		var savedTheme = localStorage.getItem(THEME_KEY);
+		var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 		if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
 			document.documentElement.classList.add('dark');

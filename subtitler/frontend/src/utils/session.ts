@@ -8,7 +8,7 @@
  * - Filter videos on the My Videos page
  */
 
-const SESSION_ID_KEY = 'session_id';
+const SESSION_ID_KEY = 'subtitler:session_id';
 
 /**
  * Generates a random session ID (32 hex characters)
