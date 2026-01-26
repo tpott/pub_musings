@@ -106,7 +106,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-All tasks complete! See `TASKS.jsonl` for history.
+**8 new tasks filed** (106-113) from project review. Priorities:
+
+1. Security hardening (106-108): Account lockout, file validation, CSP headers
+2. Technical debt (109, 113): Database migrations, structured logging
+3. UX improvements (111-112): Video thumbnails, burn progress indicators
+4. Documentation (110): Environment variable reference
+
+See `TASKS.jsonl` for details.
 
 ## Key Files
 
