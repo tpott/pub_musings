@@ -783,15 +783,50 @@ curl "http://localhost:8080/api/videos?session_id=my-session-123"
 
 ### GET /api/videos/{id}/video
 
-Stream or download the original video file.
+Stream or download the original video file. Supports HTTP Range requests for efficient video seeking.
 
 **Authentication**: Not required
 
-**Response**: Video file with appropriate `Content-Type`
+**Headers**:
+- `Range` (optional): Request specific byte ranges for partial content
+
+**Response**:
+- `200 OK`: Full video file when no Range header
+- `206 Partial Content`: Requested byte range when Range header provided
+- `416 Range Not Satisfiable`: Invalid range requested
+
+**Response Headers**:
+- `Content-Type`: Video MIME type (e.g., `video/mp4`)
+- `Accept-Ranges: bytes`: Indicates range support
+- `Content-Range`: Byte range info (for 206 responses)
+- `ETag`: Stable hash for conditional requests
+- `Cache-Control: public, max-age=3600, must-revalidate`
+
+**Range Request Format**:
+```
+Range: bytes=0-1023        # First 1024 bytes
+Range: bytes=1024-2047     # Second 1024 bytes
+Range: bytes=-500          # Last 500 bytes
+Range: bytes=9500-         # From byte 9500 to end
+```
 
 **Example**:
 ```bash
+# Download full video
 curl -o video.mp4 http://localhost:8080/api/videos/abc123/video
+
+# Download first 1MB only
+curl -H "Range: bytes=0-1048575" -o partial.mp4 http://localhost:8080/api/videos/abc123/video
+
+# Check if video supports range requests (HEAD)
+curl -I http://localhost:8080/api/videos/abc123/video | grep Accept-Ranges
+```
+
+**Conditional Requests**:
+Use `If-None-Match` with the ETag to check if content changed:
+```bash
+curl -H "If-None-Match: \"abc123...\"" http://localhost:8080/api/videos/abc123/video
+# Returns 304 Not Modified if unchanged
 ```
 
 ### POST /api/videos/{id}/reprocess

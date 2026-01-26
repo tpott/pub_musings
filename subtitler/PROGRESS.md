@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**99 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**100 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -62,7 +62,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Deployment planning docs
 - ✅ Production debugging guide (Task 104)
 
-### Security & Infrastructure (Tasks 52, 60, 63-64, 68, 72, 74-75, 79, 83, 87-89, 93, 95, 99)
+### Security & Infrastructure (Tasks 52, 60, 63-64, 68, 72, 74-75, 79, 83, 87-89, 93, 95, 97, 99)
 - ✅ Rate limiting on all sensitive endpoints
 - ✅ MIME type validation on uploads
 - ✅ Secure cookie flag for HTTPS
@@ -77,6 +77,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ X-Forwarded-For trust validation (Task 89)
 - ✅ Encryption toggle via environment variable (Task 93)
 - ✅ Configurable rate limits via environment variables (Task 95)
+- ✅ HTTP Range requests for efficient video streaming (Task 97)
 - ✅ Fixed privacy vulnerability in My Videos page (Task 99)
 
 ### UI/UX (Tasks 65, 71, 76-77, 90-91, 96)

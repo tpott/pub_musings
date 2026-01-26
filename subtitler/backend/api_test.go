@@ -1039,6 +1039,34 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(dbTranscriptionToStatus(transcription))
 	})
 
+	// Serve video file with Range request support (uses http.ServeFile which handles Range)
+	ts.mux.HandleFunc("GET /api/videos/{id}/video", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload ID required"})
+			return
+		}
+
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get video"})
+			return
+		}
+		if video == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video not found"})
+			return
+		}
+
+		// http.ServeFile handles Range headers automatically for seekable files
+		http.ServeFile(w, r, video.FilePath)
+	})
+
 	// Download SRT file
 	ts.mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
@@ -4607,5 +4635,243 @@ func TestDifferentFormatsHaveDifferentETags(t *testing.T) {
 	}
 	if etagVTT == etagJSON {
 		t.Error("VTT and JSON should have different ETags")
+	}
+}
+
+// createTestVideoWithFile creates a video record AND an actual file on disk for testing
+func (ts *testServer) createTestVideoWithFile(t *testing.T, userID *string, sessionID *string, content []byte) *db.Video {
+	t.Helper()
+
+	videoID := testGenerateID()
+	filename := videoID + ".mp4"
+	filePath := filepath.Join(ts.uploadDir, filename)
+
+	// Write actual content to file
+	if err := os.WriteFile(filePath, content, 0644); err != nil {
+		t.Fatalf("Failed to create test video file: %v", err)
+	}
+
+	video := &db.Video{
+		ID:          videoID,
+		Filename:    filename,
+		Size:        int64(len(content)),
+		ContentType: "video/mp4",
+		FilePath:    filePath,
+		UserID:      userID,
+		SessionID:   sessionID,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create test video: %v", err)
+	}
+	return video
+}
+
+func TestVideoRangeRequest(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test content (100 bytes)
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = byte(i)
+	}
+
+	video := ts.createTestVideoWithFile(t, nil, nil, content)
+
+	// Test Range request for bytes 0-49 (first 50 bytes)
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+	req.Header.Set("Range", "bytes=0-49")
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPartialContent {
+		t.Errorf("Expected status 206 Partial Content, got %d", rr.Code)
+	}
+
+	// Verify Content-Range header
+	contentRange := rr.Header().Get("Content-Range")
+	if !strings.HasPrefix(contentRange, "bytes 0-49/100") {
+		t.Errorf("Expected Content-Range 'bytes 0-49/100', got '%s'", contentRange)
+	}
+
+	// Verify only requested bytes were returned
+	if rr.Body.Len() != 50 {
+		t.Errorf("Expected 50 bytes, got %d", rr.Body.Len())
+	}
+
+	// Verify content matches
+	for i := 0; i < 50; i++ {
+		if rr.Body.Bytes()[i] != byte(i) {
+			t.Errorf("Byte at position %d: expected %d, got %d", i, i, rr.Body.Bytes()[i])
+			break
+		}
+	}
+}
+
+func TestVideoRangeRequestMiddleRange(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test content (100 bytes)
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = byte(i)
+	}
+
+	video := ts.createTestVideoWithFile(t, nil, nil, content)
+
+	// Test Range request for bytes 25-74 (middle 50 bytes)
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+	req.Header.Set("Range", "bytes=25-74")
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPartialContent {
+		t.Errorf("Expected status 206 Partial Content, got %d", rr.Code)
+	}
+
+	// Verify Content-Range header
+	contentRange := rr.Header().Get("Content-Range")
+	if !strings.HasPrefix(contentRange, "bytes 25-74/100") {
+		t.Errorf("Expected Content-Range 'bytes 25-74/100', got '%s'", contentRange)
+	}
+
+	// Verify only requested bytes were returned
+	if rr.Body.Len() != 50 {
+		t.Errorf("Expected 50 bytes, got %d", rr.Body.Len())
+	}
+
+	// Verify content matches
+	for i := 0; i < 50; i++ {
+		if rr.Body.Bytes()[i] != byte(25+i) {
+			t.Errorf("Byte at position %d: expected %d, got %d", i, 25+i, rr.Body.Bytes()[i])
+			break
+		}
+	}
+}
+
+func TestVideoRangeRequestSuffix(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test content (100 bytes)
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = byte(i)
+	}
+
+	video := ts.createTestVideoWithFile(t, nil, nil, content)
+
+	// Test suffix Range request for last 20 bytes (bytes=-20)
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+	req.Header.Set("Range", "bytes=-20")
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPartialContent {
+		t.Errorf("Expected status 206 Partial Content, got %d", rr.Code)
+	}
+
+	// Verify only 20 bytes were returned
+	if rr.Body.Len() != 20 {
+		t.Errorf("Expected 20 bytes, got %d", rr.Body.Len())
+	}
+
+	// Verify content matches last 20 bytes
+	for i := 0; i < 20; i++ {
+		expected := byte(80 + i)
+		if rr.Body.Bytes()[i] != expected {
+			t.Errorf("Byte at position %d: expected %d, got %d", i, expected, rr.Body.Bytes()[i])
+			break
+		}
+	}
+}
+
+func TestVideoRangeRequestOpenEnd(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test content (100 bytes)
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = byte(i)
+	}
+
+	video := ts.createTestVideoWithFile(t, nil, nil, content)
+
+	// Test open-end Range request (bytes=80-)
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+	req.Header.Set("Range", "bytes=80-")
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPartialContent {
+		t.Errorf("Expected status 206 Partial Content, got %d", rr.Code)
+	}
+
+	// Verify Content-Range header
+	contentRange := rr.Header().Get("Content-Range")
+	if !strings.HasPrefix(contentRange, "bytes 80-99/100") {
+		t.Errorf("Expected Content-Range 'bytes 80-99/100', got '%s'", contentRange)
+	}
+
+	// Verify only 20 bytes were returned
+	if rr.Body.Len() != 20 {
+		t.Errorf("Expected 20 bytes, got %d", rr.Body.Len())
+	}
+}
+
+func TestVideoRangeRequestInvalidRange(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test content (100 bytes)
+	content := make([]byte, 100)
+	video := ts.createTestVideoWithFile(t, nil, nil, content)
+
+	// Test invalid Range request (beyond file size)
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+	req.Header.Set("Range", "bytes=150-200")
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	// Should return 416 Range Not Satisfiable
+	if rr.Code != http.StatusRequestedRangeNotSatisfiable {
+		t.Errorf("Expected status 416 Range Not Satisfiable, got %d", rr.Code)
+	}
+}
+
+func TestVideoNoRangeRequest(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test content (100 bytes)
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = byte(i)
+	}
+
+	video := ts.createTestVideoWithFile(t, nil, nil, content)
+
+	// Test request without Range header
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 OK, got %d", rr.Code)
+	}
+
+	// Verify all content was returned
+	if rr.Body.Len() != 100 {
+		t.Errorf("Expected 100 bytes, got %d", rr.Body.Len())
+	}
+
+	// Should have Accept-Ranges header indicating range support
+	acceptRanges := rr.Header().Get("Accept-Ranges")
+	if acceptRanges != "bytes" {
+		t.Errorf("Expected Accept-Ranges 'bytes', got '%s'", acceptRanges)
 	}
 }
