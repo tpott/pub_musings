@@ -1225,6 +1225,80 @@ func (ts *testServer) registerHandlers() {
 		})
 	})
 
+	// Reprocess failed transcription endpoint
+	ts.mux.HandleFunc("POST /api/videos/{id}/reprocess", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video ID required"})
+			return
+		}
+
+		// Get the video to check ownership
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get video"})
+			return
+		}
+		if video == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video not found"})
+			return
+		}
+
+		// Check ownership
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+
+		if !hasAccess {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to reprocess this video"})
+			return
+		}
+
+		// Check transcription status
+		transcription, err := ts.db.GetTranscription(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get transcription status"})
+			return
+		}
+
+		if transcription == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No transcription found for this video"})
+			return
+		}
+
+		if transcription.Status != "error" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Can only reprocess failed transcriptions",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// In tests, just mark as processing (actual transcription would happen in background)
+		ts.db.UpdateTranscriptionStatus(uploadID, "processing", "Reprocessing...", 10)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "processing",
+			"message": "Reprocessing started",
+		})
+	})
+
 	// Upload endpoint with MIME type validation
 	ts.mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1385,6 +1459,31 @@ func (ts *testServer) createTestTranscription(t *testing.T, videoID string) *db.
 
 	if err := ts.db.CompleteTranscription(videoID, "en", 5.5, "Hello world. This is a test.", segments); err != nil {
 		t.Fatalf("Failed to complete transcription: %v", err)
+	}
+
+	result, _ := ts.db.GetTranscription(videoID)
+	return result
+}
+
+// createTestFailedTranscription creates a failed transcription record
+func (ts *testServer) createTestFailedTranscription(t *testing.T, videoID string) *db.Transcription {
+	t.Helper()
+
+	transcription := &db.Transcription{
+		ID:        generateID(),
+		VideoID:   videoID,
+		Status:    "pending",
+		Message:   "Test",
+		Progress:  0,
+		CreatedAt: time.Now(),
+	}
+
+	if err := ts.db.CreateTranscription(transcription); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+
+	if err := ts.db.FailTranscription(videoID, "Test failure error"); err != nil {
+		t.Fatalf("Failed to fail transcription: %v", err)
 	}
 
 	result, _ := ts.db.GetTranscription(videoID)
@@ -3734,5 +3833,132 @@ func TestRateLimitingDetectScript(t *testing.T) {
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// ========== Reprocess Tests ==========
+
+func TestReprocessVideoSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user and video
+	userID, token := ts.createTestUserWithID(t, "reprocess@example.com", "password123")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Create a failed transcription
+	ts.createTestFailedTranscription(t, video.ID)
+
+	// Reprocess should succeed
+	resp := ts.doRequest("POST", "/api/videos/"+video.ID+"/reprocess", nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["status"] != "processing" {
+		t.Errorf("Expected status 'processing', got '%s'", result["status"])
+	}
+	if result["message"] != "Reprocessing started" {
+		t.Errorf("Expected message 'Reprocessing started', got '%s'", result["message"])
+	}
+}
+
+func TestReprocessVideoAnonymous(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create anonymous video with session
+	sessionID := "test-session-123"
+	video := ts.createTestVideo(t, nil, &sessionID)
+
+	// Create a failed transcription
+	ts.createTestFailedTranscription(t, video.ID)
+
+	// Reprocess with matching session should succeed
+	resp := ts.doRequest("POST", "/api/videos/"+video.ID+"/reprocess?session_id="+sessionID, nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestReprocessVideoNotOwner(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video owned by user1
+	user1ID := generateID()
+	video := ts.createTestVideo(t, &user1ID, nil)
+	ts.createTestFailedTranscription(t, video.ID)
+
+	// Create another user and try to reprocess
+	_, token := ts.createTestUserWithID(t, "other@example.com", "password123")
+
+	resp := ts.doRequest("POST", "/api/videos/"+video.ID+"/reprocess", nil, token)
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d", resp.Code)
+	}
+}
+
+func TestReprocessVideoNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	_, token := ts.createTestUserWithID(t, "test@example.com", "password123")
+
+	resp := ts.doRequest("POST", "/api/videos/nonexistent/reprocess", nil, token)
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", resp.Code)
+	}
+}
+
+func TestReprocessVideoNoTranscription(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "test@example.com", "password123")
+	video := ts.createTestVideo(t, &userID, nil)
+	// No transcription created
+
+	resp := ts.doRequest("POST", "/api/videos/"+video.ID+"/reprocess", nil, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "No transcription found for this video" {
+		t.Errorf("Unexpected error: %s", result["error"])
+	}
+}
+
+func TestReprocessVideoNotError(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "test@example.com", "password123")
+	video := ts.createTestVideo(t, &userID, nil)
+	ts.createTestTranscription(t, video.ID) // Complete transcription, not error
+
+	resp := ts.doRequest("POST", "/api/videos/"+video.ID+"/reprocess", nil, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Can only reprocess failed transcriptions" {
+		t.Errorf("Unexpected error: %s", result["error"])
+	}
+	if result["status"] != "complete" {
+		t.Errorf("Expected status 'complete', got '%s'", result["status"])
 	}
 }

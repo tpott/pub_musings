@@ -1835,9 +1835,41 @@ Implemented JSON subtitle export format:
 - `TestDownloadJSON` - API integration test
 - `TestDownloadJSONNotFound` - 404 for missing video
 
+### Task 73: Video reprocessing feature
+
+**Date**: 2026-01-25
+
+Implemented video reprocessing feature for failed transcriptions with ownership checks:
+
+**Backend changes (`main.go`):**
+- Added `POST /api/videos/{id}/reprocess` endpoint
+- Checks video ownership: user must own the video (via user_id match) or anonymous session must match (via session_id)
+- Only allows reprocessing when transcription status is "error"
+- Returns 403 Forbidden for unauthorized access
+- Returns 400 Bad Request for non-error status
+- Rate limited at 5/min per IP (uses transcribeLimiter)
+- Background processing with same logic as original transcription
+
+**Frontend changes (`videos.astro`):**
+- Added "Retry" button for videos with error status
+- Red styling (`#c53030`) to indicate failed state
+- Click handler calls `/api/videos/{id}/reprocess` endpoint
+- Passes session_id for anonymous user support
+- Button shows "Retrying..." and disabled state during request
+- Redirects to upload page to show reprocessing progress
+
+**Tests added:**
+- `TestReprocessVideoSuccess` - successful reprocessing with auth
+- `TestReprocessVideoAnonymous` - anonymous reprocessing with session
+- `TestReprocessVideoNotOwner` - 403 for unauthorized user
+- `TestReprocessVideoNotFound` - 404 for missing video
+- `TestReprocessVideoNoTranscription` - 400 for no transcription
+- `TestReprocessVideoNotError` - 400 for non-error status
+- 7 E2E tests in `videos.spec.ts` for page structure and retry button
+
 ## Summary
 
-70 tasks completed (69 done + 1 requiring macOS). The subtitler application is feature-complete with:
+71 tasks completed (70 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -1855,8 +1887,9 @@ Implemented JSON subtitle export format:
 - Comprehensive specs for deployment, evaluation, and future GPU passthrough research
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
+- Video reprocessing for failed transcriptions with ownership checks
 
-**4 tasks remaining:**
+**3 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
 - Task 71: Frontend accessibility improvements
 - Task 72: Backend request ID tracing

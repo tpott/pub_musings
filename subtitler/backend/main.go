@@ -114,7 +114,6 @@ func isWhisperServerEnabled() bool {
 	return os.Getenv("USE_WHISPER_SERVER") == "true"
 }
 
-
 // transcribeAudio runs whisper-cli on the audio file
 func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
 	model := getWhisperModel()
@@ -2532,6 +2531,187 @@ func main() {
 			"videos": result,
 		})
 	})
+
+	// Reprocess a failed transcription
+	mux.HandleFunc("POST /api/videos/{id}/reprocess", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Video ID required",
+			})
+			return
+		}
+
+		// Get the video to check ownership
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			log.Printf("Error getting video: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get video",
+			})
+			return
+		}
+		if video == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Video not found",
+			})
+			return
+		}
+
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			// Authenticated user owns the video
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			// Anonymous user with matching session
+			hasAccess = true
+		}
+
+		if !hasAccess {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "You do not have permission to reprocess this video",
+			})
+			return
+		}
+
+		// Check if transcription is in error state
+		transcription, err := database.GetTranscription(uploadID)
+		if err != nil {
+			log.Printf("Error getting transcription: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get transcription status",
+			})
+			return
+		}
+
+		if transcription == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No transcription found for this video",
+			})
+			return
+		}
+
+		if transcription.Status != "error" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":  "Can only reprocess failed transcriptions",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// Find the video file
+		videoPath, err := findVideoFile(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Update transcription status to processing
+		database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
+
+		// Process in background (same logic as POST /api/transcribe/{id})
+		go func() {
+			log.Printf("Reprocessing transcription for %s", uploadID)
+
+			// Decrypt video file if encrypted
+			workingVideoPath := videoPath
+			if strings.HasSuffix(videoPath, ".age") {
+				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
+				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+				if err != nil {
+					log.Printf("Video decryption failed: %v", err)
+					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
+					return
+				}
+				workingVideoPath = decryptedPath
+				defer os.Remove(decryptedPath)
+			}
+
+			// Extract audio
+			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
+			audioPath := filepath.Join(uploadDir, uploadID+".wav")
+			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
+				log.Printf("Audio extraction failed: %v", err)
+				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
+				return
+			}
+
+			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
+
+			// Start progress simulation goroutine
+			progressDone := make(chan struct{})
+			go func() {
+				ticker := time.NewTicker(5 * time.Second)
+				defer ticker.Stop()
+				progress := 30
+				for {
+					select {
+					case <-progressDone:
+						return
+					case <-ticker.C:
+						if progress < 90 {
+							progress += 5
+							database.UpdateTranscriptionStatus(uploadID, "processing", "Transcribing audio...", progress)
+						}
+					}
+				}
+			}()
+
+			// Run whisper
+			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
+			result, err := transcribe(audioPath, outputPath)
+			close(progressDone)
+
+			if err != nil {
+				log.Printf("Transcription failed: %v", err)
+				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
+				return
+			}
+
+			// Convert segments to database format
+			segments := make([]db.Segment, len(result.Segments))
+			for i, s := range result.Segments {
+				segments[i] = db.Segment{
+					ID:    s.ID,
+					Start: s.Start,
+					End:   s.End,
+					Text:  s.Text,
+				}
+			}
+
+			// Success
+			log.Printf("Reprocessing complete for %s: %d segments", uploadID, len(result.Segments))
+			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
+				log.Printf("Error saving transcription result: %v", err)
+			}
+
+			// Clean up
+			os.Remove(audioPath)
+		}()
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "processing",
+			"message": "Reprocessing started",
+		})
+	}))
 
 	// Serve uploaded video files for playback
 	mux.HandleFunc("GET /api/videos/{id}/video", func(w http.ResponseWriter, r *http.Request) {

@@ -167,6 +167,20 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.btn-secondary:hover {
 				background-color: #f0f0f0;
 			}
+			.btn-retry {
+				background-color: #c53030;
+				color: white;
+				border: none;
+				cursor: pointer;
+			}
+			.btn-retry:hover {
+				background-color: #9b2c2c;
+			}
+			.btn-retry:disabled {
+				background-color: #e2e8f0;
+				color: #666;
+				cursor: not-allowed;
+			}
 			.status-badge {
 				display: inline-block;
 				padding: 0.125rem 0.5rem;
@@ -354,9 +368,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			function renderVideo(video: Video): string {
 				const showViewBtn = video.transcription_status === 'complete';
 				const showDownloadBtn = video.transcription_status === 'complete';
+				const showRetryBtn = video.transcription_status === 'error';
 
 				return `
-					<div class="video-card">
+					<div class="video-card" data-video-id="${video.id}">
 						<div class="video-icon">🎬</div>
 						<div class="video-info">
 							<div class="video-filename">${escapeHtml(video.filename)}</div>
@@ -373,6 +388,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary">VTT</a>` : ''}
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary">JSON</a>` : ''}
 							${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
+							${showRetryBtn ? `<button class="btn btn-retry" data-video-id="${video.id}">Retry</button>` : ''}
 						</div>
 					</div>
 				`;
@@ -382,6 +398,49 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				const div = document.createElement('div');
 				div.textContent = text;
 				return div.innerHTML;
+			}
+
+			async function reprocessVideo(videoId: string, button: HTMLButtonElement) {
+				button.disabled = true;
+				button.textContent = 'Retrying...';
+
+				try {
+					// Get session_id from localStorage for anonymous users
+					const sessionId = localStorage.getItem('session_id') || '';
+					const url = sessionId
+						? `/api/videos/${videoId}/reprocess?session_id=${sessionId}`
+						: `/api/videos/${videoId}/reprocess`;
+
+					const response = await fetch(url, { method: 'POST' });
+					const data = await response.json();
+
+					if (!response.ok) {
+						alert(`Failed to retry: ${data.error || 'Unknown error'}`);
+						button.disabled = false;
+						button.textContent = 'Retry';
+						return;
+					}
+
+					// Redirect to upload page to see progress
+					window.location.href = `/upload?id=${videoId}`;
+				} catch (err) {
+					alert(`Failed to retry: ${err instanceof Error ? err.message : 'Unknown error'}`);
+					button.disabled = false;
+					button.textContent = 'Retry';
+				}
+			}
+
+			function attachRetryHandlers() {
+				const retryButtons = videoList.querySelectorAll('.btn-retry');
+				retryButtons.forEach((btn) => {
+					btn.addEventListener('click', (e) => {
+						const button = e.target as HTMLButtonElement;
+						const videoId = button.dataset.videoId;
+						if (videoId) {
+							reprocessVideo(videoId, button);
+						}
+					});
+				});
 			}
 
 			async function loadVideos() {
@@ -401,6 +460,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 
 					videoList.innerHTML = data.videos.map(renderVideo).join('');
 					videoList.style.display = 'flex';
+					attachRetryHandlers();
 
 				} catch (err) {
 					loading.style.display = 'none';

@@ -728,6 +728,64 @@ Stream or download the original video file.
 curl -o video.mp4 http://localhost:8080/api/videos/abc123/video
 ```
 
+### POST /api/videos/{id}/reprocess
+
+Reprocess a failed transcription. Only works when transcription status is "error".
+
+**Authentication**: Required - user must own the video (via session token) or anonymous session must match (via `session_id` query parameter)
+
+**Rate Limit**: 5 requests per minute per IP
+
+**Query Parameters**:
+- `session_id` (optional): Session ID for anonymous users
+
+**Response** `200 OK`:
+```json
+{
+  "status": "processing",
+  "message": "Reprocessing started"
+}
+```
+
+**Response** `400 Bad Request` (no transcription):
+```json
+{
+  "error": "No transcription found for this video"
+}
+```
+
+**Response** `400 Bad Request` (wrong status):
+```json
+{
+  "error": "Can only reprocess failed transcriptions",
+  "status": "complete"
+}
+```
+
+**Response** `403 Forbidden`:
+```json
+{
+  "error": "You do not have permission to reprocess this video"
+}
+```
+
+**Response** `404 Not Found`:
+```json
+{
+  "error": "Video not found"
+}
+```
+
+**Example**:
+```bash
+# Authenticated user
+curl -X POST http://localhost:8080/api/videos/abc123/reprocess \
+  -H "Authorization: Bearer your-token"
+
+# Anonymous user with session
+curl -X POST "http://localhost:8080/api/videos/abc123/reprocess?session_id=your-session"
+```
+
 ---
 
 ## Transcription
