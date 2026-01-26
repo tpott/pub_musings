@@ -433,11 +433,25 @@ All POST/PUT/DELETE/PATCH requests to authenticated endpoints require a valid `X
 - `backend/csrf/csrf.go` - Token generation and validation
 - `frontend/src/utils/csrf.ts` - Frontend CSRF utilities
 
+### Account Lockout
+
+After 5 failed login attempts for an email within 15 minutes, the account is temporarily locked for 15 minutes.
+
+**Implementation:**
+- `login_attempts` table tracks all login attempts (failed and successful)
+- `IsEmailLocked()` checks if email has 5+ failed attempts in the last 15 minutes
+- On lock, returns HTTP 429 with `retry_after_min` field showing minutes until unlock
+- Successful login clears all login attempts for that email
+- Expired login attempt records are cleaned up by the maintenance scheduler
+
+**Files:**
+- `backend/main.go:1023-1025` - Constants: `maxLoginAttempts = 5`, `loginLockDuration = 15 * time.Minute`
+- `backend/db/db.go` - `RecordLoginAttempt()`, `IsEmailLocked()`, `ClearLoginAttempts()`
+
 ### Future Enhancements
 
 The following security features are planned but not yet implemented:
 
-- **Account lockout after failed attempts** - Temporarily lock accounts after multiple failed login attempts
 - **CAPTCHA integration** - Bot protection for registration and login forms
 - **Password complexity requirements** - Beyond length, require mixed case/numbers/symbols
 - **IP-based blocking** - Block IPs with suspicious activity patterns

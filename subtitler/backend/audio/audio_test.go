@@ -116,3 +116,63 @@ func TestExtractorInterface(t *testing.T) {
 	var _ Extractor = (*FFmpegExtractor)(nil)
 	var _ Extractor = (*MockExtractor)(nil)
 }
+
+func TestValidateVideoFile_NonexistentFile(t *testing.T) {
+	// Skip if ffprobe is not available
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not available, skipping validation test")
+	}
+
+	err := ValidateVideoFile("/nonexistent/path/video.mp4")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "invalid video file") {
+		t.Errorf("Expected 'invalid video file' error, got: %v", err)
+	}
+}
+
+func TestValidateVideoFile_TextFile(t *testing.T) {
+	// Skip if ffprobe is not available
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not available, skipping validation test")
+	}
+
+	// Create a temporary text file that pretends to be a video
+	tmpFile, err := os.CreateTemp("", "fake-video-*.mp4")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// Write some text content (not a valid video)
+	_, err = tmpFile.WriteString("This is not a video file, just some text content.")
+	if err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	// Validate should fail because this is not a valid video
+	err = ValidateVideoFile(tmpFile.Name())
+	if err == nil {
+		t.Error("Expected error for non-video file")
+	}
+	if !strings.Contains(err.Error(), "invalid video file") && !strings.Contains(err.Error(), "no video stream") {
+		t.Errorf("Expected 'invalid video file' or 'no video stream' error, got: %v", err)
+	}
+}
+
+func TestValidateVideoFile_FfprobeNotAvailable(t *testing.T) {
+	// Save original PATH
+	origPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", origPath)
+
+	// Set PATH to empty to simulate missing ffprobe
+	os.Setenv("PATH", "/nonexistent-path-for-testing")
+
+	// When ffprobe is not available, validation should pass (fallback to allow)
+	err := ValidateVideoFile("/any/path.mp4")
+	if err != nil {
+		t.Errorf("Expected no error when ffprobe not available (fallback to allow), got: %v", err)
+	}
+}

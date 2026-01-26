@@ -2447,6 +2447,17 @@ func main() {
 
 		log.Printf("Uploaded file: %s (%d bytes) -> %s", header.Filename, written, destPath)
 
+		// Validate the file is actually a valid video (defense-in-depth beyond MIME check)
+		if err := audio.ValidateVideoFile(destPath); err != nil {
+			log.Printf("Video validation failed for %s: %v", destPath, err)
+			os.Remove(destPath) // Clean up invalid file
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File is not a valid video. Please upload a valid video file.",
+			})
+			return
+		}
+
 		// Encrypt the file at rest
 		encPath, err := encryptor.EncryptFile(destPath)
 		if err != nil {

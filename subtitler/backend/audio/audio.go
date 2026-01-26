@@ -62,6 +62,45 @@ func CheckFFmpegAvailable() error {
 	return nil
 }
 
+// ValidateVideoFile uses ffprobe to verify that a file is a valid video.
+// This provides defense-in-depth beyond MIME type checking, as MIME types
+// can be spoofed by malicious clients.
+// Returns nil if the file is a valid video, or an error describing the problem.
+func ValidateVideoFile(filePath string) error {
+	// First check if ffprobe is available
+	probePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		// ffprobe not available - fall back to allowing the file
+		// (MIME check already passed at this point)
+		return nil
+	}
+
+	// Use ffprobe to check if file contains a video stream
+	// -v error: only show errors
+	// -select_streams v:0: select first video stream
+	// -show_entries stream=codec_type: only show codec type
+	// -of csv=p=0: output as plain CSV without headers
+	cmd := exec.Command(probePath,
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=codec_type",
+		"-of", "csv=p=0",
+		filePath,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("invalid video file: ffprobe failed to read media streams")
+	}
+
+	// Check if output contains "video"
+	outputStr := string(output)
+	if outputStr == "" || outputStr == "\n" {
+		return fmt.Errorf("invalid video file: no video stream found")
+	}
+
+	return nil
+}
+
 // MockExtractor is a test implementation of Extractor.
 type MockExtractor struct {
 	// ShouldFail controls whether ExtractAudio returns an error.
