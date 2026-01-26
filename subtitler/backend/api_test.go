@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -93,12 +94,46 @@ func setupTestServer(t *testing.T) *testServer {
 
 // registerHandlers registers all API handlers on the test server's mux
 func (ts *testServer) registerHandlers() {
-	// Health check endpoint
+	// Health check endpoint (enhanced with dependency checks)
 	ts.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "ok",
-		})
+
+		status := HealthStatus{
+			Status:           "ok",
+			DBConnected:      true,
+			WhisperAvailable: true,
+			DiskSpaceOK:      true,
+			Errors:           []string{},
+		}
+
+		// Check database connectivity
+		if err := ts.db.Ping(); err != nil {
+			status.DBConnected = false
+			status.Errors = append(status.Errors, fmt.Sprintf("database: %v", err))
+		}
+
+		// Check whisper-server availability (if configured)
+		whisperOK, whisperErr := checkWhisperServerHealth()
+		if !whisperOK {
+			status.WhisperAvailable = false
+			status.Errors = append(status.Errors, whisperErr)
+		}
+
+		// Check disk space (minimum 1GB free for uploads)
+		diskOK, freeGB, diskErr := checkDiskSpace(".", 1.0)
+		status.DiskFreeGB = freeGB
+		if !diskOK {
+			status.DiskSpaceOK = false
+			status.Errors = append(status.Errors, diskErr)
+		}
+
+		// Determine overall status
+		if !status.DBConnected || !status.WhisperAvailable || !status.DiskSpaceOK {
+			status.Status = "degraded"
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+
+		json.NewEncoder(w).Encode(status)
 	})
 
 	// Frontend log forwarding endpoint (for dev mode debugging)
@@ -1502,11 +1537,56 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", resp.Code)
 	}
 
-	var result map[string]string
+	var result HealthStatus
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	if result["status"] != "ok" {
-		t.Errorf("Expected status 'ok', got '%s'", result["status"])
+	if result.Status != "ok" {
+		t.Errorf("Expected status 'ok', got '%s'", result.Status)
+	}
+
+	// Verify enhanced health check fields
+	if !result.DBConnected {
+		t.Error("Expected DBConnected to be true")
+	}
+	if !result.WhisperAvailable {
+		t.Error("Expected WhisperAvailable to be true (whisper-server not configured)")
+	}
+	if !result.DiskSpaceOK {
+		t.Error("Expected DiskSpaceOK to be true")
+	}
+	if result.DiskFreeGB <= 0 {
+		t.Error("Expected DiskFreeGB to be greater than 0")
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+}
+
+func TestHealthEndpointDBDown(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Close the database to simulate a connection failure
+	ts.db.Close()
+
+	resp := ts.doRequest("GET", "/api/health", nil, "")
+
+	// Should return 503 Service Unavailable when DB is down
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503, got %d", resp.Code)
+	}
+
+	var result HealthStatus
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result.Status != "degraded" {
+		t.Errorf("Expected status 'degraded', got '%s'", result.Status)
+	}
+	if result.DBConnected {
+		t.Error("Expected DBConnected to be false")
+	}
+	if len(result.Errors) == 0 {
+		t.Error("Expected at least one error message")
 	}
 }
 

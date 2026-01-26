@@ -149,6 +149,11 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
+// Ping checks if the database connection is alive
+func (db *DB) Ping() error {
+	return db.conn.Ping()
+}
+
 // migrate runs database migrations
 func (db *DB) migrate() error {
 	migrations := []string{

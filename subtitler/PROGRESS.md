@@ -1924,9 +1924,33 @@ Added ARIA attributes and focus styles for better accessibility:
 - login.astro, register.astro, forgot-password.astro, reset-password.astro
 - security.astro, videos.astro, upload.astro
 
+### Task 74: Enhanced health check endpoint
+
+**Date**: 2026-01-25
+
+Enhanced the `/api/health` endpoint to check all critical dependencies:
+
+**New HealthStatus response:**
+- `status`: "ok" or "degraded"
+- `db_connected`: Database connectivity check via Ping()
+- `whisper_available`: whisper-server reachability (when configured)
+- `disk_space_ok`: Free disk space check (minimum 1GB)
+- `disk_free_gb`: Current free disk space in GB
+- `errors`: Array of error messages for failed checks
+
+**Implementation:**
+- Added `Ping()` method to `db/db.go` for database connectivity testing
+- Added `checkWhisperServerHealth()` function to check whisper-server availability
+- Added `checkDiskSpace()` function using syscall.Statfs for disk space monitoring
+- Returns HTTP 503 Service Unavailable when any dependency is down
+
+**Tests added:**
+- `TestHealthEndpoint` - verifies enhanced response with all fields
+- `TestHealthEndpointDBDown` - verifies 503 response when database is unavailable
+
 ## Summary
 
-73 tasks completed (72 done + 1 requiring macOS). The subtitler application is feature-complete with:
+74 tasks completed (73 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -1947,6 +1971,13 @@ Added ARIA attributes and focus styles for better accessibility:
 - Video reprocessing for failed transcriptions with ownership checks
 - Request ID tracing for all API requests
 - Comprehensive accessibility (ARIA roles, focus visible, keyboard navigation)
+- Enhanced health check with database, whisper-server, and disk space monitoring
 
-**1 task remaining:**
+**7 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
+- Task 75: Database transaction safety for critical ops
+- Task 76: Mobile responsive design audit
+- Task 77: Dark mode support
+- Task 78: Rate limits documentation
+- Task 79: HTTP caching headers for video streaming
+- Task 80: E2E full upload-to-download flow test

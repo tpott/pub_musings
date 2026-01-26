@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/trevor/subtitler/backend/align"
@@ -139,6 +140,56 @@ func isWhisperServerEnabled() bool {
 	}
 	// Otherwise check USE_WHISPER_SERVER flag
 	return os.Getenv("USE_WHISPER_SERVER") == "true"
+}
+
+// checkWhisperServerHealth checks if whisper-server is available (when configured)
+// Returns (available bool, error string)
+func checkWhisperServerHealth() (bool, string) {
+	if !isWhisperServerEnabled() {
+		// Not configured, so we consider it "available" (will use CLI mode)
+		return true, ""
+	}
+
+	serverURL := getWhisperServerURL()
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	resp, err := client.Get(serverURL + "/")
+	if err != nil {
+		return false, fmt.Sprintf("cannot reach whisper-server at %s: %v", serverURL, err)
+	}
+	defer resp.Body.Close()
+
+	// Any response means the server is reachable
+	return true, ""
+}
+
+// checkDiskSpace checks if there's enough free disk space for uploads
+// Returns (ok bool, freeGB float64, error string)
+func checkDiskSpace(path string, minFreeGB float64) (bool, float64, string) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		return false, 0, fmt.Sprintf("cannot stat filesystem: %v", err)
+	}
+
+	// Calculate free space in GB
+	freeBytes := stat.Bavail * uint64(stat.Bsize)
+	freeGB := float64(freeBytes) / (1024 * 1024 * 1024)
+
+	if freeGB < minFreeGB {
+		return false, freeGB, fmt.Sprintf("low disk space: %.2f GB free (minimum: %.2f GB)", freeGB, minFreeGB)
+	}
+
+	return true, freeGB, ""
+}
+
+// HealthStatus represents the response from /api/health
+type HealthStatus struct {
+	Status           string   `json:"status"` // "ok" or "degraded"
+	DBConnected      bool     `json:"db_connected"`
+	WhisperAvailable bool     `json:"whisper_available"`
+	DiskSpaceOK      bool     `json:"disk_space_ok"`
+	DiskFreeGB       float64  `json:"disk_free_gb,omitempty"`
+	Errors           []string `json:"errors,omitempty"`
 }
 
 // transcribeAudio runs whisper-cli on the audio file
@@ -487,9 +538,43 @@ func main() {
 	// Health check endpoint
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "ok",
-		})
+
+		status := HealthStatus{
+			Status:           "ok",
+			DBConnected:      true,
+			WhisperAvailable: true,
+			DiskSpaceOK:      true,
+			Errors:           []string{},
+		}
+
+		// Check database connectivity
+		if err := database.Ping(); err != nil {
+			status.DBConnected = false
+			status.Errors = append(status.Errors, fmt.Sprintf("database: %v", err))
+		}
+
+		// Check whisper-server availability (if configured)
+		whisperOK, whisperErr := checkWhisperServerHealth()
+		if !whisperOK {
+			status.WhisperAvailable = false
+			status.Errors = append(status.Errors, whisperErr)
+		}
+
+		// Check disk space (minimum 1GB free for uploads)
+		diskOK, freeGB, diskErr := checkDiskSpace(".", 1.0)
+		status.DiskFreeGB = freeGB
+		if !diskOK {
+			status.DiskSpaceOK = false
+			status.Errors = append(status.Errors, diskErr)
+		}
+
+		// Determine overall status
+		if !status.DBConnected || !status.WhisperAvailable || !status.DiskSpaceOK {
+			status.Status = "degraded"
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+
+		json.NewEncoder(w).Encode(status)
 	})
 
 	// Frontend log forwarding endpoint (for dev mode debugging)

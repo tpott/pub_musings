@@ -63,16 +63,40 @@ X-Request-ID: 894fe2cb7d305ce3
 
 ### GET /api/health
 
-Health check endpoint.
+Enhanced health check endpoint that verifies critical dependencies.
 
 **Authentication**: Not required
 
-**Response** `200 OK`:
+**Response** `200 OK` (all systems healthy):
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "db_connected": true,
+  "whisper_available": true,
+  "disk_space_ok": true,
+  "disk_free_gb": 45.23
 }
 ```
+
+**Response** `503 Service Unavailable` (one or more dependencies unavailable):
+```json
+{
+  "status": "degraded",
+  "db_connected": false,
+  "whisper_available": true,
+  "disk_space_ok": true,
+  "disk_free_gb": 45.23,
+  "errors": ["database: sql: database is closed"]
+}
+```
+
+**Fields**:
+- `status`: "ok" when all dependencies are available, "degraded" otherwise
+- `db_connected`: true if database connection is alive (Ping succeeds)
+- `whisper_available`: true if whisper-server is reachable (when configured) or CLI mode
+- `disk_space_ok`: true if free disk space exceeds minimum threshold (1GB)
+- `disk_free_gb`: current free disk space in gigabytes
+- `errors`: array of error messages for failed dependency checks (only present when status is degraded)
 
 **Example**:
 ```bash
