@@ -104,14 +104,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Current host-based whisper-server approach remains the best option
 - See: `specs/metal-moltenvk.md`
 
+### Security Hardening (Tasks 106-108)
+- ✅ Account lockout after failed login attempts (Task 106) - already implemented, documented
+- ✅ Video file validation with ffprobe (Task 107)
+- ✅ Content Security Policy headers (Task 108)
+
 ## Current Work
 
-**8 new tasks filed** (106-113) from project review. Priorities:
+**5 tasks remaining** (109-113):
 
-1. Security hardening (106-108): Account lockout, file validation, CSP headers
-2. Technical debt (109, 113): Database migrations, structured logging
-3. UX improvements (111-112): Video thumbnails, burn progress indicators
-4. Documentation (110): Environment variable reference
+1. Technical debt (109, 113): Database migrations, structured logging
+2. UX improvements (111-112): Video thumbnails, burn progress indicators
+3. Documentation (110): Environment variable reference
 
 See `TASKS.jsonl` for details.
 
