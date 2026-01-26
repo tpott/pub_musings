@@ -628,6 +628,7 @@ import '../styles/theme.css';
 
 		<script>
 			import { validatePassword, validateTotpCode } from '../utils/validation';
+			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const notLoggedIn = document.getElementById('notLoggedIn') as HTMLElement;
@@ -799,6 +800,9 @@ import '../styles/theme.css';
 							content.classList.remove('hidden');
 							updateUI();
 
+							// Fetch CSRF token for authenticated requests
+							await fetchCsrfToken();
+
 							// Update nav
 							loginLink.style.display = 'none';
 							registerLink.style.display = 'none';
@@ -826,7 +830,8 @@ import '../styles/theme.css';
 
 			async function logout() {
 				try {
-					await fetch('/api/auth/logout', { method: 'POST' });
+					await csrfFetch('/api/auth/logout', { method: 'POST' });
+					clearCsrfToken();
 					window.location.href = '/login';
 				} catch (err) {
 					console.error('Logout failed:', err);
@@ -839,7 +844,7 @@ import '../styles/theme.css';
 				startSetupBtn.textContent = 'Setting up...';
 
 				try {
-					const response = await fetch('/api/auth/totp/setup', {
+					const response = await csrfFetch('/api/auth/totp/setup', {
 						method: 'POST',
 					});
 
@@ -976,7 +981,7 @@ ${recoveryCodes.join('\n')}
 				verifyBtn.textContent = 'Verifying...';
 
 				try {
-					const response = await fetch('/api/auth/totp/verify', {
+					const response = await csrfFetch('/api/auth/totp/verify', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ code }),
@@ -1042,7 +1047,7 @@ ${recoveryCodes.join('\n')}
 				disableBtn.textContent = 'Disabling...';
 
 				try {
-					const response = await fetch('/api/auth/totp/disable', {
+					const response = await csrfFetch('/api/auth/totp/disable', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ password, code }),
@@ -1140,7 +1145,7 @@ ${recoveryCodes.join('\n')}
 				regenBtn.textContent = 'Regenerating...';
 
 				try {
-					const response = await fetch('/api/auth/totp/codes', {
+					const response = await csrfFetch('/api/auth/totp/codes', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ password, code }),
@@ -1259,7 +1264,7 @@ ${recoveryCodes.join('\n')}
 							target.textContent = 'Revoking...';
 
 							try {
-								const response = await fetch(`/api/auth/sessions/${sessionId}`, {
+								const response = await csrfFetch(`/api/auth/sessions/${sessionId}`, {
 									method: 'DELETE',
 								});
 

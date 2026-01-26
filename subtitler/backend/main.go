@@ -23,6 +23,7 @@ import (
 	"github.com/trevor/subtitler/backend/audio"
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
+	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/ratelimit"
@@ -979,6 +980,46 @@ func main() {
 				"created_at":   user.CreatedAt,
 				"totp_enabled": user.TOTPEnabled,
 			},
+		})
+	})
+
+	// Auth: Get CSRF token for current session
+	mux.HandleFunc("GET /api/auth/csrf", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		sessionToken := auth.GetTokenFromRequest(r)
+		if sessionToken == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Not authenticated",
+			})
+			return
+		}
+
+		// Validate the session exists
+		user, _, err := auth.ValidateSession(database, sessionToken)
+		if err != nil {
+			log.Printf("Error validating session: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to validate session",
+			})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Not authenticated",
+			})
+			return
+		}
+
+		// Generate CSRF token from session token
+		csrfToken := csrf.GenerateToken(sessionToken)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"csrf_token": csrfToken,
 		})
 	})
 
@@ -3359,8 +3400,9 @@ func main() {
 	log.Printf("Backend server starting on :%s", port)
 	log.Printf("Using whisper model: %s", getWhisperModel())
 
-	// Wrap mux with request ID middleware
-	handler := requestIDMiddleware(mux)
+	// Wrap mux with CSRF middleware then request ID middleware
+	csrfMiddleware := csrf.Middleware(auth.GetTokenFromRequest)
+	handler := requestIDMiddleware(csrfMiddleware(mux))
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

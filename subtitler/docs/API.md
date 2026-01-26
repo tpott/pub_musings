@@ -303,6 +303,37 @@ curl http://localhost:8080/api/auth/me \
 
 ---
 
+### GET /api/auth/csrf
+
+Get a CSRF token for the current session. Required for making state-changing requests (POST/PUT/DELETE/PATCH).
+
+**Authentication**: Required
+
+**Response** `200 OK`:
+```json
+{
+  "csrf_token": "a1b2c3d4e5f6..."
+}
+```
+
+**Errors**:
+- `401 Unauthorized`: Not authenticated
+
+**Usage**:
+Include the token in the `X-CSRF-Token` header for all state-changing requests:
+```bash
+curl -X POST http://localhost:8080/api/auth/logout \
+  -H "Authorization: Bearer your_token_here" \
+  -H "X-CSRF-Token: your_csrf_token"
+```
+
+**Notes**:
+- CSRF tokens are derived from session tokens using HMAC-SHA256
+- Tokens remain valid as long as the session is valid
+- Exempt endpoints (no CSRF required): login, register, forgot-password, reset-password
+
+---
+
 ## Two-Factor Authentication (2FA)
 
 ### POST /api/auth/totp/setup

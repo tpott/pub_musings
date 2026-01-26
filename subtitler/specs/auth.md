@@ -236,13 +236,31 @@ Anonymous uploads are tracked by session. The retention cleanup runs hourly.
 
 - bcrypt password hashing (cost 12)
 - HttpOnly cookies (XSS protection)
-- SameSite=Lax (CSRF protection)
+- SameSite=Lax (basic CSRF protection)
+- CSRF tokens for state-changing requests (see below)
 - Secure random token generation
 - Generic login error messages
 - Session expiration with cleanup
 - 2FA support via TOTP
 - 2FA recovery codes (see [recovery-codes.md](recovery-codes.md))
 - Rate limiting on auth endpoints (5 req/min per IP, see `backend/ratelimit/`)
+
+### CSRF Protection
+
+All POST/PUT/DELETE/PATCH requests to authenticated endpoints require a valid `X-CSRF-Token` header.
+
+**How it works:**
+1. CSRF tokens are derived from session tokens using HMAC-SHA256 (stateless)
+2. Frontend fetches token via `GET /api/auth/csrf` after authentication
+3. Frontend includes token in all state-changing requests
+4. Exempt endpoints: `/api/auth/login`, `/api/auth/register`, `/api/auth/forgot-password`, `/api/auth/reset-password`
+
+**Configuration:**
+- `CSRF_SECRET` env var: Optional HMAC key for CSRF tokens. If not set, a random secret is generated on startup (tokens won't survive restarts).
+
+**Files:**
+- `backend/csrf/csrf.go` - Token generation and validation
+- `frontend/src/utils/csrf.ts` - Frontend CSRF utilities
 
 ### Not Implemented
 

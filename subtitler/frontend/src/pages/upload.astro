@@ -898,6 +898,8 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
+			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+
 			const dropzone = document.getElementById('dropzone') as HTMLElement;
 			const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 			const status = document.getElementById('status') as HTMLElement;
@@ -1142,7 +1144,7 @@ import '../styles/theme.css';
 
 				try {
 					// Start transcription
-					const response = await fetch(`/api/transcribe/${uploadId}`, {
+					const response = await csrfFetch(`/api/transcribe/${uploadId}`, {
 						method: 'POST',
 					});
 					const result = await response.json();
@@ -1258,7 +1260,7 @@ import '../styles/theme.css';
 						payload.language = languageSelect.value;
 					}
 
-					const response = await fetch(`/api/transcribe/${currentUploadId}/align`, {
+					const response = await csrfFetch(`/api/transcribe/${currentUploadId}/align`, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify(payload)
@@ -1473,7 +1475,7 @@ import '../styles/theme.css';
 				saveBtn.textContent = 'Saving...';
 
 				try {
-					const response = await fetch(`/api/transcribe/${currentUploadId}/segments`, {
+					const response = await csrfFetch(`/api/transcribe/${currentUploadId}/segments`, {
 						method: 'PUT',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ segments: editedSegments })
@@ -1608,7 +1610,7 @@ import '../styles/theme.css';
 				downloadBurnedBtn.style.display = 'none';
 
 				try {
-					const response = await fetch(`/api/videos/${currentUploadId}/burn`, {
+					const response = await csrfFetch(`/api/videos/${currentUploadId}/burn`, {
 						method: 'POST',
 					});
 					const result = await response.json();
@@ -1685,6 +1687,9 @@ import '../styles/theme.css';
 							loginLink.style.display = 'none';
 							registerLink.style.display = 'none';
 
+							// Fetch CSRF token for authenticated requests
+							await fetchCsrfToken();
+
 							const userSpan = document.createElement('span');
 							userSpan.className = 'nav-user';
 							userSpan.textContent = data.user.email;
@@ -1704,7 +1709,8 @@ import '../styles/theme.css';
 
 			async function logout() {
 				try {
-					await fetch('/api/auth/logout', { method: 'POST' });
+					await csrfFetch('/api/auth/logout', { method: 'POST' });
+					clearCsrfToken();
 					window.location.reload();
 				} catch (err) {
 					console.error('Logout failed:', err);

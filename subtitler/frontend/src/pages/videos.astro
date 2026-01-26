@@ -365,6 +365,8 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
+			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+
 			const loading = document.getElementById('loading') as HTMLElement;
 			const error = document.getElementById('error') as HTMLElement;
 			const empty = document.getElementById('empty') as HTMLElement;
@@ -486,7 +488,7 @@ import '../styles/theme.css';
 						? `/api/videos/${videoId}/reprocess?session_id=${sessionId}`
 						: `/api/videos/${videoId}/reprocess`;
 
-					const response = await fetch(url, { method: 'POST' });
+					const response = await csrfFetch(url, { method: 'POST' });
 					const data = await response.json();
 
 					if (!response.ok) {
@@ -560,6 +562,9 @@ import '../styles/theme.css';
 							loginLink.style.display = 'none';
 							registerLink.style.display = 'none';
 
+							// Fetch CSRF token for authenticated requests
+							await fetchCsrfToken();
+
 							const userSpan = document.createElement('span');
 							userSpan.className = 'nav-user';
 							userSpan.textContent = data.user.email;
@@ -585,7 +590,8 @@ import '../styles/theme.css';
 
 			async function logout() {
 				try {
-					await fetch('/api/auth/logout', { method: 'POST' });
+					await csrfFetch('/api/auth/logout', { method: 'POST' });
+					clearCsrfToken();
 					window.location.reload();
 				} catch (err) {
 					console.error('Logout failed:', err);

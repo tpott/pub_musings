@@ -152,6 +152,8 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
+			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+
 			const nav = document.getElementById('nav') as HTMLElement;
 			const loginLink = document.getElementById('loginLink') as HTMLElement;
 			const registerLink = document.getElementById('registerLink') as HTMLElement;
@@ -165,6 +167,9 @@ import '../styles/theme.css';
 							// User is logged in - show logout
 							loginLink.style.display = 'none';
 							registerLink.style.display = 'none';
+
+							// Fetch CSRF token for authenticated requests
+							await fetchCsrfToken();
 
 							const userSpan = document.createElement('span');
 							userSpan.className = 'nav-user';
@@ -185,7 +190,8 @@ import '../styles/theme.css';
 
 			async function logout() {
 				try {
-					await fetch('/api/auth/logout', { method: 'POST' });
+					await csrfFetch('/api/auth/logout', { method: 'POST' });
+					clearCsrfToken();
 					window.location.reload();
 				} catch (err) {
 					console.error('Logout failed:', err);
