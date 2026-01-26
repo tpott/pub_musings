@@ -346,6 +346,13 @@ func NeedlemanWunsch(lyricsWords []string, whisperWords []Word, useMusic bool) [
 	return alignment
 }
 
+// SectionTiming stores the timing template for a section (relative durations)
+type SectionTiming struct {
+	LineDurations []float64 // Duration of each line in the section
+	LineGaps      []float64 // Gap between consecutive lines (len = LineDurations - 1)
+	TotalDuration float64   // Total duration of the section
+}
+
 // AlignLyrics aligns lyrics with whisper segments using music-specific algorithm
 func AlignLyrics(lyricsText string, whisperSegments []Segment) AlignmentResult {
 	// Detect lyrics structure
@@ -371,8 +378,11 @@ func AlignLyrics(lyricsText string, whisperSegments []Segment) AlignmentResult {
 	// Perform global alignment using Needleman-Wunsch with music similarity
 	alignment := NeedlemanWunsch(lyricsWords, whisperWords, true)
 
-	// Create segments from aligned data
+	// Create segments from aligned data (initial pass)
 	segments := createAlignedSegments(structure.AllLines, whisperWords, alignment)
+
+	// Apply chorus template timing for repeated sections
+	segments = applyChorusTemplates(segments, structure, alignment, whisperWords)
 
 	// Refine timing
 	segments = refineTiming(segments)
@@ -393,6 +403,235 @@ func AlignLyrics(lyricsText string, whisperSegments []Segment) AlignmentResult {
 			MatchedWords:     matchedWords,
 			MatchRate:        float64(matchedWords) / float64(len(lyricsWords)),
 		},
+	}
+}
+
+// applyChorusTemplates uses timing from first chorus occurrence as template for repeats
+func applyChorusTemplates(segments []Segment, structure LyricsStructure, alignment []int, whisperWords []Word) []Segment {
+	if len(structure.Sections) == 0 || len(segments) == 0 {
+		return segments
+	}
+
+	// Build mapping from line index to segment index
+	lineToSegment := make(map[int]int)
+	segIdx := 0
+	for lineIdx := range structure.AllLines {
+		if segIdx < len(segments) {
+			lineToSegment[lineIdx] = segIdx
+			segIdx++
+		}
+	}
+
+	// Calculate timing templates for source sections (first occurrences)
+	sectionTimings := make(map[int]*SectionTiming)
+	for sectionIdx, section := range structure.Sections {
+		if section.IsRepeat {
+			continue // Skip repeats, we'll use the source's timing
+		}
+
+		timing := extractSectionTiming(section, segments, lineToSegment)
+		if timing != nil {
+			sectionTimings[sectionIdx] = timing
+		}
+	}
+
+	// Apply templates to repeated sections
+	for _, section := range structure.Sections {
+		if !section.IsRepeat {
+			continue
+		}
+
+		sourceTiming := sectionTimings[section.SourceIdx]
+		if sourceTiming == nil || len(sourceTiming.LineDurations) == 0 {
+			continue
+		}
+
+		// Get the segments for this repeated section
+		repeatSegments := getSectionSegments(section, segments, lineToSegment)
+		if len(repeatSegments) == 0 {
+			continue
+		}
+
+		// Check if this repeated section has poor alignment (needs template)
+		if !needsTemplateAlignment(repeatSegments, section, alignment, structure) {
+			continue
+		}
+
+		// Find the anchor point for this repeat (first segment with good timing)
+		anchorStart := findRepeatAnchor(repeatSegments, section, segments, lineToSegment, alignment, whisperWords)
+		if anchorStart < 0 {
+			continue
+		}
+
+		// Apply the template timing
+		applyTimingTemplate(repeatSegments, sourceTiming, anchorStart)
+	}
+
+	return segments
+}
+
+// extractSectionTiming calculates the timing template from a section's segments
+func extractSectionTiming(section Section, segments []Segment, lineToSegment map[int]int) *SectionTiming {
+	if len(section.Lines) == 0 {
+		return nil
+	}
+
+	timing := &SectionTiming{
+		LineDurations: make([]float64, 0, len(section.Lines)),
+		LineGaps:      make([]float64, 0, len(section.Lines)-1),
+	}
+
+	var prevEnd float64
+	for i, lineIdx := range getLineIndices(section) {
+		segIdx, ok := lineToSegment[lineIdx]
+		if !ok || segIdx >= len(segments) {
+			continue
+		}
+
+		seg := segments[segIdx]
+		duration := seg.End - seg.Start
+		timing.LineDurations = append(timing.LineDurations, duration)
+
+		if i > 0 && prevEnd > 0 {
+			gap := seg.Start - prevEnd
+			if gap < 0 {
+				gap = 0
+			}
+			timing.LineGaps = append(timing.LineGaps, gap)
+		}
+
+		prevEnd = seg.End
+	}
+
+	if len(timing.LineDurations) > 0 {
+		// Calculate total duration from first segment start to last segment end
+		firstLineIdx := section.StartLine
+		lastLineIdx := section.EndLine - 1
+		if firstSegIdx, ok := lineToSegment[firstLineIdx]; ok {
+			if lastSegIdx, ok := lineToSegment[lastLineIdx]; ok {
+				if firstSegIdx < len(segments) && lastSegIdx < len(segments) {
+					timing.TotalDuration = segments[lastSegIdx].End - segments[firstSegIdx].Start
+				}
+			}
+		}
+	}
+
+	return timing
+}
+
+// getLineIndices returns the global line indices for a section
+func getLineIndices(section Section) []int {
+	indices := make([]int, len(section.Lines))
+	for i := range section.Lines {
+		indices[i] = section.StartLine + i
+	}
+	return indices
+}
+
+// getSectionSegments returns pointers to segments for a section
+func getSectionSegments(section Section, segments []Segment, lineToSegment map[int]int) []*Segment {
+	result := make([]*Segment, 0, len(section.Lines))
+	for _, lineIdx := range getLineIndices(section) {
+		if segIdx, ok := lineToSegment[lineIdx]; ok && segIdx < len(segments) {
+			result = append(result, &segments[segIdx])
+		}
+	}
+	return result
+}
+
+// needsTemplateAlignment checks if a repeated section has poor alignment and needs template
+func needsTemplateAlignment(repeatSegments []*Segment, section Section, alignment []int, structure LyricsStructure) bool {
+	if len(repeatSegments) == 0 {
+		return false
+	}
+
+	// Count how many lines in this section have good word matches
+	goodMatches := 0
+	wordIdx := 0
+
+	// Find starting word index for this section
+	for i := 0; i < section.StartLine && i < len(structure.AllLines); i++ {
+		wordIdx += len(splitIntoWords(structure.AllLines[i]))
+	}
+
+	// Check word matches for each line in section
+	for _, line := range section.Lines {
+		lineWords := splitIntoWords(line)
+		matchedInLine := 0
+		for range lineWords {
+			if wordIdx < len(alignment) && alignment[wordIdx] >= 0 {
+				matchedInLine++
+			}
+			wordIdx++
+		}
+		// Consider a line well-matched if > 50% of words matched
+		if len(lineWords) > 0 && float64(matchedInLine)/float64(len(lineWords)) > 0.5 {
+			goodMatches++
+		}
+	}
+
+	// Need template if less than half the lines have good matches
+	return float64(goodMatches)/float64(len(section.Lines)) < 0.5
+}
+
+// findRepeatAnchor finds the start time for the repeated section based on audio position
+func findRepeatAnchor(repeatSegments []*Segment, section Section, segments []Segment, lineToSegment map[int]int, alignment []int, whisperWords []Word) float64 {
+	// First, try to find anchor from any matched word in this section
+	wordIdx := 0
+
+	// Find starting word index for this section's lines
+	for lineIdx := 0; lineIdx < section.StartLine; lineIdx++ {
+		// Count words in lines before this section
+		lineSegIdx, ok := lineToSegment[lineIdx]
+		if ok && lineSegIdx < len(segments) {
+			wordIdx += len(splitIntoWords(segments[lineSegIdx].Text))
+		}
+	}
+
+	// Look for first matched word in this section
+	for _, line := range section.Lines {
+		lineWords := splitIntoWords(line)
+		for range lineWords {
+			if wordIdx < len(alignment) && alignment[wordIdx] >= 0 {
+				whisperIdx := alignment[wordIdx]
+				if whisperIdx < len(whisperWords) {
+					return whisperWords[whisperIdx].Start
+				}
+			}
+			wordIdx++
+		}
+	}
+
+	// If no word matches, use the first segment's current start time
+	if len(repeatSegments) > 0 {
+		return repeatSegments[0].Start
+	}
+
+	return -1
+}
+
+// applyTimingTemplate applies the timing template to repeated section segments
+func applyTimingTemplate(repeatSegments []*Segment, template *SectionTiming, anchorStart float64) {
+	if len(repeatSegments) == 0 || template == nil || len(template.LineDurations) == 0 {
+		return
+	}
+
+	currentStart := anchorStart
+
+	for i, seg := range repeatSegments {
+		if i >= len(template.LineDurations) {
+			break
+		}
+
+		// Add gap before this line (except first line)
+		if i > 0 && i-1 < len(template.LineGaps) {
+			currentStart += template.LineGaps[i-1]
+		}
+
+		// Apply the template duration
+		seg.Start = currentStart
+		seg.End = currentStart + template.LineDurations[i]
+		currentStart = seg.End
 	}
 }
 

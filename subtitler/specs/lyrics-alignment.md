@@ -9,7 +9,7 @@ This document describes the algorithm for aligning known lyrics with Whisper tra
 | Phase 1 | Structural Analysis | **Implemented** |
 | Phase 2 | Enhanced Word Matching | **Implemented** |
 | Phase 3 | Needleman-Wunsch Alignment | **Implemented** |
-| Phase 4 | Chorus Template Timing | Partial (detection only) |
+| Phase 4 | Chorus Template Timing | **Implemented** |
 | Phase 5 | Timing Refinement | **Implemented** |
 
 **Implementation files:**
@@ -132,16 +132,33 @@ func NeedlemanWunsch(lyricsWords []string, whisperWords []Word, useMusic bool) [
 
 Returns alignment array where `result[i]` is the whisper word index aligned to lyrics word `i` (-1 if gap).
 
-### Phase 4: Chorus Template Timing (Partial)
+### Phase 4: Chorus Template Timing (Implemented)
 
-**Implemented:**
-- Section detection with repeat marking
-- `IsRepeat` and `SourceIdx` fields populated
+When a chorus repeats with identical or nearly identical lyrics, the timing pattern from the first occurrence is used as a template for subsequent occurrences. This helps when Whisper misrecognizes or garbles the repeated chorus.
 
-**Not yet implemented:**
-- Using first occurrence timing as template for repeated sections
-- Offset estimation based on audio position
-- See Task 85 for planned implementation
+**Key components:**
+
+```go
+type SectionTiming struct {
+    LineDurations []float64 // Duration of each line
+    LineGaps      []float64 // Gaps between consecutive lines
+    TotalDuration float64
+}
+```
+
+**Algorithm:**
+1. Detect repeated sections using `sectionsMatch()` (80% line similarity threshold)
+2. Extract timing template from first occurrence (line durations and gaps)
+3. For repeated sections with poor alignment (< 50% word matches), apply template
+4. Find anchor point from any matched word in the repeated section
+5. Apply template durations and gaps starting from anchor
+
+**Functions:**
+- `applyChorusTemplates()` - Main entry point after initial alignment
+- `extractSectionTiming()` - Captures timing pattern from source section
+- `needsTemplateAlignment()` - Checks if repeat has poor word matches
+- `findRepeatAnchor()` - Finds start time for template application
+- `applyTimingTemplate()` - Applies durations and gaps to segments
 
 ### Phase 5: Timing Refinement (Implemented)
 
@@ -174,8 +191,7 @@ Unit tests in `backend/align/lyrics_test.go`:
 
 ## Future Improvements
 
-1. **Chorus template timing** (Task 85) - Use first chorus occurrence timing for repeats
-2. **Word-level timestamps** - Use `whisper-timestamped` for better precision
+1. **Word-level timestamps** - Use `whisper-timestamped` for better precision
 3. **Phonetic matching** - Phoneme comparison for better singing recognition
 4. **Beat detection** - Align to musical beats for rhythmic subtitles
 5. **User section hints** - Manual verse/chorus marking

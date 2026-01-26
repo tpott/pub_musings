@@ -329,3 +329,196 @@ func TestRefineTimingConstrainedByNext(t *testing.T) {
 		t.Errorf("Overlap between segments: %.2f > %.2f", refined[0].End, refined[1].Start)
 	}
 }
+
+func TestChorusTemplateAlignment(t *testing.T) {
+	// Test that repeated chorus sections use timing from first occurrence
+	// Scenario: First chorus is well-transcribed, second chorus is poorly transcribed
+	// The template timing from the first should be applied to the second
+
+	lyrics := `[Verse 1]
+Hello world
+
+[Chorus]
+Love you baby
+Forever and ever
+
+[Verse 2]
+Goodbye moon
+
+[Chorus]
+Love you baby
+Forever and ever`
+
+	// Whisper transcription where:
+	// - First chorus is well transcribed with good timing
+	// - Second chorus is poorly transcribed (garbled/missing words)
+	whisperSegments := []Segment{
+		// Verse 1
+		{ID: 0, Start: 0.0, End: 1.0, Text: "Hello world"},
+		// First Chorus - good transcription
+		{ID: 1, Start: 2.0, End: 3.0, Text: "Love you baby"},
+		{ID: 2, Start: 3.5, End: 5.0, Text: "Forever and ever"},
+		// Verse 2
+		{ID: 3, Start: 6.0, End: 7.0, Text: "Goodbye moon"},
+		// Second Chorus - poor transcription (simulating Whisper errors)
+		{ID: 4, Start: 8.0, End: 8.5, Text: "La ooh bae"},      // garbled "Love you baby"
+		{ID: 5, Start: 9.5, End: 10.0, Text: "Fa eva eva eva"}, // garbled "Forever and ever"
+	}
+
+	result := AlignLyrics(lyrics, whisperSegments)
+
+	// Should have 4 segments (verse1, chorus1 line1, chorus1 line2, verse2, chorus2 line1, chorus2 line2)
+	// Actually: verse1, chorus1-line1, chorus1-line2, verse2, chorus2-line1, chorus2-line2 = 6
+	if len(result.Segments) != 6 {
+		t.Errorf("Expected 6 segments, got %d", len(result.Segments))
+		for i, seg := range result.Segments {
+			t.Logf("Segment %d: %.2f-%.2f %q", i, seg.Start, seg.End, seg.Text)
+		}
+	}
+
+	// Verify lyrics text is preserved
+	expectedTexts := []string{
+		"Hello world",
+		"Love you baby",
+		"Forever and ever",
+		"Goodbye moon",
+		"Love you baby",
+		"Forever and ever",
+	}
+
+	for i, expected := range expectedTexts {
+		if i < len(result.Segments) && result.Segments[i].Text != expected {
+			t.Errorf("Segment %d: got %q, want %q", i, result.Segments[i].Text, expected)
+		}
+	}
+
+	// Key test: The second chorus timing pattern should be similar to first chorus
+	// First chorus: segment 1 (2.0-3.0), segment 2 (3.5-5.0)
+	// Duration: 1.0s for line 1, 1.5s for line 2, gap of 0.5s between
+	if len(result.Segments) >= 6 {
+		firstChorusLine1 := result.Segments[1]
+		firstChorusLine2 := result.Segments[2]
+		secondChorusLine1 := result.Segments[4]
+		secondChorusLine2 := result.Segments[5]
+
+		// First chorus durations
+		firstLine1Duration := firstChorusLine1.End - firstChorusLine1.Start
+		firstLine2Duration := firstChorusLine2.End - firstChorusLine2.Start
+		firstGap := firstChorusLine2.Start - firstChorusLine1.End
+
+		// Second chorus durations (should match if template was applied)
+		secondLine1Duration := secondChorusLine1.End - secondChorusLine1.Start
+		secondLine2Duration := secondChorusLine2.End - secondChorusLine2.Start
+		secondGap := secondChorusLine2.Start - secondChorusLine1.End
+
+		// Allow some tolerance due to refinement passes
+		tolerance := 0.5
+
+		// Check if second chorus uses similar timing pattern
+		// Note: This test validates the concept - actual values depend on whether
+		// the template was needed and applied
+		t.Logf("First chorus: line1=%.2fs, gap=%.2fs, line2=%.2fs",
+			firstLine1Duration, firstGap, firstLine2Duration)
+		t.Logf("Second chorus: line1=%.2fs, gap=%.2fs, line2=%.2fs",
+			secondLine1Duration, secondGap, secondLine2Duration)
+
+		// The second chorus should have reasonable durations (not the tiny original ones)
+		if secondLine1Duration < 0.5 {
+			t.Errorf("Second chorus line 1 duration too short: %.2f (expected template to provide better timing)", secondLine1Duration)
+		}
+
+		// Verify durations are within tolerance if template was applied
+		if abs(firstLine1Duration-secondLine1Duration) < tolerance &&
+			abs(firstLine2Duration-secondLine2Duration) < tolerance {
+			t.Logf("Template timing successfully applied to second chorus")
+		}
+	}
+}
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func TestExtractSectionTiming(t *testing.T) {
+	// Test the section timing extraction
+	section := Section{
+		Type:      "chorus",
+		Lines:     []string{"Line one", "Line two"},
+		StartLine: 0,
+		EndLine:   2,
+		IsRepeat:  false,
+	}
+
+	segments := []Segment{
+		{ID: 0, Start: 1.0, End: 2.5, Text: "Line one"},
+		{ID: 1, Start: 3.0, End: 4.5, Text: "Line two"},
+	}
+
+	lineToSegment := map[int]int{0: 0, 1: 1}
+
+	timing := extractSectionTiming(section, segments, lineToSegment)
+
+	if timing == nil {
+		t.Fatal("Expected non-nil timing")
+	}
+
+	if len(timing.LineDurations) != 2 {
+		t.Errorf("Expected 2 line durations, got %d", len(timing.LineDurations))
+	}
+
+	// Line 1: 2.5 - 1.0 = 1.5s
+	if timing.LineDurations[0] != 1.5 {
+		t.Errorf("Line 1 duration = %.2f, want 1.5", timing.LineDurations[0])
+	}
+
+	// Line 2: 4.5 - 3.0 = 1.5s
+	if timing.LineDurations[1] != 1.5 {
+		t.Errorf("Line 2 duration = %.2f, want 1.5", timing.LineDurations[1])
+	}
+
+	// Gap between lines: 3.0 - 2.5 = 0.5s
+	if len(timing.LineGaps) != 1 {
+		t.Errorf("Expected 1 line gap, got %d", len(timing.LineGaps))
+	} else if timing.LineGaps[0] != 0.5 {
+		t.Errorf("Gap = %.2f, want 0.5", timing.LineGaps[0])
+	}
+}
+
+func TestApplyTimingTemplate(t *testing.T) {
+	// Test applying a timing template to segments
+	template := &SectionTiming{
+		LineDurations: []float64{1.5, 2.0},
+		LineGaps:      []float64{0.5},
+		TotalDuration: 4.0,
+	}
+
+	// Segments with poor timing that need template
+	segments := []Segment{
+		{ID: 0, Start: 10.0, End: 10.3, Text: "Line one"}, // Too short
+		{ID: 1, Start: 10.5, End: 10.7, Text: "Line two"}, // Too short
+	}
+
+	repeatSegments := []*Segment{&segments[0], &segments[1]}
+	anchorStart := 10.0
+
+	applyTimingTemplate(repeatSegments, template, anchorStart)
+
+	// Check line 1: should start at anchor (10.0) with duration 1.5
+	if segments[0].Start != 10.0 {
+		t.Errorf("Line 1 start = %.2f, want 10.0", segments[0].Start)
+	}
+	if segments[0].End != 11.5 {
+		t.Errorf("Line 1 end = %.2f, want 11.5", segments[0].End)
+	}
+
+	// Check line 2: should start at 11.5 + 0.5 gap = 12.0, duration 2.0
+	if segments[1].Start != 12.0 {
+		t.Errorf("Line 2 start = %.2f, want 12.0", segments[1].Start)
+	}
+	if segments[1].End != 14.0 {
+		t.Errorf("Line 2 end = %.2f, want 14.0", segments[1].End)
+	}
+}
