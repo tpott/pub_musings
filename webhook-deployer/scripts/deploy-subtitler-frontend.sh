@@ -7,7 +7,13 @@ git checkout subtitler_v3
 git pull origin subtitler_v3
 
 cd subtitler/frontend
-. ~/.nvm/nvm.sh && nvm use
+
+# nvm has unbound variables internally, temporarily disable -u
+set +u
+. ~/.nvm/nvm.sh
+nvm use
+set -u
+
 npm ci
 npm run build
 

@@ -208,9 +208,9 @@ mv /opt/subtitler/backend/subtitler-new /opt/subtitler/backend/subtitler
 # Restart service
 sudo systemctl restart subtitler
 
-# Verify health
+# Verify health (production uses 8060)
 sleep 2
-curl -f http://localhost:8080/api/health || echo "Health check failed!"
+curl -f http://localhost:8060/api/health || echo "Health check failed!"
 
 echo "Backend deployed successfully"
 ```

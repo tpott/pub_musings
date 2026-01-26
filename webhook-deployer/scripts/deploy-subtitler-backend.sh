@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Backend port - should match PORT in subtitler.service
+BACKEND_PORT="${BACKEND_PORT:-8060}"
+
 cd /home/trevor/pub_musings
 git fetch origin
 git checkout subtitler_v3
@@ -24,7 +27,7 @@ systemctl --user restart subtitler
 echo "Waiting for backend to start..."
 for i in 1 2 3 4 5; do
     sleep 2
-    if curl -sf http://localhost:8080/api/health > /dev/null; then
+    if curl -sf http://localhost:${BACKEND_PORT}/api/health > /dev/null; then
         echo "Backend deployed successfully"
         exit 0
     fi
@@ -32,5 +35,5 @@ for i in 1 2 3 4 5; do
 done
 
 echo "WARNING: Health check failed after 5 attempts!"
-curl http://localhost:8080/api/health 2>/dev/null || echo "Server not responding"
+curl http://localhost:${BACKEND_PORT}/api/health 2>/dev/null || echo "Server not responding"
 exit 1

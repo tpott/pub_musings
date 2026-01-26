@@ -12,7 +12,7 @@ This document describes the deployment architecture for the Subtitler applicatio
 │  │                     qemu VM (Ubuntu ARM64)                        │ │
 │  │                                                                   │ │
 │  │   ┌────────────────┐     ┌──────────────┐                        │ │
-│  │   │  cloudflared   │────▶│    Caddy     │───▶ Backend (8080)     │ │
+│  │   │  cloudflared   │────▶│    Caddy     │───▶ Backend (8060)     │ │
 │  │   │(tunnel client) │     │  (443/80)    │                        │ │
 │  │   └────────────────┘     └──────┬───────┘                        │ │
 │  │                                 │ Static files                    │ │
@@ -131,9 +131,9 @@ subtitler.example.com {
     root * /var/www/subtitler
     file_server
 
-    # Proxy API requests to Go backend
+    # Proxy API requests to Go backend (default 8080, production uses 8060)
     handle /api/* {
-        reverse_proxy localhost:8080
+        reverse_proxy localhost:8060
     }
 
     # SPA fallback - serve index.html for client-side routes
@@ -185,8 +185,8 @@ ExecStart=/opt/subtitler/backend/subtitler
 Restart=always
 RestartSec=5
 
-# Environment
-Environment=PORT=8080
+# Environment (PORT default is 8080, production uses 8060)
+Environment=PORT=8060
 Environment=WHISPER_SERVER_URL=http://10.0.2.2:8765
 Environment=UPLOAD_DIR=/opt/subtitler/uploads
 Environment=DB_PATH=/opt/subtitler/data/subtitler.db
@@ -427,8 +427,8 @@ curl http://10.0.2.2:8765/inference \
 ### Health Checks
 
 ```bash
-# Check backend
-curl http://localhost:8080/api/health
+# Check backend (production uses 8060, default is 8080)
+curl http://localhost:8060/api/health
 
 # Check whisper-server (from host)
 curl http://localhost:8765/health
