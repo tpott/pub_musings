@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**103 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**104 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -44,6 +44,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Subtitle burning into video (ffmpeg)
 - ✅ Multiple export formats: SRT, VTT, JSON
 - ✅ Language override for transcription (Task 102)
+- ✅ Language selection UI for transcription (Task 105)
 - See: `specs/lyrics-alignment.md`, `specs/script-conversion.md`
 
 ### Testing & Quality (Tasks 19-25, 30, 49-50, 80, 94)
