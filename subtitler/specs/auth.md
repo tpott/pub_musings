@@ -350,12 +350,14 @@ All POST/PUT/DELETE/PATCH requests to authenticated endpoints require a valid `X
 - `backend/csrf/csrf.go` - Token generation and validation
 - `frontend/src/utils/csrf.ts` - Frontend CSRF utilities
 
-### Not Implemented
+### Future Enhancements
 
-- Account lockout after failed attempts
-- CAPTCHA integration
-- Password complexity requirements beyond length
-- IP-based blocking
+The following security features are planned but not yet implemented:
+
+- **Account lockout after failed attempts** - Temporarily lock accounts after multiple failed login attempts
+- **CAPTCHA integration** - Bot protection for registration and login forms
+- **Password complexity requirements** - Beyond length, require mixed case/numbers/symbols
+- **IP-based blocking** - Block IPs with suspicious activity patterns
 
 ## Frontend Validation
 
