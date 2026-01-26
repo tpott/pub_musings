@@ -337,6 +337,210 @@ import '../styles/theme.css';
 					width: 100%;
 				}
 			}
+			/* Video player modal styles */
+			.modal-overlay {
+				display: none;
+				position: fixed;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: rgba(0, 0, 0, 0.8);
+				z-index: 1000;
+				overflow-y: auto;
+				padding: 1rem;
+			}
+			.modal-overlay.visible {
+				display: flex;
+				align-items: flex-start;
+				justify-content: center;
+			}
+			.modal-content {
+				background-color: var(--bg-color);
+				border-radius: 12px;
+				max-width: 900px;
+				width: 100%;
+				margin: 2rem auto;
+				position: relative;
+				box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+			}
+			.modal-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 1rem 1.5rem;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.modal-title {
+				font-size: 1.25rem;
+				font-weight: 600;
+				margin: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				max-width: calc(100% - 40px);
+			}
+			.modal-close {
+				background: none;
+				border: none;
+				font-size: 1.5rem;
+				color: var(--text-secondary);
+				cursor: pointer;
+				padding: 0.25rem 0.5rem;
+				line-height: 1;
+				border-radius: 4px;
+				transition: background-color 0.2s, color 0.2s;
+			}
+			.modal-close:hover {
+				background-color: var(--border-color);
+				color: var(--text-color);
+			}
+			.modal-close:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.modal-body {
+				padding: 1.5rem;
+			}
+			.modal-video {
+				width: 100%;
+				border-radius: 8px;
+				background-color: #000;
+			}
+			.modal-current-subtitle {
+				margin-top: 1rem;
+				padding: 1rem;
+				background-color: var(--subtitle-bg);
+				color: var(--subtitle-text);
+				border-radius: 8px;
+				font-size: 1.25rem;
+				text-align: center;
+				min-height: 3.5rem;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.modal-segments {
+				margin-top: 1rem;
+				max-height: 250px;
+				overflow-y: auto;
+				border: 1px solid var(--border-color);
+				border-radius: 8px;
+			}
+			.modal-segment {
+				padding: 0.75rem 1rem;
+				border-bottom: 1px solid var(--border-color);
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.modal-segment:hover {
+				background-color: var(--hover-bg);
+			}
+			.modal-segment:last-child {
+				border-bottom: none;
+			}
+			.modal-segment.active {
+				background-color: var(--active-segment-bg);
+				border-left: 3px solid var(--accent-color);
+			}
+			.modal-segment-time {
+				font-size: 0.75rem;
+				color: var(--text-tertiary);
+				font-family: monospace;
+				margin-bottom: 0.25rem;
+			}
+			.modal-segment-text {
+				font-size: 0.95rem;
+			}
+			.modal-actions {
+				margin-top: 1.5rem;
+				display: flex;
+				gap: 0.75rem;
+				flex-wrap: wrap;
+			}
+			.modal-download-btn {
+				display: inline-block;
+				padding: 0.75rem 1.25rem;
+				background-color: var(--accent-color);
+				color: white;
+				text-decoration: none;
+				border-radius: 6px;
+				font-weight: 500;
+				transition: background-color 0.2s;
+			}
+			.modal-download-btn:hover {
+				background-color: var(--accent-hover);
+			}
+			.modal-download-btn-secondary {
+				background-color: var(--text-secondary);
+			}
+			.modal-download-btn-secondary:hover {
+				background-color: var(--text-color);
+			}
+			.modal-edit-link {
+				display: inline-block;
+				padding: 0.75rem 1.25rem;
+				background-color: var(--btn-secondary-bg);
+				color: var(--text-color);
+				text-decoration: none;
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-weight: 500;
+				transition: background-color 0.2s;
+			}
+			.modal-edit-link:hover {
+				background-color: var(--btn-secondary-hover);
+			}
+			.modal-loading {
+				text-align: center;
+				padding: 2rem;
+				color: var(--text-secondary);
+			}
+			.modal-error {
+				text-align: center;
+				padding: 2rem;
+				color: var(--error-color);
+			}
+			@media (max-width: 480px) {
+				.modal-overlay {
+					padding: 0.5rem;
+				}
+				.modal-content {
+					margin: 0.5rem auto;
+					border-radius: 8px;
+				}
+				.modal-header {
+					padding: 0.75rem 1rem;
+				}
+				.modal-title {
+					font-size: 1rem;
+				}
+				.modal-body {
+					padding: 1rem;
+				}
+				.modal-current-subtitle {
+					font-size: 1rem;
+					min-height: 3rem;
+					padding: 0.75rem;
+				}
+				.modal-segments {
+					max-height: 200px;
+				}
+				.modal-segment {
+					padding: 0.5rem 0.75rem;
+				}
+				.modal-actions {
+					flex-direction: column;
+				}
+				.modal-download-btn, .modal-edit-link {
+					width: 100%;
+					text-align: center;
+					min-height: 44px;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+				}
+			}
 		</style>
 	</head>
 	<body>
@@ -362,6 +566,31 @@ import '../styles/theme.css';
 				<a href="/upload" class="upload-btn">Upload Video</a>
 			</div>
 			<div id="videoList" class="video-list" style="display: none;"></div>
+		</div>
+
+		<!-- Video player modal -->
+		<div class="modal-overlay" id="videoModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title" id="modalTitle">Video</h2>
+					<button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
+				</div>
+				<div class="modal-body">
+					<div class="modal-loading" id="modalLoading">Loading video...</div>
+					<div class="modal-error" id="modalError" style="display: none;"></div>
+					<div id="modalVideoContainer" style="display: none;">
+						<video class="modal-video" id="modalVideo" controls></video>
+						<div class="modal-current-subtitle" id="modalCurrentSubtitle"></div>
+						<div class="modal-segments" id="modalSegments"></div>
+						<div class="modal-actions">
+							<a href="#" class="modal-download-btn" id="modalDownloadSrt">Download SRT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt">VTT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson">JSON</a>
+							<a href="#" class="modal-edit-link" id="modalEditLink">Edit Subtitles</a>
+						</div>
+					</div>
+				</div>
+			</div>
 		</div>
 
 		<script>
@@ -461,7 +690,7 @@ import '../styles/theme.css';
 							</div>
 						</div>
 						<div class="video-actions">
-							${showViewBtn ? `<a href="/upload?id=${video.id}" class="btn btn-primary">View</a>` : ''}
+							${showViewBtn ? `<button class="btn btn-primary btn-view" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}">View</button>` : ''}
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary">SRT</a>` : ''}
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary">VTT</a>` : ''}
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary">JSON</a>` : ''}
@@ -522,6 +751,211 @@ import '../styles/theme.css';
 				});
 			}
 
+			function attachViewHandlers() {
+				const viewButtons = videoList.querySelectorAll('.btn-view');
+				viewButtons.forEach((btn) => {
+					btn.addEventListener('click', (e) => {
+						const button = e.target as HTMLButtonElement;
+						const videoId = button.dataset.videoId;
+						const filename = button.dataset.filename;
+						if (videoId) {
+							openVideoModal(videoId, filename || 'Video');
+						}
+					});
+				});
+			}
+
+			// Modal elements
+			const videoModal = document.getElementById('videoModal') as HTMLElement;
+			const modalClose = document.getElementById('modalClose') as HTMLButtonElement;
+			const modalTitle = document.getElementById('modalTitle') as HTMLElement;
+			const modalLoading = document.getElementById('modalLoading') as HTMLElement;
+			const modalError = document.getElementById('modalError') as HTMLElement;
+			const modalVideoContainer = document.getElementById('modalVideoContainer') as HTMLElement;
+			const modalVideo = document.getElementById('modalVideo') as HTMLVideoElement;
+			const modalCurrentSubtitle = document.getElementById('modalCurrentSubtitle') as HTMLElement;
+			const modalSegments = document.getElementById('modalSegments') as HTMLElement;
+			const modalDownloadSrt = document.getElementById('modalDownloadSrt') as HTMLAnchorElement;
+			const modalDownloadVtt = document.getElementById('modalDownloadVtt') as HTMLAnchorElement;
+			const modalDownloadJson = document.getElementById('modalDownloadJson') as HTMLAnchorElement;
+			const modalEditLink = document.getElementById('modalEditLink') as HTMLAnchorElement;
+
+			interface TranscriptionSegment {
+				id: number;
+				start: number;
+				end: number;
+				text: string;
+			}
+
+			let currentModalVideoId: string | null = null;
+			let modalSubtitleSegments: TranscriptionSegment[] = [];
+			let modalSubtitleSyncActive = false;
+
+			function formatTime(seconds: number): string {
+				const hrs = Math.floor(seconds / 3600);
+				const mins = Math.floor((seconds % 3600) / 60);
+				const secs = Math.floor(seconds % 60);
+				const ms = Math.floor((seconds % 1) * 1000);
+
+				if (hrs > 0) {
+					return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+				}
+				return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+			}
+
+			async function openVideoModal(videoId: string, filename: string) {
+				currentModalVideoId = videoId;
+				modalSubtitleSegments = [];
+
+				// Reset modal state
+				modalTitle.textContent = filename;
+				modalLoading.style.display = 'block';
+				modalError.style.display = 'none';
+				modalVideoContainer.style.display = 'none';
+				modalCurrentSubtitle.textContent = '';
+				modalSegments.innerHTML = '';
+
+				// Show modal
+				videoModal.classList.add('visible');
+				document.body.style.overflow = 'hidden';
+
+				// Set download links
+				modalDownloadSrt.href = `/api/videos/${videoId}/subtitles.srt`;
+				modalDownloadVtt.href = `/api/videos/${videoId}/subtitles.vtt`;
+				modalDownloadJson.href = `/api/videos/${videoId}/subtitles.json`;
+				modalEditLink.href = `/upload?id=${videoId}`;
+
+				try {
+					// Load video
+					modalVideo.src = `/api/videos/${videoId}/video`;
+
+					// Load transcription
+					const response = await fetch(`/api/transcribe/${videoId}`);
+					const data = await response.json();
+
+					if (!response.ok) {
+						throw new Error(data.error || 'Failed to load transcription');
+					}
+
+					if (data.status !== 'complete' || !data.result) {
+						throw new Error('Transcription not available');
+					}
+
+					modalSubtitleSegments = data.result.segments || [];
+
+					// Render segments
+					renderModalSegments();
+
+					// Set up subtitle sync
+					setupModalSubtitleSync();
+
+					// Show video container
+					modalLoading.style.display = 'none';
+					modalVideoContainer.style.display = 'block';
+
+				} catch (err) {
+					modalLoading.style.display = 'none';
+					modalError.textContent = `Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+					modalError.style.display = 'block';
+				}
+			}
+
+			function renderModalSegments() {
+				modalSegments.innerHTML = modalSubtitleSegments.map((seg, index) => `
+					<div class="modal-segment" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
+						<div class="modal-segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+						<div class="modal-segment-text">${escapeHtml(seg.text)}</div>
+					</div>
+				`).join('');
+
+				// Add click handlers to seek video
+				modalSegments.querySelectorAll('.modal-segment').forEach(el => {
+					el.addEventListener('click', () => {
+						const start = parseFloat(el.getAttribute('data-start') || '0');
+						modalVideo.currentTime = start;
+						modalVideo.play();
+					});
+				});
+			}
+
+			function setupModalSubtitleSync() {
+				if (modalSubtitleSyncActive) {
+					modalVideo.removeEventListener('timeupdate', updateModalSubtitle);
+				}
+				modalVideo.addEventListener('timeupdate', updateModalSubtitle);
+				modalSubtitleSyncActive = true;
+			}
+
+			function updateModalSubtitle() {
+				const currentTime = modalVideo.currentTime;
+
+				// Find the current segment
+				let currentSeg: TranscriptionSegment | null = null;
+				let currentIndex = -1;
+
+				for (let i = 0; i < modalSubtitleSegments.length; i++) {
+					const seg = modalSubtitleSegments[i];
+					if (currentTime >= seg.start && currentTime <= seg.end) {
+						currentSeg = seg;
+						currentIndex = i;
+						break;
+					}
+				}
+
+				// Update the current subtitle display
+				if (currentSeg) {
+					modalCurrentSubtitle.textContent = currentSeg.text.trim();
+				} else {
+					modalCurrentSubtitle.textContent = '';
+				}
+
+				// Update active segment highlighting
+				modalSegments.querySelectorAll('.modal-segment').forEach((el, idx) => {
+					if (idx === currentIndex) {
+						el.classList.add('active');
+						// Scroll the segment into view if needed
+						el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+					} else {
+						el.classList.remove('active');
+					}
+				});
+			}
+
+			function closeVideoModal() {
+				videoModal.classList.remove('visible');
+				document.body.style.overflow = '';
+
+				// Stop video playback
+				modalVideo.pause();
+				modalVideo.src = '';
+
+				// Clean up subtitle sync
+				if (modalSubtitleSyncActive) {
+					modalVideo.removeEventListener('timeupdate', updateModalSubtitle);
+					modalSubtitleSyncActive = false;
+				}
+
+				currentModalVideoId = null;
+				modalSubtitleSegments = [];
+			}
+
+			// Modal close handlers
+			modalClose.addEventListener('click', closeVideoModal);
+
+			// Close on clicking overlay background
+			videoModal.addEventListener('click', (e) => {
+				if (e.target === videoModal) {
+					closeVideoModal();
+				}
+			});
+
+			// Close on Escape key
+			document.addEventListener('keydown', (e) => {
+				if (e.key === 'Escape' && videoModal.classList.contains('visible')) {
+					closeVideoModal();
+				}
+			});
+
 			// Track if user is authenticated (set by checkAuth)
 			let isAuthenticated = false;
 
@@ -552,6 +986,7 @@ import '../styles/theme.css';
 					videoList.innerHTML = data.videos.map(renderVideo).join('');
 					videoList.style.display = 'flex';
 					attachRetryHandlers();
+					attachViewHandlers();
 
 				} catch (err) {
 					loading.style.display = 'none';
