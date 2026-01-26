@@ -2,6 +2,7 @@
 import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 import ThemeInit from '../components/ThemeInit.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
+import CookieConsent from '../components/CookieConsent.astro';
 import '../styles/theme.css';
 ---
 
@@ -1054,5 +1055,6 @@ import '../styles/theme.css';
 			// Start auth check (which will then load videos)
 			checkAuth();
 		</script>
+		<CookieConsent />
 	</body>
 </html>

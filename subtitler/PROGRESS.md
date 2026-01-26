@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**104 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**105 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -83,7 +83,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ SQLite database maintenance scheduler (VACUUM + ANALYZE) (Task 98)
 - ✅ Fixed privacy vulnerability in My Videos page (Task 99)
 
-### UI/UX (Tasks 65, 71, 76-77, 90-91, 96, 103)
+### UI/UX (Tasks 65, 71, 76-77, 90-91, 96, 100, 103)
 - ✅ Upload progress bar with real bytes/percentage
 - ✅ Accessibility improvements (ARIA labels, keyboard nav)
 - ✅ Mobile responsive design
@@ -91,6 +91,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Time input validation with max 24 hours and inline errors
 - ✅ Event listener cleanup to prevent memory leaks
 - ✅ Namespaced localStorage keys (Task 96)
+- ✅ Cookie consent banner (Task 100)
 - ✅ Video player modal on My Videos page (Task 103)
 
 ### Video Management (Tasks 73)

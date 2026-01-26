@@ -6,9 +6,34 @@
  * - Track which videos belong to the anonymous user
  * - Enforce upload limits (2 uploads max for anonymous)
  * - Filter videos on the My Videos page
+ *
+ * Session ID creation requires cookie consent.
  */
 
 const SESSION_ID_KEY = 'subtitler:session_id';
+const CONSENT_KEY = 'subtitler:cookie_consent';
+
+/**
+ * Checks if user has accepted cookie consent.
+ */
+export function hasCookieConsent(): boolean {
+	return localStorage.getItem(CONSENT_KEY) === 'accepted';
+}
+
+/**
+ * Checks if user has declined cookie consent.
+ */
+export function hasCookieDeclined(): boolean {
+	return localStorage.getItem(CONSENT_KEY) === 'declined';
+}
+
+/**
+ * Checks if user has made a cookie consent choice (either accepted or declined).
+ */
+export function hasCookieChoice(): boolean {
+	const consent = localStorage.getItem(CONSENT_KEY);
+	return consent === 'accepted' || consent === 'declined';
+}
 
 /**
  * Generates a random session ID (32 hex characters)
@@ -21,9 +46,15 @@ function generateSessionId(): string {
 
 /**
  * Gets the current session ID, creating one if it doesn't exist.
- * Returns the session_id for anonymous users, or empty string if authenticated.
+ * Returns the session_id for anonymous users.
+ * Returns empty string if cookie consent has not been given.
  */
 export function getOrCreateSessionId(): string {
+	// Check for cookie consent before creating/returning session ID
+	if (!hasCookieConsent()) {
+		return '';
+	}
+
 	let sessionId = localStorage.getItem(SESSION_ID_KEY);
 	if (!sessionId) {
 		sessionId = generateSessionId();
@@ -34,9 +65,12 @@ export function getOrCreateSessionId(): string {
 
 /**
  * Gets the current session ID without creating one.
- * Returns null if no session exists.
+ * Returns null if no session exists or if consent not given.
  */
 export function getSessionId(): string | null {
+	if (!hasCookieConsent()) {
+		return null;
+	}
 	return localStorage.getItem(SESSION_ID_KEY);
 }
 
@@ -52,5 +86,8 @@ export function clearSessionId(): void {
  * Checks if a session ID exists in localStorage.
  */
 export function hasSessionId(): boolean {
+	if (!hasCookieConsent()) {
+		return false;
+	}
 	return localStorage.getItem(SESSION_ID_KEY) !== null;
 }
