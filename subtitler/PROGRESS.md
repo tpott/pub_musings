@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**91 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**92 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -75,12 +75,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ X-Forwarded-For trust validation (Task 89)
 - ✅ Encryption toggle via environment variable (Task 93)
 
-### UI/UX (Tasks 65, 71, 76-77, 90)
+### UI/UX (Tasks 65, 71, 76-77, 90-91)
 - ✅ Upload progress bar with real bytes/percentage
 - ✅ Accessibility improvements (ARIA labels, keyboard nav)
 - ✅ Mobile responsive design
 - ✅ Dark mode with toggle and localStorage persistence
 - ✅ Time input validation with max 24 hours and inline errors
+- ✅ Event listener cleanup to prevent memory leaks
 
 ### Video Management (Tasks 73)
 - ✅ Video reprocessing for failed transcriptions

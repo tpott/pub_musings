@@ -961,6 +961,42 @@ import '../styles/theme.css';
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
 
+			// Cleanup management for long-running operations
+			let transcriptionPollTimeout: ReturnType<typeof setTimeout> | null = null;
+			let burnPollTimeout: ReturnType<typeof setTimeout> | null = null;
+			let fetchAbortController: AbortController | null = null;
+
+			// Track if subtitle sync is set up
+			let subtitleSyncActive = false;
+
+			// Cleanup function to abort pending fetches and clear timeouts
+			function cleanupPendingOperations() {
+				if (transcriptionPollTimeout !== null) {
+					clearTimeout(transcriptionPollTimeout);
+					transcriptionPollTimeout = null;
+				}
+				if (burnPollTimeout !== null) {
+					clearTimeout(burnPollTimeout);
+					burnPollTimeout = null;
+				}
+				if (fetchAbortController) {
+					fetchAbortController.abort();
+					fetchAbortController = null;
+				}
+			}
+
+			// Cleanup on page unload to prevent memory leaks
+			window.addEventListener('beforeunload', () => {
+				cleanupPendingOperations();
+				// Remove video timeupdate listener if active
+				if (subtitleSyncActive && previewVideo) {
+					previewVideo.removeEventListener('timeupdate', updateCurrentSubtitle);
+					subtitleSyncActive = false;
+				}
+			});
+			// Also cleanup on pagehide (for bfcache-enabled browsers)
+			window.addEventListener('pagehide', cleanupPendingOperations);
+
 			// Language to native script mapping
 			const languageScriptMap: { [key: string]: string[] } = {
 				'hi': ['Devanagari'],
@@ -1170,9 +1206,19 @@ import '../styles/theme.css';
 			}
 
 			async function pollTranscriptionStatus(uploadId: string) {
+				// Clear any existing poll timeout
+				if (transcriptionPollTimeout !== null) {
+					clearTimeout(transcriptionPollTimeout);
+					transcriptionPollTimeout = null;
+				}
+
 				const poll = async () => {
 					try {
-						const response = await fetch(`/api/transcribe/${uploadId}`);
+						// Create a new AbortController for this fetch
+						fetchAbortController = new AbortController();
+						const response = await fetch(`/api/transcribe/${uploadId}`, {
+							signal: fetchAbortController.signal
+						});
 						const result = await response.json();
 
 						if (result.status === 'processing') {
@@ -1180,18 +1226,25 @@ import '../styles/theme.css';
 							if (result.progress) {
 								transcriptionStatus.textContent += ` (${result.progress}%)`;
 							}
-							// Continue polling
-							setTimeout(poll, 2000);
+							// Continue polling with tracked timeout
+							transcriptionPollTimeout = setTimeout(poll, 2000);
 						} else if (result.status === 'complete') {
+							transcriptionPollTimeout = null;
 							transcriptionStatus.textContent = 'Transcription complete!';
 							displayTranscription(result.result);
 						} else if (result.status === 'error') {
+							transcriptionPollTimeout = null;
 							transcriptionStatus.textContent = `Error: ${result.message}`;
 						} else if (result.status === 'pending') {
 							transcriptionStatus.textContent = 'Waiting to start...';
-							setTimeout(poll, 2000);
+							transcriptionPollTimeout = setTimeout(poll, 2000);
 						}
 					} catch (error) {
+						// Ignore abort errors (expected during cleanup)
+						if (error instanceof Error && error.name === 'AbortError') {
+							return;
+						}
+						transcriptionPollTimeout = null;
 						transcriptionStatus.textContent = `Polling error: ${error}`;
 					}
 				};
@@ -1573,7 +1626,12 @@ import '../styles/theme.css';
 			addSegmentBtn.addEventListener('click', addNewSegment);
 
 			function setupSubtitleSync() {
+				// Remove existing listener if present to avoid duplicates
+				if (subtitleSyncActive) {
+					previewVideo.removeEventListener('timeupdate', updateCurrentSubtitle);
+				}
 				previewVideo.addEventListener('timeupdate', updateCurrentSubtitle);
+				subtitleSyncActive = true;
 			}
 
 			function updateCurrentSubtitle() {
@@ -1650,17 +1708,28 @@ import '../styles/theme.css';
 			async function pollBurnStatus() {
 				if (!currentUploadId) return;
 
+				// Clear any existing burn poll timeout
+				if (burnPollTimeout !== null) {
+					clearTimeout(burnPollTimeout);
+					burnPollTimeout = null;
+				}
+
 				const poll = async () => {
 					try {
-						const response = await fetch(`/api/videos/${currentUploadId}/burn`);
+						// Create a new AbortController for this fetch
+						fetchAbortController = new AbortController();
+						const response = await fetch(`/api/videos/${currentUploadId}/burn`, {
+							signal: fetchAbortController.signal
+						});
 						const result = await response.json();
 
 						burnStatusText.textContent = result.message || 'Processing...';
 						burnProgressFill.style.width = `${result.progress || 0}%`;
 
 						if (result.status === 'processing') {
-							setTimeout(poll, 2000);
+							burnPollTimeout = setTimeout(poll, 2000);
 						} else if (result.status === 'complete') {
+							burnPollTimeout = null;
 							burnStatus.classList.add('complete');
 							burnStatusText.textContent = 'Subtitles burned successfully!';
 							burnProgressFill.style.width = '100%';
@@ -1670,6 +1739,7 @@ import '../styles/theme.css';
 							burnBtn.textContent = 'Burn Again';
 							isBurning = false;
 						} else if (result.status === 'error') {
+							burnPollTimeout = null;
 							burnStatus.classList.add('error');
 							burnStatusText.textContent = `Error: ${result.message}`;
 							burnBtn.disabled = false;
@@ -1677,6 +1747,11 @@ import '../styles/theme.css';
 							isBurning = false;
 						}
 					} catch (error) {
+						// Ignore abort errors (expected during cleanup)
+						if (error instanceof Error && error.name === 'AbortError') {
+							return;
+						}
+						burnPollTimeout = null;
 						burnStatus.classList.add('error');
 						burnStatusText.textContent = `Polling error: ${error}`;
 						burnBtn.disabled = false;
