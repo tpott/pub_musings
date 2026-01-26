@@ -15,19 +15,17 @@ Most endpoints support optional authentication. Some endpoints require authentic
 
 ### Rate Limiting
 
-Authentication endpoints are rate limited to 5 requests per minute per IP address.
-When exceeded, returns `429 Too Many Requests` with `Retry-After` header.
+All endpoints are rate limited per IP address. When exceeded, returns `429 Too Many Requests` with `Retry-After` header.
 
-Rate-limited endpoints:
-- `POST /api/auth/register` - 5/min per IP
-- `POST /api/auth/login` - 5/min per IP
-- `POST /api/auth/totp/setup` - 5/min per IP
-- `POST /api/auth/totp/verify` - 5/min per IP
-- `POST /api/auth/totp/disable` - 5/min per IP
-- `POST /api/auth/totp/recover` - 5/min per IP
-- `POST /api/auth/totp/codes` - 5/min per IP
-- `POST /api/auth/forgot-password` - 3/15min per IP (stricter)
-- `POST /api/auth/reset-password` - 5/min per IP
+**Quick Reference**:
+- Authentication: 5/min per IP
+- Password Reset: 3/15min per IP (stricter)
+- Upload: 10/min per IP
+- Transcribe/Reprocess: 5/min per IP
+- Burn subtitles: 2/min per IP
+- Script conversion: 10/min per IP
+
+See [RATE_LIMITS.md](RATE_LIMITS.md) for complete documentation including retry strategies.
 
 ### Request Tracing
 

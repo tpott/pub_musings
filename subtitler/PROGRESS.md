@@ -1948,9 +1948,27 @@ Enhanced the `/api/health` endpoint to check all critical dependencies:
 - `TestHealthEndpoint` - verifies enhanced response with all fields
 - `TestHealthEndpointDBDown` - verifies 503 response when database is unavailable
 
+### Task 78: Rate limits documentation
+
+**Date**: 2026-01-25
+
+Created comprehensive rate limiting documentation in `docs/RATE_LIMITS.md`:
+
+**Content:**
+- Overview of rate limiting strategy (per-IP sliding window)
+- Rate limit categories table (auth, password reset, upload, transcribe, burn, script)
+- Endpoints by category with descriptions
+- Error response format (429 with Retry-After header)
+- Per-email login lockout explanation
+- Client retry strategies with JavaScript examples
+- Best practices for API clients
+- Configuration reference
+
+Updated `docs/API.md` with quick reference table and link to detailed documentation.
+
 ## Summary
 
-74 tasks completed (73 done + 1 requiring macOS). The subtitler application is feature-complete with:
+75 tasks completed (74 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -1973,11 +1991,10 @@ Enhanced the `/api/health` endpoint to check all critical dependencies:
 - Comprehensive accessibility (ARIA roles, focus visible, keyboard navigation)
 - Enhanced health check with database, whisper-server, and disk space monitoring
 
-**7 tasks remaining:**
+**6 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
 - Task 75: Database transaction safety for critical ops
 - Task 76: Mobile responsive design audit
 - Task 77: Dark mode support
-- Task 78: Rate limits documentation
 - Task 79: HTTP caching headers for video streaming
 - Task 80: E2E full upload-to-download flow test
