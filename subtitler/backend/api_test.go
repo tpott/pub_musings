@@ -26,6 +26,16 @@ import (
 	"github.com/trevor/subtitler/backend/totp"
 )
 
+// testGenerateID generates a random ID for testing purposes.
+// Panics on error since test setup should never fail this way.
+func testGenerateID() string {
+	id, err := generateID()
+	if err != nil {
+		panic(fmt.Sprintf("testGenerateID failed: %v", err))
+	}
+	return id
+}
+
 // testServer holds all dependencies needed for testing
 type testServer struct {
 	mux                  *http.ServeMux
@@ -1651,7 +1661,7 @@ func (ts *testServer) createTestVideo(t *testing.T, userID *string, sessionID *s
 	t.Helper()
 
 	video := &db.Video{
-		ID:          generateID(),
+		ID:          testGenerateID(),
 		Filename:    "test.mp4",
 		Size:        1024,
 		ContentType: "video/mp4",
@@ -1677,7 +1687,7 @@ func (ts *testServer) createTestTranscription(t *testing.T, videoID string) *db.
 	}
 
 	transcription := &db.Transcription{
-		ID:        generateID(),
+		ID:        testGenerateID(),
 		VideoID:   videoID,
 		Status:    "pending",
 		Message:   "Test",
@@ -1702,7 +1712,7 @@ func (ts *testServer) createTestFailedTranscription(t *testing.T, videoID string
 	t.Helper()
 
 	transcription := &db.Transcription{
-		ID:        generateID(),
+		ID:        testGenerateID(),
 		VideoID:   videoID,
 		Status:    "pending",
 		Message:   "Test",
@@ -2316,7 +2326,7 @@ func TestDownloadSRTNotComplete(t *testing.T) {
 	// Create video with pending transcription
 	video := ts.createTestVideo(t, nil, nil)
 	transcription := &db.Transcription{
-		ID:        generateID(),
+		ID:        testGenerateID(),
 		VideoID:   video.ID,
 		Status:    "processing",
 		Message:   "Processing...",
@@ -4206,7 +4216,7 @@ func TestReprocessVideoNotOwner(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a video owned by user1
-	user1ID := generateID()
+	user1ID := testGenerateID()
 	video := ts.createTestVideo(t, &user1ID, nil)
 	ts.createTestFailedTranscription(t, video.ID)
 

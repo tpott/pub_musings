@@ -84,7 +84,10 @@ var audioExtractor audio.Extractor
 // generateRequestID creates a unique request ID for tracing
 func generateRequestID() string {
 	b := make([]byte, 8) // 16 hex chars
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fall back to timestamp-based ID if random fails
+		return fmt.Sprintf("%016x", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }
 
@@ -108,10 +111,12 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func generateID() string {
+func generateID() (string, error) {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("failed to generate ID: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 // getWhisperModel returns the whisper model path from env or default
@@ -2021,7 +2026,13 @@ func main() {
 		}
 
 		// Generate unique ID for this upload
-		uploadID := generateID()
+		uploadID, err := generateID()
+		if err != nil {
+			log.Printf("Error generating upload ID: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
+			return
+		}
 
 		// Get file extension from original filename
 		ext := filepath.Ext(header.Filename)
@@ -2101,8 +2112,16 @@ func main() {
 		}
 
 		// Create initial transcription record
+		transcriptionID, err := generateID()
+		if err != nil {
+			log.Printf("Error generating transcription ID: %v", err)
+			os.Remove(encPath) // Clean up encrypted file
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
+			return
+		}
 		transcription := &db.Transcription{
-			ID:        generateID(),
+			ID:        transcriptionID,
 			VideoID:   uploadID,
 			Status:    "pending",
 			Message:   "Video uploaded, ready for transcription",
@@ -2168,8 +2187,15 @@ func main() {
 
 		// Create or update transcription record
 		if existingTranscription == nil {
+			newTranscriptionID, err := generateID()
+			if err != nil {
+				log.Printf("Error generating transcription ID: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
+				return
+			}
 			transcription := &db.Transcription{
-				ID:        generateID(),
+				ID:        newTranscriptionID,
 				VideoID:   uploadID,
 				Status:    "processing",
 				Message:   "Extracting audio...",
@@ -3219,8 +3245,15 @@ func main() {
 
 		// Create or update burn job
 		if existingJob == nil {
+			burnJobID, err := generateID()
+			if err != nil {
+				log.Printf("Error generating burn job ID: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate burn job ID"})
+				return
+			}
 			burnJob := &db.BurnJob{
-				ID:        generateID(),
+				ID:        burnJobID,
 				VideoID:   uploadID,
 				Status:    "processing",
 				Message:   "Starting subtitle burn...",

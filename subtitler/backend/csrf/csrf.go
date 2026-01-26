@@ -26,11 +26,13 @@ var (
 	// serverSecret is the HMAC key used to derive CSRF tokens
 	serverSecret []byte
 	secretOnce   sync.Once
+	secretErr    error
 )
 
 // getSecret returns the server secret, generating it if needed.
 // The secret is either from CSRF_SECRET env var or randomly generated.
-func getSecret() []byte {
+// Returns an error if the secret could not be generated.
+func getSecret() ([]byte, error) {
 	secretOnce.Do(func() {
 		// Try to get from environment
 		envSecret := os.Getenv("CSRF_SECRET")
@@ -42,19 +44,27 @@ func getSecret() []byte {
 		// Generate a random secret (will change on restart)
 		serverSecret = make([]byte, secretLength)
 		if _, err := rand.Read(serverSecret); err != nil {
-			panic(fmt.Sprintf("failed to generate CSRF secret: %v", err))
+			secretErr = fmt.Errorf("failed to generate CSRF secret: %w", err)
+			serverSecret = nil
 		}
 	})
-	return serverSecret
+	return serverSecret, secretErr
 }
 
 // GenerateToken creates a CSRF token for the given session token.
 // The token is an HMAC-SHA256 of the session token, encoded as hex.
+// Returns empty string if session token is empty or secret generation fails.
 func GenerateToken(sessionToken string) string {
 	if sessionToken == "" {
 		return ""
 	}
-	h := hmac.New(sha256.New, getSecret())
+	secret, err := getSecret()
+	if err != nil || secret == nil {
+		// Log error but return empty string to avoid crashing
+		// This will cause CSRF validation to fail safely
+		return ""
+	}
+	h := hmac.New(sha256.New, secret)
 	h.Write([]byte(sessionToken))
 	return hex.EncodeToString(h.Sum(nil))
 }

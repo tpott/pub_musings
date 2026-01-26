@@ -840,8 +840,11 @@ func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
 
 	// Insert new codes
 	for _, hash := range codeHashes {
-		id := generateID()
-		_, err := db.conn.Exec(`
+		id, err := generateID()
+		if err != nil {
+			return fmt.Errorf("failed to generate recovery code ID: %w", err)
+		}
+		_, err = db.conn.Exec(`
 			INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
 			VALUES (?, ?, ?, ?)
 		`, id, userID, hash, time.Now())
@@ -854,10 +857,12 @@ func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
 }
 
 // generateID generates a random 16-character hex ID
-func generateID() string {
+func generateID() (string, error) {
 	b := make([]byte, 8)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate ID: %w", err)
+	}
+	return fmt.Sprintf("%x", b), nil
 }
 
 // GetUnusedRecoveryCodes returns all unused recovery codes for a user
@@ -934,7 +939,10 @@ func (db *DB) CreatePasswordResetToken(userID, tokenHash string, expiresAt time.
 		return nil, fmt.Errorf("failed to delete old reset tokens: %w", err)
 	}
 
-	id := generateID()
+	id, err := generateID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token ID: %w", err)
+	}
 	token := &PasswordResetToken{
 		ID:        id,
 		UserID:    userID,
@@ -1018,7 +1026,10 @@ func (db *DB) CreateEmailVerificationToken(userID, tokenHash string, expiresAt t
 		return nil, fmt.Errorf("failed to delete old verification tokens: %w", err)
 	}
 
-	id := generateID()
+	id, err := generateID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token ID: %w", err)
+	}
 	token := &EmailVerificationToken{
 		ID:        id,
 		UserID:    userID,
@@ -1250,8 +1261,11 @@ func (db *DB) EnableTOTPWithRecoveryCodes(userID string, codeHashes []string) er
 
 		// Insert new recovery codes
 		for _, hash := range codeHashes {
-			id := generateID()
-			_, err := tx.tx.Exec(`
+			id, err := generateID()
+			if err != nil {
+				return fmt.Errorf("failed to generate recovery code ID: %w", err)
+			}
+			_, err = tx.tx.Exec(`
 				INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
 				VALUES (?, ?, ?, ?)
 			`, id, userID, hash, time.Now())
