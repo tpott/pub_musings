@@ -7,12 +7,14 @@ import argparse
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from collections.abc import Iterable
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 DEFAULT_MAX_ITERATIONS = 10
 CLAUDE_MODEL = "opus"
@@ -24,6 +26,65 @@ def generate_ralph_id() -> str:
     """Generate an 8-character base32 ID (40 bits of entropy)."""
     random_bytes = os.urandom(5)  # 5 bytes = 40 bits
     return base64.b32encode(random_bytes).decode("ascii").lower()
+
+
+def parse_rate_limit_reset(result: str) -> tuple[int, str, str] | None:
+    """
+    Parse rate limit message, return (hour, am/pm, timezone) or None.
+
+    Expected format: "You've hit your limit · resets 2am (America/Los_Angeles)"
+    The middle dot (·) is U+00B7.
+    """
+    pattern = r"resets\s+(\d{1,2})(am|pm)\s+\(([^)]+)\)"
+    match = re.search(pattern, result, re.IGNORECASE)
+    if match is None:
+        return None
+    hour = int(match.group(1))
+    ampm = match.group(2).lower()
+    tz = match.group(3)
+    return (hour, ampm, tz)
+
+
+def calculate_sleep_seconds(
+    hour: int, ampm: str, reset_tz: str, now: datetime | None = None
+) -> int:
+    """
+    Calculate seconds to sleep until the reset time.
+
+    Args:
+        hour: Hour of reset (1-12)
+        ampm: "am" or "pm"
+        reset_tz: IANA timezone string (e.g., "America/Los_Angeles")
+        now: Current time (for testing), defaults to datetime.now()
+
+    Returns:
+        Number of seconds to sleep until reset time (plus 60s buffer)
+    """
+    # Convert 12-hour to 24-hour format
+    if ampm == "am":
+        hour_24 = 0 if hour == 12 else hour
+    else:
+        hour_24 = 12 if hour == 12 else hour + 12
+
+    tz = ZoneInfo(reset_tz)
+
+    if now is None:
+        now = datetime.now(tz)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=tz)
+    else:
+        now = now.astimezone(tz)
+
+    # Create reset time for today at the specified hour
+    reset_time = now.replace(hour=hour_24, minute=0, second=0, microsecond=0)
+
+    # If reset time has passed today, it's tomorrow
+    if reset_time <= now:
+        reset_time += timedelta(days=1)
+
+    delta = reset_time - now
+    # Add 60 second buffer to ensure we're past the reset
+    return int(delta.total_seconds()) + 60
 
 
 def log(msg: str, log_file: Path | None, newline_before: bool = False) -> None:
@@ -95,9 +156,7 @@ def process_claude_output(
     return last_line
 
 
-def run_claude(
-    prompt_content: str, verbose: bool, log_file: Path | None
-) -> str | None:
+def run_claude(prompt_content: str, verbose: bool, log_file: Path | None) -> str | None:
     """Run claude subprocess and return the last line of output."""
     cmd = [
         "claude",
@@ -193,18 +252,13 @@ def main() -> None:
 
         prompt_content = prompt_file.read_text()
 
+        last_log = {}
         try:
             last_line = run_claude(prompt_content, args.verbose, log_file)
-            # If ralph is run with --verbose then skip logging the Result so it's
-            # easier to parse with `jq`. Grep for `"type":"result","subtype":"success"`
-            if last_line is not None and not args.verbose:
-                result_text = json.loads(last_line)["result"]
-                log(f"Result: {result_text}", log_file)
+            if last_line is not None:
+                last_log = json.loads(last_line)
         except json.JSONDecodeError:
             log(f"Last line failed to parse as JSON: {last_line}", log_file)
-            continue
-        except KeyError:
-            log(f'Last line missing "result": {last_line}', log_file)
             continue
         except FileNotFoundError:
             print("Error: 'claude' command not found", file=sys.stderr)
@@ -212,6 +266,29 @@ def main() -> None:
         except KeyboardInterrupt:
             print("\nInterrupted by user")
             sys.exit(130)
+
+        if "result" not in last_log:
+            log(f'Last line missing "result": {last_line}', log_file)
+            continue
+
+        # If ralph is run with --verbose then skip logging the Result so it's
+        # easier to parse with `jq`. Grep for `"type":"result","subtype":"success"`
+        if not args.verbose:
+            result_text = last_log["result"]
+            log(f"Result: {result_text}", log_file)
+
+        if "is_error" in last_log and last_log["is_error"]:
+            result_text = last_log.get("result", "")
+            parsed = parse_rate_limit_reset(result_text)
+            if parsed:
+                hour, ampm, reset_tz = parsed
+                sleep_secs = calculate_sleep_seconds(hour, ampm, reset_tz)
+                sleep_mins = sleep_secs // 60
+                log(
+                    f"Rate limited. Sleeping {sleep_mins} minutes until {hour}{ampm} ({reset_tz})",
+                    log_file,
+                )
+                time.sleep(sleep_secs)
 
     else:
         log(f"Completed {max_iterations} iterations", log_file)
