@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**100 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**101 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -78,6 +78,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Encryption toggle via environment variable (Task 93)
 - ✅ Configurable rate limits via environment variables (Task 95)
 - ✅ HTTP Range requests for efficient video streaming (Task 97)
+- ✅ SQLite database maintenance scheduler (VACUUM + ANALYZE) (Task 98)
 - ✅ Fixed privacy vulnerability in My Videos page (Task 99)
 
 ### UI/UX (Tasks 65, 71, 76-77, 90-91, 96)

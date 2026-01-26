@@ -1808,3 +1808,123 @@ func TestDisableTOTPAndClearSessions(t *testing.T) {
 		t.Error("Expected session to be deleted")
 	}
 }
+
+func TestVacuum(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Add some data then delete it to create fragmentation
+	for i := 0; i < 100; i++ {
+		video := &Video{
+			ID:          fmt.Sprintf("vacuum-test-%d", i),
+			Filename:    "test.mp4",
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    "/tmp/test.mp4",
+			CreatedAt:   time.Now(),
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create video %d: %v", i, err)
+		}
+	}
+
+	// Delete the videos to create free space
+	for i := 0; i < 100; i++ {
+		db.DeleteVideo(fmt.Sprintf("vacuum-test-%d", i))
+	}
+
+	// VACUUM should reclaim the space
+	if err := db.Vacuum(); err != nil {
+		t.Fatalf("Vacuum failed: %v", err)
+	}
+}
+
+func TestAnalyze(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Add some data to have statistics to analyze
+	for i := 0; i < 10; i++ {
+		video := &Video{
+			ID:          fmt.Sprintf("analyze-test-%d", i),
+			Filename:    "test.mp4",
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    "/tmp/test.mp4",
+			CreatedAt:   time.Now(),
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create video %d: %v", i, err)
+		}
+	}
+
+	// ANALYZE should update query planner statistics
+	if err := db.Analyze(); err != nil {
+		t.Fatalf("Analyze failed: %v", err)
+	}
+}
+
+func TestMaintenance(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Add some test data
+	video := &Video{
+		ID:          "maintenance-test",
+		Filename:    "test.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/tmp/test.mp4",
+		CreatedAt:   time.Now(),
+	}
+	if err := db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create video: %v", err)
+	}
+
+	// Maintenance runs both VACUUM and ANALYZE
+	if err := db.Maintenance(); err != nil {
+		t.Fatalf("Maintenance failed: %v", err)
+	}
+
+	// Verify data is still intact after maintenance
+	retrieved, err := db.GetVideo("maintenance-test")
+	if err != nil {
+		t.Fatalf("Failed to get video after maintenance: %v", err)
+	}
+	if retrieved == nil {
+		t.Fatal("Video not found after maintenance")
+	}
+	if retrieved.Filename != "test.mp4" {
+		t.Errorf("Expected filename 'test.mp4', got '%s'", retrieved.Filename)
+	}
+}

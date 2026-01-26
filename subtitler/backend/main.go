@@ -51,6 +51,9 @@ const (
 	defaultBurnRateWindow         = time.Minute
 	defaultScriptRateLimit        = 10
 	defaultScriptRateWindow       = time.Minute
+
+	// Database maintenance defaults
+	defaultDBMaintenanceInterval = 24 * time.Hour // Run VACUUM and ANALYZE daily
 )
 
 // Configuration values loaded from environment
@@ -73,6 +76,9 @@ var (
 	burnRateWindow         time.Duration
 	scriptRateLimit        int
 	scriptRateWindow       time.Duration
+
+	// Database maintenance configuration
+	dbMaintenanceInterval time.Duration
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default
@@ -162,6 +168,25 @@ func getEnvRateLimitOrDefault(key string, defaultCount int, defaultWindow time.D
 	return parseRateLimit(os.Getenv(key), defaultCount, defaultWindow)
 }
 
+// getEnvDurationOrDefault parses a duration from environment variable.
+// Supports formats like "24h", "30m", "1h30m", etc. (Go time.Duration format)
+// Set to "0" or "disabled" to disable the feature.
+func getEnvDurationOrDefault(key string, defaultValue time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	if value == "0" || strings.ToLower(value) == "disabled" {
+		return 0
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		log.Printf("Warning: Invalid duration '%s' for %s, using default %v", value, key, defaultValue)
+		return defaultValue
+	}
+	return d
+}
+
 // initConfig initializes configuration from environment variables
 func initConfig() {
 	maxUploadSize = getEnvSizeOrDefault("MAX_UPLOAD_SIZE", defaultMaxUploadSize)
@@ -176,6 +201,9 @@ func initConfig() {
 	transcribeRateLimit, transcribeRateWindow = getEnvRateLimitOrDefault("TRANSCRIBE_RATE_LIMIT", defaultTranscribeRateLimit, defaultTranscribeRateWindow)
 	burnRateLimit, burnRateWindow = getEnvRateLimitOrDefault("BURN_RATE_LIMIT", defaultBurnRateLimit, defaultBurnRateWindow)
 	scriptRateLimit, scriptRateWindow = getEnvRateLimitOrDefault("SCRIPT_RATE_LIMIT", defaultScriptRateLimit, defaultScriptRateWindow)
+
+	// Database maintenance configuration
+	dbMaintenanceInterval = getEnvDurationOrDefault("DB_MAINTENANCE_INTERVAL", defaultDBMaintenanceInterval)
 }
 
 // WhisperSegment represents a transcribed segment with timing
@@ -3768,6 +3796,9 @@ func main() {
 	// Start the cleanup scheduler for expired videos
 	go startCleanupScheduler()
 
+	// Start the database maintenance scheduler (VACUUM + ANALYZE)
+	go startMaintenanceScheduler()
+
 	log.Printf("Backend server starting on :%s", port)
 	log.Printf("Using whisper model: %s", getWhisperModel())
 
@@ -3853,4 +3884,37 @@ func runCleanup() {
 	}
 
 	log.Printf("Cleanup complete: %d videos deleted", deletedCount)
+}
+
+// startMaintenanceScheduler runs periodic database maintenance (VACUUM and ANALYZE).
+// Set DB_MAINTENANCE_INTERVAL environment variable to configure interval (default: 24h).
+// Set to "0" or "disabled" to disable maintenance.
+func startMaintenanceScheduler() {
+	if dbMaintenanceInterval <= 0 {
+		log.Println("Database maintenance scheduler disabled")
+		return
+	}
+
+	log.Printf("Database maintenance scheduler started (interval: %v)", dbMaintenanceInterval)
+
+	ticker := time.NewTicker(dbMaintenanceInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		runDatabaseMaintenance()
+	}
+}
+
+// runDatabaseMaintenance performs VACUUM and ANALYZE on the SQLite database.
+func runDatabaseMaintenance() {
+	log.Println("Running database maintenance (VACUUM + ANALYZE)...")
+	startTime := time.Now()
+
+	if err := database.Maintenance(); err != nil {
+		log.Printf("Database maintenance failed: %v", err)
+		return
+	}
+
+	duration := time.Since(startTime)
+	log.Printf("Database maintenance complete (took %v)", duration)
 }

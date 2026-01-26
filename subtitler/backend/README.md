@@ -35,6 +35,31 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `TRANSCRIBE_RATE_LIMIT` | `5/min` | Rate limit for transcription requests |
 | `BURN_RATE_LIMIT` | `2/min` | Rate limit for subtitle burning |
 | `SCRIPT_RATE_LIMIT` | `10/min` | Rate limit for script detection/conversion |
+| `DB_MAINTENANCE_INTERVAL` | `24h` | Interval for SQLite maintenance (VACUUM + ANALYZE) |
+
+### Database Maintenance
+
+The backend runs automatic SQLite maintenance (VACUUM and ANALYZE) to keep the database optimized. This is controlled by the `DB_MAINTENANCE_INTERVAL` environment variable.
+
+**Default:** Runs every 24 hours
+**Disabled:** Set to `0` or `disabled` to disable automatic maintenance
+
+```bash
+# Run maintenance every 12 hours
+export DB_MAINTENANCE_INTERVAL="12h"
+
+# Run every 30 minutes (for testing)
+export DB_MAINTENANCE_INTERVAL="30m"
+
+# Disable automatic maintenance
+export DB_MAINTENANCE_INTERVAL="0"
+```
+
+The maintenance operations:
+- **VACUUM:** Reclaims disk space by defragmenting the database file
+- **ANALYZE:** Updates query planner statistics for optimal query performance
+
+Both operations are logged when they run. VACUUM may take a few seconds for large databases.
 
 ### Rate Limit Configuration
 

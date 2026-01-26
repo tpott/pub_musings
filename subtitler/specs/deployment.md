@@ -194,6 +194,7 @@ Environment=KEY_PATH=/opt/subtitler/data/age.key
 Environment=MAX_UPLOAD_SIZE=1G
 Environment=HTTPS_ONLY=true
 Environment=TRUST_PROXY=true
+Environment=DB_MAINTENANCE_INTERVAL=24h
 
 # Security
 NoNewPrivileges=true
