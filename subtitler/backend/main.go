@@ -78,6 +78,33 @@ var emailService email.EmailService
 // Global audio extractor for video processing
 var audioExtractor audio.Extractor
 
+// generateRequestID creates a unique request ID for tracing
+func generateRequestID() string {
+	b := make([]byte, 8) // 16 hex chars
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// requestIDMiddleware adds X-Request-ID header to all requests and responses
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if request already has an ID (from proxy)
+		requestID := r.Header.Get("X-Request-ID")
+		if requestID == "" {
+			requestID = generateRequestID()
+		}
+
+		// Set the request ID in response header
+		w.Header().Set("X-Request-ID", requestID)
+
+		// Log the request with its ID
+		log.Printf("[%s] %s %s", requestID, r.Method, r.URL.Path)
+
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 func generateID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)
@@ -3179,7 +3206,11 @@ func main() {
 
 	log.Printf("Backend server starting on :%s", port)
 	log.Printf("Using whisper model: %s", getWhisperModel())
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+
+	// Wrap mux with request ID middleware
+	handler := requestIDMiddleware(mux)
+
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

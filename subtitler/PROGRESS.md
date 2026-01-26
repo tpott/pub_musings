@@ -1867,9 +1867,36 @@ Implemented video reprocessing feature for failed transcriptions with ownership 
 - `TestReprocessVideoNotError` - 400 for non-error status
 - 7 E2E tests in `videos.spec.ts` for page structure and retry button
 
+### Task 72: Backend request ID tracing
+
+**Date**: 2026-01-25
+
+Added request ID middleware for request tracing in production:
+
+**Backend changes (`main.go`):**
+- Added `generateRequestID()` function using 8 bytes of crypto/rand (16 hex chars)
+- Added `requestIDMiddleware` that:
+  - Uses existing `X-Request-ID` header from proxy if present
+  - Generates new unique ID if not present
+  - Adds `X-Request-ID` header to all responses
+  - Logs every request with its ID in format `[request_id] METHOD /path`
+- Wrapped mux with middleware in ListenAndServe call
+
+**Benefits:**
+- Trace requests across proxy→backend→response
+- Debug production issues by correlating client errors with server logs
+- Support for request ID forwarding from load balancers/proxies
+
+**Tests added:**
+- `TestRequestIDMiddleware` with 3 subtests:
+  - Adds X-Request-ID header to response
+  - Uses existing X-Request-ID from request
+  - Generates unique IDs for each request
+- `TestRequestIDInHealthCheck` - verifies middleware works with actual handler
+
 ## Summary
 
-71 tasks completed (70 done + 1 requiring macOS). The subtitler application is feature-complete with:
+72 tasks completed (71 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -1888,8 +1915,8 @@ Implemented video reprocessing feature for failed transcriptions with ownership 
 - Script detection and conversion for Indic languages (romanized → native scripts)
 - MIME type validation on video upload (whitelist of 8 video formats)
 - Video reprocessing for failed transcriptions with ownership checks
+- Request ID tracing for all API requests
 
-**3 tasks remaining:**
+**2 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
 - Task 71: Frontend accessibility improvements
-- Task 72: Backend request ID tracing

@@ -3962,3 +3962,85 @@ func TestReprocessVideoNotError(t *testing.T) {
 		t.Errorf("Expected status 'complete', got '%s'", result["status"])
 	}
 }
+
+// ========== Request ID Middleware Tests ==========
+
+func TestRequestIDMiddleware(t *testing.T) {
+	// Create a simple handler for testing
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Wrap with middleware
+	wrapped := requestIDMiddleware(handler)
+
+	t.Run("adds X-Request-ID header to response", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", nil)
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		requestID := w.Header().Get("X-Request-ID")
+		if requestID == "" {
+			t.Error("Expected X-Request-ID header in response")
+		}
+		// Should be 16 hex chars (8 bytes)
+		if len(requestID) != 16 {
+			t.Errorf("Expected request ID length 16, got %d", len(requestID))
+		}
+	})
+
+	t.Run("uses existing X-Request-ID from request", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-Request-ID", "existing-id-12345")
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		requestID := w.Header().Get("X-Request-ID")
+		if requestID != "existing-id-12345" {
+			t.Errorf("Expected request ID 'existing-id-12345', got '%s'", requestID)
+		}
+	})
+
+	t.Run("generates unique IDs for each request", func(t *testing.T) {
+		ids := make(map[string]bool)
+		for i := 0; i < 100; i++ {
+			req := httptest.NewRequest("GET", "/test", nil)
+			w := httptest.NewRecorder()
+
+			wrapped.ServeHTTP(w, req)
+
+			requestID := w.Header().Get("X-Request-ID")
+			if ids[requestID] {
+				t.Errorf("Duplicate request ID generated: %s", requestID)
+			}
+			ids[requestID] = true
+		}
+	})
+}
+
+func TestRequestIDInHealthCheck(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Note: The test server doesn't use the middleware, but we can test that
+	// the middleware would work by testing it directly on the health endpoint handler
+	handler := requestIDMiddleware(ts.mux)
+
+	req := httptest.NewRequest("GET", "/api/health", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	// Should have request ID header
+	requestID := w.Header().Get("X-Request-ID")
+	if requestID == "" {
+		t.Error("Expected X-Request-ID header in health check response")
+	}
+
+	// Should still return OK
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}

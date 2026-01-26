@@ -29,6 +29,19 @@ Rate-limited endpoints:
 - `POST /api/auth/forgot-password` - 3/15min per IP (stricter)
 - `POST /api/auth/reset-password` - 5/min per IP
 
+### Request Tracing
+
+All API responses include an `X-Request-ID` header for request tracing. This ID can be used to correlate frontend errors with backend logs.
+
+- If the request includes an `X-Request-ID` header (e.g., from a load balancer), it will be preserved
+- Otherwise, a new 16-character hex ID is generated
+- The ID is included in server logs: `[request_id] METHOD /path`
+
+Example response header:
+```
+X-Request-ID: 894fe2cb7d305ce3
+```
+
 ---
 
 ## Table of Contents
