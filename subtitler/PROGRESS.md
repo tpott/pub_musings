@@ -1966,6 +1966,43 @@ Created comprehensive rate limiting documentation in `docs/RATE_LIMITS.md`:
 
 Updated `docs/API.md` with quick reference table and link to detailed documentation.
 
+### Task 79: HTTP caching headers for video streaming
+
+**Date**: 2026-01-25
+
+Added HTTP caching support to video and subtitle download endpoints:
+
+**Implementation:**
+- Added `crypto/sha256` import for ETag generation
+- Created helper functions in main.go:
+  - `generateETag(data string)` - Creates SHA256-based ETag from input data
+  - `handleConditionalRequest(w, r, etag)` - Handles If-None-Match for 304 responses
+  - `setCacheHeaders(w, etag, maxAge)` - Sets ETag and Cache-Control headers
+
+**Endpoints updated:**
+- `GET /api/videos/{id}/video` - Video streaming
+  - ETag based on video ID + creation time + file size (immutable after upload)
+  - Cache-Control: private, max-age=3600 (1 hour)
+  - Returns 304 Not Modified for matching If-None-Match
+- `GET /api/videos/{id}/subtitles.srt` - SRT download
+  - ETag based on transcription ID + completion time + segments hash
+  - Cache-Control: private, max-age=600 (10 minutes - subtitles can be edited)
+  - Returns 304 for conditional requests
+- `GET /api/videos/{id}/subtitles.vtt` - VTT download (same caching as SRT)
+- `GET /api/videos/{id}/subtitles.json` - JSON download (same caching as SRT)
+
+**Tests added:**
+- `TestSRTDownloadCachingHeaders` - Verifies ETag and Cache-Control headers
+- `TestSRTDownloadConditionalRequest` - Verifies 304 response with If-None-Match
+- `TestVTTDownloadCachingHeaders` - VTT caching headers
+- `TestJSONDownloadCachingHeaders` - JSON caching headers
+- `TestDifferentFormatsHaveDifferentETags` - Different formats have unique ETags
+
+**Benefits:**
+- Reduces bandwidth for repeated video/subtitle downloads
+- Allows browsers to use cached content when unchanged
+- Conditional requests avoid re-downloading unchanged resources
+
 ### Task 80: E2E full upload-to-download flow test
 
 **Date**: 2026-01-25
@@ -2035,7 +2072,7 @@ Added database transaction support for multi-step operations that must succeed o
 
 ## Summary
 
-77 tasks completed (76 done + 1 requiring macOS). The subtitler application is feature-complete with:
+78 tasks completed (77 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -2059,9 +2096,9 @@ Added database transaction support for multi-step operations that must succeed o
 - Enhanced health check with database, whisper-server, and disk space monitoring
 - Database transaction safety for critical multi-step operations
 - E2E full upload-to-download flow test with test video fixture
+- HTTP caching headers (ETag, Cache-Control, If-None-Match 304 responses) for video and subtitle endpoints
 
-**4 tasks remaining:**
+**3 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
 - Task 76: Mobile responsive design audit
 - Task 77: Dark mode support
-- Task 79: HTTP caching headers for video streaming

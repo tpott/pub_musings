@@ -945,6 +945,18 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Generate ETag from transcription ID + completion time + segments hash
+		var completedAt int64
+		if transcription.CompletedAt != nil {
+			completedAt = transcription.CompletedAt.Unix()
+		}
+		etag := generateETag(fmt.Sprintf("srt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -969,6 +981,9 @@ func (ts *testServer) registerHandlers() {
 		}
 
 		srtContent := generateSRT(whisperResult)
+
+		// Set caching headers
+		setCacheHeaders(w, etag, 600)
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".srt\"")
@@ -1011,6 +1026,18 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Generate ETag from transcription ID + completion time + segments hash
+		var completedAt int64
+		if transcription.CompletedAt != nil {
+			completedAt = transcription.CompletedAt.Unix()
+		}
+		etag := generateETag(fmt.Sprintf("vtt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -1035,6 +1062,9 @@ func (ts *testServer) registerHandlers() {
 		}
 
 		vttContent := generateVTT(whisperResult)
+
+		// Set caching headers
+		setCacheHeaders(w, etag, 600)
 
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".vtt\"")
@@ -1077,6 +1107,18 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Generate ETag from transcription ID + completion time + segments hash
+		var completedAt int64
+		if transcription.CompletedAt != nil {
+			completedAt = transcription.CompletedAt.Unix()
+		}
+		etag := generateETag(fmt.Sprintf("json-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -1092,6 +1134,9 @@ func (ts *testServer) registerHandlers() {
 			"full_text": transcription.FullText,
 			"segments":  segments,
 		}
+
+		// Set caching headers
+		setCacheHeaders(w, etag, 600)
 
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".json\"")
@@ -4122,5 +4167,157 @@ func TestRequestIDInHealthCheck(t *testing.T) {
 	// Should still return OK
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+// Tests for HTTP caching headers
+
+func TestSRTDownloadCachingHeaders(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Download SRT
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Check ETag header exists
+	etag := resp.Header().Get("ETag")
+	if etag == "" {
+		t.Error("Expected ETag header in SRT response")
+	}
+	if !strings.HasPrefix(etag, "\"") || !strings.HasSuffix(etag, "\"") {
+		t.Errorf("ETag should be quoted, got: %s", etag)
+	}
+
+	// Check Cache-Control header
+	cacheControl := resp.Header().Get("Cache-Control")
+	if cacheControl == "" {
+		t.Error("Expected Cache-Control header in SRT response")
+	}
+	if !strings.Contains(cacheControl, "private") {
+		t.Errorf("Cache-Control should contain 'private', got: %s", cacheControl)
+	}
+}
+
+func TestSRTDownloadConditionalRequest(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// First request to get ETag
+	resp1 := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	if resp1.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp1.Code)
+	}
+	etag := resp1.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("Expected ETag header in first response")
+	}
+
+	// Second request with If-None-Match should return 304
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil)
+	req.Header.Set("If-None-Match", etag)
+	resp2 := httptest.NewRecorder()
+	ts.mux.ServeHTTP(resp2, req)
+
+	if resp2.Code != http.StatusNotModified {
+		t.Errorf("Expected status 304 Not Modified, got %d", resp2.Code)
+	}
+
+	// Body should be empty for 304
+	if resp2.Body.Len() > 0 {
+		t.Errorf("Expected empty body for 304, got %d bytes", resp2.Body.Len())
+	}
+}
+
+func TestVTTDownloadCachingHeaders(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Download VTT
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+
+	// Check ETag header
+	etag := resp.Header().Get("ETag")
+	if etag == "" {
+		t.Error("Expected ETag header in VTT response")
+	}
+
+	// Check Cache-Control header
+	cacheControl := resp.Header().Get("Cache-Control")
+	if cacheControl == "" {
+		t.Error("Expected Cache-Control header in VTT response")
+	}
+}
+
+func TestJSONDownloadCachingHeaders(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Download JSON
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+
+	// Check ETag header
+	etag := resp.Header().Get("ETag")
+	if etag == "" {
+		t.Error("Expected ETag header in JSON response")
+	}
+
+	// Check Cache-Control header
+	cacheControl := resp.Header().Get("Cache-Control")
+	if cacheControl == "" {
+		t.Error("Expected Cache-Control header in JSON response")
+	}
+}
+
+func TestDifferentFormatsHaveDifferentETags(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Get ETags for all formats
+	respSRT := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	respVTT := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
+	respJSON := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+
+	etagSRT := respSRT.Header().Get("ETag")
+	etagVTT := respVTT.Header().Get("ETag")
+	etagJSON := respJSON.Header().Get("ETag")
+
+	// All ETags should be different (they include format in the hash)
+	if etagSRT == etagVTT {
+		t.Error("SRT and VTT should have different ETags")
+	}
+	if etagSRT == etagJSON {
+		t.Error("SRT and JSON should have different ETags")
+	}
+	if etagVTT == etagJSON {
+		t.Error("VTT and JSON should have different ETags")
 	}
 }

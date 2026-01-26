@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -447,6 +448,35 @@ func findVideoFile(uploadID string) (string, error) {
 		return "", fmt.Errorf("video not found for upload ID: %s", uploadID)
 	}
 	return matches[0], nil
+}
+
+// generateETag creates an ETag from input data using SHA256
+func generateETag(data string) string {
+	hash := sha256.Sum256([]byte(data))
+	return fmt.Sprintf("\"%s\"", hex.EncodeToString(hash[:8])) // Use first 8 bytes (16 hex chars)
+}
+
+// handleConditionalRequest checks If-None-Match header and returns true if 304 should be sent
+func handleConditionalRequest(w http.ResponseWriter, r *http.Request, etag string) bool {
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if match == etag || match == "*" {
+			w.Header().Set("ETag", etag)
+			w.WriteHeader(http.StatusNotModified)
+			return true
+		}
+	}
+	return false
+}
+
+// setCacheHeaders sets ETag and Cache-Control headers for responses
+// maxAge is in seconds, 0 means no cache (must-revalidate)
+func setCacheHeaders(w http.ResponseWriter, etag string, maxAge int) {
+	w.Header().Set("ETag", etag)
+	if maxAge > 0 {
+		w.Header().Set("Cache-Control", fmt.Sprintf("private, max-age=%d", maxAge))
+	} else {
+		w.Header().Set("Cache-Control", "private, no-cache, must-revalidate")
+	}
 }
 
 // dbTranscriptionToStatus converts a database transcription to API status format
@@ -2365,6 +2395,19 @@ func main() {
 			return
 		}
 
+		// Generate ETag from transcription ID + completion time + segments hash
+		// Subtitles can change if edited or re-transcribed, so use CompletedAt
+		var completedAt int64
+		if transcription.CompletedAt != nil {
+			completedAt = transcription.CompletedAt.Unix()
+		}
+		etag := generateETag(fmt.Sprintf("srt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -2393,6 +2436,10 @@ func main() {
 
 		// Generate SRT content
 		srtContent := generateSRT(whisperResult)
+
+		// Set caching headers - subtitles may be edited, so use shorter cache time
+		// Cache for 10 minutes, must revalidate after that
+		setCacheHeaders(w, etag, 600)
 
 		// Set headers for file download
 		// Use text/plain as it's universally supported by browsers for download
@@ -2445,6 +2492,18 @@ func main() {
 			return
 		}
 
+		// Generate ETag from transcription ID + completion time + segments hash
+		var completedAt int64
+		if transcription.CompletedAt != nil {
+			completedAt = transcription.CompletedAt.Unix()
+		}
+		etag := generateETag(fmt.Sprintf("vtt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -2473,6 +2532,9 @@ func main() {
 
 		// Generate VTT content
 		vttContent := generateVTT(whisperResult)
+
+		// Set caching headers
+		setCacheHeaders(w, etag, 600)
 
 		// Set headers for file download
 		// text/vtt is the official MIME type for WebVTT
@@ -2524,6 +2586,18 @@ func main() {
 			return
 		}
 
+		// Generate ETag from transcription ID + completion time + segments hash
+		var completedAt int64
+		if transcription.CompletedAt != nil {
+			completedAt = transcription.CompletedAt.Unix()
+		}
+		etag := generateETag(fmt.Sprintf("json-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -2542,6 +2616,9 @@ func main() {
 			"full_text": transcription.FullText,
 			"segments":  segments,
 		}
+
+		// Set caching headers
+		setCacheHeaders(w, etag, 600)
 
 		// Set headers for file download
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -2804,6 +2881,22 @@ func main() {
 			return
 		}
 
+		// Get video metadata from database for ETag generation
+		var etag string
+		if database != nil {
+			video, err := database.GetVideo(uploadID)
+			if err == nil && video != nil {
+				// Generate ETag from video ID + creation time + size
+				// Video files don't change after upload, so this is stable
+				etag = generateETag(fmt.Sprintf("%s-%d-%d", video.ID, video.CreatedAt.Unix(), video.Size))
+
+				// Check for conditional request (If-None-Match)
+				if handleConditionalRequest(w, r, etag) {
+					return // 304 Not Modified sent
+				}
+			}
+		}
+
 		// Find the video file
 		videoPath, err := findVideoFile(uploadID)
 		if err != nil {
@@ -2830,6 +2923,13 @@ func main() {
 			}
 			defer os.Remove(decryptedPath)
 			videoPath = decryptedPath
+		}
+
+		// Set caching headers before serving
+		// Video files are immutable (don't change after upload), so can be cached
+		// Cache for 1 hour, must revalidate after that
+		if etag != "" {
+			setCacheHeaders(w, etag, 3600) // 1 hour
 		}
 
 		// Serve the file
