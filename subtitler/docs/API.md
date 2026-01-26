@@ -897,6 +897,18 @@ Start transcription for an uploaded video.
 
 **Authentication**: Not required
 
+**Query Parameters**:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `language` | string | `auto` | ISO 639-1 language code (e.g., `en`, `es`, `ja`) or `auto` for auto-detection |
+
+Specifying the language can improve transcription accuracy when you know the spoken language in advance.
+
+**Example with language**:
+```bash
+curl -X POST "http://localhost:8080/api/transcribe/abc123?language=en"
+```
+
 **Response** `200 OK` (started):
 ```json
 {

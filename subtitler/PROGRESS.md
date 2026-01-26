@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**101 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**102 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -35,7 +35,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Auto-delete scheduler for expired files
 - ✅ Retention countdown display in UI
 
-### Subtitle Features (Tasks 15-17, 44, 51, 56-57, 69-70, 85)
+### Subtitle Features (Tasks 15-17, 44, 51, 56-57, 69-70, 85, 102)
 - ✅ Subtitle editor (text and timing)
 - ✅ Transcript paste-and-align with Whisper timing
 - ✅ Lyrics mode with music-specific alignment
@@ -43,6 +43,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Script conversion (romanized → native scripts for 9 Indic languages)
 - ✅ Subtitle burning into video (ffmpeg)
 - ✅ Multiple export formats: SRT, VTT, JSON
+- ✅ Language override for transcription (Task 102)
 - See: `specs/lyrics-alignment.md`, `specs/script-conversion.md`
 
 ### Testing & Quality (Tasks 19-25, 30, 49-50, 80, 94)

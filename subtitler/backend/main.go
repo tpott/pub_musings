@@ -379,8 +379,9 @@ type HealthStatus struct {
 	Errors           []string `json:"errors,omitempty"`
 }
 
-// transcribeAudio runs whisper-cli on the audio file
-func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
+// transcribeAudio runs whisper-cli on the audio file.
+// language is an ISO 639-1 code (e.g., "en", "es") or "auto" for auto-detection.
+func transcribeAudio(audioPath, outputPath, language string) (*WhisperResult, error) {
 	model := getWhisperModel()
 
 	// Check if model exists
@@ -395,7 +396,7 @@ func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
 		"-oj",             // output JSON
 		"-of", outputPath, // output file (without extension, whisper adds .json)
 		"-t", "4", // 4 threads
-		"-l", "auto", // auto-detect language
+		"-l", language, // language code or "auto"
 	)
 
 	output, err := cmd.CombinedOutput()
@@ -419,8 +420,9 @@ func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
 	return &result, nil
 }
 
-// transcribeAudioServer sends audio to whisper-server HTTP API
-func transcribeAudioServer(audioPath string) (*WhisperResult, error) {
+// transcribeAudioServer sends audio to whisper-server HTTP API.
+// language is an ISO 639-1 code (e.g., "en", "es") or "auto" for auto-detection.
+func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 	serverURL := getWhisperServerURL()
 
 	// Open the audio file
@@ -447,7 +449,7 @@ func transcribeAudioServer(audioPath string) (*WhisperResult, error) {
 	// Use verbose_json to get segments with timing
 	writer.WriteField("response_format", "verbose_json")
 	writer.WriteField("temperature", "0.0")
-	writer.WriteField("language", "auto")
+	writer.WriteField("language", language)
 
 	writer.Close()
 
@@ -557,14 +559,19 @@ func transcribeAudioServer(audioPath string) (*WhisperResult, error) {
 	return result, nil
 }
 
-// transcribe sends audio for transcription, using server if enabled, otherwise CLI
-func transcribe(audioPath, outputPath string) (*WhisperResult, error) {
-	if isWhisperServerEnabled() {
-		log.Printf("Using whisper-server at %s", getWhisperServerURL())
-		return transcribeAudioServer(audioPath)
+// transcribe sends audio for transcription, using server if enabled, otherwise CLI.
+// language is an ISO 639-1 language code (e.g., "en", "es", "ja") or "auto" for auto-detection.
+// If empty, defaults to "auto".
+func transcribe(audioPath, outputPath, language string) (*WhisperResult, error) {
+	if language == "" {
+		language = "auto"
 	}
-	log.Printf("Using whisper-cli with model %s", getWhisperModel())
-	return transcribeAudio(audioPath, outputPath)
+	if isWhisperServerEnabled() {
+		log.Printf("Using whisper-server at %s (language: %s)", getWhisperServerURL(), language)
+		return transcribeAudioServer(audioPath, language)
+	}
+	log.Printf("Using whisper-cli with model %s (language: %s)", getWhisperModel(), language)
+	return transcribeAudio(audioPath, outputPath, language)
 }
 
 // formatSRTTimestamp formats seconds as SRT timestamp (HH:MM:SS,mmm)
@@ -2336,6 +2343,8 @@ func main() {
 	}))
 
 	// Start transcription for an upload (rate limited: 5/min per IP)
+	// Optional query parameter: language (ISO 639-1 code, e.g., "en", "es", "ja")
+	// If not provided or "auto", whisper will auto-detect the language
 	mux.HandleFunc("POST /api/transcribe/{id}", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -2346,6 +2355,12 @@ func main() {
 				"error": "Upload ID required",
 			})
 			return
+		}
+
+		// Parse optional language parameter (defaults to "auto" for auto-detection)
+		language := r.URL.Query().Get("language")
+		if language == "" {
+			language = "auto"
 		}
 
 		// Find the video file
@@ -2401,9 +2416,9 @@ func main() {
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 		}
 
-		// Process in background
-		go func() {
-			log.Printf("Starting transcription for %s", uploadID)
+		// Process in background (capture language in closure)
+		go func(lang string) {
+			log.Printf("Starting transcription for %s (language: %s)", uploadID, lang)
 
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
@@ -2453,7 +2468,7 @@ func main() {
 
 			// Run whisper (server or CLI based on configuration)
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
-			result, err := transcribe(audioPath, outputPath)
+			result, err := transcribe(audioPath, outputPath, lang)
 			close(progressDone) // Stop progress simulation
 
 			if err != nil {
@@ -2481,7 +2496,7 @@ func main() {
 
 			// Clean up intermediate files
 			os.Remove(audioPath)
-		}()
+		}(language)
 
 		// Return immediately with processing status
 		json.NewEncoder(w).Encode(map[string]string{
@@ -3267,9 +3282,9 @@ func main() {
 				}
 			}()
 
-			// Run whisper
+			// Run whisper (reprocess uses auto-detect)
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
-			result, err := transcribe(audioPath, outputPath)
+			result, err := transcribe(audioPath, outputPath, "auto")
 			close(progressDone)
 
 			if err != nil {
