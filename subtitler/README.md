@@ -140,3 +140,133 @@ dlv debug . --headless --listen=:2345 --api-version=2
 **Console log forwarding:**
 
 In development mode, frontend console.log/error/warn calls are forwarded to the backend terminal via `/api/log`. This helps debug frontend issues without switching windows.
+
+### Production Debugging
+
+For deployed environments running as systemd services (see [specs/deployment.md](specs/deployment.md)):
+
+#### Service Status
+
+```bash
+# Check backend service status
+sudo systemctl status subtitler
+
+# Check Caddy web server
+sudo systemctl status caddy
+
+# Check Cloudflare tunnel (if used)
+sudo systemctl status cloudflared
+```
+
+#### Log Locations
+
+**Backend logs (subtitler.service):**
+```bash
+# Live logs
+sudo journalctl -u subtitler -f
+
+# Recent logs (last 100 lines)
+sudo journalctl -u subtitler -n 100
+
+# Logs since specific time
+sudo journalctl -u subtitler --since "2024-01-26 10:00:00"
+
+# Error-level logs only
+sudo journalctl -u subtitler -p err
+```
+
+**Caddy logs:**
+```bash
+# Access logs (JSON format)
+sudo tail -f /var/log/caddy/access.log | jq .
+
+# Caddy service logs
+sudo journalctl -u caddy -f
+```
+
+**whisper-server logs (on Mac host):**
+```bash
+# Standard output
+tail -f ~/Library/Logs/whisper-server.log
+
+# Error log
+tail -f ~/Library/Logs/whisper-server.error.log
+```
+
+#### Common Issues
+
+**Backend not starting:**
+```bash
+# Check for port conflict
+sudo lsof -i :8080
+
+# Check environment variables
+sudo systemctl show subtitler | grep Environment
+
+# View detailed startup failure
+sudo journalctl -u subtitler -e
+```
+
+**Database locked errors:**
+```bash
+# Check SQLite lock file
+ls -la /opt/subtitler/data/subtitler.db*
+
+# Check for zombie processes
+pgrep -a subtitler
+```
+
+**whisper-server connection failures:**
+```bash
+# Test from VM to host (if using qemu)
+curl http://10.0.2.2:8765/health
+
+# Test from localhost
+curl http://localhost:8765/health
+
+# Check if server is running (on host)
+pgrep -a whisper-server
+launchctl list | grep whisper
+```
+
+**Upload/transcription issues:**
+```bash
+# Check disk space
+df -h /opt/subtitler/uploads
+
+# Check file permissions
+ls -la /opt/subtitler/uploads/
+ls -la /opt/subtitler/data/
+
+# Find recent uploads
+find /opt/subtitler/uploads -mmin -60 -type f
+```
+
+#### Health Check
+
+```bash
+# Comprehensive health check
+curl -s http://localhost:8080/api/health | jq .
+
+# Expected output:
+# {
+#   "status": "ok",
+#   "db_connected": true,
+#   "whisper_available": true,
+#   "disk_space_ok": true
+# }
+```
+
+#### Request Tracing
+
+All requests include an `X-Request-ID` header for tracing. Look for it in logs:
+
+```bash
+# Find specific request ID in logs
+sudo journalctl -u subtitler | grep "abc123"
+
+# Include request IDs in Caddy access logs
+# (already configured in Caddyfile)
+```
+
+See also: [specs/deployment.md](specs/deployment.md) for full deployment documentation.
