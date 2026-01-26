@@ -109,13 +109,23 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Video file validation with ffprobe (Task 107)
 - ✅ Content Security Policy headers (Task 108)
 
+### Technical Infrastructure (Task 109)
+- ✅ Database migration system (Task 109)
+  - Migration files in `backend/db/migrations/` as versioned .sql files
+  - Schema version tracked in `schema_migrations` table
+  - CLI tool: `go run ./cmd/migrate [up|down|status|version]`
+  - Automatic upgrade from pre-migration databases
+
 ## Current Work
 
-**5 tasks remaining** (109-113):
+**7 tasks remaining** (110-116):
 
-1. Technical debt (109, 113): Database migrations, structured logging
+1. Technical debt (113): Structured logging
 2. UX improvements (111-112): Video thumbnails, burn progress indicators
 3. Documentation (110): Environment variable reference
+4. Security (114): Authenticated health check
+5. Cleanup (115): Remove hardcoded Go paths
+6. Performance (116): Chunked uploads for large videos
 
 See `TASKS.jsonl` for details.
 

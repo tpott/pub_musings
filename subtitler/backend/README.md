@@ -215,6 +215,52 @@ export WHISPER_SERVER_URL="http://10.0.2.2:8765"
 | POST | `/api/auth/reset-password` | Reset password with token |
 | POST | `/api/log` | Frontend console log forwarding |
 
+## Database Migrations
+
+The backend uses a file-based migration system for schema changes. Migration files are located in `db/migrations/` with the naming convention `NNN_description.up.sql` and `NNN_description.down.sql`.
+
+### Migration Commands
+
+```bash
+# Check migration status
+/home/trevor/go/bin/go run ./cmd/migrate status
+
+# Run all pending migrations
+/home/trevor/go/bin/go run ./cmd/migrate up
+
+# Run migrations up to a specific version
+/home/trevor/go/bin/go run ./cmd/migrate up 3
+
+# Rollback the last migration
+/home/trevor/go/bin/go run ./cmd/migrate down
+
+# Rollback multiple migrations
+/home/trevor/go/bin/go run ./cmd/migrate down 2
+
+# Check current schema version
+/home/trevor/go/bin/go run ./cmd/migrate version
+
+# Use custom database path
+/home/trevor/go/bin/go run ./cmd/migrate -db /path/to/db.sqlite status
+```
+
+**Note:** Migrations are automatically applied when the server starts. The CLI tool is primarily for manual operations like rollbacks or status checks.
+
+### Creating New Migrations
+
+1. Create two files in `db/migrations/`:
+   - `NNN_description.up.sql` - SQL to apply the migration
+   - `NNN_description.down.sql` - SQL to revert the migration
+
+2. Use sequential numbers (001, 002, etc.) for version ordering
+
+3. Test migrations:
+   ```bash
+   /home/trevor/go/bin/go run ./cmd/migrate up
+   /home/trevor/go/bin/go run ./cmd/migrate down
+   /home/trevor/go/bin/go run ./cmd/migrate up
+   ```
+
 ## Project Structure
 
 ```
@@ -222,10 +268,13 @@ backend/
 ├── main.go          # HTTP handlers and server setup
 ├── main_test.go     # SRT formatting tests
 ├── api_test.go      # API integration tests
+├── cmd/
+│   └── migrate/     # Database migration CLI tool
 ├── align/           # Transcript alignment algorithm
 ├── auth/            # Authentication and sessions
 ├── crypto/          # File encryption (age)
 ├── db/              # SQLite database layer
+│   └── migrations/  # Versioned SQL migration files
 ├── email/           # Email service (Resend API)
 ├── ratelimit/       # Rate limiting middleware
 ├── script/          # Script detection and conversion

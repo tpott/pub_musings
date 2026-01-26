@@ -205,135 +205,73 @@ func (db *DB) WithTransaction(fn func(*Tx) error) error {
 	return nil
 }
 
-// migrate runs database migrations
+// migrate runs database migrations using the file-based migration system
 func (db *DB) migrate() error {
-	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS videos (
-			id TEXT PRIMARY KEY,
-			filename TEXT NOT NULL,
-			size INTEGER NOT NULL,
-			content_type TEXT NOT NULL,
-			file_path TEXT NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			user_id TEXT,
-			session_id TEXT
-		)`,
-		`CREATE TABLE IF NOT EXISTS transcriptions (
-			id TEXT PRIMARY KEY,
-			video_id TEXT NOT NULL REFERENCES videos(id),
-			status TEXT NOT NULL DEFAULT 'pending',
-			message TEXT,
-			progress INTEGER NOT NULL DEFAULT 0,
-			language TEXT,
-			duration REAL,
-			full_text TEXT,
-			segments_json TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			completed_at DATETIME
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_videos_user_id ON videos(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_videos_session_id ON videos(session_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_videos_created_at ON videos(created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_transcriptions_video_id ON transcriptions(video_id)`,
-		`CREATE TABLE IF NOT EXISTS users (
-			id TEXT PRIMARY KEY,
-			email TEXT UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
-			totp_secret TEXT,
-			totp_enabled INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
-		`CREATE TABLE IF NOT EXISTS sessions (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES users(id),
-			token TEXT UNIQUE NOT NULL,
-			ip_address TEXT,
-			user_agent TEXT,
-			expires_at DATETIME NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`,
-		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`,
-		`CREATE TABLE IF NOT EXISTS burn_jobs (
-			id TEXT PRIMARY KEY,
-			video_id TEXT NOT NULL REFERENCES videos(id),
-			status TEXT NOT NULL DEFAULT 'pending',
-			message TEXT,
-			progress INTEGER NOT NULL DEFAULT 0,
-			output_path TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			completed_at DATETIME
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_burn_jobs_video_id ON burn_jobs(video_id)`,
-		`CREATE TABLE IF NOT EXISTS recovery_codes (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES users(id),
-			code_hash TEXT NOT NULL,
-			used INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			used_at DATETIME
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_id ON recovery_codes(user_id)`,
-		`CREATE TABLE IF NOT EXISTS password_reset_tokens (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES users(id),
-			token_hash TEXT NOT NULL,
-			expires_at DATETIME NOT NULL,
-			used INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at)`,
-		`CREATE TABLE IF NOT EXISTS login_attempts (
-			id TEXT PRIMARY KEY,
-			email TEXT NOT NULL,
-			success INTEGER NOT NULL DEFAULT 0,
-			ip_address TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email)`,
-		`CREATE INDEX IF NOT EXISTS idx_login_attempts_created_at ON login_attempts(created_at)`,
-		// Email verification tokens table
-		`CREATE TABLE IF NOT EXISTS email_verification_tokens (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES users(id),
-			token_hash TEXT NOT NULL,
-			expires_at DATETIME NOT NULL,
-			used INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_email_verification_user_id ON email_verification_tokens(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_tokens(expires_at)`,
-		// Magic link tokens table for passwordless login
-		`CREATE TABLE IF NOT EXISTS magic_link_tokens (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL REFERENCES users(id),
-			token_hash TEXT NOT NULL,
-			expires_at DATETIME NOT NULL,
-			used INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_magic_link_user_id ON magic_link_tokens(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_magic_link_expires ON magic_link_tokens(expires_at)`,
+	migrator, err := NewMigrator(db.conn)
+	if err != nil {
+		return fmt.Errorf("failed to create migrator: %w", err)
 	}
 
-	for _, migration := range migrations {
-		if _, err := db.conn.Exec(migration); err != nil {
-			return fmt.Errorf("migration failed: %w", err)
-		}
+	// Check if this is an existing database without schema_migrations table
+	// If the videos table exists but schema_migrations doesn't, mark migration 1 as applied
+	if err := db.handleExistingDatabase(migrator); err != nil {
+		return fmt.Errorf("failed to handle existing database: %w", err)
 	}
 
-	// Run idempotent ALTER TABLE migrations (SQLite doesn't support IF NOT EXISTS for columns)
-	alterMigrations := []string{
-		`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE users ADD COLUMN verified_at DATETIME`,
+	// Run all pending migrations
+	if err := migrator.Up(); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	for _, migration := range alterMigrations {
-		// Ignore "duplicate column" errors - column already exists
-		db.conn.Exec(migration)
+	return nil
+}
+
+// handleExistingDatabase handles the case where a database already has tables
+// but no schema_migrations table (pre-migration system database)
+func (db *DB) handleExistingDatabase(migrator *Migrator) error {
+	// Check if schema_migrations table exists
+	var tableName string
+	err := db.conn.QueryRow(`
+		SELECT name FROM sqlite_master
+		WHERE type='table' AND name='schema_migrations'
+	`).Scan(&tableName)
+
+	if err == nil {
+		// schema_migrations exists, nothing to do
+		return nil
+	}
+
+	// Check if videos table exists (indicates pre-migration database)
+	err = db.conn.QueryRow(`
+		SELECT name FROM sqlite_master
+		WHERE type='table' AND name='videos'
+	`).Scan(&tableName)
+
+	if err != nil {
+		// No videos table means fresh database, migrations will create everything
+		return nil
+	}
+
+	// This is a pre-migration database - we need to create schema_migrations
+	// and mark the initial migration as applied
+	_, err = db.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			version INTEGER PRIMARY KEY,
+			description TEXT NOT NULL,
+			applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create schema_migrations table: %w", err)
+	}
+
+	// Mark migration 1 (initial_schema) as applied since tables already exist
+	_, err = db.conn.Exec(`
+		INSERT INTO schema_migrations (version, description, applied_at)
+		VALUES (1, 'initial_schema', CURRENT_TIMESTAMP)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to mark initial migration as applied: %w", err)
 	}
 
 	return nil
