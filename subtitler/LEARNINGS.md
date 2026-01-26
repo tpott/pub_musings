@@ -361,3 +361,24 @@ export PATH="$PATH:$HOME/go/bin"
 2. Use `~/.profile` for PATH exports needed by automated systems
 3. Avoid hardcoding paths - they break portability and create maintenance burden
 4. When a tool isn't found, fix the environment rather than hardcoding paths everywhere
+
+---
+
+### 2026-01-26: Go slog package requires initialization before use
+
+**Problem:** After implementing structured logging with `log/slog`, backend tests started failing with nil pointer dereferences. The logging functions called `Logger.Info()`, `Logger.Error()`, etc. but `Logger` was nil because `logging.Init()` wasn't called in test setup.
+
+**Solution:** Added an `init()` function to the logging package that sets `Logger = slog.Default()` if nil. This ensures logging always works even if `Init()` is never explicitly called:
+```go
+func init() {
+    if Logger == nil {
+        Logger = slog.Default()
+    }
+}
+```
+
+**Lesson:**
+1. Package-level loggers should have safe defaults - never leave them nil
+2. Use Go's `init()` function for defensive initialization
+3. `slog.Default()` provides a reasonable default logger
+4. Tests often skip initialization that production code relies on - make packages self-initializing when possible

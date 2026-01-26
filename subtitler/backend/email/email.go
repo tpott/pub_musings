@@ -6,10 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/resend/resend-go/v2"
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 // EmailService defines the interface for sending emails
@@ -83,7 +83,7 @@ func (s *ResendService) GetAppURL() string {
 func (s *ResendService) SendEmail(ctx context.Context, to, subject, htmlBody, textBody string) error {
 	if !s.enabled {
 		// Log what would have been sent in dev mode
-		log.Printf("[EMAIL] Would send to=%s subject=%s", to, subject)
+		logging.Debug("Email not sent (disabled)", "to", to, "subject", subject)
 		return nil
 	}
 

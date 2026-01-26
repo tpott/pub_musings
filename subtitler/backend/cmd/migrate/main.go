@@ -16,15 +16,18 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 func main() {
+	// Initialize logging
+	logging.Init(os.Getenv("LOG_LEVEL"))
+
 	// Parse flags
 	dbPath := flag.String("db", "", "Path to SQLite database (default: data/subtitler.db or DB_PATH env var)")
 	flag.Parse()
@@ -51,33 +54,33 @@ func main() {
 	// Open database connection (raw sql.DB for migration tool)
 	conn, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		logging.Fatal("Failed to open database", "error", err)
 	}
 	defer conn.Close()
 
 	// Create migrator
 	migrator, err := db.NewMigrator(conn)
 	if err != nil {
-		log.Fatalf("Failed to create migrator: %v", err)
+		logging.Fatal("Failed to create migrator", "error", err)
 	}
 
 	// Execute command
 	switch command {
 	case "up":
 		if err := cmdUp(migrator, cmdArgs); err != nil {
-			log.Fatalf("Migration failed: %v", err)
+			logging.Fatal("Migration failed", "error", err)
 		}
 	case "down":
 		if err := cmdDown(migrator, cmdArgs); err != nil {
-			log.Fatalf("Rollback failed: %v", err)
+			logging.Fatal("Rollback failed", "error", err)
 		}
 	case "status":
 		if err := cmdStatus(migrator); err != nil {
-			log.Fatalf("Failed to get status: %v", err)
+			logging.Fatal("Failed to get status", "error", err)
 		}
 	case "version":
 		if err := cmdVersion(migrator); err != nil {
-			log.Fatalf("Failed to get version: %v", err)
+			logging.Fatal("Failed to get version", "error", err)
 		}
 	case "help":
 		printUsage()

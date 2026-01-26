@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"log"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 // Migration represents a single migration file
@@ -178,13 +179,13 @@ func (m *Migrator) Up() error {
 			continue
 		}
 
-		log.Printf("Applying migration %03d: %s", migration.Version, migration.Description)
+		logging.Info("Applying migration", "version", migration.Version, "description", migration.Description)
 
 		if err := m.runMigration(migration, true); err != nil {
 			return fmt.Errorf("migration %d failed: %w", migration.Version, err)
 		}
 
-		log.Printf("Applied migration %03d successfully", migration.Version)
+		logging.Info("Applied migration successfully", "version", migration.Version)
 	}
 
 	return nil
@@ -214,13 +215,13 @@ func (m *Migrator) UpTo(targetVersion int) error {
 			continue
 		}
 
-		log.Printf("Applying migration %03d: %s", migration.Version, migration.Description)
+		logging.Info("Applying migration", "version", migration.Version, "description", migration.Description)
 
 		if err := m.runMigration(migration, true); err != nil {
 			return fmt.Errorf("migration %d failed: %w", migration.Version, err)
 		}
 
-		log.Printf("Applied migration %03d successfully", migration.Version)
+		logging.Info("Applied migration successfully", "version", migration.Version)
 	}
 
 	return nil
@@ -238,7 +239,7 @@ func (m *Migrator) Down() error {
 	}
 
 	if currentVersion == 0 {
-		log.Println("No migrations to rollback")
+		logging.Info("No migrations to rollback")
 		return nil
 	}
 
@@ -259,13 +260,13 @@ func (m *Migrator) Down() error {
 		return fmt.Errorf("migration %d has no down file", currentVersion)
 	}
 
-	log.Printf("Rolling back migration %03d: %s", migration.Version, migration.Description)
+	logging.Info("Rolling back migration", "version", migration.Version, "description", migration.Description)
 
 	if err := m.runMigration(*migration, false); err != nil {
 		return fmt.Errorf("rollback of migration %d failed: %w", migration.Version, err)
 	}
 
-	log.Printf("Rolled back migration %03d successfully", migration.Version)
+	logging.Info("Rolled back migration successfully", "version", migration.Version)
 
 	return nil
 }

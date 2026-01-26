@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**All 105 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**111 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -110,22 +110,26 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Video file validation with ffprobe (Task 107)
 - ✅ Content Security Policy headers (Task 108)
 
-### Technical Infrastructure (Task 109)
+### Technical Infrastructure (Tasks 109, 113)
 - ✅ Database migration system (Task 109)
   - Migration files in `backend/db/migrations/` as versioned .sql files
   - Schema version tracked in `schema_migrations` table
   - CLI tool: `go run ./cmd/migrate [up|down|status|version]`
   - Automatic upgrade from pre-migration databases
+- ✅ Structured logging with slog (Task 113)
+  - Package: `backend/logging/` using Go's standard `log/slog`
+  - Log levels: Debug, Info, Warn, Error, Fatal
+  - Context-aware logging with request_id, user_id, video_id, session_id
+  - Configure via `LOG_LEVEL` env var (debug, info, warn, error)
 
 ## Current Work
 
-**6 tasks remaining** (111-116):
+**5 tasks remaining** (111-112, 114-116):
 
-1. Technical debt (113): Structured logging
-2. UX improvements (111-112): Video thumbnails, burn progress indicators
-3. Security (114): Authenticated health check
-4. Cleanup (115): Remove hardcoded Go paths
-5. Performance (116): Chunked uploads for large videos
+1. UX improvements (111-112): Video thumbnails, burn progress indicators
+2. Security (114): Authenticated health check
+3. Cleanup (115): Remove hardcoded Go paths
+4. Performance (116): Chunked uploads for large videos
 
 See `TASKS.jsonl` for details.
 

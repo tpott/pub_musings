@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -26,6 +25,7 @@ import (
 	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
+	"github.com/trevor/subtitler/backend/logging"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
@@ -114,7 +114,7 @@ func getEnvSizeOrDefault(key string, defaultValue int64) int64 {
 
 	var size int64
 	if _, err := fmt.Sscanf(value, "%d", &size); err != nil {
-		log.Printf("Warning: Invalid MAX_UPLOAD_SIZE '%s', using default %d bytes", os.Getenv(key), defaultValue)
+		logging.Warn("Invalid MAX_UPLOAD_SIZE, using default", "value", os.Getenv(key), "default_bytes", defaultValue)
 		return defaultValue
 	}
 
@@ -131,13 +131,13 @@ func parseRateLimit(value string, defaultCount int, defaultWindow time.Duration)
 	// Parse format: "count/window" where window is min, hour, or s
 	parts := strings.SplitN(value, "/", 2)
 	if len(parts) != 2 {
-		log.Printf("Warning: Invalid rate limit format '%s', using default", value)
+		logging.Warn("Invalid rate limit format, using default", "value", value)
 		return defaultCount, defaultWindow
 	}
 
 	var count int
 	if _, err := fmt.Sscanf(parts[0], "%d", &count); err != nil || count <= 0 {
-		log.Printf("Warning: Invalid rate limit count '%s', using default", parts[0])
+		logging.Warn("Invalid rate limit count, using default", "value", parts[0])
 		return defaultCount, defaultWindow
 	}
 
@@ -155,7 +155,7 @@ func parseRateLimit(value string, defaultCount int, defaultWindow time.Duration)
 		var err error
 		window, err = time.ParseDuration(windowStr)
 		if err != nil {
-			log.Printf("Warning: Invalid rate limit window '%s', using default", windowStr)
+			logging.Warn("Invalid rate limit window, using default", "value", windowStr)
 			return defaultCount, defaultWindow
 		}
 	}
@@ -181,7 +181,7 @@ func getEnvDurationOrDefault(key string, defaultValue time.Duration) time.Durati
 	}
 	d, err := time.ParseDuration(value)
 	if err != nil {
-		log.Printf("Warning: Invalid duration '%s' for %s, using default %v", value, key, defaultValue)
+		logging.Warn("Invalid duration, using default", "key", key, "value", value, "default", defaultValue)
 		return defaultValue
 	}
 	return d
@@ -283,8 +283,12 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 		// Set the request ID in response header
 		w.Header().Set("X-Request-ID", requestID)
 
+		// Add request ID to context for downstream handlers
+		ctx := logging.WithRequestID(r.Context(), requestID)
+		r = r.WithContext(ctx)
+
 		// Log the request with its ID
-		log.Printf("[%s] %s %s", requestID, r.Method, r.URL.Path)
+		logging.InfoContext(ctx, "Request received", "method", r.Method, "path", r.URL.Path)
 
 		// Call the next handler
 		next.ServeHTTP(w, r)
@@ -516,7 +520,7 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 		if err != nil {
 			lastErr = err
 			if attempt < maxRetries-1 {
-				log.Printf("whisper-server request failed (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, retryDelays[attempt])
+				logging.Warn("whisper-server request failed, retrying", "attempt", attempt+1, "max_retries", maxRetries, "error", err, "retry_delay", retryDelays[attempt])
 				time.Sleep(retryDelays[attempt])
 				continue
 			}
@@ -529,7 +533,7 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 		if err != nil {
 			lastErr = err
 			if attempt < maxRetries-1 {
-				log.Printf("failed to read response (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, retryDelays[attempt])
+				logging.Warn("failed to read response, retrying", "attempt", attempt+1, "max_retries", maxRetries, "error", err, "retry_delay", retryDelays[attempt])
 				time.Sleep(retryDelays[attempt])
 				continue
 			}
@@ -540,7 +544,7 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
 			lastErr = fmt.Errorf("server error (status %d): %s", resp.StatusCode, string(respBody))
 			if attempt < maxRetries-1 {
-				log.Printf("whisper-server returned %d (attempt %d/%d): %s, retrying in %v", resp.StatusCode, attempt+1, maxRetries, string(respBody), retryDelays[attempt])
+				logging.Warn("whisper-server returned error, retrying", "status_code", resp.StatusCode, "attempt", attempt+1, "max_retries", maxRetries, "response", string(respBody), "retry_delay", retryDelays[attempt])
 				time.Sleep(retryDelays[attempt])
 				continue
 			}
@@ -606,10 +610,10 @@ func transcribe(audioPath, outputPath, language string) (*WhisperResult, error) 
 		language = "auto"
 	}
 	if isWhisperServerEnabled() {
-		log.Printf("Using whisper-server at %s (language: %s)", getWhisperServerURL(), language)
+		logging.Info("Using whisper-server", "url", getWhisperServerURL(), "language", language)
 		return transcribeAudioServer(audioPath, language)
 	}
-	log.Printf("Using whisper-cli with model %s (language: %s)", getWhisperModel(), language)
+	logging.Info("Using whisper-cli", "model", getWhisperModel(), "language", language)
 	return transcribeAudio(audioPath, outputPath, language)
 }
 
@@ -746,6 +750,9 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 }
 
 func main() {
+	// Initialize structured logging first
+	logging.Init(os.Getenv("LOG_LEVEL"))
+
 	// Initialize configuration from environment variables
 	initConfig()
 	initRateLimiters()
@@ -756,55 +763,60 @@ func main() {
 	}
 
 	// Log configuration
-	log.Printf("Configuration: MAX_UPLOAD_SIZE=%d, UPLOAD_DIR=%s, DB_PATH=%s, KEY_PATH=%s",
-		maxUploadSize, uploadDir, dbPath, keyPath)
-	log.Printf("Rate limits: AUTH=%d/%v, UPLOAD=%d/%v, TRANSCRIBE=%d/%v, BURN=%d/%v, SCRIPT=%d/%v",
-		authRateLimit, authRateWindow, uploadRateLimit, uploadRateWindow,
-		transcribeRateLimit, transcribeRateWindow, burnRateLimit, burnRateWindow,
-		scriptRateLimit, scriptRateWindow)
+	logging.Info("Configuration loaded",
+		"max_upload_size", maxUploadSize,
+		"upload_dir", uploadDir,
+		"db_path", dbPath,
+		"key_path", keyPath)
+	logging.Info("Rate limits configured",
+		"auth", fmt.Sprintf("%d/%v", authRateLimit, authRateWindow),
+		"upload", fmt.Sprintf("%d/%v", uploadRateLimit, uploadRateWindow),
+		"transcribe", fmt.Sprintf("%d/%v", transcribeRateLimit, transcribeRateWindow),
+		"burn", fmt.Sprintf("%d/%v", burnRateLimit, burnRateWindow),
+		"script", fmt.Sprintf("%d/%v", scriptRateLimit, scriptRateWindow))
 
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		log.Fatalf("Failed to create upload directory: %v", err)
+		logging.Fatal("Failed to create upload directory", "error", err)
 	}
 
 	// Initialize database
 	var err error
 	database, err = db.Open(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		logging.Fatal("Failed to open database", "error", err)
 	}
 	defer database.Close()
-	log.Printf("Database initialized at %s", dbPath)
+	logging.Info("Database initialized", "path", dbPath)
 
 	// Initialize encryptor for file encryption at rest
 	var isNewKey bool
 	encryptor, isNewKey, err = crypto.LoadOrGenerateKey(keyPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize encryption: %v", err)
+		logging.Fatal("Failed to initialize encryption", "error", err)
 	}
 	if isNewKey {
-		log.Printf("Generated new encryption key, saved to %s", keyPath)
+		logging.Info("Generated new encryption key", "path", keyPath)
 	} else {
-		log.Printf("Loaded encryption key from %s", keyPath)
+		logging.Info("Loaded encryption key", "path", keyPath)
 	}
-	log.Printf("Public key: %s", encryptor.PublicKey())
+	logging.Info("Encryption initialized", "public_key", encryptor.PublicKey())
 
 	// Initialize email service
 	emailService = email.NewResendService()
 	if emailService.IsEnabled() {
-		log.Printf("Email service enabled")
+		logging.Info("Email service enabled")
 	} else {
-		log.Printf("Email service disabled (no RESEND_API_KEY set)")
+		logging.Info("Email service disabled (no RESEND_API_KEY set)")
 	}
 
 	// Initialize audio extractor and check ffmpeg availability
 	audioExtractor = audio.NewFFmpegExtractor()
 	if err := audio.CheckFFmpegAvailable(); err != nil {
-		log.Printf("WARNING: %v", err)
-		log.Printf("Video transcription and subtitle burning will fail until ffmpeg is installed")
+		logging.Warn("ffmpeg not available", "error", err)
+		logging.Warn("Video transcription and subtitle burning will fail until ffmpeg is installed")
 	} else {
-		log.Printf("ffmpeg available for video processing")
+		logging.Info("ffmpeg available for video processing")
 	}
 
 	mux := http.NewServeMux()
@@ -878,36 +890,18 @@ func main() {
 			req.Level = "log"
 		}
 
-		// Format the log message with source info
-		var prefix string
-		switch req.Level {
-		case "error":
-			prefix = "[FRONTEND ERROR]"
-		case "warn":
-			prefix = "[FRONTEND WARN]"
-		case "debug":
-			prefix = "[FRONTEND DEBUG]"
-		case "info":
-			prefix = "[FRONTEND INFO]"
-		default:
-			prefix = "[FRONTEND]"
-		}
-
-		// Build log message
-		logMsg := fmt.Sprintf("%s %s", prefix, req.Message)
+		// Log frontend message
+		attrs := []any{"level", req.Level, "message", req.Message}
 		if req.URL != "" {
-			logMsg = fmt.Sprintf("%s (from %s", logMsg, req.URL)
+			attrs = append(attrs, "url", req.URL)
 			if req.Line > 0 {
-				logMsg = fmt.Sprintf("%s:%d", logMsg, req.Line)
+				attrs = append(attrs, "line", req.Line)
 				if req.Column > 0 {
-					logMsg = fmt.Sprintf("%s:%d", logMsg, req.Column)
+					attrs = append(attrs, "column", req.Column)
 				}
 			}
-			logMsg = logMsg + ")"
 		}
-
-		// Log to backend console
-		log.Println(logMsg)
+		logging.DebugContext(r.Context(), "Frontend log", attrs...)
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -956,7 +950,7 @@ func main() {
 		// Check if email already exists
 		existingUser, err := database.GetUserByEmail(req.Email)
 		if err != nil {
-			log.Printf("Error checking existing user: %v", err)
+			logging.ErrorContext(r.Context(), "Error checking existing user", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Registration failed",
@@ -974,7 +968,7 @@ func main() {
 		// Hash password
 		hash, err := auth.HashPassword(req.Password)
 		if err != nil {
-			log.Printf("Error hashing password: %v", err)
+			logging.ErrorContext(r.Context(), "Error hashing password", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Registration failed",
@@ -985,7 +979,7 @@ func main() {
 		// Generate user ID
 		userID, err := auth.GenerateID()
 		if err != nil {
-			log.Printf("Error generating user ID: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating user ID", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Registration failed",
@@ -1002,7 +996,7 @@ func main() {
 			CreatedAt:     time.Now(),
 		}
 		if err := database.CreateUser(user); err != nil {
-			log.Printf("Error creating user: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating user", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Registration failed",
@@ -1013,7 +1007,7 @@ func main() {
 		// Generate email verification token (32 bytes = 256 bits entropy)
 		tokenBytes := make([]byte, 32)
 		if _, err := rand.Read(tokenBytes); err != nil {
-			log.Printf("Error generating verification token: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating verification token", "error", err)
 			// User created but verification email failed - return success with message
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1035,16 +1029,15 @@ func main() {
 		expiresAt := time.Now().Add(24 * time.Hour)
 		_, err = database.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
 		if err != nil {
-			log.Printf("Error creating verification token: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating verification token", "error", err)
 		}
 
 		// Send verification email
-		ctx := r.Context()
-		if err := emailService.SendEmailVerification(ctx, user.Email, token); err != nil {
-			log.Printf("Error sending verification email: %v", err)
+		if err := emailService.SendEmailVerification(r.Context(), user.Email, token); err != nil {
+			logging.ErrorContext(r.Context(), "Error sending verification email", "error", err)
 		}
 
-		log.Printf("New user registered (pending verification): %s", user.Email)
+		logging.InfoContext(r.Context(), "New user registered (pending verification)", "email", user.Email)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":            "Account created. Please check your email to verify your account.",
@@ -1087,7 +1080,7 @@ func main() {
 		// Check if email is locked due to too many failed attempts
 		locked, unlockTime, err := database.IsEmailLocked(req.Email, maxLoginAttempts, loginLockDuration)
 		if err != nil {
-			log.Printf("Error checking email lock: %v", err)
+			logging.ErrorContext(r.Context(), "Error checking email lock", "email", req.Email, "error", err)
 		}
 		if locked {
 			remainingMins := int(time.Until(unlockTime).Minutes()) + 1
@@ -1102,14 +1095,14 @@ func main() {
 		// Helper to record failed attempt
 		recordFailure := func() {
 			if err := database.RecordLoginAttempt(req.Email, clientIP, false); err != nil {
-				log.Printf("Error recording login attempt: %v", err)
+				logging.ErrorContext(r.Context(), "Error recording login attempt", "email", req.Email, "error", err)
 			}
 		}
 
 		// Get user by email
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
-			log.Printf("Error getting user: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting user", "email", req.Email, "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Login failed",
@@ -1172,14 +1165,14 @@ func main() {
 
 		// Login successful - clear failed attempts for this email
 		if err := database.ClearLoginAttempts(req.Email); err != nil {
-			log.Printf("Error clearing login attempts: %v", err)
+			logging.ErrorContext(r.Context(), "Error clearing login attempts", "email", req.Email, "error", err)
 		}
 
 		// Create session with IP and user agent
 		userAgent := r.Header.Get("User-Agent")
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
-			log.Printf("Error creating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating session", "user_id", user.ID, "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Login failed",
@@ -1190,7 +1183,7 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
-		log.Printf("User logged in: %s", user.Email)
+		logging.InfoContext(r.Context(), "User logged in", "user_id", user.ID, "email", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
 				"id":           user.ID,
@@ -1209,7 +1202,7 @@ func main() {
 		token := auth.GetTokenFromRequest(r)
 		if token != "" {
 			if err := database.DeleteSession(token); err != nil {
-				log.Printf("Error deleting session: %v", err)
+				logging.ErrorContext(r.Context(), "Error deleting session", "error", err)
 			}
 		}
 
@@ -1227,7 +1220,7 @@ func main() {
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil {
-			log.Printf("Error validating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get user",
@@ -1270,7 +1263,7 @@ func main() {
 		// Validate the session exists
 		user, _, err := auth.ValidateSession(database, sessionToken)
 		if err != nil {
-			log.Printf("Error validating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to validate session",
@@ -1301,7 +1294,7 @@ func main() {
 		token := auth.GetTokenFromRequest(r)
 		user, currentSession, err := auth.ValidateSession(database, token)
 		if err != nil {
-			log.Printf("Error validating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to validate session",
@@ -1319,7 +1312,7 @@ func main() {
 
 		sessions, err := database.GetSessionsByUserID(user.ID)
 		if err != nil {
-			log.Printf("Error getting sessions: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting sessions", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get sessions",
@@ -1353,7 +1346,7 @@ func main() {
 		token := auth.GetTokenFromRequest(r)
 		user, currentSession, err := auth.ValidateSession(database, token)
 		if err != nil {
-			log.Printf("Error validating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to validate session",
@@ -1389,7 +1382,7 @@ func main() {
 
 		err = database.DeleteSessionByID(sessionID, user.ID)
 		if err != nil {
-			log.Printf("Error deleting session: %v", err)
+			logging.ErrorContext(r.Context(), "Error deleting session", "error", err)
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Session not found",
@@ -1430,7 +1423,7 @@ func main() {
 		// Generate a new TOTP secret
 		secret, err := totp.GenerateSecret()
 		if err != nil {
-			log.Printf("Error generating TOTP secret: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating TOTP secret", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to generate secret",
@@ -1440,7 +1433,7 @@ func main() {
 
 		// Save the secret to the database (not yet enabled)
 		if err := database.SetTOTPSecret(user.ID, secret); err != nil {
-			log.Printf("Error saving TOTP secret: %v", err)
+			logging.ErrorContext(r.Context(), "Error saving TOTP secret", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save secret",
@@ -1455,7 +1448,7 @@ func main() {
 		// Generate QR code as base64 data URL
 		qrCode, err := totp.GenerateQRCode(uri)
 		if err != nil {
-			log.Printf("Error generating QR code: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating QR code", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to generate QR code",
@@ -1463,7 +1456,7 @@ func main() {
 			return
 		}
 
-		log.Printf("TOTP setup initiated for user: %s", user.Email)
+		logging.InfoContext(r.Context(), "TOTP setup initiated", "email", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"secret":         secret,
 			"secret_display": totp.FormatSecretForDisplay(secret),
@@ -1530,7 +1523,7 @@ func main() {
 		// Generate recovery codes
 		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
 		if err != nil {
-			log.Printf("Error generating recovery codes: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating recovery codes", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to generate recovery codes",
@@ -1543,7 +1536,7 @@ func main() {
 		for i, code := range recoveryCodes {
 			hash, err := totp.HashCode(code)
 			if err != nil {
-				log.Printf("Error hashing recovery code: %v", err)
+				logging.ErrorContext(r.Context(), "Error hashing recovery code", "error", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Failed to generate recovery codes",
@@ -1555,7 +1548,7 @@ func main() {
 
 		// Enable 2FA and save recovery codes in a single transaction
 		if err := database.EnableTOTPWithRecoveryCodes(user.ID, codeHashes); err != nil {
-			log.Printf("Error enabling TOTP with recovery codes: %v", err)
+			logging.ErrorContext(r.Context(), "Error enabling TOTP with recovery codes", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to enable 2FA",
@@ -1563,7 +1556,7 @@ func main() {
 			return
 		}
 
-		log.Printf("2FA enabled for user: %s with %d recovery codes", user.Email, len(recoveryCodes))
+		logging.InfoContext(r.Context(), "2FA enabled for user", "email", user.Email, "recovery_codes_count", len(recoveryCodes))
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":        "2FA has been enabled successfully",
 			"totp_enabled":   true,
@@ -1628,7 +1621,7 @@ func main() {
 
 		// Disable 2FA
 		if err := database.DisableTOTP(user.ID); err != nil {
-			log.Printf("Error disabling TOTP: %v", err)
+			logging.ErrorContext(r.Context(), "Error disabling TOTP", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to disable 2FA",
@@ -1638,11 +1631,11 @@ func main() {
 
 		// Delete recovery codes
 		if err := database.DeleteRecoveryCodes(user.ID); err != nil {
-			log.Printf("Error deleting recovery codes: %v", err)
+			logging.ErrorContext(r.Context(), "Error deleting recovery codes", "error", err)
 			// Continue - 2FA is disabled even if codes couldn't be deleted
 		}
 
-		log.Printf("2FA disabled for user: %s", user.Email)
+		logging.InfoContext(r.Context(), "2FA disabled for user", "email", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":      "2FA has been disabled successfully",
 			"totp_enabled": false,
@@ -1679,7 +1672,7 @@ func main() {
 		// Get user by email
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
-			log.Printf("Error getting user: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting user", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Server error",
@@ -1715,7 +1708,7 @@ func main() {
 		// Get unused recovery codes
 		codes, err := database.GetUnusedRecoveryCodes(user.ID)
 		if err != nil {
-			log.Printf("Error getting recovery codes: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting recovery codes", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Server error",
@@ -1744,7 +1737,7 @@ func main() {
 		// Mark the code as used
 		success, err := database.UseRecoveryCode(matchedCodeID)
 		if err != nil || !success {
-			log.Printf("Error using recovery code: %v", err)
+			logging.ErrorContext(r.Context(), "Error using recovery code", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to use recovery code",
@@ -1754,7 +1747,7 @@ func main() {
 
 		// Disable 2FA, delete recovery codes, and clear sessions in a single transaction
 		if err := database.DisableTOTPAndClearSessions(user.ID); err != nil {
-			log.Printf("Error disabling TOTP and clearing sessions: %v", err)
+			logging.ErrorContext(r.Context(), "Error disabling TOTP and clearing sessions", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to disable 2FA",
@@ -1767,7 +1760,7 @@ func main() {
 		userAgent := r.Header.Get("User-Agent")
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
-			log.Printf("Error creating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating session", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to create session",
@@ -1778,7 +1771,7 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
-		log.Printf("2FA disabled via recovery code for user: %s", user.Email)
+		logging.InfoContext(r.Context(), "2FA disabled via recovery code", "email", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":      "2FA has been disabled. Please set up 2FA again if you want to re-enable it.",
 			"token":        session.Token,
@@ -1844,7 +1837,7 @@ func main() {
 		// Generate new recovery codes
 		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
 		if err != nil {
-			log.Printf("Error generating recovery codes: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating recovery codes", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to generate recovery codes",
@@ -1857,7 +1850,7 @@ func main() {
 		for i, code := range recoveryCodes {
 			hash, err := totp.HashCode(code)
 			if err != nil {
-				log.Printf("Error hashing recovery code: %v", err)
+				logging.ErrorContext(r.Context(), "Error hashing recovery code", "error", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Failed to generate recovery codes",
@@ -1868,7 +1861,7 @@ func main() {
 		}
 
 		if err := database.SaveRecoveryCodes(user.ID, codeHashes); err != nil {
-			log.Printf("Error saving recovery codes: %v", err)
+			logging.ErrorContext(r.Context(), "Error saving recovery codes", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save recovery codes",
@@ -1876,7 +1869,7 @@ func main() {
 			return
 		}
 
-		log.Printf("Regenerated recovery codes for user: %s", user.Email)
+		logging.InfoContext(r.Context(), "Regenerated recovery codes", "email", user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":        "Recovery codes regenerated successfully",
 			"recovery_codes": recoveryCodes,
@@ -1921,19 +1914,19 @@ func main() {
 		// Look up user (don't reveal if exists)
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
-			log.Printf("Error looking up user for password reset: %v", err)
+			logging.ErrorContext(r.Context(), "Error looking up user for password reset", "error", err)
 			return
 		}
 		if user == nil {
 			// User doesn't exist - return success anyway
-			log.Printf("Password reset requested for non-existent email: %s", req.Email)
+			logging.DebugContext(r.Context(), "Password reset requested for non-existent email", "email", req.Email)
 			return
 		}
 
 		// Generate reset token (32 bytes = 256 bits entropy)
 		tokenBytes := make([]byte, 32)
 		if _, err := rand.Read(tokenBytes); err != nil {
-			log.Printf("Error generating reset token: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating reset token", "error", err)
 			return
 		}
 		token := hex.EncodeToString(tokenBytes)
@@ -1943,19 +1936,19 @@ func main() {
 		expiresAt := time.Now().Add(1 * time.Hour)
 		_, err = database.CreatePasswordResetToken(user.ID, tokenHash, expiresAt)
 		if err != nil {
-			log.Printf("Error creating password reset token: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating password reset token", "error", err)
 			return
 		}
 
 		// Send password reset email
 		ctx := r.Context()
 		if err := emailService.SendPasswordReset(ctx, user.Email, token); err != nil {
-			log.Printf("Error sending password reset email: %v", err)
+			logging.ErrorContext(r.Context(), "Error sending password reset email", "error", err)
 			// Still return success to prevent enumeration
 			return
 		}
 
-		log.Printf("Password reset email sent to: %s", user.Email)
+		logging.InfoContext(r.Context(), "Password reset email sent", "email", user.Email)
 	}))
 
 	// Auth: Reset password - completes password reset with token
@@ -1996,7 +1989,7 @@ func main() {
 		tokenHash := email.HashToken(req.Token)
 		resetToken, err := database.GetPasswordResetToken(tokenHash)
 		if err != nil {
-			log.Printf("Error looking up reset token: %v", err)
+			logging.ErrorContext(r.Context(), "Error looking up reset token", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to process reset request",
@@ -2025,7 +2018,7 @@ func main() {
 		// Hash the new password
 		passwordHash, err := auth.HashPassword(req.Password)
 		if err != nil {
-			log.Printf("Error hashing new password: %v", err)
+			logging.ErrorContext(r.Context(), "Error hashing new password", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to process reset request",
@@ -2039,7 +2032,7 @@ func main() {
 		// - Delete all tokens for user
 		// - Delete all sessions for user
 		if err := database.CompletePasswordReset(resetToken.UserID, tokenHash, passwordHash); err != nil {
-			log.Printf("Error completing password reset: %v", err)
+			logging.ErrorContext(r.Context(), "Error completing password reset", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to update password",
@@ -2047,7 +2040,7 @@ func main() {
 			return
 		}
 
-		log.Printf("Password reset successful for user: %s", resetToken.UserID)
+		logging.InfoContext(r.Context(), "Password reset successful", "user_id", resetToken.UserID)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Password has been reset successfully. Please log in with your new password.",
 		})
@@ -2090,25 +2083,25 @@ func main() {
 		// Look up user (don't reveal if exists)
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
-			log.Printf("Error looking up user for magic link: %v", err)
+			logging.ErrorContext(r.Context(), "Error looking up user for magic link", "error", err)
 			return
 		}
 		if user == nil {
 			// User doesn't exist - return success anyway
-			log.Printf("Magic link requested for non-existent email: %s", req.Email)
+			logging.DebugContext(r.Context(), "Magic link requested for non-existent email", "email", req.Email)
 			return
 		}
 
 		// Check if email is verified
 		if !user.EmailVerified {
-			log.Printf("Magic link requested for unverified email: %s", req.Email)
+			logging.DebugContext(r.Context(), "Magic link requested for unverified email", "email", req.Email)
 			return
 		}
 
 		// Generate magic link token (32 bytes = 256 bits entropy)
 		tokenBytes := make([]byte, 32)
 		if _, err := rand.Read(tokenBytes); err != nil {
-			log.Printf("Error generating magic link token: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating magic link token", "error", err)
 			return
 		}
 		token := hex.EncodeToString(tokenBytes)
@@ -2118,19 +2111,19 @@ func main() {
 		expiresAt := time.Now().Add(15 * time.Minute)
 		_, err = database.CreateMagicLinkToken(user.ID, tokenHash, expiresAt)
 		if err != nil {
-			log.Printf("Error creating magic link token: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating magic link token", "error", err)
 			return
 		}
 
 		// Send magic link email
 		ctx := r.Context()
 		if err := emailService.SendMagicLink(ctx, user.Email, token); err != nil {
-			log.Printf("Error sending magic link email: %v", err)
+			logging.ErrorContext(r.Context(), "Error sending magic link email", "error", err)
 			// Still return success to prevent enumeration
 			return
 		}
 
-		log.Printf("Magic link email sent to: %s", user.Email)
+		logging.InfoContext(r.Context(), "Magic link email sent", "email", user.Email)
 	}))
 
 	// Auth: Verify magic link - logs user in with magic link token
@@ -2151,7 +2144,7 @@ func main() {
 		tokenHash := email.HashToken(token)
 		magicToken, err := database.GetMagicLinkToken(tokenHash)
 		if err != nil {
-			log.Printf("Error looking up magic link token: %v", err)
+			logging.ErrorContext(r.Context(), "Error looking up magic link token", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to verify magic link",
@@ -2180,7 +2173,7 @@ func main() {
 		// Mark token as used atomically
 		used, err := database.UseMagicLinkToken(tokenHash)
 		if err != nil {
-			log.Printf("Error marking magic link token as used: %v", err)
+			logging.ErrorContext(r.Context(), "Error marking magic link token as used", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to verify magic link",
@@ -2199,7 +2192,7 @@ func main() {
 		// Get user
 		user, err := database.GetUserByID(magicToken.UserID)
 		if err != nil || user == nil {
-			log.Printf("Error getting user for magic link: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting user for magic link", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to complete login",
@@ -2212,7 +2205,7 @@ func main() {
 		userAgent := r.Header.Get("User-Agent")
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
-			log.Printf("Error creating session: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating session", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to create session",
@@ -2223,7 +2216,7 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
-		log.Printf("Magic link login successful for user: %s", user.ID)
+		logging.InfoContext(r.Context(), "Magic link login successful", "user_id", user.ID)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message": "Login successful",
 			"user": map[string]interface{}{
@@ -2251,7 +2244,7 @@ func main() {
 		tokenHash := email.HashToken(token)
 		verifyToken, err := database.GetEmailVerificationToken(tokenHash)
 		if err != nil {
-			log.Printf("Error looking up verification token: %v", err)
+			logging.ErrorContext(r.Context(), "Error looking up verification token", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to process verification request",
@@ -2280,7 +2273,7 @@ func main() {
 		// Verify the email (marks token as used and sets email_verified=1)
 		success, err := database.UseEmailVerificationToken(tokenHash)
 		if err != nil || !success {
-			log.Printf("Error verifying email: %v", err)
+			logging.ErrorContext(r.Context(), "Error verifying email", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to verify email",
@@ -2288,7 +2281,7 @@ func main() {
 			return
 		}
 
-		log.Printf("Email verified for user: %s", verifyToken.UserID)
+		logging.InfoContext(r.Context(), "Email verified", "user_id", verifyToken.UserID)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Email verified successfully. You can now log in.",
 		})
@@ -2331,7 +2324,7 @@ func main() {
 		// Look up user
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
-			log.Printf("Error looking up user for resend verification: %v", err)
+			logging.ErrorContext(r.Context(), "Error looking up user for resend verification", "error", err)
 			return
 		}
 		if user == nil {
@@ -2348,7 +2341,7 @@ func main() {
 		// Generate new verification token (32 bytes = 256 bits entropy)
 		tokenBytes := make([]byte, 32)
 		if _, err := rand.Read(tokenBytes); err != nil {
-			log.Printf("Error generating verification token: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating verification token", "error", err)
 			return
 		}
 		token := hex.EncodeToString(tokenBytes)
@@ -2358,18 +2351,18 @@ func main() {
 		expiresAt := time.Now().Add(24 * time.Hour)
 		_, err = database.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
 		if err != nil {
-			log.Printf("Error creating verification token: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating verification token", "error", err)
 			return
 		}
 
 		// Send verification email
 		ctx := r.Context()
 		if err := emailService.SendEmailVerification(ctx, user.Email, token); err != nil {
-			log.Printf("Error sending verification email: %v", err)
+			logging.ErrorContext(r.Context(), "Error sending verification email", "error", err)
 			return
 		}
 
-		log.Printf("Verification email resent to: %s", user.Email)
+		logging.InfoContext(r.Context(), "Verification email resent", "email", user.Email)
 	}))
 
 	// Upload endpoint - accepts video files (rate limited: 10/min per IP)
@@ -2387,7 +2380,7 @@ func main() {
 		if user == nil && sessionID != "" {
 			count, err := database.CountVideosBySession(sessionID)
 			if err != nil {
-				log.Printf("Error counting videos for session: %v", err)
+				logging.ErrorContext(r.Context(), "Error counting videos for session", "error", err)
 			} else if count >= 2 {
 				w.WriteHeader(http.StatusForbidden)
 				json.NewEncoder(w).Encode(map[string]string{
@@ -2402,7 +2395,7 @@ func main() {
 
 		// Parse multipart form
 		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
-			log.Printf("Error parsing form: %v", err)
+			logging.ErrorContext(r.Context(), "Error parsing form", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "File too large or invalid form data",
@@ -2413,7 +2406,7 @@ func main() {
 		// Get the file from the form
 		file, header, err := r.FormFile("video")
 		if err != nil {
-			log.Printf("Error getting form file: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting form file", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "No video file provided",
@@ -2446,7 +2439,7 @@ func main() {
 		// Generate unique ID for this upload
 		uploadID, err := generateID()
 		if err != nil {
-			log.Printf("Error generating upload ID: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating upload ID", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
 			return
@@ -2462,7 +2455,7 @@ func main() {
 		destPath := filepath.Join(uploadDir, uploadID+ext)
 		destFile, err := os.Create(destPath)
 		if err != nil {
-			log.Printf("Error creating destination file: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save file",
@@ -2474,7 +2467,7 @@ func main() {
 		// Copy the uploaded file to destination
 		written, err := io.Copy(destFile, file)
 		if err != nil {
-			log.Printf("Error copying file: %v", err)
+			logging.ErrorContext(r.Context(), "Error copying file", "error", err)
 			os.Remove(destPath) // Clean up partial file
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -2484,11 +2477,11 @@ func main() {
 		}
 		destFile.Close() // Close before encrypting
 
-		log.Printf("Uploaded file: %s (%d bytes) -> %s", header.Filename, written, destPath)
+		logging.InfoContext(r.Context(), "Uploaded file", "filename", header.Filename, "bytes", written, "dest_path", destPath)
 
 		// Validate the file is actually a valid video (defense-in-depth beyond MIME check)
 		if err := audio.ValidateVideoFile(destPath); err != nil {
-			log.Printf("Video validation failed for %s: %v", destPath, err)
+			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
 			os.Remove(destPath) // Clean up invalid file
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -2500,7 +2493,7 @@ func main() {
 		// Encrypt the file at rest
 		encPath, err := encryptor.EncryptFile(destPath)
 		if err != nil {
-			log.Printf("Error encrypting file: %v", err)
+			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			os.Remove(destPath)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -2511,7 +2504,7 @@ func main() {
 
 		// Remove the unencrypted file
 		os.Remove(destPath)
-		log.Printf("Encrypted file: %s -> %s", destPath, encPath)
+		logging.InfoContext(r.Context(), "Encrypted file", "src_path", destPath, "enc_path", encPath)
 
 		// Save video to database with encrypted file path
 		video := &db.Video{
@@ -2531,7 +2524,7 @@ func main() {
 			video.SessionID = &sessionID
 		}
 		if err := database.CreateVideo(video); err != nil {
-			log.Printf("Error saving video to database: %v", err)
+			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
 			os.Remove(encPath) // Clean up encrypted file
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -2543,7 +2536,7 @@ func main() {
 		// Create initial transcription record
 		transcriptionID, err := generateID()
 		if err != nil {
-			log.Printf("Error generating transcription ID: %v", err)
+			logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
 			os.Remove(encPath) // Clean up encrypted file
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
@@ -2558,7 +2551,7 @@ func main() {
 			CreatedAt: time.Now(),
 		}
 		if err := database.CreateTranscription(transcription); err != nil {
-			log.Printf("Error creating transcription record: %v", err)
+			logging.ErrorContext(r.Context(), "Error creating transcription record", "error", err)
 			// Don't fail the upload, transcription record can be created later
 		}
 
@@ -2606,7 +2599,7 @@ func main() {
 		// Check if already processing from database
 		existingTranscription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 		}
 		if existingTranscription != nil {
 			if existingTranscription.Status == "processing" {
@@ -2626,7 +2619,7 @@ func main() {
 		if existingTranscription == nil {
 			newTranscriptionID, err := generateID()
 			if err != nil {
-				log.Printf("Error generating transcription ID: %v", err)
+				logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
 				return
@@ -2640,7 +2633,7 @@ func main() {
 				CreatedAt: time.Now(),
 			}
 			if err := database.CreateTranscription(transcription); err != nil {
-				log.Printf("Error creating transcription record: %v", err)
+				logging.ErrorContext(r.Context(), "Error creating transcription record", "error", err)
 			}
 		} else {
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
@@ -2648,7 +2641,7 @@ func main() {
 
 		// Process in background (capture language in closure)
 		go func(lang string) {
-			log.Printf("Starting transcription for %s (language: %s)", uploadID, lang)
+			logging.Info("Starting transcription", "upload_id", uploadID, "language", lang)
 
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
@@ -2656,7 +2649,7 @@ func main() {
 				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
 				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
 				if err != nil {
-					log.Printf("Video decryption failed: %v", err)
+					logging.Error("Video decryption failed", "error", err)
 					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
 					return
 				}
@@ -2668,7 +2661,7 @@ func main() {
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
-				log.Printf("Audio extraction failed: %v", err)
+				logging.Error("Audio extraction failed", "error", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
@@ -2702,7 +2695,7 @@ func main() {
 			close(progressDone) // Stop progress simulation
 
 			if err != nil {
-				log.Printf("Transcription failed: %v", err)
+				logging.Error("Transcription failed", "error", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
 				return
 			}
@@ -2719,9 +2712,9 @@ func main() {
 			}
 
 			// Success - save to database
-			log.Printf("Transcription complete for %s: %d segments", uploadID, len(result.Segments))
+			logging.Info("Transcription complete", "upload_id", uploadID, "segment_count", len(result.Segments))
 			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
-				log.Printf("Error saving transcription result: %v", err)
+				logging.Error("Error saving transcription result", "error", err)
 			}
 
 			// Clean up intermediate files
@@ -2750,7 +2743,7 @@ func main() {
 
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get transcription status",
@@ -2785,7 +2778,7 @@ func main() {
 		// Check if transcription exists and is complete
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get transcription",
@@ -2840,7 +2833,7 @@ func main() {
 
 		// Update segments in database
 		if err := database.UpdateSegments(uploadID, req.Segments); err != nil {
-			log.Printf("Error updating segments: %v", err)
+			logging.ErrorContext(r.Context(), "Error updating segments", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to update segments",
@@ -2848,7 +2841,7 @@ func main() {
 			return
 		}
 
-		log.Printf("Updated segments for %s: %d segments", uploadID, len(req.Segments))
+		logging.InfoContext(r.Context(), "Updated segments", "upload_id", uploadID, "segment_count", len(req.Segments))
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":   "success",
 			"segments": len(req.Segments),
@@ -2871,7 +2864,7 @@ func main() {
 		// Check if transcription exists and is complete
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get transcription",
@@ -2943,7 +2936,7 @@ func main() {
 		// Get existing segments
 		existingSegments, err := transcription.GetSegments()
 		if err != nil {
-			log.Printf("Error getting segments: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting segments", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get existing segments",
@@ -2991,12 +2984,12 @@ func main() {
 				}
 			}
 			scriptConverted = true
-			log.Printf("Applied script conversion to %s for upload %s", targetScript, uploadID)
+			logging.InfoContext(r.Context(), "Applied script conversion", "target_script", targetScript, "upload_id", uploadID)
 		}
 
 		// Update segments in database
 		if err := database.UpdateSegments(uploadID, newSegments); err != nil {
-			log.Printf("Error updating segments: %v", err)
+			logging.ErrorContext(r.Context(), "Error updating segments", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save aligned segments",
@@ -3008,8 +3001,7 @@ func main() {
 		if req.Mode == "lyrics" {
 			mode = "lyrics"
 		}
-		log.Printf("Aligned transcript for %s (mode=%s): %d segments, %.1f%% match rate",
-			uploadID, mode, len(newSegments), result.Stats.MatchRate*100)
+		logging.InfoContext(r.Context(), "Aligned transcript", "upload_id", uploadID, "mode", mode, "segment_count", len(newSegments), "match_rate", result.Stats.MatchRate*100)
 
 		response := map[string]interface{}{
 			"status":   "success",
@@ -3038,7 +3030,7 @@ func main() {
 
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3135,7 +3127,7 @@ func main() {
 
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3229,7 +3221,7 @@ func main() {
 
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3331,7 +3323,7 @@ func main() {
 
 		videos, err := database.ListVideos(userPtr, sessionPtr)
 		if err != nil {
-			log.Printf("Error listing videos: %v", err)
+			logging.ErrorContext(r.Context(), "Error listing videos", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to list videos",
@@ -3385,7 +3377,7 @@ func main() {
 		// Get the video to check ownership
 		video, err := database.GetVideo(uploadID)
 		if err != nil {
-			log.Printf("Error getting video: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get video",
@@ -3426,7 +3418,7 @@ func main() {
 		// Check if transcription is in error state
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get transcription status",
@@ -3466,7 +3458,7 @@ func main() {
 
 		// Process in background (same logic as POST /api/transcribe/{id})
 		go func() {
-			log.Printf("Reprocessing transcription for %s", uploadID)
+			logging.Info("Reprocessing transcription", "upload_id", uploadID)
 
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
@@ -3474,7 +3466,7 @@ func main() {
 				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
 				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
 				if err != nil {
-					log.Printf("Video decryption failed: %v", err)
+					logging.Error("Video decryption failed", "error", err)
 					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
 					return
 				}
@@ -3486,7 +3478,7 @@ func main() {
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
-				log.Printf("Audio extraction failed: %v", err)
+				logging.Error("Audio extraction failed", "error", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
@@ -3518,7 +3510,7 @@ func main() {
 			close(progressDone)
 
 			if err != nil {
-				log.Printf("Transcription failed: %v", err)
+				logging.Error("Transcription failed", "error", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
 				return
 			}
@@ -3535,9 +3527,9 @@ func main() {
 			}
 
 			// Success
-			log.Printf("Reprocessing complete for %s: %d segments", uploadID, len(result.Segments))
+			logging.Info("Reprocessing complete", "upload_id", uploadID, "segment_count", len(result.Segments))
 			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
-				log.Printf("Error saving transcription result: %v", err)
+				logging.Error("Error saving transcription result", "error", err)
 			}
 
 			// Clean up
@@ -3594,7 +3586,7 @@ func main() {
 		if strings.HasSuffix(videoPath, ".age") {
 			decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
 			if err != nil {
-				log.Printf("Failed to decrypt video for serving: %v", err)
+				logging.ErrorContext(r.Context(), "Failed to decrypt video for serving", "error", err)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{
@@ -3633,7 +3625,7 @@ func main() {
 		// Check if transcription exists and is complete
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
-			log.Printf("Error getting transcription: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get transcription",
@@ -3659,7 +3651,7 @@ func main() {
 		// Check if already processing
 		existingJob, err := database.GetBurnJob(uploadID)
 		if err != nil {
-			log.Printf("Error getting burn job: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting burn job", "error", err)
 		}
 		if existingJob != nil {
 			if existingJob.Status == "processing" {
@@ -3694,7 +3686,7 @@ func main() {
 		if existingJob == nil {
 			burnJobID, err := generateID()
 			if err != nil {
-				log.Printf("Error generating burn job ID: %v", err)
+				logging.ErrorContext(r.Context(), "Error generating burn job ID", "error", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate burn job ID"})
 				return
@@ -3708,7 +3700,7 @@ func main() {
 				CreatedAt: time.Now(),
 			}
 			if err := database.CreateBurnJob(burnJob); err != nil {
-				log.Printf("Error creating burn job: %v", err)
+				logging.ErrorContext(r.Context(), "Error creating burn job", "error", err)
 			}
 		} else {
 			database.UpdateBurnJobStatus(uploadID, "processing", "Starting subtitle burn...", 0)
@@ -3716,7 +3708,7 @@ func main() {
 
 		// Process in background
 		go func() {
-			log.Printf("Starting subtitle burn for %s", uploadID)
+			logging.Info("Starting subtitle burn", "upload_id", uploadID)
 
 			// Decrypt video if encrypted
 			workingVideoPath := videoPath
@@ -3724,7 +3716,7 @@ func main() {
 				database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5)
 				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
 				if err != nil {
-					log.Printf("Video decryption failed: %v", err)
+					logging.Error("Video decryption failed", "error", err)
 					database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
 					return
 				}
@@ -3735,7 +3727,7 @@ func main() {
 			// Get segments for SRT generation
 			segments, err := transcription.GetSegments()
 			if err != nil || len(segments) == 0 {
-				log.Printf("No segments available: %v", err)
+				logging.Error("No segments available", "error", err)
 				database.FailBurnJob(uploadID, "No subtitle segments available")
 				return
 			}
@@ -3762,7 +3754,7 @@ func main() {
 			srtContent := generateSRT(whisperResult)
 			srtPath := filepath.Join(uploadDir, uploadID+"_burn.srt")
 			if err := os.WriteFile(srtPath, []byte(srtContent), 0644); err != nil {
-				log.Printf("Failed to write SRT file: %v", err)
+				logging.Error("Failed to write SRT file", "error", err)
 				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to write SRT file: %v", err))
 				return
 			}
@@ -3782,7 +3774,7 @@ func main() {
 			)
 			cmdOutput, err := cmd.CombinedOutput()
 			if err != nil {
-				log.Printf("ffmpeg burn subtitles failed: %v, output: %s", err, string(cmdOutput))
+				logging.Error("ffmpeg burn subtitles failed", "error", err, "output", string(cmdOutput))
 				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err))
 				return
 			}
@@ -3792,14 +3784,14 @@ func main() {
 			// Encrypt the output file
 			encOutputPath, err := encryptor.EncryptFile(outputPath)
 			if err != nil {
-				log.Printf("Failed to encrypt burned video: %v", err)
+				logging.Error("Failed to encrypt burned video", "error", err)
 				os.Remove(outputPath)
 				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err))
 				return
 			}
 			os.Remove(outputPath) // Remove unencrypted file
 
-			log.Printf("Subtitle burn complete for %s: %s", uploadID, encOutputPath)
+			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath)
 			database.CompleteBurnJob(uploadID, encOutputPath)
 		}()
 
@@ -3826,7 +3818,7 @@ func main() {
 
 		job, err := database.GetBurnJob(uploadID)
 		if err != nil {
-			log.Printf("Error getting burn job: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting burn job", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to get burn job status",
@@ -3863,7 +3855,7 @@ func main() {
 
 		job, err := database.GetBurnJob(uploadID)
 		if err != nil {
-			log.Printf("Error getting burn job: %v", err)
+			logging.ErrorContext(r.Context(), "Error getting burn job", "error", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3907,7 +3899,7 @@ func main() {
 		if strings.HasSuffix(job.OutputPath, ".age") {
 			decryptedPath, err := encryptor.DecryptToTempFile(job.OutputPath)
 			if err != nil {
-				log.Printf("Failed to decrypt burned video: %v", err)
+				logging.ErrorContext(r.Context(), "Failed to decrypt burned video", "error", err)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{
@@ -4044,8 +4036,7 @@ func main() {
 	// Start the database maintenance scheduler (VACUUM + ANALYZE)
 	go startMaintenanceScheduler()
 
-	log.Printf("Backend server starting on :%s", port)
-	log.Printf("Using whisper model: %s", getWhisperModel())
+	logging.Info("Backend server starting", "port", port, "whisper_model", getWhisperModel())
 
 	// Wrap mux with middleware chain (outermost runs first):
 	// 1. Security headers - add CSP and other security headers
@@ -4055,7 +4046,7 @@ func main() {
 	handler := securityHeadersMiddleware(requestIDMiddleware(csrfMiddleware(mux)))
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		logging.Fatal("Failed to start server", "error", err)
 	}
 }
 
@@ -4075,27 +4066,27 @@ func startCleanupScheduler() {
 
 // runCleanup deletes expired videos and their associated files
 func runCleanup() {
-	log.Println("Running cleanup for expired videos...")
+	logging.Info("Running cleanup for expired videos")
 
 	expiredVideos, err := database.GetExpiredVideos()
 	if err != nil {
-		log.Printf("Error getting expired videos: %v", err)
+		logging.Error("Error getting expired videos", "error", err)
 		return
 	}
 
 	if len(expiredVideos) == 0 {
-		log.Println("No expired videos to clean up")
+		logging.Debug("No expired videos to clean up")
 		return
 	}
 
-	log.Printf("Found %d expired videos to clean up", len(expiredVideos))
+	logging.Info("Found expired videos to clean up", "count", len(expiredVideos))
 
 	deletedCount := 0
 	for _, video := range expiredVideos {
 		// Delete from database and get file path
 		filePath, err := database.DeleteVideo(video.ID)
 		if err != nil {
-			log.Printf("Error deleting video %s from database: %v", video.ID, err)
+			logging.Error("Error deleting video from database", "video_id", video.ID, "error", err)
 			continue
 		}
 
@@ -4103,35 +4094,37 @@ func runCleanup() {
 		if filePath != "" {
 			if err := os.Remove(filePath); err != nil {
 				if !os.IsNotExist(err) {
-					log.Printf("Error deleting file %s: %v", filePath, err)
+					logging.Error("Error deleting file", "path", filePath, "error", err)
 				}
 			} else {
-				log.Printf("Deleted file: %s", filePath)
+				logging.Debug("Deleted file", "path", filePath)
 			}
 		}
 
 		deletedCount++
-		log.Printf("Cleaned up expired video: %s (user: %v, created: %s)",
-			video.ID, video.UserID != nil, video.CreatedAt.Format(time.RFC3339))
+		logging.Info("Cleaned up expired video",
+			"video_id", video.ID,
+			"has_user", video.UserID != nil,
+			"created_at", video.CreatedAt.Format(time.RFC3339))
 	}
 
 	// Also clean up expired sessions
 	sessionCount, err := database.DeleteExpiredSessions()
 	if err != nil {
-		log.Printf("Error deleting expired sessions: %v", err)
+		logging.Error("Error deleting expired sessions", "error", err)
 	} else if sessionCount > 0 {
-		log.Printf("Deleted %d expired sessions", sessionCount)
+		logging.Info("Deleted expired sessions", "count", sessionCount)
 	}
 
 	// Clean up old login attempts (older than 1 hour to be safe)
 	loginAttemptCount, err := database.DeleteExpiredLoginAttempts(time.Now().Add(-1 * time.Hour))
 	if err != nil {
-		log.Printf("Error deleting expired login attempts: %v", err)
+		logging.Error("Error deleting expired login attempts", "error", err)
 	} else if loginAttemptCount > 0 {
-		log.Printf("Deleted %d expired login attempts", loginAttemptCount)
+		logging.Info("Deleted expired login attempts", "count", loginAttemptCount)
 	}
 
-	log.Printf("Cleanup complete: %d videos deleted", deletedCount)
+	logging.Info("Cleanup complete", "videos_deleted", deletedCount)
 }
 
 // startMaintenanceScheduler runs periodic database maintenance (VACUUM and ANALYZE).
@@ -4139,11 +4132,11 @@ func runCleanup() {
 // Set to "0" or "disabled" to disable maintenance.
 func startMaintenanceScheduler() {
 	if dbMaintenanceInterval <= 0 {
-		log.Println("Database maintenance scheduler disabled")
+		logging.Info("Database maintenance scheduler disabled")
 		return
 	}
 
-	log.Printf("Database maintenance scheduler started (interval: %v)", dbMaintenanceInterval)
+	logging.Info("Database maintenance scheduler started", "interval", dbMaintenanceInterval)
 
 	ticker := time.NewTicker(dbMaintenanceInterval)
 	defer ticker.Stop()
@@ -4155,14 +4148,14 @@ func startMaintenanceScheduler() {
 
 // runDatabaseMaintenance performs VACUUM and ANALYZE on the SQLite database.
 func runDatabaseMaintenance() {
-	log.Println("Running database maintenance (VACUUM + ANALYZE)...")
+	logging.Info("Running database maintenance (VACUUM + ANALYZE)")
 	startTime := time.Now()
 
 	if err := database.Maintenance(); err != nil {
-		log.Printf("Database maintenance failed: %v", err)
+		logging.Error("Database maintenance failed", "error", err)
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Database maintenance complete (took %v)", duration)
+	logging.Info("Database maintenance complete", "duration", duration)
 }
