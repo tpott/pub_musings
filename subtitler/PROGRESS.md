@@ -2127,6 +2127,41 @@ Added responsive CSS media queries to all frontend pages for mobile viewport sup
 - Mobile responsive design with media queries for 480px and 375px breakpoints
 - Touch-friendly 44px minimum button heights
 
-**2 tasks remaining:**
+**1 task remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 77: Dark mode support
+
+### Task 77: Frontend - Dark mode support
+
+**Date**: 2026-01-25
+
+Implemented comprehensive dark mode support across all pages:
+
+- **Global theme CSS** (`frontend/src/styles/theme.css`):
+  - Light theme (default) with `:root` CSS variables
+  - Dark theme with `:root.dark` CSS variables
+  - 60+ CSS variables for colors, backgrounds, borders, badges, buttons, etc.
+  - Smooth 200ms transition on theme changes
+  - Base reset styles and form input theming
+
+- **Theme components**:
+  - `ThemeInit.astro`: Inline script that runs immediately to prevent flash of wrong theme
+  - `ThemeToggle.astro`: Moon/sun icon button with toggle functionality
+
+- **Theme persistence**:
+  - Saves preference to localStorage
+  - Respects system preference (`prefers-color-scheme: dark`) when no preference saved
+  - Listens for system preference changes
+
+- **Pages updated** (all 8 pages):
+  - index.astro, login.astro, register.astro
+  - videos.astro, upload.astro, security.astro
+  - forgot-password.astro, reset-password.astro
+
+- **UI elements themed**:
+  - Navigation header, cards, forms, buttons
+  - Status badges (complete, processing, pending, error)
+  - Retention badges (info, warning, expired)
+  - Error/success messages
+  - Tooltips, toggles, dropzones
+  - Subtitle preview, segment editor
+  - Recovery codes, session management
