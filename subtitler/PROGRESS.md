@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**92 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**93 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -45,12 +45,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Multiple export formats: SRT, VTT, JSON
 - See: `specs/lyrics-alignment.md`, `specs/script-conversion.md`
 
-### Testing & Quality (Tasks 19-25, 30, 49-50, 80)
+### Testing & Quality (Tasks 19-25, 30, 49-50, 80, 94)
 - ✅ Backend Go tests with coverage
 - ✅ Frontend Vitest tests
 - ✅ E2E Playwright tests (auth, upload flow)
 - ✅ Verification scripts and pre-commit hook
 - ✅ Form validation with inline errors
+- ✅ TypeScript interfaces for type safety
 - See: `TESTING.md`, `BROWSER_TESTING.md`
 
 ### Documentation (Tasks 20-23, 26, 31-36, 54, 67, 78)

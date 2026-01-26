@@ -913,6 +913,13 @@ import '../styles/theme.css';
 		<script>
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
 			import { parseTimeString } from '../utils/validation';
+			import type {
+				TranscriptionSegment,
+				TranscriptionResult,
+				TranscriptionStatusResponse,
+				AlignmentResponse,
+				BurnStatusResponse
+			} from '../types/transcription';
 
 			const dropzone = document.getElementById('dropzone') as HTMLElement;
 			const fileInput = document.getElementById('fileInput') as HTMLInputElement;
@@ -956,8 +963,8 @@ import '../styles/theme.css';
 
 			let isUploading = false;
 			let currentUploadId: string | null = null;
-			let transcriptionSegments: any[] = [];
-			let editedSegments: any[] = [];
+			let transcriptionSegments: TranscriptionSegment[] = [];
+			let editedSegments: TranscriptionSegment[] = [];
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
 
@@ -1264,7 +1271,7 @@ import '../styles/theme.css';
 				return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 			}
 
-			function displayTranscription(result: any) {
+			function displayTranscription(result: TranscriptionResult | null) {
 				if (!result) return;
 
 				// Store segments for syncing
@@ -1317,7 +1324,7 @@ import '../styles/theme.css';
 					const mode = lyricsMode.checked ? 'lyrics' : 'standard';
 
 					// Build request payload
-					const payload: any = { text, mode };
+					const payload: { text: string; mode: string; convert_to_script?: string; language?: string } = { text, mode };
 
 					// Add script conversion parameters if enabled
 					if (convertScript.checked) {
@@ -1344,7 +1351,7 @@ import '../styles/theme.css';
 					if (transcriptionResult.status === 'complete' && transcriptionResult.result) {
 						transcriptionSegments = transcriptionResult.result.segments || [];
 						editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
-						fullText.textContent = transcriptionSegments.map((s: any) => s.text).join(' ');
+						fullText.textContent = transcriptionSegments.map((s) => s.text).join(' ');
 						renderSegments();
 					}
 
@@ -1372,7 +1379,7 @@ import '../styles/theme.css';
 				const segsToRender = isEditMode ? editedSegments : transcriptionSegments;
 
 				if (segsToRender.length > 0) {
-					segments.innerHTML = segsToRender.map((seg: any, index: number) => `
+					segments.innerHTML = segsToRender.map((seg, index) => `
 						<div class="segment${isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
 							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
 							<div class="segment-text">${escapeHtml(seg.text)}</div>
@@ -1560,7 +1567,7 @@ import '../styles/theme.css';
 					// Update the original segments
 					transcriptionSegments = JSON.parse(JSON.stringify(editedSegments));
 					// Update full text display
-					fullText.textContent = editedSegments.map((s: any) => s.text).join(' ');
+					fullText.textContent = editedSegments.map((s) => s.text).join(' ');
 					clearUnsaved();
 					showStatus('Subtitles saved successfully!', 'success');
 
