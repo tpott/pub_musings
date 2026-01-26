@@ -1,0 +1,26 @@
+# Cloudflare Tunnel Configuration Example
+# File location on VM: /etc/cloudflared/config.yml
+# Replace <tunnel-id> with your actual tunnel ID from: cloudflared tunnel create
+
+tunnel: <tunnel-id>
+credentials-file: /home/trevor/.cloudflared/<tunnel-id>.json
+
+ingress:
+  # Subtitler Frontend
+  - hostname: subtitler.yourdomain.com
+    service: http://localhost:8081
+
+  # Subtitler Backend API
+  - hostname: api.subtitler.yourdomain.com
+    service: http://localhost:8082
+
+  # Webhook (if using shared webhook-deployer from personal site)
+  - hostname: webhook.yourdomain.com
+    service: http://localhost:9000
+
+  # Default 404
+  - service: http_status:404
+
+# DNS Routes (run these commands):
+# cloudflared tunnel route dns <tunnel-name> subtitler.yourdomain.com
+# cloudflared tunnel route dns <tunnel-name> api.subtitler.yourdomain.com

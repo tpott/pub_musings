@@ -1,0 +1,23 @@
+[Unit]
+Description=Subtitler Backend API Server
+After=network.target
+
+[Service]
+Type=simple
+User=trevor
+WorkingDirectory=/home/trevor/pub_musings/subtitler/backend
+ExecStart=/home/trevor/pub_musings/subtitler/backend/subtitler-server
+EnvironmentFile=/home/trevor/pub_musings/subtitler/backend/.env
+Restart=always
+RestartSec=5
+
+# Resource limits
+LimitNOFILE=65536
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=subtitler-backend
+
+[Install]
+WantedBy=multi-user.target

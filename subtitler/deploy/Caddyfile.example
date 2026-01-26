@@ -1,0 +1,33 @@
+# Caddy Configuration for Subtitler
+# This file should be merged with existing /etc/caddy/Caddyfile on the VM
+
+# Frontend - Static files with API proxy
+:8081 {
+    # Proxy /api/* requests to backend
+    handle_path /api/* {
+        reverse_proxy localhost:8080
+    }
+
+    # Serve static files for all other requests
+    handle {
+        root * /home/trevor/pub_musings/subtitler/frontend/dist
+        file_server
+        encode gzip
+
+        # Cache static assets
+        @static path *.js *.css *.png *.jpg *.svg *.woff2 *.woff *.ttf
+        header @static Cache-Control "public, max-age=31536000, immutable"
+
+        # Don't cache HTML
+        @html path *.html /
+        header @html Cache-Control "no-cache"
+
+        # SPA fallback for Astro routes
+        try_files {path} /index.html
+    }
+}
+
+# Backend API - Reverse proxy
+:8082 {
+    reverse_proxy localhost:8080
+}

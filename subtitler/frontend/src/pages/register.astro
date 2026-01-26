@@ -1,0 +1,264 @@
+---
+import Nav from '../components/Nav.astro';
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Sign Up - Subtitler</title>
+		<style>
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				min-height: 100vh;
+				padding: 20px;
+			}
+
+			.page-wrapper {
+				max-width: 900px;
+				margin: 0 auto;
+			}
+
+			.main-content {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				min-height: calc(100vh - 120px);
+			}
+
+			.container {
+				background: white;
+				border-radius: 12px;
+				box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+				padding: 40px;
+				max-width: 400px;
+				width: 100%;
+			}
+
+			h1 {
+				color: #333;
+				margin-bottom: 10px;
+				font-size: 28px;
+				text-align: center;
+			}
+
+			.subtitle {
+				color: #666;
+				margin-bottom: 30px;
+				font-size: 14px;
+				text-align: center;
+			}
+
+			.form-group {
+				margin-bottom: 20px;
+			}
+
+			label {
+				display: block;
+				color: #333;
+				font-size: 14px;
+				font-weight: 600;
+				margin-bottom: 8px;
+			}
+
+			input {
+				width: 100%;
+				padding: 12px 16px;
+				border: 2px solid #e8ebff;
+				border-radius: 8px;
+				font-size: 16px;
+				transition: border-color 0.3s ease;
+			}
+
+			input:focus {
+				outline: none;
+				border-color: #667eea;
+			}
+
+			.password-hint {
+				font-size: 12px;
+				color: #666;
+				margin-top: 6px;
+			}
+
+			.submit-btn {
+				width: 100%;
+				padding: 14px;
+				background: #667eea;
+				color: white;
+				border: none;
+				border-radius: 8px;
+				font-size: 16px;
+				font-weight: 600;
+				cursor: pointer;
+				transition: background 0.3s ease;
+			}
+
+			.submit-btn:hover:not(:disabled) {
+				background: #764ba2;
+			}
+
+			.submit-btn:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+			}
+
+			.message {
+				margin-top: 20px;
+				padding: 16px;
+				border-radius: 8px;
+				display: none;
+			}
+
+			.message.visible {
+				display: block;
+			}
+
+			.message.success {
+				background: #d4edda;
+				color: #155724;
+				border: 1px solid #c3e6cb;
+			}
+
+			.message.error {
+				background: #f8d7da;
+				color: #721c24;
+				border: 1px solid #f5c6cb;
+			}
+
+			.links {
+				margin-top: 24px;
+				text-align: center;
+				font-size: 14px;
+				color: #666;
+			}
+
+			.links a {
+				color: #667eea;
+				text-decoration: none;
+				font-weight: 600;
+			}
+
+			.links a:hover {
+				text-decoration: underline;
+			}
+
+			.back-link {
+				display: block;
+				margin-top: 12px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="page-wrapper">
+			<Nav />
+			<div class="main-content">
+				<div class="container">
+					<h1>Create Account</h1>
+			<p class="subtitle">Sign up to start transcribing</p>
+
+			<form id="register-form">
+				<div class="form-group">
+					<label for="email">Email</label>
+					<input type="email" id="email" name="email" required placeholder="you@example.com" />
+				</div>
+
+				<div class="form-group">
+					<label for="password">Password</label>
+					<input type="password" id="password" name="password" required placeholder="Create a password" minlength="8" />
+					<p class="password-hint">Must be at least 8 characters</p>
+				</div>
+
+				<div class="form-group">
+					<label for="confirm-password">Confirm Password</label>
+					<input type="password" id="confirm-password" name="confirm-password" required placeholder="Confirm your password" />
+				</div>
+
+				<button type="submit" class="submit-btn" id="submit-btn">Create Account</button>
+
+				<div class="message" id="message"></div>
+			</form>
+
+			<div class="links">
+				Already have an account? <a href="/login">Sign in</a>
+				<a href="/" class="back-link">Back to home</a>
+			</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { register } from '../lib/auth';
+			import { trackPageView, trackEvent } from '../lib/analytics';
+
+			// Track page view
+			trackPageView();
+
+			const form = document.getElementById('register-form') as HTMLFormElement;
+			const emailInput = document.getElementById('email') as HTMLInputElement;
+			const passwordInput = document.getElementById('password') as HTMLInputElement;
+			const confirmPasswordInput = document.getElementById('confirm-password') as HTMLInputElement;
+			const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+			const message = document.getElementById('message') as HTMLDivElement;
+
+			function showMessage(text: string, type: 'success' | 'error') {
+				message.textContent = text;
+				message.className = `message visible ${type}`;
+			}
+
+			function hideMessage() {
+				message.classList.remove('visible');
+			}
+
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				hideMessage();
+
+				const email = emailInput.value.trim();
+				const password = passwordInput.value;
+				const confirmPassword = confirmPasswordInput.value;
+
+				if (!email || !password || !confirmPassword) {
+					showMessage('Please fill in all fields', 'error');
+					return;
+				}
+
+				if (password.length < 8) {
+					showMessage('Password must be at least 8 characters', 'error');
+					return;
+				}
+
+				if (password !== confirmPassword) {
+					showMessage('Passwords do not match', 'error');
+					return;
+				}
+
+				submitBtn.disabled = true;
+				submitBtn.textContent = 'Creating account...';
+
+				try {
+					await register(email, password);
+					trackEvent('signup_completed', { method: 'email' });
+					showMessage('Account created! Redirecting...', 'success');
+					setTimeout(() => {
+						window.location.href = '/dashboard';
+					}, 500);
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+					showMessage(errorMessage, 'error');
+					submitBtn.disabled = false;
+					submitBtn.textContent = 'Create Account';
+				}
+			});
+		</script>
+	</body>
+</html>

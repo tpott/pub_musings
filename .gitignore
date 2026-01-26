@@ -7,3 +7,7 @@ cert.*
 *.mp3
 *.mp4
 *.wav
+
+# Secrets management (use secrets.enc.yaml instead)
+secrets.yaml
+.env
