@@ -256,3 +256,21 @@ Similar pattern: `/api/auth/totp/recover` endpoint existed but no frontend UI to
 - Basic conversions that will be read by humans (phonetically close enough)
 
 But proper consonant cluster handling (halant/virama) requires sophisticated algorithms that understand syllable structure. File this as a future enhancement task rather than blocking on perfection.
+
+---
+
+### 2026-01-26: rand.Read error handling patterns in Go
+
+**Problem:** Several places in the codebase used `rand.Read()` without checking the returned error. While crypto/rand rarely fails on modern systems, ignoring the error is bad practice and can hide issues.
+
+**Solution:** Different handling based on context:
+1. **ID generation (main.go, db.go):** Return `(string, error)` and let callers handle it - typically return HTTP 500 to user
+2. **Request ID generation:** Fall back to timestamp-based ID so requests don't fail completely
+3. **CSRF secret:** Store error in package-level var, return empty token on failure (fails safely)
+4. **Test helpers:** Create `testGenerateID()` that panics on error (acceptable in test setup)
+
+**Lesson:** For cryptographic random:
+- Production code should handle errors explicitly
+- Fallbacks are acceptable for non-critical uses (request IDs)
+- Security-critical code should fail safely rather than continue with bad state
+- Test code can panic since test setup failure indicates bigger problems

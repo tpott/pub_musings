@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**83 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**87 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -60,7 +60,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Feature specs in specs/ directory
 - ✅ Deployment planning docs
 
-### Security & Infrastructure (Tasks 52, 60, 63-64, 68, 72, 74-75, 79, 83)
+### Security & Infrastructure (Tasks 52, 60, 63-64, 68, 72, 74-75, 79, 83, 87)
 - ✅ Rate limiting on all sensitive endpoints
 - ✅ MIME type validation on uploads
 - ✅ Secure cookie flag for HTTPS
@@ -70,6 +70,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Retry logic for whisper-server
 - ✅ HTTP caching headers for video/subtitle endpoints
 - ✅ CSRF protection for state-changing endpoints
+- ✅ Proper error handling for cryptographic random generation
 
 ### UI/UX (Tasks 65, 71, 76-77)
 - ✅ Upload progress bar with real bytes/percentage
