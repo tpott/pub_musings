@@ -138,16 +138,28 @@ Example: `/absolute/path/uploads/abc123_burned.mp4.age`
 
 ## Configuration
 
-| Setting | Value | Notes |
-|---------|-------|-------|
-| Key path | `data/age.key` | Hard-coded in main.go |
-| Max file size | 500 MB | Enforced in upload handler |
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Key path | `data/age.key` | Configurable via `KEY_PATH` env var |
+| Max file size | 500 MB | Configurable via `MAX_UPLOAD_SIZE` env var |
 | File extension | `.age` | Appended to encrypted files |
+| Encryption toggle | enabled | Configurable via `ENCRYPTION_ENABLED` env var |
 
-### Potential Environment Variables (Not Yet Implemented)
+### Environment Variables
 
-- `AGE_KEY_PATH` - Custom key file location
-- `ENCRYPTION_ENABLED` - Toggle encryption on/off
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KEY_PATH` | `data/age.key` | Path to the age encryption key file |
+| `ENCRYPTION_ENABLED` | `true` | Set to `false` or `0` to disable encryption |
+
+### Disabling Encryption
+
+Setting `ENCRYPTION_ENABLED=false` affects only NEW file uploads:
+- New files are stored without encryption (no `.age` extension)
+- Existing encrypted files continue to work (they're decrypted on access)
+- This setting is intended for development/testing only
+
+**Warning:** Do not disable encryption in production. Uploaded videos may contain sensitive content.
 
 ## Error Handling
 

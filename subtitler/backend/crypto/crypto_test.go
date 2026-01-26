@@ -290,3 +290,119 @@ func TestDecryptWithWrongKey(t *testing.T) {
 		t.Error("Should fail to decrypt with wrong key")
 	}
 }
+
+func TestEncryptionEnabledToggle(t *testing.T) {
+	// Save original state
+	original := IsEncryptionEnabled()
+	defer SetEncryptionEnabled(original)
+
+	// Test default is enabled
+	SetEncryptionEnabled(true)
+	if !IsEncryptionEnabled() {
+		t.Error("Expected encryption to be enabled")
+	}
+
+	// Test disable
+	SetEncryptionEnabled(false)
+	if IsEncryptionEnabled() {
+		t.Error("Expected encryption to be disabled")
+	}
+}
+
+func TestEncryptFileWithEncryptionDisabled(t *testing.T) {
+	// Save original state
+	original := IsEncryptionEnabled()
+	defer SetEncryptionEnabled(original)
+
+	// Disable encryption
+	SetEncryptionEnabled(false)
+
+	// Create test file
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	testData := []byte("test data for encryption toggle test")
+	if err := os.WriteFile(testFile, testData, 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Create encryptor
+	enc, err := NewEncryptor("")
+	if err != nil {
+		t.Fatalf("Failed to create encryptor: %v", err)
+	}
+
+	// Encrypt file - should return original path when disabled
+	resultPath, err := enc.EncryptFile(testFile)
+	if err != nil {
+		t.Fatalf("EncryptFile failed: %v", err)
+	}
+
+	// Should return original path, not .age path
+	if resultPath != testFile {
+		t.Errorf("Expected original path %s, got %s", testFile, resultPath)
+	}
+
+	// .age file should NOT exist
+	ageFile := testFile + ".age"
+	if _, err := os.Stat(ageFile); !os.IsNotExist(err) {
+		t.Errorf("Expected .age file to not exist when encryption disabled")
+	}
+
+	// Original file should still exist with original content
+	content, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read test file: %v", err)
+	}
+	if !bytes.Equal(content, testData) {
+		t.Error("File content changed unexpectedly")
+	}
+}
+
+func TestEncryptFileWithEncryptionEnabled(t *testing.T) {
+	// Save original state
+	original := IsEncryptionEnabled()
+	defer SetEncryptionEnabled(original)
+
+	// Enable encryption
+	SetEncryptionEnabled(true)
+
+	// Create test file
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	testData := []byte("test data for encryption test")
+	if err := os.WriteFile(testFile, testData, 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Create encryptor
+	enc, err := NewEncryptor("")
+	if err != nil {
+		t.Fatalf("Failed to create encryptor: %v", err)
+	}
+
+	// Encrypt file - should create .age file
+	resultPath, err := enc.EncryptFile(testFile)
+	if err != nil {
+		t.Fatalf("EncryptFile failed: %v", err)
+	}
+
+	// Should return .age path
+	expectedPath := testFile + ".age"
+	if resultPath != expectedPath {
+		t.Errorf("Expected .age path %s, got %s", expectedPath, resultPath)
+	}
+
+	// .age file should exist
+	if _, err := os.Stat(expectedPath); err != nil {
+		t.Errorf("Expected .age file to exist: %v", err)
+	}
+
+	// Verify it's actually encrypted (can be decrypted)
+	decrypted, err := enc.DecryptFile(resultPath)
+	if err != nil {
+		t.Fatalf("Failed to decrypt: %v", err)
+	}
+	if !bytes.Equal(decrypted, testData) {
+		t.Error("Decrypted content doesn't match original")
+	}
+}

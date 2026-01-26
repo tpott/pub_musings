@@ -12,6 +12,20 @@ import (
 	"filippo.io/age"
 )
 
+// encryptionEnabled controls whether encryption is active.
+// Set via ENCRYPTION_ENABLED env var. Default is true.
+var encryptionEnabled = os.Getenv("ENCRYPTION_ENABLED") != "false" && os.Getenv("ENCRYPTION_ENABLED") != "0"
+
+// SetEncryptionEnabled allows programmatic control of encryption (mainly for testing)
+func SetEncryptionEnabled(enabled bool) {
+	encryptionEnabled = enabled
+}
+
+// IsEncryptionEnabled returns whether encryption is active
+func IsEncryptionEnabled() bool {
+	return encryptionEnabled
+}
+
 // Encryptor handles file encryption/decryption using age
 type Encryptor struct {
 	identity  *age.X25519Identity
@@ -140,7 +154,13 @@ func (e *Encryptor) DecryptReader(r io.Reader) (io.Reader, error) {
 
 // EncryptFile encrypts a file and saves it with .age extension
 // Returns the path to the encrypted file
+// If encryption is disabled, returns the original path unchanged
 func (e *Encryptor) EncryptFile(srcPath string) (string, error) {
+	if !encryptionEnabled {
+		// When encryption is disabled, return original path
+		return srcPath, nil
+	}
+
 	src, err := os.Open(srcPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open source file: %w", err)
@@ -229,6 +249,8 @@ func (e *Encryptor) DecryptToFile(encPath, dstPath string) error {
 
 // DecryptToTempFile decrypts a .age file to a temporary file and returns its path
 // The caller is responsible for removing the temp file when done
+// Note: This always attempts decryption, regardless of encryptionEnabled setting,
+// to support reading files that were encrypted before the setting was disabled.
 func (e *Encryptor) DecryptToTempFile(encPath string) (string, error) {
 	// Create temp file with same extension as original (minus .age)
 	origExt := filepath.Ext(strings.TrimSuffix(encPath, ".age"))

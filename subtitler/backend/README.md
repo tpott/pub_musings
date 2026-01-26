@@ -28,6 +28,7 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `EMAIL_ENABLED` | `true` | Set to `false` to disable email sending |
 | `HTTPS_ONLY` | `false` | Set to `true` or `1` to enable Secure flag on session cookies |
 | `TRUST_PROXY` | `false` | Set to `true` or `1` to trust X-Forwarded-For headers (see below) |
+| `ENCRYPTION_ENABLED` | `true` | Set to `false` or `0` to disable file encryption (see below) |
 
 ### Proxy Trust Configuration
 
@@ -41,6 +42,16 @@ Example for production behind Caddy:
 ```bash
 export TRUST_PROXY=true
 ```
+
+### Encryption Configuration
+
+The `ENCRYPTION_ENABLED` environment variable controls whether uploaded files are encrypted at rest.
+
+**Default (ENCRYPTION_ENABLED=true or unset):** Files are encrypted using age encryption. This is the recommended setting for production.
+
+**Disabled (ENCRYPTION_ENABLED=false):** Files are stored unencrypted. Use this for development/testing only.
+
+Note: Disabling encryption only affects new files. Existing encrypted files (with `.age` extension) can still be read.
 
 ### File Path Configuration
 
