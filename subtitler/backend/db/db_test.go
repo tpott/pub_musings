@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -1505,5 +1506,305 @@ func TestDeleteExpiredLoginAttempts(t *testing.T) {
 	count, _ = db.GetRecentFailedLoginAttempts(email, time.Now().Add(-1*time.Hour))
 	if count != 0 {
 		t.Errorf("Expected 0 attempts after deletion, got %d", count)
+	}
+}
+
+func TestWithTransaction(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "txtest123",
+		Email:        "txtest@example.com",
+		PasswordHash: "hashhash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Test successful transaction
+	err = db.WithTransaction(func(tx *Tx) error {
+		_, err := tx.tx.Exec(`UPDATE users SET email = ? WHERE id = ?`, "newemail@example.com", user.ID)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("Transaction should have succeeded: %v", err)
+	}
+
+	// Verify the change was committed
+	updatedUser, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if updatedUser.Email != "newemail@example.com" {
+		t.Errorf("Expected email 'newemail@example.com', got '%s'", updatedUser.Email)
+	}
+}
+
+func TestWithTransactionRollback(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "txrollback123",
+		Email:        "txrollback@example.com",
+		PasswordHash: "hashhash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Test transaction that fails and rolls back
+	testErr := fmt.Errorf("intentional test error")
+	err = db.WithTransaction(func(tx *Tx) error {
+		// Make a change
+		_, err := tx.tx.Exec(`UPDATE users SET email = ? WHERE id = ?`, "shouldrollback@example.com", user.ID)
+		if err != nil {
+			return err
+		}
+		// Then fail
+		return testErr
+	})
+	if err != testErr {
+		t.Errorf("Expected test error, got: %v", err)
+	}
+
+	// Verify the change was rolled back
+	unchangedUser, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if unchangedUser.Email != "txrollback@example.com" {
+		t.Errorf("Expected original email 'txrollback@example.com', got '%s' (rollback failed)", unchangedUser.Email)
+	}
+}
+
+func TestEnableTOTPWithRecoveryCodes(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user with TOTP secret
+	user := &User{
+		ID:           "totp123",
+		Email:        "totp@example.com",
+		PasswordHash: "hashhash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Set TOTP secret first
+	if err := db.SetTOTPSecret(user.ID, "secret123"); err != nil {
+		t.Fatalf("Failed to set TOTP secret: %v", err)
+	}
+
+	// Enable TOTP with recovery codes atomically
+	codeHashes := []string{"hash1", "hash2", "hash3"}
+	if err := db.EnableTOTPWithRecoveryCodes(user.ID, codeHashes); err != nil {
+		t.Fatalf("Failed to enable TOTP with recovery codes: %v", err)
+	}
+
+	// Verify TOTP is enabled
+	updatedUser, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if !updatedUser.TOTPEnabled {
+		t.Error("Expected TOTP to be enabled")
+	}
+
+	// Verify recovery codes were saved
+	codes, err := db.GetUnusedRecoveryCodes(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get recovery codes: %v", err)
+	}
+	if len(codes) != 3 {
+		t.Errorf("Expected 3 recovery codes, got %d", len(codes))
+	}
+}
+
+func TestCompletePasswordReset(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "pwreset123",
+		Email:        "pwreset@example.com",
+		PasswordHash: "oldhash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create a session
+	session := &Session{
+		ID:        "session123",
+		UserID:    user.ID,
+		Token:     "token123",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	if err := db.CreateSession(session); err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	// Create a password reset token
+	tokenHash := "tokenhash123"
+	token, err := db.CreatePasswordResetToken(user.ID, tokenHash, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("Failed to create reset token: %v", err)
+	}
+
+	// Complete password reset atomically
+	newPasswordHash := "newhash"
+	if err := db.CompletePasswordReset(user.ID, token.TokenHash, newPasswordHash); err != nil {
+		t.Fatalf("Failed to complete password reset: %v", err)
+	}
+
+	// Verify password was updated
+	updatedUser, err := db.GetUserByEmail(user.Email)
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if updatedUser.PasswordHash != newPasswordHash {
+		t.Errorf("Expected password hash '%s', got '%s'", newPasswordHash, updatedUser.PasswordHash)
+	}
+
+	// Verify sessions were deleted (GetSessionByToken returns nil, nil for not found)
+	deletedSession, err := db.GetSessionByToken("token123")
+	if err != nil {
+		t.Fatalf("Error checking session: %v", err)
+	}
+	if deletedSession != nil {
+		t.Error("Expected session to be deleted")
+	}
+
+	// Verify token was deleted
+	retrievedToken, err := db.GetPasswordResetToken(tokenHash)
+	if err == nil && retrievedToken != nil && !retrievedToken.Used {
+		t.Error("Expected token to be used or deleted")
+	}
+}
+
+func TestDisableTOTPAndClearSessions(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user with 2FA enabled
+	user := &User{
+		ID:           "disable2fa123",
+		Email:        "disable2fa@example.com",
+		PasswordHash: "hashhash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Enable TOTP
+	if err := db.SetTOTPSecret(user.ID, "secret"); err != nil {
+		t.Fatalf("Failed to set TOTP secret: %v", err)
+	}
+	if err := db.EnableTOTP(user.ID); err != nil {
+		t.Fatalf("Failed to enable TOTP: %v", err)
+	}
+
+	// Add recovery codes
+	if err := db.SaveRecoveryCodes(user.ID, []string{"hash1", "hash2"}); err != nil {
+		t.Fatalf("Failed to save recovery codes: %v", err)
+	}
+
+	// Create a session
+	session := &Session{
+		ID:        "session2fa123",
+		UserID:    user.ID,
+		Token:     "token2fa123",
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	if err := db.CreateSession(session); err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	// Disable 2FA and clear sessions atomically
+	if err := db.DisableTOTPAndClearSessions(user.ID); err != nil {
+		t.Fatalf("Failed to disable TOTP and clear sessions: %v", err)
+	}
+
+	// Verify TOTP is disabled
+	updatedUser, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if updatedUser.TOTPEnabled {
+		t.Error("Expected TOTP to be disabled")
+	}
+
+	// Verify recovery codes were deleted
+	codes, err := db.GetUnusedRecoveryCodes(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get recovery codes: %v", err)
+	}
+	if len(codes) != 0 {
+		t.Errorf("Expected 0 recovery codes, got %d", len(codes))
+	}
+
+	// Verify sessions were deleted (GetSessionByToken returns nil, nil for not found)
+	deletedSession, err := db.GetSessionByToken("token2fa123")
+	if err != nil {
+		t.Fatalf("Error checking session: %v", err)
+	}
+	if deletedSession != nil {
+		t.Error("Expected session to be deleted")
 	}
 }

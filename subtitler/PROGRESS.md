@@ -1966,9 +1966,36 @@ Created comprehensive rate limiting documentation in `docs/RATE_LIMITS.md`:
 
 Updated `docs/API.md` with quick reference table and link to detailed documentation.
 
+### Task 75: Database transaction safety for critical operations
+
+**Date**: 2026-01-25
+
+Added database transaction support for multi-step operations that must succeed or fail atomically.
+
+**New db package features:**
+- `WithTransaction(fn)` - executes function within a transaction, rolls back on error
+- `Tx` type - wraps sql.Tx for use within transaction callbacks
+
+**New transactional composite methods:**
+- `EnableTOTPWithRecoveryCodes(userID, codeHashes)` - enables 2FA and saves recovery codes atomically
+- `CompletePasswordReset(userID, tokenHash, passwordHash)` - updates password, marks token used, deletes all tokens and sessions atomically
+- `DisableTOTPAndClearSessions(userID)` - disables 2FA, deletes recovery codes, and clears sessions atomically
+
+**Updated endpoints:**
+- `POST /api/auth/totp/verify` - now uses EnableTOTPWithRecoveryCodes
+- `POST /api/auth/reset-password` - now uses CompletePasswordReset
+- `POST /api/auth/totp/recover` - now uses DisableTOTPAndClearSessions
+
+**Tests added:**
+- `TestWithTransaction` - verifies successful transaction commits
+- `TestWithTransactionRollback` - verifies failed transaction rolls back changes
+- `TestEnableTOTPWithRecoveryCodes` - tests atomic 2FA enable
+- `TestCompletePasswordReset` - tests atomic password reset
+- `TestDisableTOTPAndClearSessions` - tests atomic 2FA disable
+
 ## Summary
 
-75 tasks completed (74 done + 1 requiring macOS). The subtitler application is feature-complete with:
+76 tasks completed (75 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -1990,11 +2017,12 @@ Updated `docs/API.md` with quick reference table and link to detailed documentat
 - Request ID tracing for all API requests
 - Comprehensive accessibility (ARIA roles, focus visible, keyboard navigation)
 - Enhanced health check with database, whisper-server, and disk space monitoring
+- Database transaction safety for critical multi-step operations
 
-**6 tasks remaining:**
+**5 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 75: Database transaction safety for critical ops
 - Task 76: Mobile responsive design audit
 - Task 77: Dark mode support
 - Task 79: HTTP caching headers for video streaming
+- Task 80: E2E full upload-to-download flow test
 - Task 80: E2E full upload-to-download flow test

@@ -1185,31 +1185,18 @@ func main() {
 			return
 		}
 
-		// Enable 2FA
-		if err := database.EnableTOTP(user.ID); err != nil {
-			log.Printf("Error enabling TOTP: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to enable 2FA",
-			})
-			return
-		}
-
 		// Generate recovery codes
 		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
 		if err != nil {
 			log.Printf("Error generating recovery codes: %v", err)
-			// 2FA is enabled but we failed to generate codes - still return success
-			// but log the error so we can investigate
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message":        "2FA has been enabled successfully",
-				"totp_enabled":   true,
-				"recovery_codes": []string{},
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to generate recovery codes",
 			})
 			return
 		}
 
-		// Hash and store recovery codes
+		// Hash recovery codes
 		codeHashes := make([]string, len(recoveryCodes))
 		for i, code := range recoveryCodes {
 			hash, err := totp.HashCode(code)
@@ -1224,9 +1211,14 @@ func main() {
 			codeHashes[i] = hash
 		}
 
-		if err := database.SaveRecoveryCodes(user.ID, codeHashes); err != nil {
-			log.Printf("Error saving recovery codes: %v", err)
-			// Continue - 2FA is enabled even if codes couldn't be saved
+		// Enable 2FA and save recovery codes in a single transaction
+		if err := database.EnableTOTPWithRecoveryCodes(user.ID, codeHashes); err != nil {
+			log.Printf("Error enabling TOTP with recovery codes: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to enable 2FA",
+			})
+			return
 		}
 
 		log.Printf("2FA enabled for user: %s with %d recovery codes", user.Email, len(recoveryCodes))
@@ -1418,25 +1410,14 @@ func main() {
 			return
 		}
 
-		// Disable 2FA
-		if err := database.DisableTOTP(user.ID); err != nil {
-			log.Printf("Error disabling TOTP: %v", err)
+		// Disable 2FA, delete recovery codes, and clear sessions in a single transaction
+		if err := database.DisableTOTPAndClearSessions(user.ID); err != nil {
+			log.Printf("Error disabling TOTP and clearing sessions: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to disable 2FA",
 			})
 			return
-		}
-
-		// Delete remaining recovery codes
-		if err := database.DeleteRecoveryCodes(user.ID); err != nil {
-			log.Printf("Error deleting recovery codes: %v", err)
-			// Continue - 2FA is disabled
-		}
-
-		// Clear all existing sessions for security
-		if err := database.DeleteUserSessions(user.ID); err != nil {
-			log.Printf("Error clearing sessions: %v", err)
 		}
 
 		// Create a new session with IP and user agent
@@ -1710,32 +1691,18 @@ func main() {
 			return
 		}
 
-		// Update the user's password
-		if err := database.UpdateUserPassword(resetToken.UserID, passwordHash); err != nil {
-			log.Printf("Error updating password: %v", err)
+		// Complete password reset in a single transaction:
+		// - Update password
+		// - Mark token as used
+		// - Delete all tokens for user
+		// - Delete all sessions for user
+		if err := database.CompletePasswordReset(resetToken.UserID, tokenHash, passwordHash); err != nil {
+			log.Printf("Error completing password reset: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to update password",
 			})
 			return
-		}
-
-		// Mark token as used
-		if _, err := database.UsePasswordResetToken(tokenHash); err != nil {
-			log.Printf("Error marking reset token as used: %v", err)
-			// Continue anyway - password was updated
-		}
-
-		// Delete all reset tokens for this user
-		if err := database.DeletePasswordResetTokens(resetToken.UserID); err != nil {
-			log.Printf("Error deleting reset tokens: %v", err)
-			// Continue anyway
-		}
-
-		// Delete all sessions for this user (force re-login with new password)
-		if err := database.DeleteUserSessions(resetToken.UserID); err != nil {
-			log.Printf("Error deleting user sessions: %v", err)
-			// Continue anyway
 		}
 
 		log.Printf("Password reset successful for user: %s", resetToken.UserID)

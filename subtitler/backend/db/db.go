@@ -154,6 +154,35 @@ func (db *DB) Ping() error {
 	return db.conn.Ping()
 }
 
+// Tx wraps a database transaction for use within the transaction callback
+type Tx struct {
+	tx *sql.Tx
+}
+
+// WithTransaction executes the given function within a database transaction.
+// If the function returns an error, the transaction is rolled back.
+// If the function succeeds, the transaction is committed.
+func (db *DB) WithTransaction(fn func(*Tx) error) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	txWrapper := &Tx{tx: tx}
+	if err := fn(txWrapper); err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("rollback failed: %v (original error: %w)", rbErr, err)
+		}
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // migrate runs database migrations
 func (db *DB) migrate() error {
 	migrations := []string{
@@ -1029,4 +1058,98 @@ func (db *DB) IsEmailLocked(email string, maxAttempts int, lockDuration time.Dur
 	}
 
 	return false, time.Time{}, nil
+}
+
+// EnableTOTPWithRecoveryCodes enables 2FA and saves recovery codes in a single transaction.
+// This ensures that if code saving fails, the 2FA enable is rolled back.
+func (db *DB) EnableTOTPWithRecoveryCodes(userID string, codeHashes []string) error {
+	return db.WithTransaction(func(tx *Tx) error {
+		// Enable TOTP
+		_, err := tx.tx.Exec(`UPDATE users SET totp_enabled = 1 WHERE id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to enable TOTP: %w", err)
+		}
+
+		// Delete existing unused recovery codes
+		_, err = tx.tx.Exec(`DELETE FROM recovery_codes WHERE user_id = ? AND used = 0`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete old recovery codes: %w", err)
+		}
+
+		// Insert new recovery codes
+		for _, hash := range codeHashes {
+			id := generateID()
+			_, err := tx.tx.Exec(`
+				INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
+				VALUES (?, ?, ?, ?)
+			`, id, userID, hash, time.Now())
+			if err != nil {
+				return fmt.Errorf("failed to insert recovery code: %w", err)
+			}
+		}
+
+		return nil
+	})
+}
+
+// CompletePasswordReset updates password, marks token as used, deletes all tokens,
+// and deletes all sessions in a single transaction.
+func (db *DB) CompletePasswordReset(userID, tokenHash, passwordHash string) error {
+	return db.WithTransaction(func(tx *Tx) error {
+		// Update password
+		_, err := tx.tx.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
+		if err != nil {
+			return fmt.Errorf("failed to update password: %w", err)
+		}
+
+		// Mark token as used
+		_, err = tx.tx.Exec(`
+			UPDATE password_reset_tokens
+			SET used = 1
+			WHERE token_hash = ? AND used = 0 AND expires_at > ?
+		`, tokenHash, time.Now())
+		if err != nil {
+			return fmt.Errorf("failed to mark token as used: %w", err)
+		}
+
+		// Delete all password reset tokens for this user
+		_, err = tx.tx.Exec(`DELETE FROM password_reset_tokens WHERE user_id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete password reset tokens: %w", err)
+		}
+
+		// Delete all sessions for this user (force re-login)
+		_, err = tx.tx.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete sessions: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// DisableTOTPAndClearSessions disables 2FA, deletes recovery codes, and clears all sessions
+// in a single transaction. Used during account recovery.
+func (db *DB) DisableTOTPAndClearSessions(userID string) error {
+	return db.WithTransaction(func(tx *Tx) error {
+		// Disable TOTP
+		_, err := tx.tx.Exec(`UPDATE users SET totp_enabled = 0, totp_secret = NULL WHERE id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to disable TOTP: %w", err)
+		}
+
+		// Delete recovery codes
+		_, err = tx.tx.Exec(`DELETE FROM recovery_codes WHERE user_id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete recovery codes: %w", err)
+		}
+
+		// Delete all sessions
+		_, err = tx.tx.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
+		if err != nil {
+			return fmt.Errorf("failed to delete sessions: %w", err)
+		}
+
+		return nil
+	})
 }
