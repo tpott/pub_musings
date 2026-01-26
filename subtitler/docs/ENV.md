@@ -1,0 +1,342 @@
+# Environment Variables Reference
+
+Complete reference for all environment variables used by the Subtitler application.
+
+## Quick Reference
+
+| Category | Variables |
+|----------|-----------|
+| Server | `PORT` |
+| Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `MAX_UPLOAD_SIZE` |
+| Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
+| Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
+| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `CSRF_SECRET` |
+| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
+| Maintenance | `DB_MAINTENANCE_INTERVAL` |
+
+## Server Configuration
+
+### PORT
+
+| Property | Value |
+|----------|-------|
+| Default | `8080` |
+| Required | No |
+| Example | `PORT=8060` |
+
+HTTP port the backend server listens on. In production behind Caddy, use a non-standard port like `8060`.
+
+## Storage Configuration
+
+### UPLOAD_DIR
+
+| Property | Value |
+|----------|-------|
+| Default | `uploads` |
+| Required | No |
+| Example | `UPLOAD_DIR=/opt/subtitler/uploads` |
+
+Directory where uploaded video files are stored. Files are encrypted at rest (when encryption is enabled).
+
+### DB_PATH
+
+| Property | Value |
+|----------|-------|
+| Default | `data/subtitler.db` |
+| Required | No |
+| Example | `DB_PATH=/opt/subtitler/data/subtitler.db` |
+
+Path to the SQLite database file. Parent directory is created automatically if it doesn't exist.
+
+### KEY_PATH
+
+| Property | Value |
+|----------|-------|
+| Default | `data/age.key` |
+| Required | No |
+| Example | `KEY_PATH=/opt/subtitler/data/age.key` |
+
+Path to the age encryption private key file. If the file doesn't exist, a new key is generated. **Critical:** Back up this file securely - without it, encrypted files are unrecoverable.
+
+### MAX_UPLOAD_SIZE
+
+| Property | Value |
+|----------|-------|
+| Default | `500M` (500 MB) |
+| Required | No |
+| Format | Number with optional suffix: `K` (KB), `M` (MB), `G` (GB) |
+| Example | `MAX_UPLOAD_SIZE=1G` |
+
+Maximum allowed file size for video uploads. Note: Cloudflare's free tier limits uploads to 100MB through tunnels.
+
+## Whisper Configuration
+
+The backend supports two transcription modes: CLI mode (spawns whisper-cli) and Server mode (HTTP API).
+
+### WHISPER_SERVER_URL
+
+| Property | Value |
+|----------|-------|
+| Default | `http://127.0.0.1:8765` |
+| Required | No |
+| Example | `WHISPER_SERVER_URL=http://10.0.2.2:8765` |
+
+URL of the whisper-server HTTP API. Setting this variable enables server mode automatically. For qemu VMs, use `http://10.0.2.2:8765` to reach the host.
+
+### USE_WHISPER_SERVER
+
+| Property | Value |
+|----------|-------|
+| Default | `false` |
+| Required | No |
+| Values | `true`, `false` |
+| Example | `USE_WHISPER_SERVER=true` |
+
+Set to `true` to use whisper-server with the default URL. Not needed if `WHISPER_SERVER_URL` is set.
+
+### WHISPER_MODEL
+
+| Property | Value |
+|----------|-------|
+| Default | `$HOME/Github/whisper.cpp/models/ggml-medium.bin` |
+| Required | No (CLI mode only) |
+| Example | `WHISPER_MODEL=/path/to/ggml-large-v3-turbo.bin` |
+
+Path to the Whisper model file. Only used in CLI mode (when server mode is disabled).
+
+## Email Configuration
+
+Email functionality requires the Resend API for transactional emails (verification, password reset, magic links).
+
+### RESEND_API_KEY
+
+| Property | Value |
+|----------|-------|
+| Default | *(none)* |
+| Required | Yes (for email features) |
+| Format | Starts with `re_` |
+| Example | `RESEND_API_KEY=re_123abc...` |
+
+API key from [Resend](https://resend.com). Required for email verification, password reset, and magic link authentication.
+
+### EMAIL_FROM
+
+| Property | Value |
+|----------|-------|
+| Default | `noreply@subtitler.app` |
+| Required | No |
+| Example | `EMAIL_FROM=noreply@yourdomain.com` |
+
+Sender email address for outgoing emails. Must be a verified domain in Resend.
+
+### EMAIL_ENABLED
+
+| Property | Value |
+|----------|-------|
+| Default | `true` |
+| Required | No |
+| Values | `true`, `false` |
+| Example | `EMAIL_ENABLED=false` |
+
+Set to `false` to disable email sending. Useful for development or when email features aren't needed.
+
+### APP_URL
+
+| Property | Value |
+|----------|-------|
+| Default | `http://localhost:4321` |
+| Required | No |
+| Example | `APP_URL=https://subtitler.example.com` |
+
+Base URL for links in emails (password reset, email verification, magic links). Must match the public URL where users access the application.
+
+## Security Configuration
+
+### HTTPS_ONLY
+
+| Property | Value |
+|----------|-------|
+| Default | `false` |
+| Required | No |
+| Values | `true`, `1`, `false`, `0` |
+| Example | `HTTPS_ONLY=true` |
+
+When enabled, session cookies have the `Secure` flag set, meaning they're only sent over HTTPS connections. **Enable in production** when using HTTPS.
+
+### TRUST_PROXY
+
+| Property | Value |
+|----------|-------|
+| Default | `false` |
+| Required | No |
+| Values | `true`, `1`, `false`, `0` |
+| Example | `TRUST_PROXY=true` |
+
+Controls whether the rate limiter trusts `X-Forwarded-For` and `X-Real-IP` headers.
+
+**Security Warning:** Only enable when running behind a trusted reverse proxy (Caddy, nginx, load balancer). If enabled without a proxy, attackers can spoof their IP to bypass rate limiting.
+
+### ENCRYPTION_ENABLED
+
+| Property | Value |
+|----------|-------|
+| Default | `true` |
+| Required | No |
+| Values | `true`, `false`, `0` |
+| Example | `ENCRYPTION_ENABLED=false` |
+
+Controls whether uploaded files are encrypted at rest using age encryption.
+
+- **Enabled (default):** Files are encrypted before storage
+- **Disabled:** Files stored unencrypted (development only)
+
+Note: Disabling only affects new files. Existing encrypted files (`.age` extension) can still be read.
+
+### CSRF_SECRET
+
+| Property | Value |
+|----------|-------|
+| Default | *(random on startup)* |
+| Required | No |
+| Example | `CSRF_SECRET=your-32-byte-secret-here` |
+
+HMAC key for generating CSRF tokens. If not set, a random secret is generated on startup. Setting this ensures CSRF tokens remain valid across server restarts.
+
+## Rate Limit Configuration
+
+All rate limits use the format `count/window` where:
+- `count` is the number of requests allowed
+- `window` is the time period: `s`, `sec`, `min`, `minute`, `h`, `hr`, `hour`, or Go duration (e.g., `15m`, `1h30m`)
+
+Rate limits are per-IP address using a sliding window. When exceeded, returns HTTP 429 with `Retry-After` header.
+
+### AUTH_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `5/min` |
+| Required | No |
+| Example | `AUTH_RATE_LIMIT=10/min` |
+
+Rate limit for authentication endpoints: login, register, TOTP verify, magic link.
+
+### PASSWORD_RESET_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `3/15m` |
+| Required | No |
+| Example | `PASSWORD_RESET_RATE_LIMIT=5/15m` |
+
+Rate limit for password reset requests. Lower limit to prevent email spam.
+
+### UPLOAD_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `10/min` |
+| Required | No |
+| Example | `UPLOAD_RATE_LIMIT=20/hour` |
+
+Rate limit for file uploads.
+
+### TRANSCRIBE_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `5/min` |
+| Required | No |
+| Example | `TRANSCRIBE_RATE_LIMIT=10/min` |
+
+Rate limit for transcription requests. Consider whisper-server capacity when adjusting.
+
+### BURN_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `2/min` |
+| Required | No |
+| Example | `BURN_RATE_LIMIT=5/min` |
+
+Rate limit for subtitle burning (CPU-intensive ffmpeg operation).
+
+### SCRIPT_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `10/min` |
+| Required | No |
+| Example | `SCRIPT_RATE_LIMIT=20/min` |
+
+Rate limit for script detection and conversion endpoints.
+
+## Maintenance Configuration
+
+### DB_MAINTENANCE_INTERVAL
+
+| Property | Value |
+|----------|-------|
+| Default | `24h` |
+| Required | No |
+| Format | Go duration (e.g., `12h`, `30m`) or `0`/`disabled` |
+| Example | `DB_MAINTENANCE_INTERVAL=12h` |
+
+Interval for automatic SQLite maintenance (VACUUM and ANALYZE). Set to `0` or `disabled` to disable.
+
+## Configuration Examples
+
+### Development
+
+```bash
+# Minimal development setup
+export PORT=8080
+export ENCRYPTION_ENABLED=false
+export EMAIL_ENABLED=false
+export USE_WHISPER_SERVER=true
+```
+
+### Production (systemd)
+
+```ini
+# /etc/systemd/system/subtitler.service
+[Service]
+Environment=PORT=8060
+Environment=WHISPER_SERVER_URL=http://10.0.2.2:8765
+Environment=UPLOAD_DIR=/opt/subtitler/uploads
+Environment=DB_PATH=/opt/subtitler/data/subtitler.db
+Environment=KEY_PATH=/opt/subtitler/data/age.key
+Environment=MAX_UPLOAD_SIZE=1G
+Environment=HTTPS_ONLY=true
+Environment=TRUST_PROXY=true
+Environment=DB_MAINTENANCE_INTERVAL=24h
+Environment=RESEND_API_KEY=re_...
+Environment=APP_URL=https://subtitler.example.com
+Environment=EMAIL_FROM=noreply@subtitler.example.com
+```
+
+### Production (.env file)
+
+```bash
+# .env (load with export $(cat .env | xargs))
+PORT=8060
+WHISPER_SERVER_URL=http://10.0.2.2:8765
+UPLOAD_DIR=/opt/subtitler/uploads
+DB_PATH=/opt/subtitler/data/subtitler.db
+KEY_PATH=/opt/subtitler/data/age.key
+MAX_UPLOAD_SIZE=1G
+HTTPS_ONLY=true
+TRUST_PROXY=true
+DB_MAINTENANCE_INTERVAL=24h
+RESEND_API_KEY=re_...
+APP_URL=https://subtitler.example.com
+EMAIL_FROM=noreply@subtitler.example.com
+CSRF_SECRET=your-persistent-csrf-secret
+```
+
+## See Also
+
+- [../backend/README.md](../backend/README.md) - Backend overview with quick reference
+- [../specs/deployment.md](../specs/deployment.md) - Production deployment guide
+- [./RATE_LIMITS.md](./RATE_LIMITS.md) - Rate limiting details
+- [../specs/auth.md](../specs/auth.md) - Authentication specification
+- [../specs/encryption.md](../specs/encryption.md) - Encryption specification

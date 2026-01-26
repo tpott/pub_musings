@@ -37,6 +37,14 @@ See [docs/API.md](docs/API.md) for complete API documentation including:
 - Rate limiting information
 - Example curl commands
 
+### Environment Variables
+
+See [docs/ENV.md](docs/ENV.md) for complete environment variable reference including:
+- Server, storage, and Whisper configuration
+- Email and security settings
+- Rate limit configuration
+- Example configurations for development and production
+
 ## Development
 
 ### Testing

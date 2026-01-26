@@ -57,10 +57,11 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ TypeScript interfaces for type safety
 - See: `TESTING.md`, `BROWSER_TESTING.md`
 
-### Documentation (Tasks 20-23, 26, 31-36, 54, 67, 78, 104)
+### Documentation (Tasks 20-23, 26, 31-36, 54, 67, 78, 104, 110)
 - ✅ TESTING.md, INSTALL.md, LINTERS.md, BROWSER_TESTING.md
 - ✅ API documentation in docs/API.md
 - ✅ Rate limits reference in docs/RATE_LIMITS.md
+- ✅ Environment variable reference in docs/ENV.md (Task 110)
 - ✅ Feature specs in specs/ directory
 - ✅ Deployment planning docs
 - ✅ Production debugging guide (Task 104)
@@ -118,14 +119,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**7 tasks remaining** (110-116):
+**6 tasks remaining** (111-116):
 
 1. Technical debt (113): Structured logging
 2. UX improvements (111-112): Video thumbnails, burn progress indicators
-3. Documentation (110): Environment variable reference
-4. Security (114): Authenticated health check
-5. Cleanup (115): Remove hardcoded Go paths
-6. Performance (116): Chunked uploads for large videos
+3. Security (114): Authenticated health check
+4. Cleanup (115): Remove hardcoded Go paths
+5. Performance (116): Chunked uploads for large videos
 
 See `TASKS.jsonl` for details.
 
