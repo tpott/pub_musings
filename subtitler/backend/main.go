@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/trevor/subtitler/backend/align"
+	"github.com/trevor/subtitler/backend/audio"
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
@@ -74,6 +75,9 @@ var burnLimiter = ratelimit.New(2, time.Minute)             // Burn endpoint: 2/
 // Global email service for transactional emails
 var emailService email.EmailService
 
+// Global audio extractor for video processing
+var audioExtractor audio.Extractor
+
 func generateID() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)
@@ -110,23 +114,6 @@ func isWhisperServerEnabled() bool {
 	return os.Getenv("USE_WHISPER_SERVER") == "true"
 }
 
-// extractAudio uses ffmpeg to extract audio from video as WAV
-func extractAudio(videoPath, audioPath string) error {
-	cmd := exec.Command("ffmpeg",
-		"-i", videoPath,
-		"-vn",                  // no video
-		"-acodec", "pcm_s16le", // WAV format
-		"-ar", "16000", // 16kHz sample rate (whisper expects this)
-		"-ac", "1", // mono
-		"-y", // overwrite output
-		audioPath,
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ffmpeg error: %v, output: %s", err, string(output))
-	}
-	return nil
-}
 
 // transcribeAudio runs whisper-cli on the audio file
 func transcribeAudio(audioPath, outputPath string) (*WhisperResult, error) {
@@ -458,6 +445,15 @@ func main() {
 		log.Printf("Email service enabled")
 	} else {
 		log.Printf("Email service disabled (no RESEND_API_KEY set)")
+	}
+
+	// Initialize audio extractor and check ffmpeg availability
+	audioExtractor = audio.NewFFmpegExtractor()
+	if err := audio.CheckFFmpegAvailable(); err != nil {
+		log.Printf("WARNING: %v", err)
+		log.Printf("Video transcription and subtitle burning will fail until ffmpeg is installed")
+	} else {
+		log.Printf("ffmpeg available for video processing")
 	}
 
 	mux := http.NewServeMux()
@@ -1892,7 +1888,7 @@ func main() {
 			// Extract audio
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
-			if err := extractAudio(workingVideoPath, audioPath); err != nil {
+			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
 				log.Printf("Audio extraction failed: %v", err)
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
