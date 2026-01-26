@@ -27,6 +27,20 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `APP_URL` | `http://localhost:4321` | Base URL for email links (e.g., password reset) |
 | `EMAIL_ENABLED` | `true` | Set to `false` to disable email sending |
 | `HTTPS_ONLY` | `false` | Set to `true` or `1` to enable Secure flag on session cookies |
+| `TRUST_PROXY` | `false` | Set to `true` or `1` to trust X-Forwarded-For headers (see below) |
+
+### Proxy Trust Configuration
+
+The `TRUST_PROXY` environment variable controls whether the rate limiter trusts proxy headers (`X-Forwarded-For`, `X-Real-IP`) for client IP detection.
+
+**Default (TRUST_PROXY=false):** Uses `RemoteAddr` directly. This is the secure default that prevents IP spoofing attacks when not behind a trusted proxy.
+
+**Enabled (TRUST_PROXY=true):** Trusts `X-Forwarded-For` and `X-Real-IP` headers. **Only enable this when running behind a trusted reverse proxy** like Caddy, nginx, or a load balancer. If enabled without a proxy, attackers can spoof their IP address to bypass rate limiting.
+
+Example for production behind Caddy:
+```bash
+export TRUST_PROXY=true
+```
 
 ### File Path Configuration
 

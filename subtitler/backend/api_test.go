@@ -3236,7 +3236,13 @@ func TestRateLimitingTOTPRecover(t *testing.T) {
 }
 
 // TestRateLimitingXForwardedFor tests that rate limiting respects X-Forwarded-For header
+// when TRUST_PROXY is enabled
 func TestRateLimitingXForwardedFor(t *testing.T) {
+	// Enable trust proxy for this test
+	oldTrust := ratelimit.IsTrustProxy()
+	ratelimit.SetTrustProxy(true)
+	defer ratelimit.SetTrustProxy(oldTrust)
+
 	strictLimiter := ratelimit.New(2, time.Minute)
 
 	mux := http.NewServeMux()
@@ -3282,6 +3288,51 @@ func TestRateLimitingXForwardedFor(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Different X-Forwarded-For IP should not be rate limited, got %d", w.Code)
+	}
+}
+
+// TestRateLimitingXForwardedForUntrusted tests that X-Forwarded-For is ignored
+// when TRUST_PROXY is disabled (default)
+func TestRateLimitingXForwardedForUntrusted(t *testing.T) {
+	// Ensure trust proxy is disabled for this test
+	oldTrust := ratelimit.IsTrustProxy()
+	ratelimit.SetTrustProxy(false)
+	defer ratelimit.SetTrustProxy(oldTrust)
+
+	strictLimiter := ratelimit.New(2, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/auth/login", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+
+	// Simulate requests that try to spoof X-Forwarded-For
+	// All requests come from same proxy IP (RemoteAddr)
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", i)) // Different spoofed IPs
+		req.RemoteAddr = "10.0.0.1:12345"                                 // Same actual IP
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 3rd request should be limited based on RemoteAddr, ignoring X-Forwarded-For
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", "203.0.113.99") // Attacker tries different spoofed IP
+	req.RemoteAddr = "10.0.0.1:12345"                 // Same actual IP
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 (spoofed X-Forwarded-For should be ignored), got %d", w.Code)
 	}
 }
 

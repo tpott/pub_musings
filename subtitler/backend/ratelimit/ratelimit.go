@@ -4,10 +4,26 @@ package ratelimit
 import (
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
+
+// trustProxy indicates whether to trust X-Forwarded-For and X-Real-IP headers.
+// This should only be enabled when behind a trusted reverse proxy (e.g., Caddy, nginx).
+// Set TRUST_PROXY=true or TRUST_PROXY=1 environment variable to enable.
+var trustProxy = os.Getenv("TRUST_PROXY") == "true" || os.Getenv("TRUST_PROXY") == "1"
+
+// SetTrustProxy allows programmatic control of proxy trust (mainly for testing).
+func SetTrustProxy(trust bool) {
+	trustProxy = trust
+}
+
+// IsTrustProxy returns whether proxy headers are trusted.
+func IsTrustProxy() bool {
+	return trustProxy
+}
 
 // Limiter tracks request counts per IP within a sliding time window.
 type Limiter struct {
@@ -88,19 +104,22 @@ func (l *Limiter) cleanup() {
 }
 
 // GetClientIP extracts the client IP address from an HTTP request.
-// It checks X-Forwarded-For and X-Real-IP headers for proxied requests,
-// then falls back to RemoteAddr.
+// When TRUST_PROXY is enabled, it checks X-Forwarded-For and X-Real-IP headers
+// for proxied requests. Otherwise, it only uses RemoteAddr to prevent IP spoofing.
 func GetClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header (may contain multiple IPs)
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		// Take the first IP (original client)
-		parts := strings.Split(forwarded, ",")
-		return strings.TrimSpace(parts[0])
-	}
+	// Only trust proxy headers when explicitly configured
+	if trustProxy {
+		// Check X-Forwarded-For header (may contain multiple IPs)
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			// Take the first IP (original client)
+			parts := strings.Split(forwarded, ",")
+			return strings.TrimSpace(parts[0])
+		}
 
-	// Check X-Real-IP header
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		return realIP
+		// Check X-Real-IP header
+		if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+			return realIP
+		}
 	}
 
 	// Fall back to RemoteAddr (strip port)

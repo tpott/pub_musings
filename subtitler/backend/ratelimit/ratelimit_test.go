@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// Helper to save and restore trustProxy state
+func withTrustProxy(trust bool, fn func()) {
+	oldTrust := IsTrustProxy()
+	SetTrustProxy(trust)
+	defer SetTrustProxy(oldTrust)
+	fn()
+}
+
 func TestNewLimiter(t *testing.T) {
 	l := New(5, time.Minute)
 	if l == nil {
@@ -85,73 +93,179 @@ func TestAllowWindowExpiry(t *testing.T) {
 }
 
 func TestGetClientIP(t *testing.T) {
-	tests := []struct {
-		name       string
-		remoteAddr string
-		headers    map[string]string
-		expected   string
-	}{
-		{
-			name:       "direct connection",
-			remoteAddr: "192.168.1.1:12345",
-			headers:    nil,
-			expected:   "192.168.1.1",
-		},
-		{
-			name:       "X-Forwarded-For single",
-			remoteAddr: "10.0.0.1:12345",
-			headers:    map[string]string{"X-Forwarded-For": "203.0.113.50"},
-			expected:   "203.0.113.50",
-		},
-		{
-			name:       "X-Forwarded-For multiple",
-			remoteAddr: "10.0.0.1:12345",
-			headers:    map[string]string{"X-Forwarded-For": "203.0.113.50, 70.41.3.18, 150.172.238.178"},
-			expected:   "203.0.113.50",
-		},
-		{
-			name:       "X-Real-IP",
-			remoteAddr: "10.0.0.1:12345",
-			headers:    map[string]string{"X-Real-IP": "203.0.113.100"},
-			expected:   "203.0.113.100",
-		},
-		{
-			name:       "X-Forwarded-For takes precedence",
-			remoteAddr: "10.0.0.1:12345",
-			headers: map[string]string{
-				"X-Forwarded-For": "203.0.113.50",
-				"X-Real-IP":       "203.0.113.100",
-			},
-			expected: "203.0.113.50",
-		},
-		{
-			name:       "RemoteAddr without port",
-			remoteAddr: "192.168.1.1",
-			headers:    nil,
-			expected:   "192.168.1.1",
-		},
-		{
-			name:       "IPv6 address",
-			remoteAddr: "[::1]:12345",
-			headers:    nil,
-			expected:   "::1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/", nil)
-			r.RemoteAddr = tt.remoteAddr
-			for k, v := range tt.headers {
-				r.Header.Set(k, v)
+	// Test with TRUST_PROXY disabled (default)
+	t.Run("untrusted mode", func(t *testing.T) {
+		withTrustProxy(false, func() {
+			tests := []struct {
+				name       string
+				remoteAddr string
+				headers    map[string]string
+				expected   string
+			}{
+				{
+					name:       "direct connection",
+					remoteAddr: "192.168.1.1:12345",
+					headers:    nil,
+					expected:   "192.168.1.1",
+				},
+				{
+					name:       "ignores X-Forwarded-For when untrusted",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"X-Forwarded-For": "203.0.113.50"},
+					expected:   "10.0.0.1",
+				},
+				{
+					name:       "ignores X-Real-IP when untrusted",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"X-Real-IP": "203.0.113.100"},
+					expected:   "10.0.0.1",
+				},
+				{
+					name:       "ignores all proxy headers when untrusted",
+					remoteAddr: "10.0.0.1:12345",
+					headers: map[string]string{
+						"X-Forwarded-For": "203.0.113.50",
+						"X-Real-IP":       "203.0.113.100",
+					},
+					expected: "10.0.0.1",
+				},
+				{
+					name:       "RemoteAddr without port",
+					remoteAddr: "192.168.1.1",
+					headers:    nil,
+					expected:   "192.168.1.1",
+				},
+				{
+					name:       "IPv6 address",
+					remoteAddr: "[::1]:12345",
+					headers:    nil,
+					expected:   "::1",
+				},
 			}
 
-			ip := GetClientIP(r)
-			if ip != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, ip)
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					r := httptest.NewRequest("GET", "/", nil)
+					r.RemoteAddr = tt.remoteAddr
+					for k, v := range tt.headers {
+						r.Header.Set(k, v)
+					}
+
+					ip := GetClientIP(r)
+					if ip != tt.expected {
+						t.Errorf("expected %q, got %q", tt.expected, ip)
+					}
+				})
 			}
 		})
+	})
+
+	// Test with TRUST_PROXY enabled
+	t.Run("trusted mode", func(t *testing.T) {
+		withTrustProxy(true, func() {
+			tests := []struct {
+				name       string
+				remoteAddr string
+				headers    map[string]string
+				expected   string
+			}{
+				{
+					name:       "direct connection",
+					remoteAddr: "192.168.1.1:12345",
+					headers:    nil,
+					expected:   "192.168.1.1",
+				},
+				{
+					name:       "X-Forwarded-For single",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"X-Forwarded-For": "203.0.113.50"},
+					expected:   "203.0.113.50",
+				},
+				{
+					name:       "X-Forwarded-For multiple",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"X-Forwarded-For": "203.0.113.50, 70.41.3.18, 150.172.238.178"},
+					expected:   "203.0.113.50",
+				},
+				{
+					name:       "X-Real-IP",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"X-Real-IP": "203.0.113.100"},
+					expected:   "203.0.113.100",
+				},
+				{
+					name:       "X-Forwarded-For takes precedence",
+					remoteAddr: "10.0.0.1:12345",
+					headers: map[string]string{
+						"X-Forwarded-For": "203.0.113.50",
+						"X-Real-IP":       "203.0.113.100",
+					},
+					expected: "203.0.113.50",
+				},
+				{
+					name:       "RemoteAddr without port",
+					remoteAddr: "192.168.1.1",
+					headers:    nil,
+					expected:   "192.168.1.1",
+				},
+				{
+					name:       "IPv6 address",
+					remoteAddr: "[::1]:12345",
+					headers:    nil,
+					expected:   "::1",
+				},
+			}
+
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					r := httptest.NewRequest("GET", "/", nil)
+					r.RemoteAddr = tt.remoteAddr
+					for k, v := range tt.headers {
+						r.Header.Set(k, v)
+					}
+
+					ip := GetClientIP(r)
+					if ip != tt.expected {
+						t.Errorf("expected %q, got %q", tt.expected, ip)
+					}
+				})
+			}
+		})
+	})
+}
+
+func TestTrustProxySetterGetter(t *testing.T) {
+	// Save original state
+	original := IsTrustProxy()
+	defer SetTrustProxy(original)
+
+	// Test SetTrustProxy(true)
+	SetTrustProxy(true)
+	if !IsTrustProxy() {
+		t.Error("expected IsTrustProxy to return true after SetTrustProxy(true)")
 	}
+
+	// Test SetTrustProxy(false)
+	SetTrustProxy(false)
+	if IsTrustProxy() {
+		t.Error("expected IsTrustProxy to return false after SetTrustProxy(false)")
+	}
+}
+
+func TestGetClientIPSpoofingPrevention(t *testing.T) {
+	// This test verifies that when TRUST_PROXY is disabled,
+	// malicious X-Forwarded-For headers cannot spoof the client IP
+	withTrustProxy(false, func() {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = "192.168.1.1:12345"
+		// Attacker tries to spoof their IP
+		r.Header.Set("X-Forwarded-For", "10.10.10.10")
+
+		ip := GetClientIP(r)
+		if ip != "192.168.1.1" {
+			t.Errorf("IP spoofing succeeded: expected 192.168.1.1, got %q", ip)
+		}
+	})
 }
 
 func TestWrapAllowed(t *testing.T) {

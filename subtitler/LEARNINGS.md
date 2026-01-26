@@ -274,3 +274,18 @@ But proper consonant cluster handling (halant/virama) requires sophisticated alg
 - Fallbacks are acceptable for non-critical uses (request IDs)
 - Security-critical code should fail safely rather than continue with bad state
 - Test code can panic since test setup failure indicates bigger problems
+
+---
+
+### 2026-01-26: X-Forwarded-For header trust requires explicit opt-in
+
+**Problem:** The rate limiter blindly trusted `X-Forwarded-For` and `X-Real-IP` headers from any client. This allowed attackers to spoof their IP address by sending fake headers, completely bypassing rate limiting protection.
+
+**Solution:** Added `TRUST_PROXY` environment variable that must be explicitly set to `true` or `1` to trust proxy headers. Default is `false` which only uses `RemoteAddr` for IP detection.
+
+**Lesson:** Never trust client-provided headers by default:
+- `X-Forwarded-For` can be set by anyone, not just proxies
+- Only trust these headers when you know you're behind a trusted reverse proxy
+- Make proxy trust opt-in, not opt-out
+- Document clearly which environment configurations require which settings
+- This applies to all similar headers: `X-Real-IP`, `X-Forwarded-Proto`, etc.
