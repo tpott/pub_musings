@@ -49,21 +49,31 @@ def get_timestamp() -> str:
     return f"{local_str} | {utc_str} | {epoch_ms:.3f}"
 
 
-def process_claude_output(lines: Iterable[str], verbose: bool) -> str | None:
+def process_claude_output(
+    lines: Iterable[str], verbose: bool, log_file: Path | None
+) -> str | None:
     """
     Process lines from claude output, return the last line.
 
-    If verbose, streams all output.
+    If verbose, streams all output to stdout.
     If not verbose, prints session_id once, then '.' for each line received.
+    If log_file is not None, writes all JSON lines to the log file.
     """
     last_line = None
     session_id_printed = False
 
     for line in lines:
         last_line = line.rstrip("\n")
+
+        # Log all JSON to file if log_file is provided
+        if log_file is not None:
+            with open(log_file, "a") as f:
+                f.write(f"{last_line}\n")
+
         if verbose:
             print(line, end="", flush=True)
             continue
+
         # Print session_id once before the dots
         if not session_id_printed:
             data: dict[str, str] = {}
@@ -74,6 +84,9 @@ def process_claude_output(lines: Iterable[str], verbose: bool) -> str | None:
             if "session_id" in data:
                 print(f"session_id: {data['session_id']}")
                 session_id_printed = True
+            elif "sessionId" in data:
+                print(f"sessionId: {data['sessionId']}")
+                session_id_printed = True
         print(".", end="", flush=True)
 
     if not verbose:
@@ -82,7 +95,9 @@ def process_claude_output(lines: Iterable[str], verbose: bool) -> str | None:
     return last_line
 
 
-def run_claude(prompt_content: str, verbose: bool) -> str | None:
+def run_claude(
+    prompt_content: str, verbose: bool, log_file: Path | None
+) -> str | None:
     """Run claude subprocess and return the last line of output."""
     cmd = [
         "claude",
@@ -109,7 +124,7 @@ def run_claude(prompt_content: str, verbose: bool) -> str | None:
         proc.stdin.write(prompt_content)
         proc.stdin.close()
 
-        last_line = process_claude_output(proc.stdout, verbose)
+        last_line = process_claude_output(proc.stdout, verbose, log_file)
 
         # Wait for process to complete
         proc.wait()
@@ -179,7 +194,7 @@ def main() -> None:
         prompt_content = prompt_file.read_text()
 
         try:
-            last_line = run_claude(prompt_content, args.verbose)
+            last_line = run_claude(prompt_content, args.verbose, log_file)
             # If ralph is run with --verbose then skip logging the Result so it's
             # easier to parse with `jq`. Grep for `"type":"result","subtype":"success"`
             if last_line is not None and not args.verbose:

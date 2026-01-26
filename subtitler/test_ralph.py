@@ -75,32 +75,32 @@ class TestProcessClaudeOutput(unittest.TestCase):
     def test_returns_last_line(self) -> None:
         lines = ["first\n", "second\n", "third\n"]
         with redirect_stdout(io.StringIO()):
-            result = process_claude_output(lines, verbose=False)
+            result = process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(result, "third")
 
     def test_returns_none_for_empty_input(self) -> None:
         with redirect_stdout(io.StringIO()):
-            result = process_claude_output([], verbose=False)
+            result = process_claude_output([], verbose=False, log_file=None)
         self.assertIsNone(result)
 
     def test_strips_newlines(self) -> None:
         lines = ["line with newline\n"]
         with redirect_stdout(io.StringIO()):
-            result = process_claude_output(lines, verbose=False)
+            result = process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(result, "line with newline")
 
     def test_verbose_prints_full_lines(self) -> None:
         lines = ["line1\n", "line2\n"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=True)
+            process_claude_output(lines, verbose=True, log_file=None)
         self.assertEqual(stdout.getvalue(), "line1\nline2\n")
 
     def test_non_verbose_prints_dots(self) -> None:
         lines = ["line1\n", "line2\n", "line3\n"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=False)
+            process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(stdout.getvalue(), "...\n")
 
     def test_prints_session_id_once(self) -> None:
@@ -111,7 +111,7 @@ class TestProcessClaudeOutput(unittest.TestCase):
         ]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=False)
+            process_claude_output(lines, verbose=False, log_file=None)
         output = stdout.getvalue()
         self.assertEqual(output.count("session_id: abc123"), 1)
         self.assertIn("...\n", output)
@@ -120,7 +120,7 @@ class TestProcessClaudeOutput(unittest.TestCase):
         lines = ["not json\n", "also not json\n"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            result = process_claude_output(lines, verbose=False)
+            result = process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(result, "also not json")
         self.assertEqual(stdout.getvalue(), "..\n")
 
@@ -131,7 +131,7 @@ class TestProcessClaudeOutput(unittest.TestCase):
         ]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=False)
+            process_claude_output(lines, verbose=False, log_file=None)
         output = stdout.getvalue()
         self.assertIn("session_id: found", output)
 
