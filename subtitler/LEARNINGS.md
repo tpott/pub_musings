@@ -315,3 +315,29 @@ The frontend called `/api/videos` without passing session_id for anonymous users
 - Never have a "return all" code path without explicit admin privileges
 - Test the "no filter provided" case explicitly
 - Consider privacy implications during code review: "What if no filter is provided?"
+
+---
+
+### 2026-01-26: MoltenVK GPU passthrough to QEMU VMs is blocked on macOS
+
+**Problem:** Researched using MoltenVK + Venus to pass Vulkan GPU acceleration from macOS host to Linux guest VMs for whisper.cpp acceleration. This would eliminate the need for host-based whisper-server.
+
+**Findings:**
+1. **Good news - Upstream support exists:**
+   - QEMU 9.2.0+ includes Venus patches for Vulkan passthrough
+   - whisper.cpp has excellent Vulkan support (PR #2302, v1.8.3 is 12x faster)
+   - virglrenderer 1.0.0+ handles Venus protocol
+
+2. **Bad news - macOS is blocked:**
+   - Venus requires DMA buffer export features that MoltenVK cannot implement on macOS
+   - UTM Issue #4551 documents this as a fundamental architectural limitation
+   - Custom QEMU builds with patches exist (osy's gist) but require maintaining 4+ projects
+   - Even when working, performance is 75-77% of native Metal
+
+**Solution:** Keep using the host-based whisper-server approach. It's simpler, faster, and already working.
+
+**Lesson:** Before investing in complex GPU passthrough:
+1. Check if the guest OS → host stack is actually supported (Venus needs DMA buffers)
+2. Consider the maintenance burden of custom builds vs. simpler architectures
+3. 25% performance penalty plus complexity usually isn't worth it vs. host-based services
+4. Document research thoroughly so this doesn't get re-investigated later

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**106 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**All 105 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -98,9 +98,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 ### Video Management (Tasks 73)
 - ✅ Video reprocessing for failed transcriptions
 
+### Research (Task 48)
+- ✅ MoltenVK/qemu GPU passthrough research completed
+- **Conclusion:** Not recommended for production - macOS/MoltenVK lacks DMA buffer support needed by Venus
+- Current host-based whisper-server approach remains the best option
+- See: `specs/metal-moltenvk.md`
+
 ## Current Work
 
-See `TASKS.jsonl` for pending tasks.
+All tasks complete! See `TASKS.jsonl` for history.
 
 ## Key Files
 

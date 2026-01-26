@@ -6,7 +6,9 @@ Research document exploring building a custom qemu with MoltenVK support to expo
 
 **Goal:** Compile qemu with MoltenVK integration so guest VMs can access GPU compute via Vulkan API.
 
-**Current Status:** Requires research and testing. This document outlines the approach and test plan.
+**Current Status:** Research completed January 2026. **Verdict: Not recommended for production use.**
+
+**Summary:** While technical progress has been made (QEMU 9.2+ includes Venus, whisper.cpp has Vulkan support), macOS/MoltenVK integration remains blocked by memory mapping limitations. The current host-based whisper-server approach is more reliable.
 
 ## Background
 
@@ -227,19 +229,80 @@ Use cloud GPU instances (AWS g4dn, RunPod) for burst transcription.
 
 whisper.cpp has experimental Core ML support for ANE acceleration.
 
+## Research Findings (January 2026)
+
+### QEMU Venus/Vulkan Support Status
+
+**Good news:** Upstream QEMU 9.2.0+ now includes Venus support for Vulkan passthrough.
+
+- Venus is available since QEMU 9.2.0 and Linux kernel 6.13
+- Enable with: `-device virtio-gpu-gl,hostmem=8G,blob=true,venus=true`
+- Venus supports Vulkan API versions up to 1.3
+- Translation handled by virglrenderer 1.0.0+
+
+**References:**
+- [QEMU VirtIO-GPU Vulkan Support (Phoronix)](https://www.phoronix.com/news/VirtIO-GPU-Vulkan-QEMU)
+- [Venus Documentation (Mesa)](https://docs.mesa3d.org/drivers/venus.html)
+- [State of GFX Virtualization (Collabora, Jan 2025)](https://www.collabora.com/news-and-blog/blog/2025/01/15/the-state-of-gfx-virtualization-using-virglrenderer/)
+
+### macOS/Apple Silicon Integration Status
+
+**Bad news:** Venus + MoltenVK on macOS has significant blockers.
+
+From [UTM Issue #4551](https://github.com/utmapp/UTM/issues/4551):
+
+> Venus requires specific Vulkan memory features that MoltenVK cannot implement on Apple's platform. Venus assumes device memory can be exported as memory-mapped DMA buffers, requiring Linux kernel UDMA buffer support. This functionality lacks implementation across macOS and MoltenVK.
+
+**Workaround attempts:**
+- Custom QEMU builds with patches exist ([osy's gist](https://gist.github.com/osy/a8f705050eed1c8421ad1a0855a8faa9))
+- Requires patching QEMU, virglrenderer, MoltenVK, and libepoxy
+- Performance is 75-77% of native Metal ([Red Hat](https://developers.redhat.com/articles/2025/06/05/how-we-improved-ai-inference-macos-podman-containers))
+- Patches not upstreamed; maintenance burden is high
+
+**Alternative: gfxstream** (from Google's Android emulator) is being explored but requires significant work to adapt for vanilla Linux/QEMU.
+
+### whisper.cpp Vulkan Support Status
+
+**Good news:** whisper.cpp now has excellent Vulkan support.
+
+- [PR #2302](https://github.com/ggml-org/whisper.cpp/pull/2302) added Vulkan as GPU backend
+- Version 1.8.3 (Jan 2026) delivers 12x speedup on integrated GPUs
+- Works with AMD, NVIDIA, and Intel GPUs on Linux/Windows
+- Users report Vulkan is ~10x faster than CPU, comparable to CUDA
+- [Discussion #2375](https://github.com/ggml-org/whisper.cpp/discussions/2375) confirms positive user experiences
+
+**However:** On Linux guests in a macOS QEMU VM, we'd need the Venus stack working, which brings us back to the macOS blockers above.
+
+## Conclusion and Recommendation
+
+### Why This Approach Is Not Recommended
+
+1. **macOS blockers:** MoltenVK cannot implement required memory mapping features for Venus
+2. **Patch maintenance:** Custom builds require ongoing maintenance of 4+ projects
+3. **Performance penalty:** Even when working, ~25% slower than native Metal
+4. **Complexity:** High failure modes, hard to debug GPU issues in VMs
+
+### Recommended Approach
+
+**Continue with host-based whisper-server** (current implementation):
+- Already working and deployed
+- Native Metal performance
+- Simple architecture: VM calls whisper-server on host via `10.0.2.2:8765`
+- No custom builds or patches needed
+
+### Future Possibilities
+
+Monitor these developments:
+1. **Upstream macOS Venus support** - If MoltenVK/Apple adds DMA buffer support
+2. **gfxstream on macOS** - Alternative serialization approach being explored
+3. **Apple Virtualization Framework** - May eventually expose GPU to guests
+
 ## Known Challenges
 
-1. **Venus is Linux-only** - The main Vulkan passthrough project targets Linux hosts
-2. **virtio-gpu Vulkan** - May not be fully supported in upstream qemu for macOS
-3. **MoltenVK limitations** - Some Vulkan features may not translate cleanly to Metal
-4. **whisper.cpp Vulkan** - May not have a Vulkan backend (Metal is native)
-
-## Next Steps
-
-1. File a task to execute Phase 1 (verify MoltenVK works)
-2. Research qemu Vulkan support status
-3. Check if whisper.cpp can be modified to use Vulkan on Linux guest
-4. Report findings and update this spec
+1. ~~**Venus is Linux-only**~~ **Confirmed:** Venus requires features macOS/MoltenVK cannot provide
+2. ~~**virtio-gpu Vulkan**~~ **Confirmed:** Upstream in QEMU 9.2+, but macOS backend blocked
+3. ~~**MoltenVK limitations**~~ **Confirmed:** Cannot implement DMA buffer export required by Venus
+4. ~~**whisper.cpp Vulkan**~~ **Resolved:** Vulkan backend merged and works well on native Linux
 
 ## References
 
@@ -248,6 +311,11 @@ whisper.cpp has experimental Core ML support for ANE acceleration.
 - [virglrenderer](https://virgil3d.github.io/)
 - [qemu virtio-gpu](https://www.qemu.org/docs/master/system/devices/virtio-gpu.html)
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+- [QEMU on Apple Silicon with Vulkan support (osy's gist)](https://gist.github.com/osy/a8f705050eed1c8421ad1a0855a8faa9)
+- [UTM Venus+MoltenVK Issue #4551](https://github.com/utmapp/UTM/issues/4551)
+- [whisper.cpp Vulkan PR #2302](https://github.com/ggml-org/whisper.cpp/pull/2302)
+- [State of GFX Virtualization (Collabora, Jan 2025)](https://www.collabora.com/news-and-blog/blog/2025/01/15/the-state-of-gfx-virtualization-using-virglrenderer/)
+- [GPU-Accelerated AI Inference in Linux Container on macOS (Red Hat)](https://developers.redhat.com/articles/2025/06/05/how-we-improved-ai-inference-macos-podman-containers)
 
 ## See Also
 
