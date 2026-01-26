@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**94 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**99 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -54,14 +54,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ TypeScript interfaces for type safety
 - See: `TESTING.md`, `BROWSER_TESTING.md`
 
-### Documentation (Tasks 20-23, 26, 31-36, 54, 67, 78)
+### Documentation (Tasks 20-23, 26, 31-36, 54, 67, 78, 104)
 - ✅ TESTING.md, INSTALL.md, LINTERS.md, BROWSER_TESTING.md
 - ✅ API documentation in docs/API.md
 - ✅ Rate limits reference in docs/RATE_LIMITS.md
 - ✅ Feature specs in specs/ directory
 - ✅ Deployment planning docs
+- ✅ Production debugging guide (Task 104)
 
-### Security & Infrastructure (Tasks 52, 60, 63-64, 68, 72, 74-75, 79, 83, 87-89, 93)
+### Security & Infrastructure (Tasks 52, 60, 63-64, 68, 72, 74-75, 79, 83, 87-89, 93, 95, 99)
 - ✅ Rate limiting on all sensitive endpoints
 - ✅ MIME type validation on uploads
 - ✅ Secure cookie flag for HTTPS
@@ -75,14 +76,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Configurable paths via environment variables (Task 88)
 - ✅ X-Forwarded-For trust validation (Task 89)
 - ✅ Encryption toggle via environment variable (Task 93)
+- ✅ Configurable rate limits via environment variables (Task 95)
+- ✅ Fixed privacy vulnerability in My Videos page (Task 99)
 
-### UI/UX (Tasks 65, 71, 76-77, 90-91)
+### UI/UX (Tasks 65, 71, 76-77, 90-91, 96)
 - ✅ Upload progress bar with real bytes/percentage
 - ✅ Accessibility improvements (ARIA labels, keyboard nav)
 - ✅ Mobile responsive design
 - ✅ Dark mode with toggle and localStorage persistence
 - ✅ Time input validation with max 24 hours and inline errors
 - ✅ Event listener cleanup to prevent memory leaks
+- ✅ Namespaced localStorage keys (Task 96)
 
 ### Video Management (Tasks 73)
 - ✅ Video reprocessing for failed transcriptions
