@@ -105,6 +105,8 @@ func setupTestServer(t *testing.T) *testServer {
 // registerHandlers registers all API handlers on the test server's mux
 func (ts *testServer) registerHandlers() {
 	// Health check endpoint (enhanced with dependency checks)
+	// Unauthenticated: returns only {"status": "ok"} or {"status": "degraded"}
+	// Authenticated: returns full response with all dependency details
 	ts.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -143,7 +145,19 @@ func (ts *testServer) registerHandlers() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 
-		json.NewEncoder(w).Encode(status)
+		// Check if user is authenticated
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+
+		if user != nil {
+			// Authenticated: return full response
+			json.NewEncoder(w).Encode(status)
+		} else {
+			// Unauthenticated: return minimal response
+			json.NewEncoder(w).Encode(map[string]string{
+				"status": status.Status,
+			})
+		}
 	})
 
 	// Frontend log forwarding endpoint (for dev mode debugging)
@@ -1772,11 +1786,52 @@ func (ts *testServer) createTestFailedTranscription(t *testing.T, videoID string
 
 // ========== Test Cases ==========
 
-func TestHealthEndpoint(t *testing.T) {
+// TestHealthEndpointUnauthenticated tests that unauthenticated requests get minimal response
+func TestHealthEndpointUnauthenticated(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
 	resp := ts.doRequest("GET", "/api/health", nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+
+	// Unauthenticated should only get status field
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["status"] != "ok" {
+		t.Errorf("Expected status 'ok', got '%v'", result["status"])
+	}
+
+	// Should NOT have detailed fields
+	if _, ok := result["db_connected"]; ok {
+		t.Error("Unauthenticated response should not include db_connected")
+	}
+	if _, ok := result["whisper_available"]; ok {
+		t.Error("Unauthenticated response should not include whisper_available")
+	}
+	if _, ok := result["disk_space_ok"]; ok {
+		t.Error("Unauthenticated response should not include disk_space_ok")
+	}
+	if _, ok := result["disk_free_gb"]; ok {
+		t.Error("Unauthenticated response should not include disk_free_gb")
+	}
+	if _, ok := result["errors"]; ok {
+		t.Error("Unauthenticated response should not include errors")
+	}
+}
+
+// TestHealthEndpointAuthenticated tests that authenticated requests get full response
+func TestHealthEndpointAuthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user and get auth token
+	token := ts.createTestUser(t, "health@example.com", "testpass123")
+
+	resp := ts.doRequest("GET", "/api/health", nil, token)
 
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.Code)
@@ -1789,7 +1844,7 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Errorf("Expected status 'ok', got '%s'", result.Status)
 	}
 
-	// Verify enhanced health check fields
+	// Verify enhanced health check fields are present for authenticated users
 	if !result.DBConnected {
 		t.Error("Expected DBConnected to be true")
 	}
@@ -1807,7 +1862,8 @@ func TestHealthEndpoint(t *testing.T) {
 	}
 }
 
-func TestHealthEndpointDBDown(t *testing.T) {
+// TestHealthEndpointDBDownUnauthenticated tests unauthenticated response when DB is down
+func TestHealthEndpointDBDownUnauthenticated(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
@@ -1821,17 +1877,49 @@ func TestHealthEndpointDBDown(t *testing.T) {
 		t.Errorf("Expected status 503, got %d", resp.Code)
 	}
 
-	var result HealthStatus
+	// Unauthenticated should only get status field
+	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	if result.Status != "degraded" {
-		t.Errorf("Expected status 'degraded', got '%s'", result.Status)
+	if result["status"] != "degraded" {
+		t.Errorf("Expected status 'degraded', got '%v'", result["status"])
 	}
-	if result.DBConnected {
-		t.Error("Expected DBConnected to be false")
+
+	// Should NOT have detailed fields even when degraded
+	if _, ok := result["db_connected"]; ok {
+		t.Error("Unauthenticated response should not include db_connected")
 	}
-	if len(result.Errors) == 0 {
-		t.Error("Expected at least one error message")
+	if _, ok := result["errors"]; ok {
+		t.Error("Unauthenticated response should not include errors")
+	}
+}
+
+// TestHealthEndpointDBDownAuthenticated tests authenticated response when DB is down
+// Note: This is a tricky edge case - authentication itself requires DB access.
+// When DB is down, we can't validate the session, so the user effectively becomes unauthenticated.
+func TestHealthEndpointDBDownAuthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user and get auth token while DB is still up
+	token := ts.createTestUser(t, "healthdown@example.com", "testpass123")
+
+	// Close the database to simulate a connection failure
+	ts.db.Close()
+
+	resp := ts.doRequest("GET", "/api/health", nil, token)
+
+	// Should return 503 Service Unavailable when DB is down
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503, got %d", resp.Code)
+	}
+
+	// When DB is down, we can't validate the session, so response should be minimal
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["status"] != "degraded" {
+		t.Errorf("Expected status 'degraded', got '%v'", result["status"])
 	}
 }
 

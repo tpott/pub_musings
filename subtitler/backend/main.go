@@ -822,6 +822,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health check endpoint
+	// Unauthenticated: returns only {"status": "ok"} or {"status": "degraded"}
+	// Authenticated: returns full response with all dependency details
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -860,7 +862,19 @@ func main() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 
-		json.NewEncoder(w).Encode(status)
+		// Check if user is authenticated
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+
+		if user != nil {
+			// Authenticated: return full response
+			json.NewEncoder(w).Encode(status)
+		} else {
+			// Unauthenticated: return minimal response
+			json.NewEncoder(w).Encode(map[string]string{
+				"status": status.Status,
+			})
+		}
 	})
 
 	// Frontend log forwarding endpoint (for dev mode debugging)

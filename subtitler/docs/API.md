@@ -63,7 +63,34 @@ X-Request-ID: 894fe2cb7d305ce3
 
 Enhanced health check endpoint that verifies critical dependencies.
 
-**Authentication**: Not required
+**Authentication**: Optional (affects response detail level)
+
+#### Unauthenticated Response
+
+Unauthenticated requests receive a minimal response with only the status field:
+
+**Response** `200 OK` (all systems healthy):
+```json
+{
+  "status": "ok"
+}
+```
+
+**Response** `503 Service Unavailable` (one or more dependencies unavailable):
+```json
+{
+  "status": "degraded"
+}
+```
+
+**Example**:
+```bash
+curl http://localhost:8080/api/health
+```
+
+#### Authenticated Response
+
+Authenticated requests (valid session cookie or Bearer token) receive the full response with dependency details:
 
 **Response** `200 OK` (all systems healthy):
 ```json
@@ -88,7 +115,7 @@ Enhanced health check endpoint that verifies critical dependencies.
 }
 ```
 
-**Fields**:
+**Fields** (authenticated only):
 - `status`: "ok" when all dependencies are available, "degraded" otherwise
 - `db_connected`: true if database connection is alive (Ping succeeds)
 - `whisper_available`: true if whisper-server is reachable (when configured) or CLI mode
@@ -96,9 +123,9 @@ Enhanced health check endpoint that verifies critical dependencies.
 - `disk_free_gb`: current free disk space in gigabytes
 - `errors`: array of error messages for failed dependency checks (only present when status is degraded)
 
-**Example**:
+**Example** (authenticated):
 ```bash
-curl http://localhost:8080/api/health
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/api/health
 ```
 
 ---

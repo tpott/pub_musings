@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**111 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**112 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -105,10 +105,11 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Current host-based whisper-server approach remains the best option
 - See: `specs/metal-moltenvk.md`
 
-### Security Hardening (Tasks 106-108)
+### Security Hardening (Tasks 106-108, 114)
 - ✅ Account lockout after failed login attempts (Task 106) - already implemented, documented
 - ✅ Video file validation with ffprobe (Task 107)
 - ✅ Content Security Policy headers (Task 108)
+- ✅ Authenticated health check (Task 114) - public requests get minimal response, auth required for details
 
 ### Technical Infrastructure (Tasks 109, 113)
 - ✅ Database migration system (Task 109)
@@ -124,12 +125,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**5 tasks remaining** (111-112, 114-116):
+**4 tasks remaining** (111-112, 115-116):
 
 1. UX improvements (111-112): Video thumbnails, burn progress indicators
-2. Security (114): Authenticated health check
-3. Cleanup (115): Remove hardcoded Go paths
-4. Performance (116): Chunked uploads for large videos
+2. Cleanup (115): Remove hardcoded Go paths
+3. Performance (116): Chunked uploads for large videos
+
+### Recently Completed
+- ✅ Task 114: Authenticated health check - public requests now return minimal `{"status": "ok/degraded"}`, authenticated users get full details
 
 See `TASKS.jsonl` for details.
 
