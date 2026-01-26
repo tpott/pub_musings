@@ -205,7 +205,7 @@ Tests in `backend/crypto/crypto_test.go`:
 
 Run tests:
 ```bash
-cd backend && /home/trevor/go/bin/go test ./crypto -v
+cd backend && go test ./crypto -v
 ```
 
 ## Related Specs

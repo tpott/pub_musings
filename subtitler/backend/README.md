@@ -6,7 +6,7 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 
 ```bash
 # Run the server
-/home/trevor/go/bin/go run main.go
+go run main.go
 # Server runs on http://localhost:8080
 ```
 
@@ -223,25 +223,25 @@ The backend uses a file-based migration system for schema changes. Migration fil
 
 ```bash
 # Check migration status
-/home/trevor/go/bin/go run ./cmd/migrate status
+go run ./cmd/migrate status
 
 # Run all pending migrations
-/home/trevor/go/bin/go run ./cmd/migrate up
+go run ./cmd/migrate up
 
 # Run migrations up to a specific version
-/home/trevor/go/bin/go run ./cmd/migrate up 3
+go run ./cmd/migrate up 3
 
 # Rollback the last migration
-/home/trevor/go/bin/go run ./cmd/migrate down
+go run ./cmd/migrate down
 
 # Rollback multiple migrations
-/home/trevor/go/bin/go run ./cmd/migrate down 2
+go run ./cmd/migrate down 2
 
 # Check current schema version
-/home/trevor/go/bin/go run ./cmd/migrate version
+go run ./cmd/migrate version
 
 # Use custom database path
-/home/trevor/go/bin/go run ./cmd/migrate -db /path/to/db.sqlite status
+go run ./cmd/migrate -db /path/to/db.sqlite status
 ```
 
 **Note:** Migrations are automatically applied when the server starts. The CLI tool is primarily for manual operations like rollbacks or status checks.
@@ -256,9 +256,9 @@ The backend uses a file-based migration system for schema changes. Migration fil
 
 3. Test migrations:
    ```bash
-   /home/trevor/go/bin/go run ./cmd/migrate up
-   /home/trevor/go/bin/go run ./cmd/migrate down
-   /home/trevor/go/bin/go run ./cmd/migrate up
+   go run ./cmd/migrate up
+   go run ./cmd/migrate down
+   go run ./cmd/migrate up
    ```
 
 ## Project Structure
@@ -285,13 +285,13 @@ backend/
 
 ```bash
 # Run all backend tests
-/home/trevor/go/bin/go test ./... -v
+go test ./... -v
 
 # Run with coverage
-/home/trevor/go/bin/go test ./... -cover
+go test ./... -cover
 
 # Run specific package tests
-/home/trevor/go/bin/go test ./auth -v
+go test ./auth -v
 ```
 
 ## See Also

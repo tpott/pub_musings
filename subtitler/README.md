@@ -58,7 +58,7 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation including:
 Quick test commands:
 ```bash
 # Backend
-cd backend && /home/trevor/go/bin/go test ./... -v
+cd backend && go test ./... -v
 
 # Frontend
 cd frontend && npm test

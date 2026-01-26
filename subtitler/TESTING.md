@@ -18,23 +18,21 @@ The project has comprehensive test coverage across both backend and frontend:
 cd backend
 
 # Run all tests with verbose output
-/home/trevor/go/bin/go test ./... -v
+go test ./... -v
 
 # Run tests with short output
-/home/trevor/go/bin/go test ./...
+go test ./...
 
 # Run tests for a specific package
-/home/trevor/go/bin/go test ./auth -v
-/home/trevor/go/bin/go test ./db -v
-/home/trevor/go/bin/go test ./crypto -v
-/home/trevor/go/bin/go test ./align -v
-/home/trevor/go/bin/go test ./totp -v
+go test ./auth -v
+go test ./db -v
+go test ./crypto -v
+go test ./align -v
+go test ./totp -v
 
 # Run a specific test by name
-/home/trevor/go/bin/go test -run TestAuthLogin -v
+go test -run TestAuthLogin -v
 ```
-
-> **Note**: Go may not be in PATH on some systems. Use the full path `/home/trevor/go/bin/go` if needed.
 
 ### Test Files
 
@@ -207,11 +205,11 @@ To view test coverage:
 
 ```bash
 cd backend
-/home/trevor/go/bin/go test ./... -cover
+go test ./... -cover
 
 # Generate HTML coverage report
-/home/trevor/go/bin/go test ./... -coverprofile=coverage.out
-/home/trevor/go/bin/go tool cover -html=coverage.out -o coverage.html
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out -o coverage.html
 ```
 
 ### Frontend
@@ -227,7 +225,7 @@ Tests should be run before committing:
 
 ```bash
 # Quick test check (both backend and frontend)
-cd backend && /home/trevor/go/bin/go test ./... && cd ../frontend && npm test
+cd backend && go test ./... && cd ../frontend && npm test
 ```
 
 All tests must pass before merging to trunk.

@@ -340,8 +340,8 @@ API tests in `backend/api_test.go`:
 
 Run tests:
 ```bash
-cd backend && /home/trevor/go/bin/go test ./totp -v
-cd backend && /home/trevor/go/bin/go test -run "TOTP|Recovery" -v
+cd backend && go test ./totp -v
+cd backend && go test -run "TOTP|Recovery" -v
 ```
 
 ## Security Characteristics

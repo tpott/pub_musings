@@ -51,7 +51,7 @@ var sites = []Site{
         Path:       "/home/trevor/pub_musings/subtitler/backend",
         Branch:     "subtitler_v3",
         Repository: "trevor/pub_musings",
-        DeployCmd:  "/home/trevor/go/bin/go build -o /opt/subtitler/backend/subtitler && sudo systemctl restart subtitler",
+        DeployCmd:  "go build -o /opt/subtitler/backend/subtitler && sudo systemctl restart subtitler",
     },
 }
 ```
@@ -163,7 +163,7 @@ sites:
     branch: subtitler_v3
     repository: trevor/pub_musings
     deploy:
-      - /home/trevor/go/bin/go build -o /opt/subtitler/backend/subtitler
+      - go build -o /opt/subtitler/backend/subtitler
       - sudo systemctl restart subtitler
 ```
 
@@ -200,7 +200,7 @@ cd /home/trevor/pub_musings/subtitler/backend
 git pull origin subtitler_v3
 
 # Build binary
-/home/trevor/go/bin/go build -o /opt/subtitler/backend/subtitler-new
+go build -o /opt/subtitler/backend/subtitler-new
 
 # Atomic swap
 mv /opt/subtitler/backend/subtitler-new /opt/subtitler/backend/subtitler

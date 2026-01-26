@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**112 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**113 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -125,13 +125,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**4 tasks remaining** (111-112, 115-116):
+**3 tasks remaining** (111-112, 116):
 
 1. UX improvements (111-112): Video thumbnails, burn progress indicators
-2. Cleanup (115): Remove hardcoded Go paths
-3. Performance (116): Chunked uploads for large videos
+2. Performance (116): Chunked uploads for large videos
 
 ### Recently Completed
+- ✅ Task 115: Removed hardcoded Go paths - scripts now auto-detect Go in PATH or `$HOME/go/bin`
 - ✅ Task 114: Authenticated health check - public requests now return minimal `{"status": "ok/degraded"}`, authenticated users get full details
 
 See `TASKS.jsonl` for details.
@@ -152,7 +152,6 @@ See `TASKS.jsonl` for details.
 
 ## Notes
 
-- Go binary path: `/home/trevor/go/bin/go`
 - Whisper-server configurable via `WHISPER_URL` env var
 - Email requires `RESEND_API_KEY` env var
 - All tests: `./scripts/verify-all.sh`

@@ -20,12 +20,11 @@ cd frontend && npm test
 ./scripts/test-frontend.sh
 
 # Backend - run Go server
-cd backend && /home/trevor/go/bin/go run main.go
+cd backend && go run main.go
 # Runs on http://localhost:8080
-# Note: go may not be in PATH, use full path
 
 # Backend Tests
-cd backend && /home/trevor/go/bin/go test ./... -v
+cd backend && go test ./... -v
 # Or use the script:
 ./scripts/test-backend.sh
 

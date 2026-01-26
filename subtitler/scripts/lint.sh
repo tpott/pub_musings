@@ -3,13 +3,18 @@
 
 set -e
 
+# Ensure Go is in PATH (for non-interactive shells)
+if ! command -v go &> /dev/null && [ -d "$HOME/go/bin" ]; then
+    export PATH="$PATH:$HOME/go/bin"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "=== Linting Backend ==="
 cd "$PROJECT_ROOT/backend"
-/home/trevor/go/bin/go fmt ./...
-/home/trevor/go/bin/go vet ./...
+go fmt ./...
+go vet ./...
 echo "Backend linting passed"
 
 echo ""
