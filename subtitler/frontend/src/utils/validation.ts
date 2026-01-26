@@ -109,6 +109,117 @@ export function validateVideoFile(file: File | null, maxSizeMB: number = 500): s
 }
 
 /**
+ * Maximum allowed time value in seconds (24 hours)
+ */
+export const MAX_TIME_SECONDS = 24 * 60 * 60; // 86400 seconds
+
+/**
+ * Parse a time string into seconds
+ * Supports formats: "HH:MM:SS.mmm", "MM:SS.mmm", "MM:SS", "HH:MM:SS"
+ * @param timeStr - Time string to parse
+ * @returns Object with either seconds value or error message
+ */
+export function parseTimeString(timeStr: string): { seconds: number } | { error: string } {
+  if (!timeStr || typeof timeStr !== 'string') {
+    return { error: 'Time is required' };
+  }
+
+  const trimmed = timeStr.trim();
+  if (trimmed === '') {
+    return { error: 'Time is required' };
+  }
+
+  const parts = trimmed.split(':');
+  if (parts.length < 2 || parts.length > 3) {
+    return { error: 'Invalid time format. Use HH:MM:SS.mmm or MM:SS.mmm' };
+  }
+
+  // Helper to strictly parse integer (no trailing non-digits allowed)
+  const strictParseInt = (str: string): number => {
+    if (!/^\d+$/.test(str)) return NaN;
+    return parseInt(str, 10);
+  };
+
+  // Helper to strictly parse the seconds part (integer or decimal)
+  const strictParseSeconds = (str: string): number => {
+    const secParts = str.split('.');
+    if (secParts.length > 2) return NaN;
+
+    const wholePart = strictParseInt(secParts[0]);
+    if (isNaN(wholePart)) return NaN;
+
+    if (secParts[1]) {
+      if (!/^\d+$/.test(secParts[1])) return NaN;
+      const msStr = secParts[1].padEnd(3, '0').slice(0, 3);
+      return wholePart + parseInt(msStr, 10) / 1000;
+    }
+    return wholePart;
+  };
+
+  let hours = 0;
+  let mins = 0;
+  let secs = 0;
+
+  if (parts.length === 3) {
+    // HH:MM:SS.mmm format
+    hours = strictParseInt(parts[0]);
+    mins = strictParseInt(parts[1]);
+    secs = strictParseSeconds(parts[2]);
+  } else {
+    // MM:SS.mmm format
+    mins = strictParseInt(parts[0]);
+    secs = strictParseSeconds(parts[1]);
+  }
+
+  // Check for NaN values (invalid number parsing)
+  if (isNaN(hours) || isNaN(mins) || isNaN(secs)) {
+    return { error: 'Invalid time format. Numbers only' };
+  }
+
+  // Validate ranges
+  if (hours < 0 || mins < 0 || secs < 0) {
+    return { error: 'Time values cannot be negative' };
+  }
+
+  if (mins >= 60) {
+    return { error: 'Minutes must be 0-59' };
+  }
+
+  if (secs >= 60) {
+    return { error: 'Seconds must be 0-59' };
+  }
+
+  const totalSeconds = hours * 3600 + mins * 60 + secs;
+
+  if (totalSeconds > MAX_TIME_SECONDS) {
+    return { error: 'Time exceeds maximum (24 hours)' };
+  }
+
+  return { seconds: totalSeconds };
+}
+
+/**
+ * Validate a subtitle time value (already in seconds)
+ * @param seconds - Time in seconds to validate
+ * @returns Error message or null if valid
+ */
+export function validateSubtitleTime(seconds: number): string | null {
+  if (typeof seconds !== 'number' || isNaN(seconds)) {
+    return 'Invalid time value';
+  }
+
+  if (seconds < 0) {
+    return 'Time cannot be negative';
+  }
+
+  if (seconds > MAX_TIME_SECONDS) {
+    return 'Time exceeds maximum (24 hours)';
+  }
+
+  return null;
+}
+
+/**
  * Validate subtitle segment timing
  * @param start - Start time in seconds
  * @param end - End time in seconds
@@ -129,6 +240,14 @@ export function validateSegmentTiming(start: number, end: number): string | null
 
   if (end < 0) {
     return 'End time cannot be negative';
+  }
+
+  if (start > MAX_TIME_SECONDS) {
+    return 'Start time exceeds maximum (24 hours)';
+  }
+
+  if (end > MAX_TIME_SECONDS) {
+    return 'End time exceeds maximum (24 hours)';
   }
 
   if (start >= end) {

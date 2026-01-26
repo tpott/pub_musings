@@ -5,7 +5,10 @@ import {
   validateTotpCode,
   validateVideoFile,
   validateSegmentTiming,
-  ALLOWED_VIDEO_MIME_TYPES
+  parseTimeString,
+  validateSubtitleTime,
+  ALLOWED_VIDEO_MIME_TYPES,
+  MAX_TIME_SECONDS
 } from './validation';
 
 describe('validateEmail', () => {
@@ -138,6 +141,113 @@ describe('validateVideoFile', () => {
   });
 });
 
+describe('parseTimeString', () => {
+  it('should parse HH:MM:SS.mmm format', () => {
+    const result = parseTimeString('01:23:45.678');
+    expect(result).toEqual({ seconds: 5025.678 }); // 1*3600 + 23*60 + 45.678
+  });
+
+  it('should parse HH:MM:SS format (no milliseconds)', () => {
+    const result = parseTimeString('02:30:00');
+    expect(result).toEqual({ seconds: 9000 }); // 2*3600 + 30*60
+  });
+
+  it('should parse MM:SS.mmm format', () => {
+    const result = parseTimeString('05:30.500');
+    expect(result).toEqual({ seconds: 330.5 }); // 5*60 + 30.5
+  });
+
+  it('should parse MM:SS format', () => {
+    const result = parseTimeString('10:15');
+    expect(result).toEqual({ seconds: 615 }); // 10*60 + 15
+  });
+
+  it('should parse 00:00:00.000 as zero', () => {
+    const result = parseTimeString('00:00:00.000');
+    expect(result).toEqual({ seconds: 0 });
+  });
+
+  it('should handle whitespace', () => {
+    const result = parseTimeString('  01:30  ');
+    expect(result).toEqual({ seconds: 90 });
+  });
+
+  it('should pad milliseconds correctly', () => {
+    // ".5" should be interpreted as ".500" (500ms)
+    const result = parseTimeString('00:01.5');
+    expect(result).toEqual({ seconds: 1.5 });
+  });
+
+  it('should reject empty/missing input', () => {
+    expect(parseTimeString('')).toEqual({ error: 'Time is required' });
+    expect(parseTimeString('   ')).toEqual({ error: 'Time is required' });
+    expect(parseTimeString(null as unknown as string)).toEqual({ error: 'Time is required' });
+    expect(parseTimeString(undefined as unknown as string)).toEqual({ error: 'Time is required' });
+  });
+
+  it('should reject invalid formats', () => {
+    expect(parseTimeString('123')).toEqual({ error: 'Invalid time format. Use HH:MM:SS.mmm or MM:SS.mmm' });
+    expect(parseTimeString('1:2:3:4')).toEqual({ error: 'Invalid time format. Use HH:MM:SS.mmm or MM:SS.mmm' });
+  });
+
+  it('should reject non-numeric values', () => {
+    expect(parseTimeString('ab:cd')).toEqual({ error: 'Invalid time format. Numbers only' });
+    expect(parseTimeString('1:2x')).toEqual({ error: 'Invalid time format. Numbers only' });
+  });
+
+  it('should reject minutes >= 60', () => {
+    expect(parseTimeString('60:00')).toEqual({ error: 'Minutes must be 0-59' });
+    expect(parseTimeString('01:70:00')).toEqual({ error: 'Minutes must be 0-59' });
+  });
+
+  it('should reject seconds >= 60', () => {
+    expect(parseTimeString('01:60')).toEqual({ error: 'Seconds must be 0-59' });
+    expect(parseTimeString('00:01:60')).toEqual({ error: 'Seconds must be 0-59' });
+  });
+
+  it('should reject times exceeding 24 hours', () => {
+    const result = parseTimeString('25:00:00');
+    expect(result).toEqual({ error: 'Time exceeds maximum (24 hours)' });
+  });
+
+  it('should accept times up to exactly 24 hours', () => {
+    const result = parseTimeString('24:00:00');
+    expect(result).toEqual({ seconds: 86400 }); // MAX_TIME_SECONDS
+  });
+});
+
+describe('validateSubtitleTime', () => {
+  it('should accept valid times', () => {
+    expect(validateSubtitleTime(0)).toBe(null);
+    expect(validateSubtitleTime(3600)).toBe(null);
+    expect(validateSubtitleTime(86400)).toBe(null); // exactly 24 hours
+  });
+
+  it('should reject NaN', () => {
+    expect(validateSubtitleTime(NaN)).toBe('Invalid time value');
+  });
+
+  it('should reject non-numbers', () => {
+    expect(validateSubtitleTime('abc' as unknown as number)).toBe('Invalid time value');
+  });
+
+  it('should reject negative times', () => {
+    expect(validateSubtitleTime(-1)).toBe('Time cannot be negative');
+    expect(validateSubtitleTime(-0.001)).toBe('Time cannot be negative');
+  });
+
+  it('should reject times exceeding 24 hours', () => {
+    expect(validateSubtitleTime(86401)).toBe('Time exceeds maximum (24 hours)');
+    expect(validateSubtitleTime(100000)).toBe('Time exceeds maximum (24 hours)');
+  });
+});
+
+describe('MAX_TIME_SECONDS', () => {
+  it('should equal 24 hours in seconds', () => {
+    expect(MAX_TIME_SECONDS).toBe(86400);
+  });
+});
+
 describe('validateSegmentTiming', () => {
   it('should accept valid timing', () => {
     expect(validateSegmentTiming(0, 5)).toBe(null);
@@ -158,6 +268,11 @@ describe('validateSegmentTiming', () => {
   it('should reject negative times', () => {
     expect(validateSegmentTiming(-1, 5)).toBe('Start time cannot be negative');
     expect(validateSegmentTiming(0, -1)).toBe('End time cannot be negative');
+  });
+
+  it('should reject times exceeding 24 hours', () => {
+    expect(validateSegmentTiming(86401, 86402)).toBe('Start time exceeds maximum (24 hours)');
+    expect(validateSegmentTiming(0, 86401)).toBe('End time exceeds maximum (24 hours)');
   });
 
   it('should reject start >= end', () => {

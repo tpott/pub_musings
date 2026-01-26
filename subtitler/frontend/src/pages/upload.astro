@@ -363,6 +363,19 @@ import '../styles/theme.css';
 				outline: none;
 				border-color: var(--accent-color);
 			}
+			.time-inputs input.error {
+				border-color: var(--error-color);
+				background-color: var(--error-bg);
+			}
+			.time-error {
+				color: var(--error-color);
+				font-size: 0.75rem;
+				margin-top: 0.25rem;
+				display: none;
+			}
+			.time-error.visible {
+				display: block;
+			}
 			.segment-actions {
 				display: flex;
 				gap: 0.5rem;
@@ -899,6 +912,7 @@ import '../styles/theme.css';
 
 		<script>
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+			import { parseTimeString } from '../utils/validation';
 
 			const dropzone = document.getElementById('dropzone') as HTMLElement;
 			const fileInput = document.getElementById('fileInput') as HTMLInputElement;
@@ -1312,10 +1326,12 @@ import '../styles/theme.css';
 							<div class="segment-edit">
 								<div class="time-inputs">
 									<label>Start:</label>
-									<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" />
+									<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" aria-describedby="time-error-start-${index}" />
 									<label>End:</label>
-									<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" />
+									<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" aria-describedby="time-error-end-${index}" />
 								</div>
+								<div class="time-error" id="time-error-start-${index}" data-type="start" data-index="${index}" role="alert"></div>
+								<div class="time-error" id="time-error-end-${index}" data-type="end" data-index="${index}" role="alert"></div>
 								<textarea class="segment-textarea" data-index="${index}">${escapeHtml(seg.text)}</textarea>
 								<div class="segment-actions">
 									<button class="segment-delete-btn" data-index="${index}">Delete</button>
@@ -1347,31 +1363,8 @@ import '../styles/theme.css';
 				return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 			}
 
-			function parseTimeInput(timeStr: string): number | null {
-				// Parse formats like "00:01:23.456" or "1:23.456" or "1:23"
-				const parts = timeStr.trim().split(':');
-				let hours = 0, mins = 0, secs = 0;
-
-				if (parts.length === 3) {
-					hours = parseInt(parts[0], 10) || 0;
-					mins = parseInt(parts[1], 10) || 0;
-					const secParts = parts[2].split('.');
-					secs = parseInt(secParts[0], 10) || 0;
-					if (secParts[1]) {
-						secs += parseInt(secParts[1].padEnd(3, '0').slice(0, 3), 10) / 1000;
-					}
-				} else if (parts.length === 2) {
-					mins = parseInt(parts[0], 10) || 0;
-					const secParts = parts[1].split('.');
-					secs = parseInt(secParts[0], 10) || 0;
-					if (secParts[1]) {
-						secs += parseInt(secParts[1].padEnd(3, '0').slice(0, 3), 10) / 1000;
-					}
-				} else {
-					return null;
-				}
-
-				return hours * 3600 + mins * 60 + secs;
+			function parseTimeInput(timeStr: string): { seconds: number } | { error: string } {
+				return parseTimeString(timeStr);
 			}
 
 			function setupClickHandlers() {
@@ -1400,9 +1393,22 @@ import '../styles/theme.css';
 					input.addEventListener('change', (e) => {
 						const target = e.target as HTMLInputElement;
 						const index = parseInt(target.getAttribute('data-index') || '0', 10);
+						const errorEl = document.getElementById(`time-error-start-${index}`);
 						const parsed = parseTimeInput(target.value);
-						if (parsed !== null) {
-							editedSegments[index].start = parsed;
+
+						if ('error' in parsed) {
+							target.classList.add('error');
+							if (errorEl) {
+								errorEl.textContent = parsed.error;
+								errorEl.classList.add('visible');
+							}
+						} else {
+							target.classList.remove('error');
+							if (errorEl) {
+								errorEl.textContent = '';
+								errorEl.classList.remove('visible');
+							}
+							editedSegments[index].start = parsed.seconds;
 							markUnsaved();
 						}
 					});
@@ -1412,9 +1418,22 @@ import '../styles/theme.css';
 					input.addEventListener('change', (e) => {
 						const target = e.target as HTMLInputElement;
 						const index = parseInt(target.getAttribute('data-index') || '0', 10);
+						const errorEl = document.getElementById(`time-error-end-${index}`);
 						const parsed = parseTimeInput(target.value);
-						if (parsed !== null) {
-							editedSegments[index].end = parsed;
+
+						if ('error' in parsed) {
+							target.classList.add('error');
+							if (errorEl) {
+								errorEl.textContent = parsed.error;
+								errorEl.classList.add('visible');
+							}
+						} else {
+							target.classList.remove('error');
+							if (errorEl) {
+								errorEl.textContent = '';
+								errorEl.classList.remove('visible');
+							}
+							editedSegments[index].end = parsed.seconds;
 							markUnsaved();
 						}
 					});
