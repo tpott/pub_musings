@@ -5,8 +5,8 @@ This document describes the email service implementation for the Subtitler appli
 ## Overview
 
 The email service provides transactional email capabilities for:
+- Email verification (required before first login)
 - Password reset emails
-- (Future) Email verification
 - (Future) Account notifications
 
 ## Files
@@ -47,6 +47,9 @@ import "context"
 type EmailService interface {
     // SendPasswordReset sends a password reset email
     SendPasswordReset(ctx context.Context, to, token string) error
+
+    // SendEmailVerification sends an email verification email
+    SendEmailVerification(ctx context.Context, to, token string) error
 
     // SendEmail sends a generic email
     SendEmail(ctx context.Context, to, subject, htmlBody, textBody string) error

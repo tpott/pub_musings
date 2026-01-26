@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**81 tasks completed** as of 2026-01-25. All core features implemented and tested.
+**82 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -18,8 +18,9 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ File encryption at rest using age library
 - ✅ Video listing page
 
-### Authentication (Tasks 11-18, 37-42, 53, 59, 66)
+### Authentication (Tasks 11-18, 37-42, 53, 59, 66, 82)
 - ✅ Email/password registration and login
+- ✅ Email verification required before first login
 - ✅ Session management with cookie-based auth
 - ✅ TOTP 2FA with QR codes (self-hosted generation)
 - ✅ Recovery codes (10 single-use codes)

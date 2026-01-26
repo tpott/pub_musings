@@ -5,7 +5,7 @@ This document describes the authentication system implementation in the Subtitle
 ## Overview
 
 The authentication system provides:
-- Email/password registration and login
+- Email/password registration with email verification
 - Cookie-based sessions with Bearer token support
 - Optional two-factor authentication via TOTP (see [totp.md](totp.md))
 
@@ -16,8 +16,10 @@ The authentication system provides:
 | `backend/auth/auth.go` | Main auth logic: hashing, sessions, validation |
 | `backend/auth/auth_test.go` | Unit tests for auth module |
 | `backend/db/db.go` | User and session database operations |
+| `backend/email/email.go` | Email service for verification emails |
 | `frontend/src/pages/login.astro` | Login page |
 | `frontend/src/pages/register.astro` | Registration page |
+| `frontend/src/pages/verify-email.astro` | Email verification page |
 | `frontend/src/utils/validation.ts` | Client-side validation |
 
 ## Database Schema
@@ -31,9 +33,26 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,             -- bcrypt hash (cost 12)
     totp_secret TEXT,                        -- Base32 TOTP secret (NULL if not set)
     totp_enabled INTEGER NOT NULL DEFAULT 0, -- 0=disabled, 1=enabled
+    email_verified INTEGER NOT NULL DEFAULT 0, -- 0=unverified, 1=verified
+    verified_at DATETIME,                    -- When email was verified
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 CREATE INDEX idx_users_email ON users(email)
+```
+
+### Email Verification Tokens Table
+
+```sql
+CREATE TABLE email_verification_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    token_hash TEXT NOT NULL,                -- SHA-256 hash of token
+    expires_at DATETIME NOT NULL,            -- 24 hours from creation
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+CREATE INDEX idx_email_verification_user_id ON email_verification_tokens(user_id)
+CREATE INDEX idx_email_verification_expires ON email_verification_tokens(expires_at)
 ```
 
 ### Sessions Table
@@ -65,7 +84,7 @@ CREATE INDEX idx_sessions_expires_at ON sessions(expires_at)
 
 ### POST /api/auth/register
 
-Creates a new user account and session.
+Creates a new user account and sends verification email. User must verify email before logging in.
 
 **Request:**
 ```json
@@ -78,13 +97,14 @@ Creates a new user account and session.
 **Response (201):**
 ```json
 {
+  "message": "Account created. Please check your email to verify your account.",
+  "email_verification": true,
   "user": {
     "id": "abc123...",
     "email": "user@example.com",
     "created_at": "2026-01-22T...",
-    "totp_enabled": false
-  },
-  "token": "sessiontoken..."
+    "email_verified": false
+  }
 }
 ```
 
@@ -99,9 +119,10 @@ Creates a new user account and session.
 4. Check email not already registered
 5. Hash password with bcrypt (cost 12)
 6. Generate user ID (16 random bytes)
-7. Insert user into database
-8. Create session
-9. Set httpOnly cookie
+7. Insert user into database (email_verified=false)
+8. Generate email verification token (32 random bytes)
+9. Store token hash with 24-hour expiry
+10. Send verification email with token link
 
 ### POST /api/auth/login
 
@@ -136,19 +157,84 @@ Authenticates user and creates session.
 }
 ```
 
+**Response if email not verified (403):**
+```json
+{
+  "error": "Please verify your email address before logging in",
+  "email_verification": true,
+  "email_not_verified": true,
+  "can_resend_verification": true
+}
+```
+
 **Errors:**
 - 400: Invalid request body
 - 401: Invalid credentials or invalid TOTP code
+- 403: Email not verified
 
 **Processing:**
 1. Normalize email
 2. Look up user by email
 3. Verify password with bcrypt
-4. If 2FA enabled:
+4. Check email is verified (return 403 if not)
+5. If 2FA enabled:
    - Return `totp_required: true` if no code provided
    - Validate TOTP code if provided
-5. Create session (7-day expiry)
-6. Set httpOnly cookie
+6. Create session (7-day expiry)
+7. Set httpOnly cookie
+
+### GET /api/auth/verify
+
+Verifies a user's email address using the token from the verification email.
+
+**Query Parameters:**
+- `token` (required): The verification token from the email link
+
+**Response (200):**
+```json
+{
+  "message": "Email verified successfully. You can now log in."
+}
+```
+
+**Errors:**
+- 400: Missing token or invalid/expired token
+
+**Processing:**
+1. Hash incoming token with SHA-256
+2. Look up token hash in database
+3. Check token is not used and not expired
+4. Mark token as used
+5. Set user's email_verified=1 and verified_at timestamp
+
+### POST /api/auth/resend-verification
+
+Resends the email verification link. Rate limited (3 per 15 minutes per IP).
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200):**
+```json
+{
+  "message": "If an unverified account exists with that email, a verification link has been sent."
+}
+```
+
+**Note:** Always returns success to prevent email enumeration.
+
+**Processing:**
+1. Normalize email
+2. Look up user by email
+3. If user doesn't exist or is already verified, return success (prevents enumeration)
+4. Delete any existing unused verification tokens for user
+5. Generate new verification token (32 random bytes)
+6. Store token hash with 24-hour expiry
+7. Send verification email
 
 ### POST /api/auth/logout
 
@@ -174,6 +260,7 @@ Returns current user information.
     "id": "abc123...",
     "email": "user@example.com",
     "totp_enabled": false,
+    "email_verified": true,
     "created_at": "2026-01-22T..."
   }
 }
@@ -241,6 +328,7 @@ Anonymous uploads are tracked by session. The retention cleanup runs hourly.
 - Secure random token generation
 - Generic login error messages
 - Session expiration with cleanup
+- Email verification required before login
 - 2FA support via TOTP
 - 2FA recovery codes (see [recovery-codes.md](recovery-codes.md))
 - Rate limiting on auth endpoints (5 req/min per IP, see `backend/ratelimit/`)
@@ -281,6 +369,7 @@ validateTotpCode(code: string)  // Exactly 6 digits
 
 ## Related Specs
 
+- [email.md](email.md) - Email service configuration
 - [totp.md](totp.md) - Two-factor authentication details
 - [recovery-codes.md](recovery-codes.md) - 2FA recovery codes
 - [encryption.md](encryption.md) - File encryption at rest

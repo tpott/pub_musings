@@ -17,6 +17,9 @@ type EmailService interface {
 	// SendPasswordReset sends a password reset email
 	SendPasswordReset(ctx context.Context, to, token string) error
 
+	// SendEmailVerification sends an email verification email
+	SendEmailVerification(ctx context.Context, to, token string) error
+
 	// SendEmail sends a generic email
 	SendEmail(ctx context.Context, to, subject, htmlBody, textBody string) error
 
@@ -104,6 +107,17 @@ func (s *ResendService) SendPasswordReset(ctx context.Context, to, token string)
 
 	htmlBody := PasswordResetHTML(resetURL)
 	textBody := PasswordResetText(resetURL)
+
+	return s.SendEmail(ctx, to, subject, htmlBody, textBody)
+}
+
+// SendEmailVerification sends an email verification email with a link containing the token
+func (s *ResendService) SendEmailVerification(ctx context.Context, to, token string) error {
+	subject := "Verify your Subtitler email"
+	verifyURL := fmt.Sprintf("%s/verify-email?token=%s", s.appURL, token)
+
+	htmlBody := EmailVerificationHTML(verifyURL)
+	textBody := EmailVerificationText(verifyURL)
 
 	return s.SendEmail(ctx, to, subject, htmlBody, textBody)
 }

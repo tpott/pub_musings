@@ -65,6 +65,15 @@ func (m *MockService) SendPasswordReset(ctx context.Context, to, token string) e
 	return m.SendEmail(ctx, to, subject, htmlBody, textBody)
 }
 
+// SendEmailVerification sends a mock email verification email
+func (m *MockService) SendEmailVerification(ctx context.Context, to, token string) error {
+	subject := "Verify your Subtitler email"
+	verifyURL := m.appURL + "/verify-email?token=" + token
+	htmlBody := EmailVerificationHTML(verifyURL)
+	textBody := EmailVerificationText(verifyURL)
+	return m.SendEmail(ctx, to, subject, htmlBody, textBody)
+}
+
 // GetEmails returns all sent emails and clears the list
 func (m *MockService) GetEmails() []SentEmail {
 	m.mu.Lock()

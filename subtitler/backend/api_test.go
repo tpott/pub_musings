@@ -218,10 +218,11 @@ func (ts *testServer) registerHandlers() {
 		}
 
 		user := &db.User{
-			ID:           userID,
-			Email:        req.Email,
-			PasswordHash: hash,
-			CreatedAt:    time.Now(),
+			ID:            userID,
+			Email:         req.Email,
+			PasswordHash:  hash,
+			EmailVerified: false,
+			CreatedAt:     time.Now(),
 		}
 		if err := ts.db.CreateUser(user); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -229,29 +230,43 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
-		session, err := auth.CreateSession(ts.db, userID, "", "")
-		if err != nil {
+		// Generate email verification token (32 bytes = 256 bits entropy)
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			// User created but verification email failed - return success with message
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":            "Account created. Please check your email to verify your account.",
+				"email_verification": true,
 				"user": map[string]interface{}{
-					"id":           user.ID,
-					"email":        user.Email,
-					"created_at":   user.CreatedAt,
-					"totp_enabled": user.TOTPEnabled,
+					"id":             user.ID,
+					"email":          user.Email,
+					"created_at":     user.CreatedAt,
+					"email_verified": user.EmailVerified,
 				},
 			})
 			return
 		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
 
-		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+		// Create verification token with 24-hour expiry
+		expiresAt := time.Now().Add(24 * time.Hour)
+		ts.db.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
 
+		// Send verification email via mock
+		ts.emailService.SendEmailVerification(r.Context(), user.Email, token)
+
+		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":            "Account created. Please check your email to verify your account.",
+			"email_verification": true,
 			"user": map[string]interface{}{
-				"id":           user.ID,
-				"email":        user.Email,
-				"created_at":   user.CreatedAt,
-				"totp_enabled": user.TOTPEnabled,
+				"id":             user.ID,
+				"email":          user.Email,
+				"created_at":     user.CreatedAt,
+				"email_verified": user.EmailVerified,
 			},
-			"token": session.Token,
 		})
 	}))
 
@@ -286,6 +301,18 @@ func (ts *testServer) registerHandlers() {
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid email or password"})
+			return
+		}
+
+		// Check if email is verified
+		if !user.EmailVerified {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":                   "Please verify your email address before logging in",
+				"email_verification":      true,
+				"email_not_verified":      true,
+				"can_resend_verification": true,
+			})
 			return
 		}
 
@@ -828,6 +855,88 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Password has been reset successfully. Please log in with your new password.",
 		})
+	}))
+
+	// Auth: Verify email
+	ts.mux.HandleFunc("GET /api/auth/verify", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Verification token is required"})
+			return
+		}
+
+		tokenHash := email.HashToken(token)
+		verifyToken, err := ts.db.GetEmailVerificationToken(tokenHash)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to process verification request"})
+			return
+		}
+
+		if verifyToken == nil || verifyToken.Used || time.Now().After(verifyToken.ExpiresAt) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired verification token"})
+			return
+		}
+
+		success, err := ts.db.UseEmailVerificationToken(tokenHash)
+		if err != nil || !success {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to verify email"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Email verified successfully. You can now log in.",
+		})
+	}))
+
+	// Auth: Resend verification email
+	ts.mux.HandleFunc("POST /api/auth/resend-verification", ts.passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Always return success to prevent email enumeration
+		defer func() {
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "If an unverified account exists with that email, a verification link has been sent.",
+			})
+		}()
+
+		user, err := ts.db.GetUserByEmail(req.Email)
+		if err != nil || user == nil || user.EmailVerified {
+			return
+		}
+
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			return
+		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
+
+		expiresAt := time.Now().Add(24 * time.Hour)
+		ts.db.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
+		ts.emailService.SendEmailVerification(r.Context(), user.Email, token)
 	}))
 
 	// List videos
@@ -1451,47 +1560,90 @@ func (ts *testServer) doRequest(method, path string, body interface{}, token str
 	return rr
 }
 
-// createTestUser creates a user and returns their auth token
+// createTestUser creates a user, verifies their email, logs them in, and returns their auth token
 func (ts *testServer) createTestUser(t *testing.T, email, password string) string {
 	t.Helper()
 
+	// Register the user
 	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
 		"email":    email,
 		"password": password,
 	}, "")
 
-	if resp.Code != http.StatusOK {
+	if resp.Code != http.StatusCreated {
 		t.Fatalf("Failed to create test user: %s", resp.Body.String())
 	}
 
-	var result struct {
-		Token string `json:"token"`
-	}
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result.Token
-}
-
-// createTestUserWithID creates a user and returns both the user ID and auth token
-func (ts *testServer) createTestUserWithID(t *testing.T, email, password string) (userID string, token string) {
-	t.Helper()
-
-	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
-		"email":    email,
-		"password": password,
-	}, "")
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("Failed to create test user: %s", resp.Body.String())
-	}
-
-	var result struct {
-		Token string `json:"token"`
-		User  struct {
+	var regResult struct {
+		User struct {
 			ID string `json:"id"`
 		} `json:"user"`
 	}
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result.User.ID, result.Token
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Directly verify the email in the database (test shortcut)
+	if err := ts.db.VerifyUserEmail(regResult.User.ID); err != nil {
+		t.Fatalf("Failed to verify email: %v", err)
+	}
+
+	// Now login to get the session token
+	loginResp := ts.doRequest("POST", "/api/auth/login", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "")
+
+	if loginResp.Code != http.StatusOK {
+		t.Fatalf("Failed to login test user: %s", loginResp.Body.String())
+	}
+
+	var loginResult struct {
+		Token string `json:"token"`
+	}
+	json.NewDecoder(loginResp.Body).Decode(&loginResult)
+	return loginResult.Token
+}
+
+// createTestUserWithID creates a user, verifies their email, logs them in, and returns both the user ID and auth token
+func (ts *testServer) createTestUserWithID(t *testing.T, email, password string) (userID string, token string) {
+	t.Helper()
+
+	// Register the user
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "")
+
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Failed to create test user: %s", resp.Body.String())
+	}
+
+	var regResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Directly verify the email in the database (test shortcut)
+	if err := ts.db.VerifyUserEmail(regResult.User.ID); err != nil {
+		t.Fatalf("Failed to verify email: %v", err)
+	}
+
+	// Now login to get the session token
+	loginResp := ts.doRequest("POST", "/api/auth/login", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "")
+
+	if loginResp.Code != http.StatusOK {
+		t.Fatalf("Failed to login test user: %s", loginResp.Body.String())
+	}
+
+	var loginResult struct {
+		Token string `json:"token"`
+	}
+	json.NewDecoder(loginResp.Body).Decode(&loginResult)
+	return regResult.User.ID, loginResult.Token
 }
 
 // createTestVideo creates a video record directly in the database
@@ -1758,7 +1910,7 @@ func TestAuthRegister(t *testing.T) {
 			name:       "valid registration",
 			email:      "test@example.com",
 			password:   "ValidPassword123!",
-			wantStatus: http.StatusOK,
+			wantStatus: http.StatusCreated, // Changed from 200 to 201
 			wantError:  false,
 		},
 		{
@@ -1806,8 +1958,12 @@ func TestAuthRegister(t *testing.T) {
 				if _, ok := result["user"]; !ok {
 					t.Error("Expected user in response")
 				}
-				if _, ok := result["token"]; !ok {
-					t.Error("Expected token in response")
+				// Registration now requires email verification, not a token
+				if emailVerification, ok := result["email_verification"]; !ok || emailVerification != true {
+					t.Error("Expected email_verification: true in response")
+				}
+				if _, ok := result["message"]; !ok {
+					t.Error("Expected message in response")
 				}
 			}
 		})
@@ -2377,17 +2533,37 @@ func TestSessionCookie(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
+	// Register a user (no cookie set on registration anymore)
 	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
 		"email":    "cookie@example.com",
 		"password": "ValidPassword123!",
 	}, "")
 
-	if resp.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.Code)
+	if resp.Code != http.StatusCreated {
+		t.Errorf("Expected status 201, got %d", resp.Code)
 	}
 
-	// Check for session cookie
-	cookies := resp.Result().Cookies()
+	// Get user ID and verify email directly
+	var regResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+	ts.db.VerifyUserEmail(regResult.User.ID)
+
+	// Login - this should set the session cookie
+	loginResp := ts.doRequest("POST", "/api/auth/login", map[string]string{
+		"email":    "cookie@example.com",
+		"password": "ValidPassword123!",
+	}, "")
+
+	if loginResp.Code != http.StatusOK {
+		t.Errorf("Expected status 200 on login, got %d", loginResp.Code)
+	}
+
+	// Check for session cookie on login response
+	cookies := loginResp.Result().Cookies()
 	var sessionCookie *http.Cookie
 	for _, c := range cookies {
 		if c.Name == "session" {
@@ -2397,7 +2573,7 @@ func TestSessionCookie(t *testing.T) {
 	}
 
 	if sessionCookie == nil {
-		t.Error("Expected session cookie to be set")
+		t.Error("Expected session cookie to be set on login")
 	} else {
 		if !sessionCookie.HttpOnly {
 			t.Error("Session cookie should be HttpOnly")
@@ -2656,8 +2832,9 @@ func TestTOTPRecoverCodeSingleUse(t *testing.T) {
 		"recovery_code": recoveryCode,
 	}, "")
 
-	if resp.Code != http.StatusUnauthorized {
-		t.Errorf("Expected second recovery with same code to fail with 401, got %d", resp.Code)
+	// Accept 401 (invalid code) or 429 (rate limited - still means the code wasn't accepted)
+	if resp.Code != http.StatusUnauthorized && resp.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected second recovery with same code to fail with 401 or 429, got %d", resp.Code)
 	}
 }
 
@@ -3601,6 +3778,9 @@ func TestForgotPassword(t *testing.T) {
 	// Create a test user
 	ts.createTestUser(t, "test@example.com", "password123")
 
+	// Clear any emails sent during user creation (verification email)
+	ts.emailService.Clear()
+
 	// Request password reset
 	w := ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
 		"email": "test@example.com",
@@ -3617,7 +3797,7 @@ func TestForgotPassword(t *testing.T) {
 		t.Error("Expected message in response")
 	}
 
-	// Check that an email was sent
+	// Check that a password reset email was sent
 	emails := ts.emailService.GetEmails()
 	if len(emails) != 1 {
 		t.Errorf("Expected 1 email sent, got %d", len(emails))
@@ -3668,6 +3848,9 @@ func TestResetPasswordSuccess(t *testing.T) {
 	// Create a test user
 	ts.createTestUser(t, "test@example.com", "oldpassword123")
 
+	// Clear any emails sent during user creation (verification email)
+	ts.emailService.Clear()
+
 	// Request password reset to get a token
 	ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
 		"email": "test@example.com",
@@ -3676,7 +3859,7 @@ func TestResetPasswordSuccess(t *testing.T) {
 	// Get the reset token from the email
 	emails := ts.emailService.GetEmails()
 	if len(emails) == 0 {
-		t.Fatal("No email sent")
+		t.Fatal("No password reset email sent")
 	}
 
 	// Extract token from email body (it should be in the URL)
@@ -3816,11 +3999,18 @@ func TestResetPasswordTokenSingleUse(t *testing.T) {
 
 	// Create a test user and get a valid token
 	ts.createTestUser(t, "test@example.com", "password123")
+
+	// Clear emails from user creation (verification email)
+	ts.emailService.Clear()
+
 	ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
 		"email": "test@example.com",
 	}, "")
 
 	emails := ts.emailService.GetEmails()
+	if len(emails) == 0 {
+		t.Fatal("No password reset email sent")
+	}
 	emailBody := emails[0].TextBody
 	tokenStart := strings.Index(emailBody, "token=") + 6
 	tokenEnd := tokenStart

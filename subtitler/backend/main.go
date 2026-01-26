@@ -750,12 +750,13 @@ func main() {
 			return
 		}
 
-		// Create user
+		// Create user (email_verified defaults to false)
 		user := &db.User{
-			ID:           userID,
-			Email:        req.Email,
-			PasswordHash: hash,
-			CreatedAt:    time.Now(),
+			ID:            userID,
+			Email:         req.Email,
+			PasswordHash:  hash,
+			EmailVerified: false,
+			CreatedAt:     time.Now(),
 		}
 		if err := database.CreateUser(user); err != nil {
 			log.Printf("Error creating user: %v", err)
@@ -766,37 +767,51 @@ func main() {
 			return
 		}
 
-		// Create session with IP and user agent
-		clientIP := ratelimit.GetClientIP(r)
-		userAgent := r.Header.Get("User-Agent")
-		session, err := auth.CreateSession(database, userID, clientIP, userAgent)
-		if err != nil {
-			log.Printf("Error creating session: %v", err)
-			// User was created, but session failed - still return success
-			// User can log in to get a session
+		// Generate email verification token (32 bytes = 256 bits entropy)
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			log.Printf("Error generating verification token: %v", err)
+			// User created but verification email failed - return success with message
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":            "Account created. Please check your email to verify your account.",
+				"email_verification": true,
 				"user": map[string]interface{}{
-					"id":           user.ID,
-					"email":        user.Email,
-					"created_at":   user.CreatedAt,
-					"totp_enabled": user.TOTPEnabled,
+					"id":             user.ID,
+					"email":          user.Email,
+					"created_at":     user.CreatedAt,
+					"email_verified": user.EmailVerified,
 				},
 			})
 			return
 		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
 
-		// Set session cookie
-		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+		// Create verification token with 24-hour expiry
+		expiresAt := time.Now().Add(24 * time.Hour)
+		_, err = database.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
+		if err != nil {
+			log.Printf("Error creating verification token: %v", err)
+		}
 
-		log.Printf("New user registered: %s", user.Email)
+		// Send verification email
+		ctx := r.Context()
+		if err := emailService.SendEmailVerification(ctx, user.Email, token); err != nil {
+			log.Printf("Error sending verification email: %v", err)
+		}
+
+		log.Printf("New user registered (pending verification): %s", user.Email)
+		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":            "Account created. Please check your email to verify your account.",
+			"email_verification": true,
 			"user": map[string]interface{}{
-				"id":           user.ID,
-				"email":        user.Email,
-				"created_at":   user.CreatedAt,
-				"totp_enabled": user.TOTPEnabled,
+				"id":             user.ID,
+				"email":          user.Email,
+				"created_at":     user.CreatedAt,
+				"email_verified": user.EmailVerified,
 			},
-			"token": session.Token,
 		})
 	}))
 
@@ -873,6 +888,18 @@ func main() {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid email or password",
+			})
+			return
+		}
+
+		// Check if email is verified
+		if !user.EmailVerified {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":                   "Please verify your email address before logging in",
+				"email_verification":      true,
+				"email_not_verified":      true,
+				"can_resend_verification": true,
 			})
 			return
 		}
@@ -975,10 +1002,11 @@ func main() {
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
-				"id":           user.ID,
-				"email":        user.Email,
-				"created_at":   user.CreatedAt,
-				"totp_enabled": user.TOTPEnabled,
+				"id":             user.ID,
+				"email":          user.Email,
+				"created_at":     user.CreatedAt,
+				"totp_enabled":   user.TOTPEnabled,
+				"email_verified": user.EmailVerified,
 			},
 		})
 	})
@@ -1780,6 +1808,145 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Password has been reset successfully. Please log in with your new password.",
 		})
+	}))
+
+	// Auth: Verify email - verifies email address with token
+	mux.HandleFunc("GET /api/auth/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Get token from query parameter
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Verification token is required",
+			})
+			return
+		}
+
+		// Hash the token and look it up
+		tokenHash := email.HashToken(token)
+		verifyToken, err := database.GetEmailVerificationToken(tokenHash)
+		if err != nil {
+			log.Printf("Error looking up verification token: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to process verification request",
+			})
+			return
+		}
+
+		// Check if token exists and is valid
+		if verifyToken == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired verification token",
+			})
+			return
+		}
+
+		// Check if token is used or expired
+		if verifyToken.Used || time.Now().After(verifyToken.ExpiresAt) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired verification token",
+			})
+			return
+		}
+
+		// Verify the email (marks token as used and sets email_verified=1)
+		success, err := database.UseEmailVerificationToken(tokenHash)
+		if err != nil || !success {
+			log.Printf("Error verifying email: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to verify email",
+			})
+			return
+		}
+
+		log.Printf("Email verified for user: %s", verifyToken.UserID)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Email verified successfully. You can now log in.",
+		})
+	}))
+
+	// Auth: Resend verification email (rate limited)
+	mux.HandleFunc("POST /api/auth/resend-verification", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Normalize email
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		// Validate email format
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Always return success to prevent email enumeration
+		defer func() {
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "If an unverified account exists with that email, a verification link has been sent.",
+			})
+		}()
+
+		// Look up user
+		user, err := database.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Error looking up user for resend verification: %v", err)
+			return
+		}
+		if user == nil {
+			// User doesn't exist - return success anyway
+			return
+		}
+
+		// Check if already verified
+		if user.EmailVerified {
+			// Already verified - return success anyway to prevent enumeration
+			return
+		}
+
+		// Generate new verification token (32 bytes = 256 bits entropy)
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			log.Printf("Error generating verification token: %v", err)
+			return
+		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
+
+		// Create verification token with 24-hour expiry
+		expiresAt := time.Now().Add(24 * time.Hour)
+		_, err = database.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
+		if err != nil {
+			log.Printf("Error creating verification token: %v", err)
+			return
+		}
+
+		// Send verification email
+		ctx := r.Context()
+		if err := emailService.SendEmailVerification(ctx, user.Email, token); err != nil {
+			log.Printf("Error sending verification email: %v", err)
+			return
+		}
+
+		log.Printf("Verification email resent to: %s", user.Email)
 	}))
 
 	// Upload endpoint - accepts video files (rate limited: 10/min per IP)

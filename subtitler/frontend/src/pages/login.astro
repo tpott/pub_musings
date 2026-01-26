@@ -193,6 +193,28 @@ import '../styles/theme.css';
 				font-size: 0.9rem;
 				display: none;
 			}
+			.warning-message {
+				background-color: var(--warning-bg, #fffbeb);
+				border: 1px solid var(--warning-border, #fde68a);
+				color: var(--warning-color, #92400e);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1.25rem;
+				font-size: 0.9rem;
+				display: none;
+			}
+			.warning-message button {
+				background: none;
+				border: none;
+				color: inherit;
+				text-decoration: underline;
+				cursor: pointer;
+				padding: 0;
+				font: inherit;
+			}
+			.warning-message button:hover {
+				text-decoration: none;
+			}
 			.forgot-link {
 				text-align: right;
 				margin-top: -0.5rem;
@@ -269,6 +291,10 @@ import '../styles/theme.css';
 
 				<div id="error" class="error-message" role="alert" aria-live="assertive"></div>
 				<div id="success" class="success-message" role="status" aria-live="polite"></div>
+				<div id="verifyWarning" class="warning-message" role="alert">
+					Please verify your email address before logging in.
+					<button type="button" id="resendVerifyBtn">Resend verification email</button>
+				</div>
 
 				<form id="loginForm">
 					<div id="credentialsSection">
@@ -320,6 +346,8 @@ import '../styles/theme.css';
 			const form = document.getElementById('loginForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
 			const successDiv = document.getElementById('success') as HTMLElement;
+			const verifyWarningDiv = document.getElementById('verifyWarning') as HTMLElement;
+			const resendVerifyBtn = document.getElementById('resendVerifyBtn') as HTMLButtonElement;
 			const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 			const emailInput = document.getElementById('email') as HTMLInputElement;
 			const passwordInput = document.getElementById('password') as HTMLInputElement;
@@ -336,6 +364,7 @@ import '../styles/theme.css';
 
 			let totpRequired = false;
 			let recoveryMode = false;
+			let unverifiedEmail = '';
 
 			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
 				input.classList.remove('input-error');
@@ -399,7 +428,53 @@ import '../styles/theme.css';
 			function hideMessages() {
 				errorDiv.style.display = 'none';
 				successDiv.style.display = 'none';
+				verifyWarningDiv.style.display = 'none';
 			}
+
+			function showVerifyWarning(email: string) {
+				unverifiedEmail = email;
+				verifyWarningDiv.style.display = 'block';
+				errorDiv.style.display = 'none';
+				successDiv.style.display = 'none';
+			}
+
+			// Resend verification email
+			resendVerifyBtn.addEventListener('click', async () => {
+				if (!unverifiedEmail) return;
+
+				resendVerifyBtn.disabled = true;
+				resendVerifyBtn.textContent = 'Sending...';
+
+				try {
+					const response = await fetch('/api/auth/resend-verification', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: unverifiedEmail }),
+					});
+
+					if (response.ok) {
+						resendVerifyBtn.textContent = 'Sent!';
+						setTimeout(() => {
+							resendVerifyBtn.textContent = 'Resend verification email';
+							resendVerifyBtn.disabled = false;
+						}, 3000);
+					} else {
+						resendVerifyBtn.textContent = 'Failed';
+						setTimeout(() => {
+							resendVerifyBtn.textContent = 'Resend verification email';
+							resendVerifyBtn.disabled = false;
+						}, 3000);
+					}
+				} catch (err) {
+					resendVerifyBtn.textContent = 'Failed';
+					setTimeout(() => {
+						resendVerifyBtn.textContent = 'Resend verification email';
+						resendVerifyBtn.disabled = false;
+					}, 3000);
+				}
+			});
 
 			function setLoading(loading: boolean) {
 				submitBtn.disabled = loading;
@@ -538,6 +613,12 @@ import '../styles/theme.css';
 						// Check if 2FA is required
 						if (data.totp_required) {
 							showTotpInput();
+							setLoading(false);
+							return;
+						}
+						// Check if email verification is required
+						if (data.email_not_verified) {
+							showVerifyWarning(email);
 							setLoading(false);
 							return;
 						}

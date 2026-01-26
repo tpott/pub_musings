@@ -54,12 +54,14 @@ type Segment struct {
 
 // User represents a registered user
 type User struct {
-	ID           string    `json:"id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"` // Never serialize
-	TOTPSecret   *string   `json:"-"` // Never serialize, nil if 2FA not set up
-	TOTPEnabled  bool      `json:"totp_enabled"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	PasswordHash  string     `json:"-"` // Never serialize
+	TOTPSecret    *string    `json:"-"` // Never serialize, nil if 2FA not set up
+	TOTPEnabled   bool       `json:"totp_enabled"`
+	EmailVerified bool       `json:"email_verified"`
+	VerifiedAt    *time.Time `json:"verified_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // Session represents an authenticated session
@@ -97,6 +99,16 @@ type RecoveryCode struct {
 
 // PasswordResetToken represents a password reset request token
 type PasswordResetToken struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TokenHash string    `json:"-"` // Never serialize, SHA-256 hash of actual token
+	ExpiresAt time.Time `json:"expires_at"`
+	Used      bool      `json:"used"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// EmailVerificationToken represents an email verification token
+type EmailVerificationToken struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
 	TokenHash string    `json:"-"` // Never serialize, SHA-256 hash of actual token
@@ -273,12 +285,34 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email)`,
 		`CREATE INDEX IF NOT EXISTS idx_login_attempts_created_at ON login_attempts(created_at)`,
+		// Email verification tokens table
+		`CREATE TABLE IF NOT EXISTS email_verification_tokens (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			token_hash TEXT NOT NULL,
+			expires_at DATETIME NOT NULL,
+			used INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_email_verification_user_id ON email_verification_tokens(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_tokens(expires_at)`,
 	}
 
 	for _, migration := range migrations {
 		if _, err := db.conn.Exec(migration); err != nil {
 			return fmt.Errorf("migration failed: %w", err)
 		}
+	}
+
+	// Run idempotent ALTER TABLE migrations (SQLite doesn't support IF NOT EXISTS for columns)
+	alterMigrations := []string{
+		`ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE users ADD COLUMN verified_at DATETIME`,
+	}
+
+	for _, migration := range alterMigrations {
+		// Ignore "duplicate column" errors - column already exists
+		db.conn.Exec(migration)
 	}
 
 	return nil
@@ -459,9 +493,9 @@ func (db *DB) CountVideosBySession(sessionID string) (int, error) {
 // CreateUser creates a new user record
 func (db *DB) CreateUser(user *User) error {
 	_, err := db.conn.Exec(`
-		INSERT INTO users (id, email, password_hash, totp_secret, totp_enabled, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, user.ID, user.Email, user.PasswordHash, user.TOTPSecret, user.TOTPEnabled, user.CreatedAt)
+		INSERT INTO users (id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, user.ID, user.Email, user.PasswordHash, user.TOTPSecret, user.TOTPEnabled, user.EmailVerified, user.VerifiedAt, user.CreatedAt)
 	return err
 }
 
@@ -469,10 +503,11 @@ func (db *DB) CreateUser(user *User) error {
 func (db *DB) GetUserByID(id string) (*User, error) {
 	user := &User{}
 	var totpSecret sql.NullString
+	var verifiedAt sql.NullTime
 	err := db.conn.QueryRow(`
-		SELECT id, email, password_hash, totp_secret, totp_enabled, created_at
+		SELECT id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, created_at
 		FROM users WHERE id = ?
-	`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.CreatedAt)
+	`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.EmailVerified, &verifiedAt, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -481,6 +516,9 @@ func (db *DB) GetUserByID(id string) (*User, error) {
 	}
 	if totpSecret.Valid {
 		user.TOTPSecret = &totpSecret.String
+	}
+	if verifiedAt.Valid {
+		user.VerifiedAt = &verifiedAt.Time
 	}
 	return user, nil
 }
@@ -489,10 +527,11 @@ func (db *DB) GetUserByID(id string) (*User, error) {
 func (db *DB) GetUserByEmail(email string) (*User, error) {
 	user := &User{}
 	var totpSecret sql.NullString
+	var verifiedAt sql.NullTime
 	err := db.conn.QueryRow(`
-		SELECT id, email, password_hash, totp_secret, totp_enabled, created_at
+		SELECT id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, created_at
 		FROM users WHERE email = ?
-	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.CreatedAt)
+	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.EmailVerified, &verifiedAt, &user.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -501,6 +540,9 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 	}
 	if totpSecret.Valid {
 		user.TOTPSecret = &totpSecret.String
+	}
+	if verifiedAt.Valid {
+		user.VerifiedAt = &verifiedAt.Time
 	}
 	return user, nil
 }
@@ -965,6 +1007,136 @@ func (db *DB) DeleteExpiredPasswordResetTokens() (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// CreateEmailVerificationToken creates a new email verification token for a user.
+// Deletes any existing unused tokens for the user first.
+func (db *DB) CreateEmailVerificationToken(userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error) {
+	// Delete existing unused tokens for this user
+	_, err := db.conn.Exec(`DELETE FROM email_verification_tokens WHERE user_id = ? AND used = 0`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete old verification tokens: %w", err)
+	}
+
+	id := generateID()
+	token := &EmailVerificationToken{
+		ID:        id,
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		Used:      false,
+		CreatedAt: time.Now(),
+	}
+
+	_, err = db.conn.Exec(`
+		INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, used, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, token.ID, token.UserID, token.TokenHash, token.ExpiresAt, 0, token.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create verification token: %w", err)
+	}
+
+	return token, nil
+}
+
+// GetEmailVerificationToken retrieves an email verification token by its hash.
+// Returns nil if not found.
+func (db *DB) GetEmailVerificationToken(tokenHash string) (*EmailVerificationToken, error) {
+	token := &EmailVerificationToken{}
+	err := db.conn.QueryRow(`
+		SELECT id, user_id, token_hash, expires_at, used, created_at
+		FROM email_verification_tokens
+		WHERE token_hash = ?
+	`, tokenHash).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.Used, &token.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// UseEmailVerificationToken marks an email verification token as used and verifies the user's email.
+// Returns true if the token was valid and unused, false otherwise.
+func (db *DB) UseEmailVerificationToken(tokenHash string) (bool, error) {
+	err := db.WithTransaction(func(tx *Tx) error {
+		// First, get the token to find the user ID
+		var token EmailVerificationToken
+		err := tx.tx.QueryRow(`
+			SELECT id, user_id, token_hash, expires_at, used, created_at
+			FROM email_verification_tokens
+			WHERE token_hash = ? AND used = 0 AND expires_at > ?
+		`, tokenHash, time.Now()).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.Used, &token.CreatedAt)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("token not found or expired")
+		}
+		if err != nil {
+			return err
+		}
+
+		// Mark token as used
+		_, err = tx.tx.Exec(`UPDATE email_verification_tokens SET used = 1 WHERE id = ?`, token.ID)
+		if err != nil {
+			return fmt.Errorf("failed to mark token as used: %w", err)
+		}
+
+		// Verify the user's email
+		now := time.Now()
+		_, err = tx.tx.Exec(`UPDATE users SET email_verified = 1, verified_at = ? WHERE id = ?`, now, token.UserID)
+		if err != nil {
+			return fmt.Errorf("failed to verify user email: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// VerifyUserEmail sets a user's email as verified
+func (db *DB) VerifyUserEmail(userID string) error {
+	now := time.Now()
+	_, err := db.conn.Exec(`UPDATE users SET email_verified = 1, verified_at = ? WHERE id = ?`, now, userID)
+	return err
+}
+
+// DeleteEmailVerificationTokens deletes all email verification tokens for a user
+func (db *DB) DeleteEmailVerificationTokens(userID string) error {
+	_, err := db.conn.Exec(`DELETE FROM email_verification_tokens WHERE user_id = ?`, userID)
+	return err
+}
+
+// DeleteExpiredEmailVerificationTokens deletes all expired email verification tokens
+func (db *DB) DeleteExpiredEmailVerificationTokens() (int64, error) {
+	result, err := db.conn.Exec(`DELETE FROM email_verification_tokens WHERE expires_at < ?`, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// GetUnusedEmailVerificationToken returns the most recent unused verification token for a user
+func (db *DB) GetUnusedEmailVerificationToken(userID string) (*EmailVerificationToken, error) {
+	token := &EmailVerificationToken{}
+	err := db.conn.QueryRow(`
+		SELECT id, user_id, token_hash, expires_at, used, created_at
+		FROM email_verification_tokens
+		WHERE user_id = ? AND used = 0 AND expires_at > ?
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, userID, time.Now()).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.Used, &token.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
 }
 
 // UpdateUserPassword updates a user's password hash

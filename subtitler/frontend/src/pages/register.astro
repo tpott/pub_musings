@@ -128,6 +128,39 @@ import '../styles/theme.css';
 				font-size: 0.9rem;
 				display: none;
 			}
+			.success-message {
+				background-color: var(--success-bg, #ecfdf5);
+				border: 1px solid var(--success-border, #a7f3d0);
+				color: var(--success-color, #065f46);
+				padding: 1.5rem;
+				border-radius: 6px;
+				text-align: center;
+			}
+			.success-message h2 {
+				margin: 0 0 0.75rem 0;
+				font-size: 1.25rem;
+			}
+			.success-message p {
+				margin: 0.5rem 0;
+			}
+			.success-email {
+				font-weight: 600;
+				color: var(--text-color);
+			}
+			.success-actions {
+				margin-top: 1.5rem;
+				display: flex;
+				flex-direction: column;
+				gap: 0.75rem;
+			}
+			.btn-secondary {
+				background-color: transparent;
+				border: 1px solid var(--border-color);
+				color: var(--text-color);
+			}
+			.btn-secondary:hover:not(:disabled) {
+				background-color: var(--secondary-bg);
+			}
 			.footer {
 				text-align: center;
 				margin-top: 1.5rem;
@@ -184,28 +217,43 @@ import '../styles/theme.css';
 
 				<div id="error" class="error-message" role="alert" aria-live="assertive"></div>
 
-				<form id="registerForm">
-					<div class="form-group">
-						<label for="email">Email</label>
-						<input type="email" id="email" name="email" required autocomplete="email" />
-						<div id="emailError" class="field-error"></div>
-					</div>
-					<div class="form-group">
-						<label for="password">Password</label>
-						<input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" />
-						<p class="hint">At least 8 characters</p>
-						<div id="passwordError" class="field-error"></div>
-					</div>
-					<div class="form-group">
-						<label for="confirmPassword">Confirm Password</label>
-						<input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" />
-						<div id="confirmPasswordError" class="field-error"></div>
-					</div>
-					<button type="submit" class="btn btn-primary" id="submitBtn">Create account</button>
-				</form>
+				<div id="formSection">
+					<form id="registerForm">
+						<div class="form-group">
+							<label for="email">Email</label>
+							<input type="email" id="email" name="email" required autocomplete="email" />
+							<div id="emailError" class="field-error"></div>
+						</div>
+						<div class="form-group">
+							<label for="password">Password</label>
+							<input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" />
+							<p class="hint">At least 8 characters</p>
+							<div id="passwordError" class="field-error"></div>
+						</div>
+						<div class="form-group">
+							<label for="confirmPassword">Confirm Password</label>
+							<input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" />
+							<div id="confirmPasswordError" class="field-error"></div>
+						</div>
+						<button type="submit" class="btn btn-primary" id="submitBtn">Create account</button>
+					</form>
 
-				<div class="footer">
-					<p>Already have an account? <a href="/login">Log in</a></p>
+					<div class="footer">
+						<p>Already have an account? <a href="/login">Log in</a></p>
+					</div>
+				</div>
+
+				<div id="successSection" style="display: none;">
+					<div class="success-message">
+						<h2>Check your email</h2>
+						<p>We've sent a verification link to</p>
+						<p class="success-email" id="registeredEmail"></p>
+						<p>Click the link in the email to verify your account.</p>
+						<div class="success-actions">
+							<a href="/login" class="btn btn-primary">Go to login</a>
+							<button type="button" class="btn btn-secondary" id="resendBtn">Resend verification email</button>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -222,6 +270,12 @@ import '../styles/theme.css';
 			const emailError = document.getElementById('emailError') as HTMLElement;
 			const passwordError = document.getElementById('passwordError') as HTMLElement;
 			const confirmPasswordError = document.getElementById('confirmPasswordError') as HTMLElement;
+			const formSection = document.getElementById('formSection') as HTMLElement;
+			const successSection = document.getElementById('successSection') as HTMLElement;
+			const registeredEmailSpan = document.getElementById('registeredEmail') as HTMLElement;
+			const resendBtn = document.getElementById('resendBtn') as HTMLButtonElement;
+
+			let registeredEmail = '';
 
 			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
 				input.classList.remove('input-error');
@@ -281,6 +335,13 @@ import '../styles/theme.css';
 				submitBtn.textContent = loading ? 'Creating account...' : 'Create account';
 			}
 
+			function showSuccess(email: string) {
+				registeredEmail = email;
+				registeredEmailSpan.textContent = email;
+				formSection.style.display = 'none';
+				successSection.style.display = 'block';
+			}
+
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				hideError();
@@ -332,11 +393,54 @@ import '../styles/theme.css';
 						return;
 					}
 
-					// Registration successful - redirect to videos page
-					window.location.href = '/videos';
+					// Registration successful - show verification message
+					if (data.email_verification) {
+						showSuccess(email);
+					} else {
+						// Legacy fallback (shouldn't happen with new API)
+						window.location.href = '/videos';
+					}
 				} catch (err) {
 					showError('Network error. Please try again.');
 					setLoading(false);
+				}
+			});
+
+			// Resend verification email
+			resendBtn.addEventListener('click', async () => {
+				if (!registeredEmail) return;
+
+				resendBtn.disabled = true;
+				resendBtn.textContent = 'Sending...';
+
+				try {
+					const response = await fetch('/api/auth/resend-verification', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: registeredEmail }),
+					});
+
+					if (response.ok) {
+						resendBtn.textContent = 'Email sent!';
+						setTimeout(() => {
+							resendBtn.textContent = 'Resend verification email';
+							resendBtn.disabled = false;
+						}, 3000);
+					} else {
+						resendBtn.textContent = 'Failed to send';
+						setTimeout(() => {
+							resendBtn.textContent = 'Resend verification email';
+							resendBtn.disabled = false;
+						}, 3000);
+					}
+				} catch (err) {
+					resendBtn.textContent = 'Failed to send';
+					setTimeout(() => {
+						resendBtn.textContent = 'Resend verification email';
+						resendBtn.disabled = false;
+					}, 3000);
 				}
 			});
 		</script>
