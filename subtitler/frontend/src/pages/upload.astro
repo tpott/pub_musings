@@ -1122,7 +1122,6 @@ import '../styles/theme.css';
 					const result = await uploadPromise;
 					hideProgress();
 					showStatus(`Upload complete! Starting transcription...`, 'success');
-					console.log('Upload result:', result);
 
 					// Store upload ID and start transcription
 					currentUploadId = result.upload_id;
@@ -1148,7 +1147,6 @@ import '../styles/theme.css';
 						method: 'POST',
 					});
 					const result = await response.json();
-					console.log('Transcription started:', result);
 
 					// Start polling for status
 					pollTranscriptionStatus(uploadId);
