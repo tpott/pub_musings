@@ -232,6 +232,36 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				outline: 2px solid var(--accent-color);
 				outline-offset: 2px;
 			}
+			/* Mobile responsive styles */
+			@media (max-width: 480px) {
+				.container {
+					padding: 1rem;
+				}
+				.card {
+					padding: 1.5rem;
+				}
+				h1 {
+					font-size: 1.5rem;
+				}
+				.btn {
+					min-height: 44px;
+				}
+				.totp-input {
+					font-size: 1.25rem;
+					letter-spacing: 0.2rem;
+				}
+			}
+			@media (max-width: 375px) {
+				.container {
+					padding: 0.75rem;
+				}
+				.card {
+					padding: 1.25rem;
+				}
+				h1 {
+					font-size: 1.25rem;
+				}
+			}
 		</style>
 	</head>
 	<body>

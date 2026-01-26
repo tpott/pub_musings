@@ -689,6 +689,117 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.download-burned-btn:hover {
 				background-color: #047857;
 			}
+			/* Mobile responsive styles */
+			@media (max-width: 480px) {
+				.nav {
+					padding: 0.75rem 1rem;
+					gap: 0.5rem;
+				}
+				.nav-link, .nav-logout {
+					padding: 0.5rem 0.75rem;
+					font-size: 0.85rem;
+					min-height: 44px;
+					display: flex;
+					align-items: center;
+				}
+				.container {
+					padding: 1rem;
+				}
+				.header {
+					margin-bottom: 1.5rem;
+				}
+				h1 {
+					font-size: 1.5rem;
+				}
+				.dropzone {
+					padding: 2rem 1rem;
+				}
+				.dropzone-icon {
+					font-size: 2rem;
+				}
+				.dropzone-text {
+					font-size: 1rem;
+				}
+				.dropzone-hint {
+					font-size: 0.75rem;
+				}
+				.transcription {
+					padding: 1rem;
+				}
+				.transcription h2 {
+					font-size: 1.1rem;
+				}
+				.current-subtitle {
+					font-size: 1rem;
+					min-height: 3rem;
+					padding: 0.75rem;
+				}
+				.segment {
+					padding: 0.5rem 0.75rem;
+				}
+				.segment-text {
+					font-size: 0.9rem;
+				}
+				.actions {
+					flex-direction: column;
+					gap: 0.75rem;
+				}
+				.download-group {
+					flex-wrap: wrap;
+					width: 100%;
+				}
+				.download-btn {
+					flex: 1;
+					min-width: 80px;
+					text-align: center;
+					min-height: 44px;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+				}
+				.edit-btn, .burn-btn {
+					width: 100%;
+					min-height: 44px;
+				}
+				.paste-transcript textarea {
+					min-height: 100px;
+				}
+				.script-selectors {
+					flex-direction: column;
+					gap: 0.75rem;
+				}
+				.time-inputs {
+					flex-wrap: wrap;
+				}
+				.time-inputs input {
+					width: 90px;
+				}
+				.edit-actions {
+					flex-wrap: wrap;
+				}
+				.save-btn, .cancel-btn {
+					flex: 1;
+					min-height: 44px;
+				}
+				.tooltip-text {
+					width: 200px;
+					font-size: 0.75rem;
+				}
+			}
+			@media (max-width: 375px) {
+				h1 {
+					font-size: 1.25rem;
+				}
+				.container {
+					padding: 0.75rem;
+				}
+				.download-group {
+					flex-direction: column;
+				}
+				.download-btn {
+					width: 100%;
+				}
+			}
 		</style>
 	</head>
 	<body>

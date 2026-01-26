@@ -2070,9 +2070,36 @@ Added database transaction support for multi-step operations that must succeed o
 - `TestCompletePasswordReset` - tests atomic password reset
 - `TestDisableTOTPAndClearSessions` - tests atomic 2FA disable
 
+### Task 76: Mobile responsive design audit
+
+**Date**: 2026-01-25
+
+Added responsive CSS media queries to all frontend pages for mobile viewport support.
+
+**Pages updated:**
+- `index.astro` - Home page with responsive nav, buttons, and typography
+- `upload.astro` - Upload page with responsive dropzone, video player, subtitle editor, and action buttons
+- `videos.astro` - Videos list with responsive cards, button groups, and metadata display
+- `security.astro` - Security settings with responsive QR code, recovery codes grid, and session list
+- `login.astro` - Login form with responsive container and buttons
+- `register.astro` - Registration form with responsive container and buttons
+- `forgot-password.astro` - Password reset request form
+- `reset-password.astro` - Password reset form
+
+**Mobile responsive improvements:**
+- Breakpoints at 480px and 375px for different mobile sizes
+- All buttons have min-height 44px for touch-friendly targets
+- Nav elements stack/wrap on narrow screens
+- Video cards switch to vertical layout on mobile
+- Download button groups stack vertically on very narrow screens
+- Recovery codes grid becomes single column on mobile
+- Session items stack vertically on mobile
+- Reduced padding and font sizes for compact mobile display
+- Video player and subtitle editor remain functional on tablets
+
 ## Summary
 
-78 tasks completed (77 done + 1 requiring macOS). The subtitler application is feature-complete with:
+79 tasks completed (78 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -2097,8 +2124,9 @@ Added database transaction support for multi-step operations that must succeed o
 - Database transaction safety for critical multi-step operations
 - E2E full upload-to-download flow test with test video fixture
 - HTTP caching headers (ETag, Cache-Control, If-None-Match 304 responses) for video and subtitle endpoints
+- Mobile responsive design with media queries for 480px and 375px breakpoints
+- Touch-friendly 44px minimum button heights
 
-**3 tasks remaining:**
+**2 tasks remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 76: Mobile responsive design audit
 - Task 77: Dark mode support
