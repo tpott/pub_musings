@@ -135,6 +135,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				opacity: 0.6;
 				cursor: not-allowed;
 			}
+			.btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			.error-message {
 				background-color: var(--error-bg);
 				border: 1px solid #feb2b2;
@@ -212,6 +216,22 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.forgot-link a:hover {
 				text-decoration: underline;
 			}
+			.link-button {
+				background: none;
+				border: none;
+				padding: 0;
+				font: inherit;
+				color: var(--accent-color);
+				cursor: pointer;
+				text-decoration: none;
+			}
+			.link-button:hover {
+				text-decoration: underline;
+			}
+			.link-button:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 		</style>
 	</head>
 	<body>
@@ -224,8 +244,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					<p class="subtitle">Welcome back</p>
 				</div>
 
-				<div id="error" class="error-message"></div>
-				<div id="success" class="success-message"></div>
+				<div id="error" class="error-message" role="alert" aria-live="assertive"></div>
+				<div id="success" class="success-message" role="status" aria-live="polite"></div>
 
 				<form id="loginForm">
 					<div id="credentialsSection">
@@ -251,7 +271,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							<div id="totpError" class="field-error"></div>
 						</div>
 						<div class="recovery-link">
-							<a id="showRecoveryLink">Lost access to authenticator?</a>
+							<button type="button" id="showRecoveryLink" class="link-button">Lost access to authenticator?</button>
 						</div>
 					</div>
 					<div id="recoverySection" class="hidden">
@@ -260,7 +280,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 							<label for="recoveryCode">Recovery Code</label>
 							<input type="text" id="recoveryCode" name="recoveryCode" class="recovery-code-input" maxlength="9" placeholder="XXXX-XXXX" autocomplete="off" />
 						</div>
-						<a id="backToTotpLink" class="back-link">Back to authenticator code</a>
+						<button type="button" id="backToTotpLink" class="back-link link-button">Back to authenticator code</button>
 					</div>
 					<button type="submit" class="btn btn-primary" id="submitBtn">Log in</button>
 				</form>
@@ -285,8 +305,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			const credentialsSection = document.getElementById('credentialsSection') as HTMLElement;
 			const totpSection = document.getElementById('totpSection') as HTMLElement;
 			const recoverySection = document.getElementById('recoverySection') as HTMLElement;
-			const showRecoveryLink = document.getElementById('showRecoveryLink') as HTMLElement;
-			const backToTotpLink = document.getElementById('backToTotpLink') as HTMLElement;
+			const showRecoveryLink = document.getElementById('showRecoveryLink') as HTMLButtonElement;
+			const backToTotpLink = document.getElementById('backToTotpLink') as HTMLButtonElement;
 			const emailError = document.getElementById('emailError') as HTMLElement;
 			const passwordError = document.getElementById('passwordError') as HTMLElement;
 			const totpError = document.getElementById('totpError') as HTMLElement;

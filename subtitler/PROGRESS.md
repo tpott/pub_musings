@@ -1894,9 +1894,39 @@ Added request ID middleware for request tracing in production:
   - Generates unique IDs for each request
 - `TestRequestIDInHealthCheck` - verifies middleware works with actual handler
 
+### Task 71: Frontend accessibility improvements
+
+**Date**: 2026-01-25
+
+Added ARIA attributes and focus styles for better accessibility:
+
+**Error/status messages (role + aria-live):**
+- Added `role="alert" aria-live="assertive"` to error message divs
+- Added `role="status" aria-live="polite"` to success/status message divs
+- Applied to: login, register, forgot-password, reset-password, security, videos, upload
+
+**Icon-only links (aria-label):**
+- Added `aria-label="Back to home"` to back arrow links on videos and upload pages
+- Added `aria-label="Back to videos"` to back arrow on security page
+
+**Interactive links converted to buttons:**
+- Changed "Lost access to authenticator?" from `<a>` to `<button type="button">`
+- Changed "Back to authenticator code" from `<a>` to `<button type="button">`
+- Added `.link-button` CSS class with proper styling and focus
+
+**Focus visibility:**
+- Added `:focus { outline: 2px solid var(--accent-color); outline-offset: 2px; }` to:
+  - `.btn` on login, register, forgot-password, reset-password, security
+  - `.back-link` on videos, security, upload
+  - `.link-button` on login
+
+**Pages updated:**
+- login.astro, register.astro, forgot-password.astro, reset-password.astro
+- security.astro, videos.astro, upload.astro
+
 ## Summary
 
-72 tasks completed (71 done + 1 requiring macOS). The subtitler application is feature-complete with:
+73 tasks completed (72 done + 1 requiring macOS). The subtitler application is feature-complete with:
 - Video upload and transcription with Whisper AI
 - Subtitle generation, viewing, editing, and downloading (SRT, VTT, JSON formats)
 - Subtitle burning into video files
@@ -1916,7 +1946,7 @@ Added request ID middleware for request tracing in production:
 - MIME type validation on video upload (whitelist of 8 video formats)
 - Video reprocessing for failed transcriptions with ownership checks
 - Request ID tracing for all API requests
+- Comprehensive accessibility (ARIA roles, focus visible, keyboard navigation)
 
-**2 tasks remaining:**
+**1 task remaining:**
 - Task 48: MoltenVK research (requires macOS with Xcode)
-- Task 71: Frontend accessibility improvements

@@ -51,6 +51,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				color: var(--text-color);
 				font-size: 1.5rem;
 			}
+			.back-link:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			h1 {
 				font-size: 2rem;
 				font-weight: 600;
@@ -273,14 +277,14 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 		<div class="container">
 			<div class="header">
 				<div class="header-left">
-					<a href="/" class="back-link">&larr;</a>
+					<a href="/" class="back-link" aria-label="Back to home">&larr;</a>
 					<h1>My Videos</h1>
 				</div>
 				<a href="/upload" class="upload-btn">Upload Video</a>
 			</div>
 
-			<div id="loading" class="loading">Loading videos...</div>
-			<div id="error" class="error" style="display: none;"></div>
+			<div id="loading" class="loading" role="status" aria-live="polite">Loading videos...</div>
+			<div id="error" class="error" style="display: none;" role="alert" aria-live="assertive"></div>
 			<div id="empty" class="empty-state" style="display: none;">
 				<div class="empty-icon">📹</div>
 				<p class="empty-text">No videos yet. Upload your first video to get started!</p>

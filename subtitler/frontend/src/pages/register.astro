@@ -124,6 +124,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				opacity: 0.6;
 				cursor: not-allowed;
 			}
+			.btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			.error-message {
 				background-color: var(--error-bg);
 				border: 1px solid #feb2b2;
@@ -159,7 +163,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 					<p class="subtitle">Create your account</p>
 				</div>
 
-				<div id="error" class="error-message"></div>
+				<div id="error" class="error-message" role="alert" aria-live="assertive"></div>
 
 				<form id="registerForm">
 					<div class="form-group">

@@ -50,6 +50,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 				color: var(--text-color);
 				font-size: 1.5rem;
 			}
+			.back-link:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			h1 {
 				font-size: 2rem;
 				font-weight: 600;
@@ -152,6 +156,10 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			.btn:disabled {
 				opacity: 0.6;
 				cursor: not-allowed;
+			}
+			.btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
 			}
 			.loading {
 				text-align: center;
@@ -393,7 +401,7 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 		</nav>
 		<div class="container">
 			<div class="header">
-				<a href="/videos" class="back-link">&larr;</a>
+				<a href="/videos" class="back-link" aria-label="Back to videos">&larr;</a>
 				<h1>Security Settings</h1>
 			</div>
 
@@ -403,8 +411,8 @@ import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 			</div>
 
 			<div id="content" class="hidden">
-				<div id="errorMessage" class="error-message hidden"></div>
-				<div id="successMessage" class="success-message hidden"></div>
+				<div id="errorMessage" class="error-message hidden" role="alert" aria-live="assertive"></div>
+				<div id="successMessage" class="success-message hidden" role="status" aria-live="polite"></div>
 
 				<div class="card">
 					<div class="card-header">
