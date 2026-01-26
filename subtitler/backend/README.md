@@ -15,6 +15,10 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | HTTP server port |
+| `MAX_UPLOAD_SIZE` | `500M` | Maximum upload file size (supports K, M, G suffixes) |
+| `UPLOAD_DIR` | `uploads` | Directory for uploaded files |
+| `DB_PATH` | `data/subtitler.db` | Path to SQLite database file |
+| `KEY_PATH` | `data/age.key` | Path to age encryption key file |
 | `WHISPER_MODEL` | `$HOME/Github/whisper.cpp/models/ggml-medium.bin` | Path to whisper model (CLI mode only) |
 | `WHISPER_SERVER_URL` | `http://127.0.0.1:8765` | URL of whisper-server (enables server mode) |
 | `USE_WHISPER_SERVER` | `false` | Set to `true` to use whisper-server with default URL |
@@ -23,6 +27,18 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 | `APP_URL` | `http://localhost:4321` | Base URL for email links (e.g., password reset) |
 | `EMAIL_ENABLED` | `true` | Set to `false` to disable email sending |
 | `HTTPS_ONLY` | `false` | Set to `true` or `1` to enable Secure flag on session cookies |
+
+### File Path Configuration
+
+For production deployments, you'll typically want to configure these paths:
+
+```bash
+# Example production configuration
+export UPLOAD_DIR="/opt/subtitler/uploads"
+export DB_PATH="/opt/subtitler/data/subtitler.db"
+export KEY_PATH="/opt/subtitler/data/age.key"
+export MAX_UPLOAD_SIZE="1G"  # Increase limit for production
+```
 
 ### Whisper Mode Selection
 

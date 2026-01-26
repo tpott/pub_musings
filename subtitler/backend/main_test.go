@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -153,5 +154,219 @@ func TestGenerateVTTEmpty(t *testing.T) {
 	// Even with no segments, VTT should have header
 	if vtt != "WEBVTT\n\n" {
 		t.Errorf("Empty segments should produce just WEBVTT header, got: %s", vtt)
+	}
+}
+
+func TestGetEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue string
+		envValue     string
+		expected     string
+	}{
+		{
+			name:         "uses default when env not set",
+			key:          "TEST_CONFIG_NOT_SET",
+			defaultValue: "default-value",
+			envValue:     "",
+			expected:     "default-value",
+		},
+		{
+			name:         "uses env value when set",
+			key:          "TEST_CONFIG_SET",
+			defaultValue: "default-value",
+			envValue:     "env-value",
+			expected:     "env-value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the env var first
+			os.Unsetenv(tc.key)
+
+			// Set env if test case specifies a value
+			if tc.envValue != "" {
+				os.Setenv(tc.key, tc.envValue)
+				defer os.Unsetenv(tc.key)
+			}
+
+			result := getEnvOrDefault(tc.key, tc.defaultValue)
+			if result != tc.expected {
+				t.Errorf("getEnvOrDefault(%s, %s) = %s, expected %s",
+					tc.key, tc.defaultValue, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGetEnvSizeOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue int64
+		envValue     string
+		expected     int64
+	}{
+		{
+			name:         "uses default when env not set",
+			key:          "TEST_SIZE_NOT_SET",
+			defaultValue: 100,
+			envValue:     "",
+			expected:     100,
+		},
+		{
+			name:         "parses plain number",
+			key:          "TEST_SIZE_PLAIN",
+			defaultValue: 100,
+			envValue:     "500",
+			expected:     500,
+		},
+		{
+			name:         "parses KB suffix",
+			key:          "TEST_SIZE_KB",
+			defaultValue: 100,
+			envValue:     "10K",
+			expected:     10 * 1024,
+		},
+		{
+			name:         "parses MB suffix",
+			key:          "TEST_SIZE_MB",
+			defaultValue: 100,
+			envValue:     "500M",
+			expected:     500 * 1024 * 1024,
+		},
+		{
+			name:         "parses GB suffix",
+			key:          "TEST_SIZE_GB",
+			defaultValue: 100,
+			envValue:     "1G",
+			expected:     1 * 1024 * 1024 * 1024,
+		},
+		{
+			name:         "handles lowercase suffix",
+			key:          "TEST_SIZE_LOWER",
+			defaultValue: 100,
+			envValue:     "500m",
+			expected:     500 * 1024 * 1024,
+		},
+		{
+			name:         "handles whitespace",
+			key:          "TEST_SIZE_WHITESPACE",
+			defaultValue: 100,
+			envValue:     " 500M ",
+			expected:     500 * 1024 * 1024,
+		},
+		{
+			name:         "uses default for invalid value",
+			key:          "TEST_SIZE_INVALID",
+			defaultValue: 100,
+			envValue:     "not-a-number",
+			expected:     100,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the env var first
+			os.Unsetenv(tc.key)
+
+			// Set env if test case specifies a value
+			if tc.envValue != "" {
+				os.Setenv(tc.key, tc.envValue)
+				defer os.Unsetenv(tc.key)
+			}
+
+			result := getEnvSizeOrDefault(tc.key, tc.defaultValue)
+			if result != tc.expected {
+				t.Errorf("getEnvSizeOrDefault(%s, %d) = %d, expected %d",
+					tc.key, tc.defaultValue, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestInitConfig(t *testing.T) {
+	// Save original values
+	origMaxUploadSize := maxUploadSize
+	origUploadDir := uploadDir
+	origDBPath := dbPath
+	origKeyPath := keyPath
+
+	// Restore after test
+	defer func() {
+		maxUploadSize = origMaxUploadSize
+		uploadDir = origUploadDir
+		dbPath = origDBPath
+		keyPath = origKeyPath
+	}()
+
+	// Set environment variables
+	os.Setenv("MAX_UPLOAD_SIZE", "100M")
+	os.Setenv("UPLOAD_DIR", "/custom/uploads")
+	os.Setenv("DB_PATH", "/custom/db.sqlite")
+	os.Setenv("KEY_PATH", "/custom/key.age")
+	defer func() {
+		os.Unsetenv("MAX_UPLOAD_SIZE")
+		os.Unsetenv("UPLOAD_DIR")
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("KEY_PATH")
+	}()
+
+	// Call initConfig
+	initConfig()
+
+	// Verify values
+	if maxUploadSize != 100*1024*1024 {
+		t.Errorf("maxUploadSize = %d, expected %d", maxUploadSize, 100*1024*1024)
+	}
+	if uploadDir != "/custom/uploads" {
+		t.Errorf("uploadDir = %s, expected /custom/uploads", uploadDir)
+	}
+	if dbPath != "/custom/db.sqlite" {
+		t.Errorf("dbPath = %s, expected /custom/db.sqlite", dbPath)
+	}
+	if keyPath != "/custom/key.age" {
+		t.Errorf("keyPath = %s, expected /custom/key.age", keyPath)
+	}
+}
+
+func TestInitConfigDefaults(t *testing.T) {
+	// Save original values
+	origMaxUploadSize := maxUploadSize
+	origUploadDir := uploadDir
+	origDBPath := dbPath
+	origKeyPath := keyPath
+
+	// Restore after test
+	defer func() {
+		maxUploadSize = origMaxUploadSize
+		uploadDir = origUploadDir
+		dbPath = origDBPath
+		keyPath = origKeyPath
+	}()
+
+	// Clear environment variables
+	os.Unsetenv("MAX_UPLOAD_SIZE")
+	os.Unsetenv("UPLOAD_DIR")
+	os.Unsetenv("DB_PATH")
+	os.Unsetenv("KEY_PATH")
+
+	// Call initConfig
+	initConfig()
+
+	// Verify defaults are used
+	if maxUploadSize != defaultMaxUploadSize {
+		t.Errorf("maxUploadSize = %d, expected default %d", maxUploadSize, defaultMaxUploadSize)
+	}
+	if uploadDir != defaultUploadDir {
+		t.Errorf("uploadDir = %s, expected default %s", uploadDir, defaultUploadDir)
+	}
+	if dbPath != defaultDBPath {
+		t.Errorf("dbPath = %s, expected default %s", dbPath, defaultDBPath)
+	}
+	if keyPath != defaultKeyPath {
+		t.Errorf("keyPath = %s, expected default %s", keyPath, defaultKeyPath)
 	}
 }

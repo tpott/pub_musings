@@ -31,12 +31,69 @@ import (
 	"github.com/trevor/subtitler/backend/totp"
 )
 
+// Configuration defaults (can be overridden via environment variables)
 const (
-	maxUploadSize = 500 << 20 // 500 MB
-	uploadDir     = "uploads"
-	dbPath        = "data/subtitler.db"
-	keyPath       = "data/age.key"
+	defaultMaxUploadSize = 500 << 20 // 500 MB
+	defaultUploadDir     = "uploads"
+	defaultDBPath        = "data/subtitler.db"
+	defaultKeyPath       = "data/age.key"
 )
+
+// Configuration values loaded from environment
+var (
+	maxUploadSize int64
+	uploadDir     string
+	dbPath        string
+	keyPath       string
+)
+
+// getEnvOrDefault returns the value of an environment variable or a default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvSizeOrDefault parses a size from environment variable (e.g., "500M", "1G")
+// Returns default value if not set or invalid
+func getEnvSizeOrDefault(key string, defaultValue int64) int64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	// Parse size with optional suffix (M for MB, G for GB)
+	value = strings.TrimSpace(strings.ToUpper(value))
+	multiplier := int64(1)
+
+	if strings.HasSuffix(value, "G") {
+		multiplier = 1 << 30 // GB
+		value = strings.TrimSuffix(value, "G")
+	} else if strings.HasSuffix(value, "M") {
+		multiplier = 1 << 20 // MB
+		value = strings.TrimSuffix(value, "M")
+	} else if strings.HasSuffix(value, "K") {
+		multiplier = 1 << 10 // KB
+		value = strings.TrimSuffix(value, "K")
+	}
+
+	var size int64
+	if _, err := fmt.Sscanf(value, "%d", &size); err != nil {
+		log.Printf("Warning: Invalid MAX_UPLOAD_SIZE '%s', using default %d bytes", os.Getenv(key), defaultValue)
+		return defaultValue
+	}
+
+	return size * multiplier
+}
+
+// initConfig initializes configuration from environment variables
+func initConfig() {
+	maxUploadSize = getEnvSizeOrDefault("MAX_UPLOAD_SIZE", defaultMaxUploadSize)
+	uploadDir = getEnvOrDefault("UPLOAD_DIR", defaultUploadDir)
+	dbPath = getEnvOrDefault("DB_PATH", defaultDBPath)
+	keyPath = getEnvOrDefault("KEY_PATH", defaultKeyPath)
+}
 
 // WhisperSegment represents a transcribed segment with timing
 type WhisperSegment struct {
@@ -520,10 +577,17 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 }
 
 func main() {
+	// Initialize configuration from environment variables
+	initConfig()
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+
+	// Log configuration
+	log.Printf("Configuration: MAX_UPLOAD_SIZE=%d, UPLOAD_DIR=%s, DB_PATH=%s, KEY_PATH=%s",
+		maxUploadSize, uploadDir, dbPath, keyPath)
 
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {

@@ -186,14 +186,19 @@ Restart=always
 RestartSec=5
 
 # Environment
-Environment=PORT=8070
-Environment=WHISPER_SERVER_URL=http://10.0.2.2:8050
+Environment=PORT=8080
+Environment=WHISPER_SERVER_URL=http://10.0.2.2:8765
+Environment=UPLOAD_DIR=/opt/subtitler/uploads
+Environment=DB_PATH=/opt/subtitler/data/subtitler.db
+Environment=KEY_PATH=/opt/subtitler/data/age.key
+Environment=MAX_UPLOAD_SIZE=1G
+Environment=HTTPS_ONLY=true
 
 # Security
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/subtitler/backend/data /opt/subtitler/backend/uploads
+ReadWritePaths=/opt/subtitler/data /opt/subtitler/uploads
 
 [Install]
 WantedBy=multi-user.target
