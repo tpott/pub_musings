@@ -291,6 +291,45 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// securityHeadersMiddleware adds security headers to all responses
+// These provide defense-in-depth against common web vulnerabilities
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content-Security-Policy: Prevent XSS by restricting script/style sources
+		// - 'self': Allow resources from same origin
+		// - 'unsafe-inline': Required for Astro's inline scripts and styles
+		// - data: scheme: Allow data URLs for inline images (like QR codes)
+		// - blob: scheme: Allow blob URLs for video playback
+		// Note: In production, Caddy can override with stricter CSP if needed
+		csp := "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline'; " +
+			"style-src 'self' 'unsafe-inline'; " +
+			"img-src 'self' data: blob:; " +
+			"media-src 'self' blob:; " +
+			"connect-src 'self'; " +
+			"font-src 'self'; " +
+			"object-src 'none'; " +
+			"frame-ancestors 'none'; " +
+			"base-uri 'self'; " +
+			"form-action 'self'"
+		w.Header().Set("Content-Security-Policy", csp)
+
+		// X-Content-Type-Options: Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		// X-Frame-Options: Prevent clickjacking (legacy, CSP frame-ancestors is preferred)
+		w.Header().Set("X-Frame-Options", "DENY")
+
+		// Referrer-Policy: Limit referrer information leakage
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// X-XSS-Protection: Enable browser XSS filter (legacy browsers)
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func generateID() (string, error) {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
@@ -4008,9 +4047,12 @@ func main() {
 	log.Printf("Backend server starting on :%s", port)
 	log.Printf("Using whisper model: %s", getWhisperModel())
 
-	// Wrap mux with CSRF middleware then request ID middleware
+	// Wrap mux with middleware chain (outermost runs first):
+	// 1. Security headers - add CSP and other security headers
+	// 2. Request ID - add X-Request-ID for tracing
+	// 3. CSRF - validate CSRF tokens on state-changing requests
 	csrfMiddleware := csrf.Middleware(auth.GetTokenFromRequest)
-	handler := requestIDMiddleware(csrfMiddleware(mux))
+	handler := securityHeadersMiddleware(requestIDMiddleware(csrfMiddleware(mux)))
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

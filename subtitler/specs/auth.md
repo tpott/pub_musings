@@ -448,6 +448,39 @@ After 5 failed login attempts for an email within 15 minutes, the account is tem
 - `backend/main.go:1023-1025` - Constants: `maxLoginAttempts = 5`, `loginLockDuration = 15 * time.Minute`
 - `backend/db/db.go` - `RecordLoginAttempt()`, `IsEmailLocked()`, `ClearLoginAttempts()`
 
+### Security Headers
+
+The backend sets security headers via `securityHeadersMiddleware`:
+
+**Content-Security-Policy (CSP):**
+```
+default-src 'self';
+script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:;
+media-src 'self' blob:;
+connect-src 'self';
+font-src 'self';
+object-src 'none';
+frame-ancestors 'none';
+base-uri 'self';
+form-action 'self'
+```
+
+**Other security headers:**
+- `X-Content-Type-Options: nosniff` - Prevent MIME type sniffing
+- `X-Frame-Options: DENY` - Prevent clickjacking (legacy)
+- `Referrer-Policy: strict-origin-when-cross-origin` - Limit referrer leakage
+- `X-XSS-Protection: 1; mode=block` - Browser XSS filter (legacy)
+
+**Notes:**
+- `unsafe-inline` is required for Astro's inline scripts/styles
+- `data:` and `blob:` are required for QR codes and video playback
+- Production deployments via Caddy can apply stricter CSP if needed
+
+**Files:**
+- `backend/main.go` - `securityHeadersMiddleware()`
+
 ### Future Enhancements
 
 The following security features are planned but not yet implemented:

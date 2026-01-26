@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -550,5 +552,57 @@ func TestInitRateLimiters(t *testing.T) {
 	}
 	if scriptLimiter == nil {
 		t.Error("scriptLimiter should not be nil after initRateLimiters")
+	}
+}
+
+func TestSecurityHeadersMiddleware(t *testing.T) {
+	// Create a simple handler that we can wrap
+	innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Wrap it with security headers middleware
+	handler := securityHeadersMiddleware(innerHandler)
+
+	// Create a test request
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+
+	// Call the handler
+	handler.ServeHTTP(rec, req)
+
+	// Verify CSP header is set
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp == "" {
+		t.Error("Content-Security-Policy header not set")
+	}
+	if !strings.Contains(csp, "default-src 'self'") {
+		t.Error("CSP should contain default-src 'self'")
+	}
+	if !strings.Contains(csp, "script-src 'self'") {
+		t.Error("CSP should contain script-src")
+	}
+	if !strings.Contains(csp, "frame-ancestors 'none'") {
+		t.Error("CSP should contain frame-ancestors 'none'")
+	}
+
+	// Verify other security headers
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Error("X-Content-Type-Options should be 'nosniff'")
+	}
+	if rec.Header().Get("X-Frame-Options") != "DENY" {
+		t.Error("X-Frame-Options should be 'DENY'")
+	}
+	if rec.Header().Get("Referrer-Policy") != "strict-origin-when-cross-origin" {
+		t.Error("Referrer-Policy should be 'strict-origin-when-cross-origin'")
+	}
+	if rec.Header().Get("X-XSS-Protection") != "1; mode=block" {
+		t.Error("X-XSS-Protection should be '1; mode=block'")
+	}
+
+	// Verify the inner handler was called
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
 }
