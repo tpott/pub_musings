@@ -2946,6 +2946,16 @@ func main() {
 			userPtr = &user.ID
 		}
 
+		// SECURITY: Require either authenticated user or session_id to filter videos
+		// Without this check, anonymous requests would return ALL videos in the database
+		if userPtr == nil && sessionPtr == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication or session_id required to list videos",
+			})
+			return
+		}
+
 		videos, err := database.ListVideos(userPtr, sessionPtr)
 		if err != nil {
 			log.Printf("Error listing videos: %v", err)

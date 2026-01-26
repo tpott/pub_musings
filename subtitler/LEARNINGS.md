@@ -289,3 +289,29 @@ But proper consonant cluster handling (halant/virama) requires sophisticated alg
 - Make proxy trust opt-in, not opt-out
 - Document clearly which environment configurations require which settings
 - This applies to all similar headers: `X-Real-IP`, `X-Forwarded-Proto`, etc.
+
+---
+
+### 2026-01-26: Privacy leak in "My Videos" endpoint - require filter criteria
+
+**Problem:** The `GET /api/videos` endpoint returned ALL videos in the database when called without authentication or session_id. Anonymous users could see videos from all other users including their filenames, sizes, and timestamps.
+
+**Root cause:** The backend's `ListVideos()` function had three code paths:
+1. If `userID` provided: filter by user
+2. If `sessionID` provided: filter by session
+3. If neither: return ALL videos (the bug!)
+
+The frontend called `/api/videos` without passing session_id for anonymous users.
+
+**Solution:**
+1. Backend: Added check requiring either auth or session_id, returns 400 Bad Request if neither
+2. Frontend: Created `session.ts` utility to generate/store session IDs in localStorage
+3. Frontend: Updated `videos.astro` to check auth first, then call API with session_id if anonymous
+4. Frontend: Updated `upload.astro` to pass session_id for anonymous uploads
+5. Added test `TestListVideosNoFilterRejected` to verify the fix
+
+**Lesson:** For any endpoint that can return a list of resources:
+- Always require filter criteria (user ID, session ID, etc.)
+- Never have a "return all" code path without explicit admin privileges
+- Test the "no filter provided" case explicitly
+- Consider privacy implications during code review: "What if no filter is provided?"

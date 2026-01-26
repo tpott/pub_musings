@@ -366,6 +366,7 @@ import '../styles/theme.css';
 
 		<script>
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+			import { getOrCreateSessionId } from '../utils/session';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const error = document.getElementById('error') as HTMLElement;
@@ -482,11 +483,12 @@ import '../styles/theme.css';
 				button.textContent = 'Retrying...';
 
 				try {
-					// Get session_id from localStorage for anonymous users
-					const sessionId = localStorage.getItem('session_id') || '';
-					const url = sessionId
-						? `/api/videos/${videoId}/reprocess?session_id=${sessionId}`
-						: `/api/videos/${videoId}/reprocess`;
+					// For anonymous users, include session_id
+					let url = `/api/videos/${videoId}/reprocess`;
+					if (!isAuthenticated) {
+						const sessionId = getOrCreateSessionId();
+						url = `/api/videos/${videoId}/reprocess?session_id=${encodeURIComponent(sessionId)}`;
+					}
 
 					const response = await csrfFetch(url, { method: 'POST' });
 					const data = await response.json();
@@ -520,11 +522,23 @@ import '../styles/theme.css';
 				});
 			}
 
+			// Track if user is authenticated (set by checkAuth)
+			let isAuthenticated = false;
+
 			async function loadVideos() {
 				try {
-					const response = await fetch('/api/videos');
+					// For anonymous users, include session_id in request
+					// Authenticated users are filtered by user_id on backend
+					let url = '/api/videos';
+					if (!isAuthenticated) {
+						const sessionId = getOrCreateSessionId();
+						url = `/api/videos?session_id=${encodeURIComponent(sessionId)}`;
+					}
+
+					const response = await fetch(url);
 					if (!response.ok) {
-						throw new Error(`HTTP ${response.status}`);
+						const data = await response.json().catch(() => ({}));
+						throw new Error(data.error || `HTTP ${response.status}`);
 					}
 					const data = await response.json();
 
@@ -546,7 +560,7 @@ import '../styles/theme.css';
 				}
 			}
 
-			loadVideos();
+			// Don't load videos immediately - wait for auth check
 
 			// Auth handling
 			const nav = document.getElementById('nav') as HTMLElement;
@@ -559,6 +573,7 @@ import '../styles/theme.css';
 					if (response.ok) {
 						const data = await response.json();
 						if (data.user) {
+							isAuthenticated = true;
 							loginLink.style.display = 'none';
 							registerLink.style.display = 'none';
 
@@ -586,6 +601,9 @@ import '../styles/theme.css';
 				} catch (err) {
 					// Not logged in
 				}
+
+				// Now load videos with correct filtering
+				loadVideos();
 			}
 
 			async function logout() {
@@ -598,6 +616,7 @@ import '../styles/theme.css';
 				}
 			}
 
+			// Start auth check (which will then load videos)
 			checkAuth();
 		</script>
 	</body>

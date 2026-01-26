@@ -912,6 +912,7 @@ import '../styles/theme.css';
 
 		<script>
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+			import { getOrCreateSessionId } from '../utils/session';
 			import { parseTimeString } from '../utils/validation';
 			import type {
 				TranscriptionSegment,
@@ -1173,7 +1174,13 @@ import '../styles/theme.css';
 						xhr.onerror = () => reject(new Error('Network error'));
 					});
 
-					xhr.open('POST', '/api/upload');
+					// For anonymous users, include session_id for tracking
+					let uploadUrl = '/api/upload';
+					if (!isAuthenticated) {
+						const sessionId = getOrCreateSessionId();
+						uploadUrl = `/api/upload?session_id=${encodeURIComponent(sessionId)}`;
+					}
+					xhr.open('POST', uploadUrl);
 					xhr.send(formData);
 
 					const result = await uploadPromise;
@@ -1776,6 +1783,7 @@ import '../styles/theme.css';
 			const nav = document.getElementById('nav') as HTMLElement;
 			const loginLink = document.getElementById('loginLink') as HTMLElement;
 			const registerLink = document.getElementById('registerLink') as HTMLElement;
+			let isAuthenticated = false;
 
 			async function checkAuth() {
 				try {
@@ -1783,6 +1791,7 @@ import '../styles/theme.css';
 					if (response.ok) {
 						const data = await response.json();
 						if (data.user) {
+							isAuthenticated = true;
 							loginLink.style.display = 'none';
 							registerLink.style.display = 'none';
 

@@ -967,6 +967,16 @@ func (ts *testServer) registerHandlers() {
 			userPtr = &user.ID
 		}
 
+		// SECURITY: Require either authenticated user or session_id to filter videos
+		// Without this check, anonymous requests would return ALL videos in the database
+		if userPtr == nil && sessionPtr == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication or session_id required to list videos",
+			})
+			return
+		}
+
 		videos, err := ts.db.ListVideos(userPtr, sessionPtr)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -2157,6 +2167,33 @@ func TestListVideosBySession(t *testing.T) {
 
 	if len(listResult.Videos) != 1 {
 		t.Errorf("Expected 1 video, got %d", len(listResult.Videos))
+	}
+}
+
+func TestListVideosNoFilterRejected(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create videos that should NOT be accessible without filter
+	userID := "some-user"
+	sessionID := "some-session"
+	ts.createTestVideo(t, &userID, nil)
+	ts.createTestVideo(t, nil, &sessionID)
+
+	// Try to list videos without auth or session_id
+	// This MUST be rejected to prevent privacy leak
+	resp := ts.doRequest("GET", "/api/videos", nil, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 (Bad Request), got %d - anonymous requests without session_id should be rejected", resp.Code)
+	}
+
+	var errResult struct {
+		Error string `json:"error"`
+	}
+	json.NewDecoder(resp.Body).Decode(&errResult)
+
+	if errResult.Error == "" {
+		t.Error("Expected error message in response")
 	}
 }
 

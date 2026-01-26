@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**93 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**94 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
