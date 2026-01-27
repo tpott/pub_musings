@@ -2864,8 +2864,16 @@ func main() {
 		}
 		if existingChunk != nil {
 			// Chunk already uploaded, return success for idempotency
-			totalReceived, _ := database.GetTotalReceivedBytes(uploadSessionID)
-			chunkCount, _ := database.CountUploadChunks(uploadSessionID)
+			totalReceived, err := database.GetTotalReceivedBytes(uploadSessionID)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Error getting total received bytes", "error", err, "session_id", uploadSessionID)
+				totalReceived = 0
+			}
+			chunkCount, err := database.CountUploadChunks(uploadSessionID)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Error counting upload chunks", "error", err, "session_id", uploadSessionID)
+				chunkCount = 0
+			}
 			progress := int(float64(chunkCount) / float64(session.TotalChunks) * 100)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"chunk_index":    chunkIndex,
@@ -2952,8 +2960,16 @@ func main() {
 		}
 
 		// Calculate progress
-		totalReceived, _ := database.GetTotalReceivedBytes(uploadSessionID)
-		chunkCount, _ := database.CountUploadChunks(uploadSessionID)
+		totalReceived, err := database.GetTotalReceivedBytes(uploadSessionID)
+		if err != nil {
+			logging.WarnContext(r.Context(), "Error getting total received bytes", "error", err, "session_id", uploadSessionID)
+			totalReceived = 0
+		}
+		chunkCount, err := database.CountUploadChunks(uploadSessionID)
+		if err != nil {
+			logging.WarnContext(r.Context(), "Error counting upload chunks", "error", err, "session_id", uploadSessionID)
+			chunkCount = 0
+		}
 		progress := int(float64(chunkCount) / float64(session.TotalChunks) * 100)
 
 		logging.InfoContext(r.Context(), "Received chunk",
