@@ -484,14 +484,17 @@ func TestDeleteVideo(t *testing.T) {
 	}
 
 	// Delete the video
-	filePath, err := db.DeleteVideo("video-to-delete")
+	deletedFiles, err := db.DeleteVideo("video-to-delete")
 	if err != nil {
 		t.Fatalf("Failed to delete video: %v", err)
 	}
 
 	// Check that the file path was returned
-	if filePath != "/uploads/video-to-delete.mp4" {
-		t.Errorf("Expected file path '/uploads/video-to-delete.mp4', got '%s'", filePath)
+	if deletedFiles == nil {
+		t.Fatal("Expected deletedFiles to be non-nil")
+	}
+	if deletedFiles.FilePath != "/uploads/video-to-delete.mp4" {
+		t.Errorf("Expected file path '/uploads/video-to-delete.mp4', got '%s'", deletedFiles.FilePath)
 	}
 
 	// Verify video is deleted
@@ -528,12 +531,12 @@ func TestDeleteVideoNotFound(t *testing.T) {
 	defer db.Close()
 
 	// Try to delete a non-existent video
-	filePath, err := db.DeleteVideo("nonexistent")
+	deletedFiles, err := db.DeleteVideo("nonexistent")
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if filePath != "" {
-		t.Errorf("Expected empty file path for nonexistent video, got '%s'", filePath)
+	if deletedFiles != nil {
+		t.Errorf("Expected nil for nonexistent video, got %+v", deletedFiles)
 	}
 }
 

@@ -2504,6 +2504,25 @@ func main() {
 			return
 		}
 
+		// Generate thumbnail from the validated video (before encryption)
+		thumbPath := filepath.Join(uploadDir, uploadID+"_thumb.jpg")
+		var encThumbPath *string
+		if err := audio.GenerateThumbnail(destPath, thumbPath); err != nil {
+			logging.WarnContext(r.Context(), "Failed to generate thumbnail", "path", destPath, "error", err)
+			// Non-fatal: continue without thumbnail
+		} else {
+			// Encrypt the thumbnail
+			encPath, err := encryptor.EncryptFile(thumbPath)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
+				os.Remove(thumbPath) // Clean up unencrypted thumbnail
+			} else {
+				os.Remove(thumbPath) // Clean up unencrypted thumbnail
+				encThumbPath = &encPath
+				logging.InfoContext(r.Context(), "Generated and encrypted thumbnail", "thumb_path", encPath)
+			}
+		}
+
 		// Encrypt the file at rest
 		encPath, err := encryptor.EncryptFile(destPath)
 		if err != nil {
@@ -2522,12 +2541,13 @@ func main() {
 
 		// Save video to database with encrypted file path
 		video := &db.Video{
-			ID:          uploadID,
-			Filename:    header.Filename,
-			Size:        written,
-			ContentType: contentType,
-			FilePath:    encPath,
-			CreatedAt:   time.Now(),
+			ID:            uploadID,
+			Filename:      header.Filename,
+			Size:          written,
+			ContentType:   contentType,
+			FilePath:      encPath,
+			ThumbnailPath: encThumbPath,
+			CreatedAt:     time.Now(),
 		}
 		// Set user_id if authenticated
 		if user != nil {
@@ -2540,6 +2560,9 @@ func main() {
 		if err := database.CreateVideo(video); err != nil {
 			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
 			os.Remove(encPath) // Clean up encrypted file
+			if encThumbPath != nil {
+				os.Remove(*encThumbPath) // Clean up encrypted thumbnail
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save video record",
@@ -3623,6 +3646,94 @@ func main() {
 		http.ServeFile(w, r, videoPath)
 	})
 
+	// Serve video thumbnail
+	mux.HandleFunc("GET /api/videos/{id}/thumbnail", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		// Get video from database to get thumbnail path
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Database error",
+			})
+			return
+		}
+		if video == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Video not found",
+			})
+			return
+		}
+
+		// Check if thumbnail exists
+		if video.ThumbnailPath == nil || *video.ThumbnailPath == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Thumbnail not available",
+			})
+			return
+		}
+
+		thumbPath := *video.ThumbnailPath
+
+		// Check if file exists on disk
+		if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Thumbnail file not found",
+			})
+			return
+		}
+
+		// Generate ETag from video ID + creation time (thumbnails are immutable)
+		etag := generateETag(fmt.Sprintf("thumb-%s-%d", video.ID, video.CreatedAt.Unix()))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
+		// If file is encrypted, decrypt to temp file for serving
+		if strings.HasSuffix(thumbPath, ".age") {
+			decryptedPath, err := encryptor.DecryptToTempFile(thumbPath)
+			if err != nil {
+				logging.ErrorContext(r.Context(), "Failed to decrypt thumbnail for serving", "error", err)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to decrypt thumbnail",
+				})
+				return
+			}
+			defer os.Remove(decryptedPath)
+			thumbPath = decryptedPath
+		}
+
+		// Set caching headers - thumbnails are immutable, cache for 24 hours
+		setCacheHeaders(w, etag, 86400) // 24 hours
+
+		// Set content type for JPEG
+		w.Header().Set("Content-Type", "image/jpeg")
+
+		// Serve the file
+		http.ServeFile(w, r, thumbPath)
+	})
+
 	// Start burning subtitles into video (rate limited: 2/min per IP)
 	mux.HandleFunc("POST /api/videos/{id}/burn", burnLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -4097,21 +4208,32 @@ func runCleanup() {
 
 	deletedCount := 0
 	for _, video := range expiredVideos {
-		// Delete from database and get file path
-		filePath, err := database.DeleteVideo(video.ID)
+		// Delete from database and get file paths
+		deletedFiles, err := database.DeleteVideo(video.ID)
 		if err != nil {
 			logging.Error("Error deleting video from database", "video_id", video.ID, "error", err)
 			continue
 		}
 
-		// Delete the file from disk
-		if filePath != "" {
-			if err := os.Remove(filePath); err != nil {
+		// Delete the video file from disk
+		if deletedFiles != nil && deletedFiles.FilePath != "" {
+			if err := os.Remove(deletedFiles.FilePath); err != nil {
 				if !os.IsNotExist(err) {
-					logging.Error("Error deleting file", "path", filePath, "error", err)
+					logging.Error("Error deleting video file", "path", deletedFiles.FilePath, "error", err)
 				}
 			} else {
-				logging.Debug("Deleted file", "path", filePath)
+				logging.Debug("Deleted video file", "path", deletedFiles.FilePath)
+			}
+		}
+
+		// Delete the thumbnail file from disk
+		if deletedFiles != nil && deletedFiles.ThumbnailPath != nil && *deletedFiles.ThumbnailPath != "" {
+			if err := os.Remove(*deletedFiles.ThumbnailPath); err != nil {
+				if !os.IsNotExist(err) {
+					logging.Error("Error deleting thumbnail file", "path", *deletedFiles.ThumbnailPath, "error", err)
+				}
+			} else {
+				logging.Debug("Deleted thumbnail file", "path", *deletedFiles.ThumbnailPath)
 			}
 		}
 

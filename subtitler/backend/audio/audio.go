@@ -101,6 +101,78 @@ func ValidateVideoFile(filePath string) error {
 	return nil
 }
 
+// GetVideoDuration uses ffprobe to get the duration of a video in seconds.
+// Returns 0 and an error if duration cannot be determined.
+func GetVideoDuration(filePath string) (float64, error) {
+	probePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe not found: %w", err)
+	}
+
+	// Use ffprobe to get duration
+	// -v error: only show errors
+	// -show_entries format=duration: only show duration
+	// -of csv=p=0: output as plain CSV without headers
+	cmd := exec.Command(probePath,
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "csv=p=0",
+		filePath,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe failed: %w", err)
+	}
+
+	// Parse duration as float
+	var duration float64
+	_, err = fmt.Sscanf(string(output), "%f", &duration)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse duration: %w", err)
+	}
+
+	return duration, nil
+}
+
+// GenerateThumbnail extracts a single frame from a video at 10% of its duration.
+// The thumbnail is saved as a JPEG image at the specified output path.
+// Returns an error if the operation fails.
+func GenerateThumbnail(videoPath, thumbnailPath string) error {
+	// Get video duration to calculate 10% position
+	duration, err := GetVideoDuration(videoPath)
+	if err != nil {
+		// Fall back to 3 seconds if duration can't be determined
+		duration = 30 // assume 30s video, so we get frame at 3s
+	}
+
+	// Calculate position at 10% of duration (minimum 1 second)
+	seekTime := duration * 0.1
+	if seekTime < 1 {
+		seekTime = 1
+	}
+
+	// Generate thumbnail using ffmpeg
+	// -ss before -i: fast seek to position
+	// -vframes 1: extract only one frame
+	// -q:v 2: high quality JPEG (1-31, lower is better)
+	// -vf scale: resize to max 320x180 while maintaining aspect ratio
+	cmd := exec.Command("ffmpeg",
+		"-ss", fmt.Sprintf("%.2f", seekTime),
+		"-i", videoPath,
+		"-vframes", "1",
+		"-q:v", "2",
+		"-vf", "scale=320:180:force_original_aspect_ratio=decrease",
+		"-y",
+		thumbnailPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg thumbnail generation failed: %v, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
 // MockExtractor is a test implementation of Extractor.
 type MockExtractor struct {
 	// ShouldFail controls whether ExtractAudio returns an error.

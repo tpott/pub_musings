@@ -176,3 +176,65 @@ func TestValidateVideoFile_FfprobeNotAvailable(t *testing.T) {
 		t.Errorf("Expected no error when ffprobe not available (fallback to allow), got: %v", err)
 	}
 }
+
+func TestGetVideoDuration_NonexistentFile(t *testing.T) {
+	// Skip if ffprobe is not available
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not available, skipping duration test")
+	}
+
+	_, err := GetVideoDuration("/nonexistent/path/video.mp4")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+}
+
+func TestGetVideoDuration_FfprobeNotAvailable(t *testing.T) {
+	// Save original PATH
+	origPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", origPath)
+
+	// Set PATH to empty to simulate missing ffprobe
+	os.Setenv("PATH", "/nonexistent-path-for-testing")
+
+	_, err := GetVideoDuration("/any/path.mp4")
+	if err == nil {
+		t.Error("Expected error when ffprobe is not available")
+	}
+	if !strings.Contains(err.Error(), "ffprobe not found") {
+		t.Errorf("Expected 'ffprobe not found' error, got: %v", err)
+	}
+}
+
+func TestGenerateThumbnail_NonexistentFile(t *testing.T) {
+	// Skip if ffmpeg is not available
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available, skipping thumbnail test")
+	}
+
+	tmpDir := os.TempDir()
+	outputPath := tmpDir + "/test_thumb.jpg"
+	defer os.Remove(outputPath)
+
+	err := GenerateThumbnail("/nonexistent/path/video.mp4", outputPath)
+	if err == nil {
+		t.Error("Expected error for nonexistent input file")
+	}
+	if !strings.Contains(err.Error(), "ffmpeg thumbnail generation failed") {
+		t.Errorf("Expected 'ffmpeg thumbnail generation failed' error, got: %v", err)
+	}
+}
+
+func TestGenerateThumbnail_FFmpegNotAvailable(t *testing.T) {
+	// Save original PATH
+	origPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", origPath)
+
+	// Set PATH to empty to simulate missing ffmpeg
+	os.Setenv("PATH", "/nonexistent-path-for-testing")
+
+	err := GenerateThumbnail("/any/video.mp4", "/tmp/thumb.jpg")
+	if err == nil {
+		t.Error("Expected error when ffmpeg is not available")
+	}
+}

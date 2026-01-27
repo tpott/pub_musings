@@ -19,14 +19,15 @@ type DB struct {
 
 // Video represents an uploaded video
 type Video struct {
-	ID          string    `json:"id"`
-	Filename    string    `json:"filename"`
-	Size        int64     `json:"size"`
-	ContentType string    `json:"content_type"`
-	FilePath    string    `json:"file_path"`
-	CreatedAt   time.Time `json:"created_at"`
-	UserID      *string   `json:"user_id,omitempty"` // null for anonymous uploads
-	SessionID   *string   `json:"session_id,omitempty"`
+	ID            string    `json:"id"`
+	Filename      string    `json:"filename"`
+	Size          int64     `json:"size"`
+	ContentType   string    `json:"content_type"`
+	FilePath      string    `json:"file_path"`
+	ThumbnailPath *string   `json:"thumbnail_path,omitempty"` // path to encrypted thumbnail image
+	CreatedAt     time.Time `json:"created_at"`
+	UserID        *string   `json:"user_id,omitempty"` // null for anonymous uploads
+	SessionID     *string   `json:"session_id,omitempty"`
 }
 
 // Transcription represents a transcription job and its result
@@ -280,9 +281,9 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 // CreateVideo creates a new video record
 func (db *DB) CreateVideo(video *Video) error {
 	_, err := db.conn.Exec(`
-		INSERT INTO videos (id, filename, size, content_type, file_path, created_at, user_id, session_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.CreatedAt, video.UserID, video.SessionID)
+		INSERT INTO videos (id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.ThumbnailPath, video.CreatedAt, video.UserID, video.SessionID)
 	return err
 }
 
@@ -290,9 +291,9 @@ func (db *DB) CreateVideo(video *Video) error {
 func (db *DB) GetVideo(id string) (*Video, error) {
 	video := &Video{}
 	err := db.conn.QueryRow(`
-		SELECT id, filename, size, content_type, file_path, created_at, user_id, session_id
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
 		FROM videos WHERE id = ?
-	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.CreatedAt, &video.UserID, &video.SessionID)
+	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.ThumbnailPath, &video.CreatedAt, &video.UserID, &video.SessionID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -405,17 +406,17 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 
 	if userID != nil {
 		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, created_at, user_id, session_id
+			SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
 			FROM videos WHERE user_id = ? ORDER BY created_at DESC
 		`, *userID)
 	} else if sessionID != nil {
 		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, created_at, user_id, session_id
+			SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
 			FROM videos WHERE session_id = ? ORDER BY created_at DESC
 		`, *sessionID)
 	} else {
 		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, created_at, user_id, session_id
+			SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
 			FROM videos ORDER BY created_at DESC
 		`)
 	}
@@ -428,7 +429,7 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 	var videos []Video
 	for rows.Next() {
 		var v Video
-		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
 			return nil, err
 		}
 		videos = append(videos, v)
@@ -640,7 +641,7 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 	registeredExpiry := now.Add(-90 * 24 * time.Hour)
 
 	rows, err := db.conn.Query(`
-		SELECT id, filename, size, content_type, file_path, created_at, user_id, session_id
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
 		FROM videos
 		WHERE (user_id IS NULL AND created_at < ?)
 		   OR (user_id IS NOT NULL AND created_at < ?)
@@ -654,7 +655,7 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 	var videos []Video
 	for rows.Next() {
 		var v Video
-		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
 			return nil, err
 		}
 		videos = append(videos, v)
@@ -755,37 +756,52 @@ func (db *DB) FailBurnJob(videoID, errorMessage string) error {
 	return err
 }
 
+// DeletedVideoFiles contains paths to files that should be deleted after a video is removed
+type DeletedVideoFiles struct {
+	FilePath      string  // path to the video file
+	ThumbnailPath *string // path to the thumbnail file (may be nil)
+}
+
 // DeleteVideo deletes a video and its associated transcription from the database.
-// Returns the file path so the caller can delete the file from disk.
-func (db *DB) DeleteVideo(videoID string) (string, error) {
-	// Get the file path before deleting
+// Returns the file paths so the caller can delete the files from disk.
+func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
+	// Get the file paths before deleting
 	video, err := db.GetVideo(videoID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if video == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	// Delete transcription first (foreign key constraint)
 	_, err = db.conn.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, videoID)
 	if err != nil {
-		return "", fmt.Errorf("failed to delete transcription: %w", err)
+		return nil, fmt.Errorf("failed to delete transcription: %w", err)
 	}
 
 	// Delete burn jobs
 	_, err = db.conn.Exec(`DELETE FROM burn_jobs WHERE video_id = ?`, videoID)
 	if err != nil {
-		return "", fmt.Errorf("failed to delete burn jobs: %w", err)
+		return nil, fmt.Errorf("failed to delete burn jobs: %w", err)
 	}
 
 	// Delete video record
 	_, err = db.conn.Exec(`DELETE FROM videos WHERE id = ?`, videoID)
 	if err != nil {
-		return "", fmt.Errorf("failed to delete video: %w", err)
+		return nil, fmt.Errorf("failed to delete video: %w", err)
 	}
 
-	return video.FilePath, nil
+	return &DeletedVideoFiles{
+		FilePath:      video.FilePath,
+		ThumbnailPath: video.ThumbnailPath,
+	}, nil
+}
+
+// UpdateVideoThumbnail updates the thumbnail path for a video
+func (db *DB) UpdateVideoThumbnail(videoID, thumbnailPath string) error {
+	_, err := db.conn.Exec(`UPDATE videos SET thumbnail_path = ? WHERE id = ?`, thumbnailPath, videoID)
+	return err
 }
 
 // SaveRecoveryCodes stores hashed recovery codes for a user.

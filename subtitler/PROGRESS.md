@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**113 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**114 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -85,7 +85,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ SQLite database maintenance scheduler (VACUUM + ANALYZE) (Task 98)
 - ✅ Fixed privacy vulnerability in My Videos page (Task 99)
 
-### UI/UX (Tasks 65, 71, 76-77, 90-91, 96, 100, 103)
+### UI/UX (Tasks 65, 71, 76-77, 90-91, 96, 100, 103, 111)
 - ✅ Upload progress bar with real bytes/percentage
 - ✅ Accessibility improvements (ARIA labels, keyboard nav)
 - ✅ Mobile responsive design
@@ -95,6 +95,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Namespaced localStorage keys (Task 96)
 - ✅ Cookie consent banner (Task 100)
 - ✅ Video player modal on My Videos page (Task 103)
+- ✅ Video thumbnails on My Videos page (Task 111)
 
 ### Video Management (Tasks 73)
 - ✅ Video reprocessing for failed transcriptions
@@ -125,12 +126,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**3 tasks remaining** (111-112, 116):
+**2 tasks remaining** (112, 116):
 
-1. UX improvements (111-112): Video thumbnails, burn progress indicators
+1. UX improvement (112): Burn progress indicators
 2. Performance (116): Chunked uploads for large videos
 
 ### Recently Completed
+- ✅ Task 111: Video thumbnail generation - thumbnails auto-generated during upload at 10% of video duration, displayed on My Videos page, encrypted at rest
 - ✅ Task 115: Removed hardcoded Go paths - scripts now auto-detect Go in PATH or `$HOME/go/bin`
 - ✅ Task 114: Authenticated health check - public requests now return minimal `{"status": "ok/degraded"}`, authenticated users get full details
 

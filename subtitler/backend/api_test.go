@@ -1081,6 +1081,66 @@ func (ts *testServer) registerHandlers() {
 		http.ServeFile(w, r, video.FilePath)
 	})
 
+	// Serve video thumbnail
+	ts.mux.HandleFunc("GET /api/videos/{id}/thumbnail", func(w http.ResponseWriter, r *http.Request) {
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload ID required"})
+			return
+		}
+
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
+			return
+		}
+		if video == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video not found"})
+			return
+		}
+
+		// Check if thumbnail exists
+		if video.ThumbnailPath == nil || *video.ThumbnailPath == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Thumbnail not available"})
+			return
+		}
+
+		thumbPath := *video.ThumbnailPath
+
+		// Check if file exists on disk
+		if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Thumbnail file not found"})
+			return
+		}
+
+		// Generate ETag from video ID + creation time
+		etag := generateETag(fmt.Sprintf("thumb-%s-%d", video.ID, video.CreatedAt.Unix()))
+
+		// Check for conditional request
+		if handleConditionalRequest(w, r, etag) {
+			return
+		}
+
+		// Set caching headers - 24 hours
+		setCacheHeaders(w, etag, 86400)
+
+		// Set content type for JPEG
+		w.Header().Set("Content-Type", "image/jpeg")
+
+		// Serve the file
+		http.ServeFile(w, r, thumbPath)
+	})
+
 	// Download SRT file
 	ts.mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
@@ -4961,5 +5021,145 @@ func TestVideoNoRangeRequest(t *testing.T) {
 	acceptRanges := rr.Header().Get("Accept-Ranges")
 	if acceptRanges != "bytes" {
 		t.Errorf("Expected Accept-Ranges 'bytes', got '%s'", acceptRanges)
+	}
+}
+
+// createTestVideoWithThumbnail creates a video record with an actual thumbnail file
+func (ts *testServer) createTestVideoWithThumbnail(t *testing.T, userID *string, sessionID *string, videoContent []byte, thumbContent []byte) *db.Video {
+	t.Helper()
+
+	videoID := testGenerateID()
+	filename := videoID + ".mp4"
+	filePath := filepath.Join(ts.uploadDir, filename)
+	thumbPath := filepath.Join(ts.uploadDir, videoID+"_thumb.jpg")
+
+	// Write actual content to files
+	if err := os.WriteFile(filePath, videoContent, 0644); err != nil {
+		t.Fatalf("Failed to create test video file: %v", err)
+	}
+	if err := os.WriteFile(thumbPath, thumbContent, 0644); err != nil {
+		t.Fatalf("Failed to create test thumbnail file: %v", err)
+	}
+
+	video := &db.Video{
+		ID:            videoID,
+		Filename:      filename,
+		Size:          int64(len(videoContent)),
+		ContentType:   "video/mp4",
+		FilePath:      filePath,
+		ThumbnailPath: &thumbPath,
+		UserID:        userID,
+		SessionID:     sessionID,
+		CreatedAt:     time.Now(),
+	}
+
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create test video: %v", err)
+	}
+	return video
+}
+
+func TestThumbnailEndpointSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create test thumbnail content (fake JPEG)
+	thumbContent := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46} // JPEG header bytes
+	videoContent := []byte("fake video content")
+
+	video := ts.createTestVideoWithThumbnail(t, nil, nil, videoContent, thumbContent)
+
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/thumbnail", nil)
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 OK, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Verify content type
+	contentType := rr.Header().Get("Content-Type")
+	if contentType != "image/jpeg" {
+		t.Errorf("Expected Content-Type 'image/jpeg', got '%s'", contentType)
+	}
+
+	// Verify content matches
+	if !bytes.Equal(rr.Body.Bytes(), thumbContent) {
+		t.Errorf("Thumbnail content mismatch")
+	}
+
+	// Should have caching headers
+	cacheControl := rr.Header().Get("Cache-Control")
+	if cacheControl == "" {
+		t.Error("Expected Cache-Control header to be set")
+	}
+
+	etag := rr.Header().Get("ETag")
+	if etag == "" {
+		t.Error("Expected ETag header to be set")
+	}
+}
+
+func TestThumbnailEndpointNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	req, _ := http.NewRequest("GET", "/api/videos/nonexistent123/thumbnail", nil)
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404 Not Found, got %d", rr.Code)
+	}
+}
+
+func TestThumbnailEndpointNoThumbnail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video without thumbnail
+	videoContent := []byte("fake video content")
+	video := ts.createTestVideoWithFile(t, nil, nil, videoContent)
+
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/thumbnail", nil)
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404 Not Found for video without thumbnail, got %d", rr.Code)
+	}
+}
+
+func TestThumbnailEndpointConditionalRequest(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	thumbContent := []byte{0xFF, 0xD8, 0xFF, 0xE0}
+	videoContent := []byte("fake video")
+
+	video := ts.createTestVideoWithThumbnail(t, nil, nil, videoContent, thumbContent)
+
+	// First request to get ETag
+	req1, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/thumbnail", nil)
+	rr1 := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr1, req1)
+
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("Expected status 200 OK on first request, got %d", rr1.Code)
+	}
+
+	etag := rr1.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("Expected ETag header on first request")
+	}
+
+	// Second request with If-None-Match
+	req2, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/thumbnail", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("Expected status 304 Not Modified, got %d", rr2.Code)
 	}
 }
