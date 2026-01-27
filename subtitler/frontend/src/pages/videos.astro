@@ -662,10 +662,10 @@ import '../styles/theme.css';
 						<div class="modal-current-subtitle" id="modalCurrentSubtitle"></div>
 						<div class="modal-segments" id="modalSegments"></div>
 						<div class="modal-actions">
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener">SRT</a>
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener">VTT</a>
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener">JSON</a>
-							<a href="#" class="modal-edit-link" id="modalEditLink">Edit</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener" aria-label="Download subtitles in SRT format">SRT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener" aria-label="Download subtitles in VTT format">VTT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener" aria-label="Download subtitles in JSON format">JSON</a>
+							<a href="#" class="modal-edit-link" id="modalEditLink" aria-label="Edit subtitles">Edit</a>
 						</div>
 					</div>
 				</div>
@@ -776,9 +776,9 @@ import '../styles/theme.css';
 						</div>
 						<div class="video-actions">
 							${showViewBtn ? `<button class="btn btn-primary btn-view" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}">View</button>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary" target="_blank" rel="noopener">SRT</a>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary" target="_blank" rel="noopener">VTT</a>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary" target="_blank" rel="noopener">JSON</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Download subtitles in SRT format">SRT</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Download subtitles in VTT format">VTT</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Download subtitles in JSON format">JSON</a>` : ''}
 							${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
 							${showRetryBtn ? `<button class="btn btn-retry" data-video-id="${video.id}">Retry</button>` : ''}
 							<button class="btn btn-delete" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Delete ${escapeHtml(video.filename)}">Delete</button>

@@ -138,9 +138,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**140 tasks completed!**
+**141 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 139: Add aria-labels to download buttons - Added descriptive aria-labels to all SRT/VTT/JSON download buttons in videos.astro and upload.astro. Labels like "Download subtitles in VTT format" help screen reader users understand what each button does.
 - ✅ Task 137: Add focus management to video modal - When video modal opens, focus moves to close button. Tab/Shift+Tab keys are trapped inside the modal (cycles between focusable elements). Focus is restored to the trigger element (View button or thumbnail) when the modal closes. Improves keyboard accessibility.
 - ✅ Task 136: Consolidate duplicate escapeHtml functions - Removed duplicate escapeHtml implementations from upload.astro, videos.astro, and security.astro. Each file now imports from utils/html.ts instead. The format.ts version remains separate as it has different behavior (handles null/undefined, escapes quotes) for test compatibility.
 - ✅ Task 135: Persist CSRF secret across restarts - Modified csrf package to persist generated secrets to `data/csrf.key` file. Priority order: 1) CSRF_SECRET env var, 2) existing file, 3) generate new and save. Added CSRF_SECRET_PATH env var for custom file location. File created with 0600 permissions. Tests verify persistence, env var priority, and directory creation. Documented in ENV.md.
@@ -156,7 +157,7 @@ Created 9 new tasks from code review:
 - Task 136 (done): Consolidate duplicate escapeHtml functions
 - Task 137 (done): Add focus management to video modal
 - Task 138: Add upload timeout mechanism
-- Task 139: Add aria-labels to download buttons
+- Task 139 (done): Add aria-labels to download buttons
 - Task 140: Add file access audit logging
 - Task 141: Add max limit validation for pagination
 - Task 142: Add database indices for frequent queries
