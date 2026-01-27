@@ -496,10 +496,12 @@ import '../styles/theme.css';
 			}
 			.modal-segments {
 				margin-top: 1rem;
-				max-height: 250px;
+				/* Height to show approximately 3 segments with current centered */
+				height: 180px;
 				overflow-y: auto;
 				border: 1px solid var(--border-color);
 				border-radius: 8px;
+				scroll-behavior: smooth;
 			}
 			.modal-segment {
 				padding: 0.75rem 1rem;
@@ -598,7 +600,7 @@ import '../styles/theme.css';
 					padding: 0.75rem;
 				}
 				.modal-segments {
-					max-height: 200px;
+					height: 150px; /* Slightly smaller for mobile */
 				}
 				.modal-segment {
 					padding: 0.5rem 0.75rem;
@@ -1240,18 +1242,18 @@ import '../styles/theme.css';
 				modalSegments.querySelectorAll('.modal-segment').forEach((el, idx) => {
 					if (idx === currentIndex) {
 						el.classList.add('active');
-						// Scroll the segment into view within the container only (not the whole page)
+						// Center the active segment in the container (not at bottom)
 						const container = modalSegments;
 						const segmentEl = el as HTMLElement;
-						const containerRect = container.getBoundingClientRect();
-						const segmentRect = segmentEl.getBoundingClientRect();
 
-						// Only scroll if segment is outside the visible area of the container
-						if (segmentRect.top < containerRect.top) {
-							container.scrollTop -= (containerRect.top - segmentRect.top);
-						} else if (segmentRect.bottom > containerRect.bottom) {
-							container.scrollTop += (segmentRect.bottom - containerRect.bottom);
-						}
+						// Calculate scroll position to center the segment
+						const containerHeight = container.clientHeight;
+						const segmentTop = segmentEl.offsetTop;
+						const segmentHeight = segmentEl.offsetHeight;
+
+						// Target: position segment in the center of the container
+						const targetScrollTop = segmentTop - (containerHeight / 2) + (segmentHeight / 2);
+						container.scrollTop = Math.max(0, targetScrollTop);
 					} else {
 						el.classList.remove('active');
 					}

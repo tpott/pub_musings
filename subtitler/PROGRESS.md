@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**215 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**216 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**215 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**216 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 222: Frontend - Improve modalSegments layout
+  - Fixed height at 180px to show approximately 3 visible subtitles
+  - Active segment is now centered in the container (not at bottom)
+  - Added smooth scrolling for better UX
+  - Mobile responsive: 150px height on smaller screens
+
 - Task 220: Frontend - Add View button after upload completes
   - Added "View in My Videos" button with eye icon to actions section
   - Button navigates to `/videos?play={id}` for cleaner playback experience
