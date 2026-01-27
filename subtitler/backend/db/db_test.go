@@ -2588,7 +2588,6 @@ func TestCountRecentMagicLinkRequests(t *testing.T) {
 	})
 }
 
-
 func TestQueryTimeout(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.db")
 	if err != nil {

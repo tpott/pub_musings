@@ -2868,6 +2868,15 @@ func main() {
 		}
 		defer file.Close()
 
+		// Validate file is not empty/zero-size
+		if header.Size == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File is empty. Please upload a valid video file.",
+			})
+			return
+		}
+
 		// Validate file type by checking content type against whitelist
 		contentType := header.Header.Get("Content-Type")
 		allowedMIMETypes := map[string]bool{
@@ -3100,9 +3109,16 @@ func main() {
 		}
 
 		// Validate required fields
-		if req.Filename == "" || req.Size <= 0 || req.ContentType == "" {
+		if req.Filename == "" || req.ContentType == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: filename, size, content_type"})
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: filename, content_type"})
+			return
+		}
+
+		// Validate file size is positive (reject zero-size files)
+		if req.Size <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "File size must be greater than zero. Empty files are not allowed."})
 			return
 		}
 

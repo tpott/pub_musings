@@ -138,13 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**199 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
+**200 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
 
-### Pending Tasks (200-201)
-- Task 200: Validate zero-size file uploads
+### Pending Tasks (201)
 - Task 201: Create ERROR_CODES.md with all API error codes
 
 ### Recently Completed (2026-01-27)
+- ✅ Task 200: Validate zero-size file uploads
+  - Added explicit zero-size check to POST /api/upload with clear error message
+  - Updated POST /api/upload/init to validate size > 0 separately from other required fields
+  - Added 3 tests: TestUploadZeroSizeRejected, TestChunkedUploadInitZeroSizeRejected,
+    TestChunkedUploadInitNegativeSizeRejected
+
 - ✅ Task 199: Add database query context timeouts
   - Added `DefaultQueryTimeout = 30 seconds` constant
   - Added `SetQueryTimeout()`, `GetQueryTimeout()`, `queryContext()` methods to DB

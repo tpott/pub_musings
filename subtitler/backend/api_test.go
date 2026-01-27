@@ -1953,6 +1953,15 @@ func (ts *testServer) registerHandlers() {
 		}
 		defer file.Close()
 
+		// Validate file is not empty/zero-size
+		if header.Size == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File is empty. Please upload a valid video file.",
+			})
+			return
+		}
+
 		// Validate file type by checking content type against whitelist
 		contentType := header.Header.Get("Content-Type")
 		allowedMIMETypes := map[string]bool{
@@ -1998,9 +2007,16 @@ func (ts *testServer) registerHandlers() {
 		}
 
 		// Validate required fields
-		if req.Filename == "" || req.Size <= 0 || req.ContentType == "" {
+		if req.Filename == "" || req.ContentType == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: filename, content_type"})
+			return
+		}
+
+		// Validate file size is positive (reject zero-size files)
+		if req.Size <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "File size must be greater than zero. Empty files are not allowed."})
 			return
 		}
 
@@ -5966,6 +5982,86 @@ func TestUploadMIMETypeValidation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUploadZeroSizeRejected(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a multipart request with zero bytes for the video
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="video"; filename="empty.mp4"`)
+	h.Set("Content-Type", "video/mp4")
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Write zero bytes to make it an empty file
+	part.Write([]byte{})
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for zero-size file, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if !strings.Contains(strings.ToLower(resp["error"]), "empty") && !strings.Contains(strings.ToLower(resp["error"]), "too small") {
+		t.Errorf("Expected error message to mention empty/too small file, got: %s", resp["error"])
+	}
+}
+
+func TestChunkedUploadInitZeroSizeRejected(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to initialize chunked upload with size=0
+	resp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "empty.mp4",
+		"size":         0,
+		"content_type": "video/mp4",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for zero-size chunked upload init, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if !strings.Contains(strings.ToLower(result["error"]), "size") || !strings.Contains(strings.ToLower(result["error"]), "zero") {
+		t.Errorf("Expected error message about zero size, got: %s", result["error"])
+	}
+}
+
+func TestChunkedUploadInitNegativeSizeRejected(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to initialize chunked upload with negative size
+	resp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         -100,
+		"content_type": "video/mp4",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for negative size, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if !strings.Contains(strings.ToLower(result["error"]), "size") || !strings.Contains(strings.ToLower(result["error"]), "zero") {
+		t.Errorf("Expected error message about zero/negative size, got: %s", result["error"])
 	}
 }
 
