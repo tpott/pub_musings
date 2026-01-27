@@ -14,7 +14,7 @@ When a user enables 2FA, they receive 10 single-use recovery codes. If a user lo
 | `backend/totp/recovery.go` | Recovery code generation and validation |
 | `backend/totp/recovery_test.go` | Unit tests |
 | `backend/main.go` | API endpoint updates |
-| `frontend/src/pages/security.astro` | Show recovery codes after 2FA setup |
+| `frontend/src/pages/settings.astro` | Show recovery codes after 2FA setup (Security tab) |
 
 ## Database Schema
 

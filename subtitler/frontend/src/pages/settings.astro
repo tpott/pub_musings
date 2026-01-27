@@ -13,7 +13,7 @@ import '../styles/theme.css';
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Security Settings - Subtitler</title>
+		<title>Settings - Subtitler</title>
 		<style>
 			.container {
 				max-width: 600px;
@@ -24,7 +24,7 @@ import '../styles/theme.css';
 				display: flex;
 				align-items: center;
 				gap: 1rem;
-				margin-bottom: 2rem;
+				margin-bottom: 1.5rem;
 			}
 			.back-link {
 				text-decoration: none;
@@ -73,6 +73,42 @@ import '../styles/theme.css';
 			}
 			.nav-logout:hover {
 				background-color: var(--border-color);
+			}
+			/* Tab navigation */
+			.tabs {
+				display: flex;
+				gap: 0;
+				margin-bottom: 1.5rem;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.tab {
+				padding: 0.75rem 1.25rem;
+				border: none;
+				background: none;
+				font-size: 0.95rem;
+				font-weight: 500;
+				color: var(--text-secondary);
+				cursor: pointer;
+				border-bottom: 2px solid transparent;
+				margin-bottom: -1px;
+				transition: color 0.2s, border-color 0.2s;
+			}
+			.tab:hover {
+				color: var(--text-color);
+			}
+			.tab:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: -2px;
+			}
+			.tab.active {
+				color: var(--accent-color);
+				border-bottom-color: var(--accent-color);
+			}
+			.tab-content {
+				display: none;
+			}
+			.tab-content.active {
+				display: block;
 			}
 			.card {
 				background-color: var(--secondary-bg);
@@ -373,6 +409,21 @@ import '../styles/theme.css';
 				text-align: center;
 				padding: 1rem;
 			}
+			/* Placeholder tab content */
+			.placeholder-content {
+				text-align: center;
+				padding: 3rem 1.5rem;
+				color: var(--text-secondary);
+			}
+			.placeholder-content h3 {
+				font-size: 1.1rem;
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+				color: var(--text-color);
+			}
+			.placeholder-content p {
+				font-size: 0.95rem;
+			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
 				.nav {
@@ -392,6 +443,15 @@ import '../styles/theme.css';
 				}
 				h1 {
 					font-size: 1.5rem;
+				}
+				.tabs {
+					gap: 0;
+				}
+				.tab {
+					padding: 0.6rem 0.75rem;
+					font-size: 0.85rem;
+					flex: 1;
+					text-align: center;
 				}
 				.card {
 					padding: 1.25rem;
@@ -460,6 +520,10 @@ import '../styles/theme.css';
 					width: 160px;
 					height: 160px;
 				}
+				.tab {
+					padding: 0.5rem 0.5rem;
+					font-size: 0.8rem;
+				}
 			}
 		</style>
 	</head>
@@ -472,156 +536,186 @@ import '../styles/theme.css';
 		<div class="container">
 			<div class="header">
 				<a href="/videos" class="back-link" aria-label="Back to videos">&larr;</a>
-				<h1>Security Settings</h1>
+				<h1>Settings</h1>
 			</div>
 
 			<div id="loading" class="loading">Loading...</div>
 			<div id="notLoggedIn" class="card hidden">
-				<p>Please <a href="/login">log in</a> to manage your security settings.</p>
+				<p>Please <a href="/login">log in</a> to manage your settings.</p>
 			</div>
 
 			<div id="content" class="hidden">
 				<div id="errorMessage" class="error-message hidden" role="alert" aria-live="assertive"></div>
 				<div id="successMessage" class="success-message hidden" role="status" aria-live="polite"></div>
 
-				<div class="card">
-					<div class="card-header">
-						<h2 class="card-title">Two-Factor Authentication</h2>
-						<span id="totpStatus" class="status-badge status-disabled">Disabled</span>
-					</div>
-					<p class="card-description">
-						Add an extra layer of security to your account by requiring a verification code from your authenticator app when signing in.
-					</p>
+				<!-- Tab Navigation -->
+				<div class="tabs" role="tablist">
+					<button class="tab active" role="tab" aria-selected="true" aria-controls="security-tab" id="security-tab-btn" data-tab="security">Security</button>
+					<button class="tab" role="tab" aria-selected="false" aria-controls="account-tab" id="account-tab-btn" data-tab="account">Account</button>
+					<button class="tab" role="tab" aria-selected="false" aria-controls="preferences-tab" id="preferences-tab-btn" data-tab="preferences">Preferences</button>
+				</div>
 
-					<div id="enableSection">
-						<button id="startSetupBtn" class="btn btn-primary">Enable 2FA</button>
-					</div>
+				<!-- Security Tab Content -->
+				<div id="security-tab" class="tab-content active" role="tabpanel" aria-labelledby="security-tab-btn">
+					<div class="card">
+						<div class="card-header">
+							<h2 class="card-title">Two-Factor Authentication</h2>
+							<span id="totpStatus" class="status-badge status-disabled">Disabled</span>
+						</div>
+						<p class="card-description">
+							Add an extra layer of security to your account by requiring a verification code from your authenticator app when signing in.
+						</p>
 
-					<div id="setupSection" class="setup-section hidden">
-						<div class="setup-instructions">
-							<p><strong>Set up your authenticator app:</strong></p>
-							<ol>
-								<li>Download an authenticator app like Google Authenticator, Authy, or 1Password</li>
-								<li>Scan the QR code below or manually enter the secret key</li>
-								<li>Enter the 6-digit code from your app to verify</li>
-							</ol>
+						<div id="enableSection">
+							<button id="startSetupBtn" class="btn btn-primary">Enable 2FA</button>
 						</div>
 
-						<div class="qr-container">
-							<div class="qr-placeholder">
-								<img id="qrCode" class="qr-code" alt="QR Code for 2FA setup" />
-							</div>
-						</div>
-
-						<p style="text-align: center; font-size: 0.9rem; color: #666;">Or enter this secret manually:</p>
-						<div id="secretDisplay" class="secret-display">Loading...</div>
-
-						<form id="verifyForm">
-							<div class="form-group">
-								<label for="verifyCode">Verification Code</label>
-								<input type="text" id="verifyCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
-								<div id="verifyCodeError" class="field-error"></div>
-							</div>
-							<div class="btn-group">
-								<button type="submit" class="btn btn-primary" id="verifyBtn">Verify & Enable</button>
-								<button type="button" class="btn btn-secondary" id="cancelSetupBtn">Cancel</button>
-							</div>
-						</form>
-					</div>
-
-					<div id="recoveryCodesSection" class="recovery-codes-section hidden">
-						<div class="recovery-warning">
-							<strong>Save your recovery codes!</strong>
-							These codes can be used to access your account if you lose your authenticator device. Each code can only be used once. Store them in a safe place.
-						</div>
-						<div id="recoveryCodesGrid" class="recovery-codes-grid"></div>
-						<div class="recovery-actions">
-							<button type="button" class="btn btn-secondary" id="copyCodesBtn">Copy All Codes</button>
-							<button type="button" class="btn btn-secondary" id="downloadCodesBtn">Download as File</button>
-						</div>
-						<div class="confirmation-checkbox">
-							<input type="checkbox" id="savedCodesCheckbox" />
-							<label for="savedCodesCheckbox">I have saved my recovery codes in a safe place</label>
-						</div>
-						<div class="btn-group" style="margin-top: 1rem;">
-							<button type="button" class="btn btn-primary" id="continueBtn" disabled>Continue</button>
-						</div>
-					</div>
-
-					<div id="disableSection" class="hidden">
-						<div id="managementOptions">
-							<div style="margin-bottom: 1.5rem;">
-								<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Recovery Codes</h3>
-								<p class="card-description" style="margin-top: 0;">
-									Recovery codes can be used to access your account if you lose your authenticator device.
-								</p>
-								<button type="button" class="btn btn-secondary" id="startRegenBtn">Regenerate Recovery Codes</button>
+						<div id="setupSection" class="setup-section hidden">
+							<div class="setup-instructions">
+								<p><strong>Set up your authenticator app:</strong></p>
+								<ol>
+									<li>Download an authenticator app like Google Authenticator, Authy, or 1Password</li>
+									<li>Scan the QR code below or manually enter the secret key</li>
+									<li>Enter the 6-digit code from your app to verify</li>
+								</ol>
 							</div>
 
-							<div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-								<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Disable 2FA</h3>
-								<p class="card-description" style="margin-top: 0;">
-									Remove two-factor authentication from your account.
-								</p>
-								<button type="button" class="btn btn-danger" id="startDisableBtn">Disable 2FA</button>
-							</div>
-						</div>
-
-						<div id="regenSection" class="hidden">
-							<p class="card-description" style="margin-top: 0;">
-								To regenerate recovery codes, enter your current password and a code from your authenticator app.
-							</p>
-							<form id="regenForm">
-								<div class="form-group">
-									<label for="regenPassword">Password</label>
-									<input type="password" id="regenPassword" autocomplete="current-password" required />
-									<div id="regenPasswordError" class="field-error"></div>
+							<div class="qr-container">
+								<div class="qr-placeholder">
+									<img id="qrCode" class="qr-code" alt="QR Code for 2FA setup" />
 								</div>
+							</div>
+
+							<p style="text-align: center; font-size: 0.9rem; color: #666;">Or enter this secret manually:</p>
+							<div id="secretDisplay" class="secret-display">Loading...</div>
+
+							<form id="verifyForm">
 								<div class="form-group">
-									<label for="regenCode">Authentication Code</label>
-									<input type="text" id="regenCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
-									<div id="regenCodeError" class="field-error"></div>
+									<label for="verifyCode">Verification Code</label>
+									<input type="text" id="verifyCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+									<div id="verifyCodeError" class="field-error"></div>
 								</div>
 								<div class="btn-group">
-									<button type="submit" class="btn btn-primary" id="regenBtn">Regenerate Codes</button>
-									<button type="button" class="btn btn-secondary" id="cancelRegenBtn">Cancel</button>
+									<button type="submit" class="btn btn-primary" id="verifyBtn">Verify & Enable</button>
+									<button type="button" class="btn btn-secondary" id="cancelSetupBtn">Cancel</button>
 								</div>
 							</form>
 						</div>
 
-						<div id="disableFormSection" class="hidden">
-							<p class="card-description" style="margin-top: 0;">
-								To disable 2FA, enter your current password and a code from your authenticator app.
-							</p>
-							<form id="disableForm">
-								<div class="form-group">
-									<label for="disablePassword">Password</label>
-									<input type="password" id="disablePassword" autocomplete="current-password" required />
-									<div id="disablePasswordError" class="field-error"></div>
+						<div id="recoveryCodesSection" class="recovery-codes-section hidden">
+							<div class="recovery-warning">
+								<strong>Save your recovery codes!</strong>
+								These codes can be used to access your account if you lose your authenticator device. Each code can only be used once. Store them in a safe place.
+							</div>
+							<div id="recoveryCodesGrid" class="recovery-codes-grid"></div>
+							<div class="recovery-actions">
+								<button type="button" class="btn btn-secondary" id="copyCodesBtn">Copy All Codes</button>
+								<button type="button" class="btn btn-secondary" id="downloadCodesBtn">Download as File</button>
+							</div>
+							<div class="confirmation-checkbox">
+								<input type="checkbox" id="savedCodesCheckbox" />
+								<label for="savedCodesCheckbox">I have saved my recovery codes in a safe place</label>
+							</div>
+							<div class="btn-group" style="margin-top: 1rem;">
+								<button type="button" class="btn btn-primary" id="continueBtn" disabled>Continue</button>
+							</div>
+						</div>
+
+						<div id="disableSection" class="hidden">
+							<div id="managementOptions">
+								<div style="margin-bottom: 1.5rem;">
+									<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Recovery Codes</h3>
+									<p class="card-description" style="margin-top: 0;">
+										Recovery codes can be used to access your account if you lose your authenticator device.
+									</p>
+									<button type="button" class="btn btn-secondary" id="startRegenBtn">Regenerate Recovery Codes</button>
 								</div>
-								<div class="form-group">
-									<label for="disableCode">Authentication Code</label>
-									<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
-									<div id="disableCodeError" class="field-error"></div>
+
+								<div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+									<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Disable 2FA</h3>
+									<p class="card-description" style="margin-top: 0;">
+										Remove two-factor authentication from your account.
+									</p>
+									<button type="button" class="btn btn-danger" id="startDisableBtn">Disable 2FA</button>
 								</div>
-								<div class="btn-group">
-									<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
-									<button type="button" class="btn btn-secondary" id="cancelDisableBtn">Cancel</button>
-								</div>
-							</form>
+							</div>
+
+							<div id="regenSection" class="hidden">
+								<p class="card-description" style="margin-top: 0;">
+									To regenerate recovery codes, enter your current password and a code from your authenticator app.
+								</p>
+								<form id="regenForm">
+									<div class="form-group">
+										<label for="regenPassword">Password</label>
+										<input type="password" id="regenPassword" autocomplete="current-password" required />
+										<div id="regenPasswordError" class="field-error"></div>
+									</div>
+									<div class="form-group">
+										<label for="regenCode">Authentication Code</label>
+										<input type="text" id="regenCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+										<div id="regenCodeError" class="field-error"></div>
+									</div>
+									<div class="btn-group">
+										<button type="submit" class="btn btn-primary" id="regenBtn">Regenerate Codes</button>
+										<button type="button" class="btn btn-secondary" id="cancelRegenBtn">Cancel</button>
+									</div>
+								</form>
+							</div>
+
+							<div id="disableFormSection" class="hidden">
+								<p class="card-description" style="margin-top: 0;">
+									To disable 2FA, enter your current password and a code from your authenticator app.
+								</p>
+								<form id="disableForm">
+									<div class="form-group">
+										<label for="disablePassword">Password</label>
+										<input type="password" id="disablePassword" autocomplete="current-password" required />
+										<div id="disablePasswordError" class="field-error"></div>
+									</div>
+									<div class="form-group">
+										<label for="disableCode">Authentication Code</label>
+										<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required />
+										<div id="disableCodeError" class="field-error"></div>
+									</div>
+									<div class="btn-group">
+										<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
+										<button type="button" class="btn btn-secondary" id="cancelDisableBtn">Cancel</button>
+									</div>
+								</form>
+							</div>
+						</div>
+					</div>
+
+					<div class="card">
+						<div class="card-header">
+							<h2 class="card-title">Active Sessions</h2>
+						</div>
+						<p class="card-description">
+							Manage your active login sessions. You can revoke access from other devices if you notice suspicious activity.
+						</p>
+						<div id="sessionsLoading" class="loading" style="padding: 1rem;">Loading sessions...</div>
+						<div id="sessionsList" class="session-list hidden"></div>
+					</div>
+				</div>
+
+				<!-- Account Tab Content (placeholder) -->
+				<div id="account-tab" class="tab-content" role="tabpanel" aria-labelledby="account-tab-btn">
+					<div class="card">
+						<div class="placeholder-content">
+							<h3>Account Settings</h3>
+							<p>Account management features coming soon. You'll be able to update your email, change your password, and manage your profile here.</p>
 						</div>
 					</div>
 				</div>
 
-				<div class="card">
-					<div class="card-header">
-						<h2 class="card-title">Active Sessions</h2>
+				<!-- Preferences Tab Content (placeholder) -->
+				<div id="preferences-tab" class="tab-content" role="tabpanel" aria-labelledby="preferences-tab-btn">
+					<div class="card">
+						<div class="placeholder-content">
+							<h3>Preferences</h3>
+							<p>Preference settings coming soon. You'll be able to customize your experience, notification settings, and display options here.</p>
+						</div>
 					</div>
-					<p class="card-description">
-						Manage your active login sessions. You can revoke access from other devices if you notice suspicious activity.
-					</p>
-					<div id="sessionsLoading" class="loading" style="padding: 1rem;">Loading sessions...</div>
-					<div id="sessionsList" class="session-list hidden"></div>
 				</div>
 			</div>
 		</div>
@@ -679,11 +773,79 @@ import '../styles/theme.css';
 			const regenCode = document.getElementById('regenCode') as HTMLInputElement;
 			const regenCodeError = document.getElementById('regenCodeError') as HTMLElement;
 
+			// Tab elements
+			const tabButtons = document.querySelectorAll('.tab') as NodeListOf<HTMLButtonElement>;
+			const tabContents = document.querySelectorAll('.tab-content') as NodeListOf<HTMLElement>;
+
 			let isRegenerating = false;
 
 			let currentUser: { id: string; email: string; totp_enabled: boolean } | null = null;
 			let setupSecret: string = '';
 			let recoveryCodes: string[] = [];
+
+			// Tab switching logic
+			function switchTab(tabName: string) {
+				// Update button states
+				tabButtons.forEach(btn => {
+					const isActive = btn.dataset.tab === tabName;
+					btn.classList.toggle('active', isActive);
+					btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+				});
+
+				// Update content visibility
+				tabContents.forEach(content => {
+					const isActive = content.id === `${tabName}-tab`;
+					content.classList.toggle('active', isActive);
+				});
+
+				// Save to localStorage
+				localStorage.setItem('subtitler:settings-tab', tabName);
+			}
+
+			// Initialize tab from URL hash or localStorage
+			function initTabs() {
+				const hash = window.location.hash.slice(1);
+				const savedTab = localStorage.getItem('subtitler:settings-tab');
+				const validTabs = ['security', 'account', 'preferences'];
+
+				let initialTab = 'security';
+				if (hash && validTabs.includes(hash)) {
+					initialTab = hash;
+				} else if (savedTab && validTabs.includes(savedTab)) {
+					initialTab = savedTab;
+				}
+
+				switchTab(initialTab);
+			}
+
+			// Add click handlers to tabs
+			tabButtons.forEach(btn => {
+				btn.addEventListener('click', () => {
+					const tab = btn.dataset.tab;
+					if (tab) {
+						switchTab(tab);
+						// Update URL hash without scrolling
+						history.replaceState(null, '', `#${tab}`);
+					}
+				});
+			});
+
+			// Handle keyboard navigation for tabs
+			tabButtons.forEach((btn, index) => {
+				btn.addEventListener('keydown', (e) => {
+					let nextIndex = index;
+					if (e.key === 'ArrowRight') {
+						nextIndex = (index + 1) % tabButtons.length;
+					} else if (e.key === 'ArrowLeft') {
+						nextIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+					} else {
+						return;
+					}
+					e.preventDefault();
+					tabButtons[nextIndex].focus();
+					tabButtons[nextIndex].click();
+				});
+			});
 
 			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
 				input.classList.remove('input-error');
@@ -800,6 +962,7 @@ import '../styles/theme.css';
 							currentUser = data.user;
 							content.classList.remove('hidden');
 							updateUI();
+							initTabs();
 
 							// Fetch CSRF token for authenticated requests
 							await fetchCsrfToken();

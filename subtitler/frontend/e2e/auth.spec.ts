@@ -185,18 +185,18 @@ test.describe.serial('Auth Flows with Registration', () => {
 // which may hit rate limits when running the full test suite.
 // The 2FA functionality is thoroughly tested in backend unit tests (totp_test.go, api_test.go).
 
-// Only test security page access using the shared user from previous group
-test.describe('Security Settings (reusing shared user)', () => {
-  test('should show security page structure', async ({ page }) => {
-    await page.goto('/security');
+// Only test settings page access using the shared user from previous group
+test.describe('Settings Page (reusing shared user)', () => {
+  test('should show settings page structure with tabs', async ({ page }) => {
+    await page.goto('/settings');
 
     // Even without auth, we can verify the page structure
     // The page should show a message about not being logged in or redirect
     const body = await page.textContent('body');
-    const hasSecurityContent = body?.includes('Security Settings') ||
+    const hasSettingsContent = body?.includes('Settings') ||
       body?.includes('Not logged in') ||
       body?.includes('2FA');
-    expect(hasSecurityContent).toBeTruthy();
+    expect(hasSettingsContent).toBeTruthy();
   });
 });
 

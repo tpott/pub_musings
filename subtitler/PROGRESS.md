@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**216 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**217 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**216 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**217 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 215: Frontend - Rename Security to Settings with tabs
+  - Created new `/settings` page with tab navigation (Security, Account, Preferences)
+  - Security tab contains all existing 2FA and session management features
+  - Account and Preferences tabs are placeholders for future features
+  - Tab state persisted in localStorage and URL hash
+  - Keyboard navigation support (arrow keys) between tabs
+  - Updated all navigation links from `/security` to `/settings`
+  - Removed old security.astro, updated specs and E2E tests
+
 - Task 222: Frontend - Improve modalSegments layout
   - Fixed height at 180px to show approximately 3 visible subtitles
   - Active segment is now centered in the container (not at bottom)

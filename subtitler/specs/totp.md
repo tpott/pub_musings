@@ -14,7 +14,7 @@ Users can optionally enable 2FA using authenticator apps like Google Authenticat
 | `backend/totp/totp_test.go` | Unit tests |
 | `backend/main.go` (lines 596-795) | API endpoints |
 | `backend/db/db.go` | Database operations |
-| `frontend/src/pages/security.astro` | 2FA management UI |
+| `frontend/src/pages/settings.astro` | 2FA management UI (Security tab) |
 | `frontend/src/pages/login.astro` | Login with TOTP support |
 
 ## Library
@@ -267,7 +267,7 @@ func GenerateQRCode(uri string) (string, error) {
 
 ## Frontend Implementation
 
-### Security Page (`security.astro`)
+### Settings Page (`settings.astro`)
 
 Features:
 - Setup section: Shows QR code and formatted secret
