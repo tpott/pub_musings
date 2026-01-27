@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**214 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**215 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**214 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**215 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 220: Frontend - Add View button after upload completes
+  - Added "View in My Videos" button with eye icon to actions section
+  - Button navigates to `/videos?play={id}` for cleaner playback experience
+  - Positioned prominently at the start of actions row
+
 - Task 216: Frontend - Add Auto mode to theme toggle
   - Theme toggle now cycles through: Light → Dark → Auto
   - Auto mode follows system's prefers-color-scheme setting
