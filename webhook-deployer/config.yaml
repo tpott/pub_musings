@@ -4,6 +4,7 @@ sites:
     path_prefix: personal/
     branch: trunk
     repository: tpott/pub_musings
+    repo_path: /home/trevor/pub_musings
     commands:
       - "git checkout trunk"
       - "git pull origin trunk"
@@ -16,6 +17,7 @@ sites:
     path_prefix: subtitler/frontend/
     branch: subtitler_v3
     repository: tpott/pub_musings
+    repo_path: /home/trevor/pub_musings
     deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-subtitler-frontend.sh
 
   - name: subtitler-backend
@@ -23,4 +25,5 @@ sites:
     path_prefix: subtitler/backend/
     branch: subtitler_v3
     repository: tpott/pub_musings
+    repo_path: /home/trevor/pub_musings
     deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-subtitler-backend.sh
