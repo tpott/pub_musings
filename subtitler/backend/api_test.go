@@ -6074,3 +6074,117 @@ func TestChunkedUploadInvalidChunkIndex(t *testing.T) {
 		t.Errorf("Expected 400 Bad Request, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestCleanupOrphanChunkDirectories(t *testing.T) {
+	// Create temp directory for test
+	tempDir, err := os.MkdirTemp("", "orphan-cleanup-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test database
+	dbPath := filepath.Join(tempDir, "test.db")
+	testDB, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer testDB.Close()
+
+	// Create chunks directory structure
+	chunksDir := filepath.Join(tempDir, "chunks")
+	if err := os.MkdirAll(chunksDir, 0755); err != nil {
+		t.Fatalf("Failed to create chunks dir: %v", err)
+	}
+
+	// Create an upload session in the database
+	validSession := &db.UploadSession{
+		ID:          "valid-session-123",
+		Filename:    "test.mp4",
+		ContentType: "video/mp4",
+		TotalSize:   1024000,
+		ChunkSize:   512000,
+		TotalChunks: 2,
+		Status:      "in_progress",
+		CreatedAt:   time.Now(),
+		ExpiresAt:   time.Now().Add(24 * time.Hour),
+	}
+	if err := testDB.CreateUploadSession(validSession); err != nil {
+		t.Fatalf("Failed to create upload session: %v", err)
+	}
+
+	// Create directory for valid session
+	validDir := filepath.Join(chunksDir, "valid-session-123")
+	if err := os.MkdirAll(validDir, 0755); err != nil {
+		t.Fatalf("Failed to create valid session dir: %v", err)
+	}
+	// Create a chunk file in valid directory
+	if err := os.WriteFile(filepath.Join(validDir, "chunk_0.part"), []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create chunk file: %v", err)
+	}
+
+	// Create orphan directories (not in database)
+	orphan1Dir := filepath.Join(chunksDir, "orphan-session-456")
+	orphan2Dir := filepath.Join(chunksDir, "orphan-session-789")
+	if err := os.MkdirAll(orphan1Dir, 0755); err != nil {
+		t.Fatalf("Failed to create orphan1 dir: %v", err)
+	}
+	if err := os.MkdirAll(orphan2Dir, 0755); err != nil {
+		t.Fatalf("Failed to create orphan2 dir: %v", err)
+	}
+	// Create chunk files in orphan directories
+	if err := os.WriteFile(filepath.Join(orphan1Dir, "chunk_0.part"), []byte("orphan data"), 0644); err != nil {
+		t.Fatalf("Failed to create orphan chunk file: %v", err)
+	}
+
+	// Run cleanup
+	deletedCount := cleanupOrphanChunkDirectoriesWithDB(testDB, tempDir)
+
+	// Verify 2 orphan directories were deleted
+	if deletedCount != 2 {
+		t.Errorf("Expected 2 orphan directories deleted, got %d", deletedCount)
+	}
+
+	// Verify orphan directories are gone
+	if _, err := os.Stat(orphan1Dir); !os.IsNotExist(err) {
+		t.Error("Expected orphan1 directory to be deleted")
+	}
+	if _, err := os.Stat(orphan2Dir); !os.IsNotExist(err) {
+		t.Error("Expected orphan2 directory to be deleted")
+	}
+
+	// Verify valid session directory still exists
+	if _, err := os.Stat(validDir); os.IsNotExist(err) {
+		t.Error("Valid session directory should NOT be deleted")
+	}
+
+	// Verify chunk file in valid directory still exists
+	if _, err := os.Stat(filepath.Join(validDir, "chunk_0.part")); os.IsNotExist(err) {
+		t.Error("Chunk file in valid session should NOT be deleted")
+	}
+}
+
+func TestCleanupOrphanChunkDirectoriesNoChunksDir(t *testing.T) {
+	// Create temp directory for test without chunks subdirectory
+	tempDir, err := os.MkdirTemp("", "orphan-cleanup-nochunks-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test database
+	dbPath := filepath.Join(tempDir, "test.db")
+	testDB, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer testDB.Close()
+
+	// Run cleanup with no chunks directory - should not error
+	deletedCount := cleanupOrphanChunkDirectoriesWithDB(testDB, tempDir)
+
+	// No directories should be deleted (and no error should occur)
+	if deletedCount != 0 {
+		t.Errorf("Expected 0 deletions when chunks dir doesn't exist, got %d", deletedCount)
+	}
+}

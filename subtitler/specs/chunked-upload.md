@@ -263,11 +263,36 @@ When a file matches a stored session:
 - `/api/upload/complete`: 10/min per IP
 - `/api/upload/status/{session_id}`: 30/min per IP
 
-### Session Expiration
+### Session Expiration & Cleanup
 
-- Default expiration: 24 hours from creation
-- Expired sessions cleaned up by existing `cleanupExpiredFiles()` scheduler
-- Cleanup deletes: session record, chunk records, chunk files
+**Expiration timeout:** 24 hours from session creation
+
+**Cleanup scheduler** (`runCleanup()` in main.go):
+- Runs on server startup
+- Runs every hour thereafter
+- Cleanup operations:
+
+1. **Expired sessions cleanup:**
+   - Queries `upload_sessions` where `status = 'in_progress'` AND `expires_at < now()`
+   - Deletes session record and chunk records from database
+   - Deletes chunk files from disk (`uploads/chunks/{session_id}/chunk_*.part`)
+   - Removes the session's chunks directory
+
+2. **Orphan directory cleanup:**
+   - Scans `uploads/chunks/` for directories
+   - Checks each directory name against `upload_sessions` table
+   - Removes directories that don't have matching database records
+   - Handles edge cases: server crashes during upload, manual database cleanup
+
+**Completed sessions:**
+- When `/api/upload/complete` succeeds, chunk files are deleted immediately
+- Session record status is set to "complete" but kept for auditing
+- Completed session records are NOT automatically deleted (only expire if `in_progress`)
+
+**Frontend localStorage cleanup:**
+- Client stores upload session IDs in localStorage for resume capability
+- Stale sessions (older than 48 hours) should be cleaned from localStorage on app startup
+- See: `frontend/src/utils/upload-session.ts`
 
 ### Security Considerations
 

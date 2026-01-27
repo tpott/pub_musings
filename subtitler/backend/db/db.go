@@ -1661,3 +1661,13 @@ func (db *DB) DeleteUploadSession(sessionID string) ([]string, error) {
 
 	return paths, nil
 }
+
+// UploadSessionExists checks if an upload session exists in the database
+func (db *DB) UploadSessionExists(sessionID string) (bool, error) {
+	var count int
+	err := db.conn.QueryRow(`SELECT COUNT(*) FROM upload_sessions WHERE id = ?`, sessionID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

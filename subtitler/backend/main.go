@@ -5055,7 +5055,62 @@ func runCleanup() {
 		}
 	}
 
+	// Clean up orphan chunk directories (exist on disk but not in database)
+	orphanCleanupCount := cleanupOrphanChunkDirectories()
+	if orphanCleanupCount > 0 {
+		logging.Info("Deleted orphan chunk directories", "count", orphanCleanupCount)
+	}
+
 	logging.Info("Cleanup complete", "videos_deleted", deletedCount)
+}
+
+// cleanupOrphanChunkDirectories removes chunk directories that exist on disk
+// but don't have corresponding records in the upload_sessions table.
+// This handles edge cases like server crashes during upload or manual database cleanup.
+func cleanupOrphanChunkDirectories() int {
+	return cleanupOrphanChunkDirectoriesWithDB(database, uploadDir)
+}
+
+// cleanupOrphanChunkDirectoriesWithDB is the testable implementation of orphan cleanup.
+// It scans the chunks directory for directories that don't have matching database records.
+func cleanupOrphanChunkDirectoriesWithDB(database *db.DB, baseUploadDir string) int {
+	chunksBaseDir := filepath.Join(baseUploadDir, "chunks")
+
+	// Check if chunks directory exists
+	entries, err := os.ReadDir(chunksBaseDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logging.Error("Error reading chunks directory", "path", chunksBaseDir, "error", err)
+		}
+		return 0
+	}
+
+	orphanCount := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		sessionID := entry.Name()
+		exists, err := database.UploadSessionExists(sessionID)
+		if err != nil {
+			logging.Error("Error checking upload session existence", "session_id", sessionID, "error", err)
+			continue
+		}
+
+		if !exists {
+			// This is an orphan directory - remove it and its contents
+			orphanDir := filepath.Join(chunksBaseDir, sessionID)
+			if err := os.RemoveAll(orphanDir); err != nil {
+				logging.Error("Error removing orphan chunk directory", "path", orphanDir, "error", err)
+			} else {
+				logging.Debug("Removed orphan chunk directory", "session_id", sessionID)
+				orphanCount++
+			}
+		}
+	}
+
+	return orphanCount
 }
 
 // startMaintenanceScheduler runs periodic database maintenance (VACUUM and ANALYZE).
