@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -83,7 +84,12 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidatePassword performs basic password validation
+// ValidatePassword validates password strength including complexity requirements.
+// Password must be at least 8 characters and contain:
+// - At least one uppercase letter
+// - At least one lowercase letter
+// - At least one number
+// - At least one special character
 func ValidatePassword(password string) error {
 	if len(password) < MinPasswordLength {
 		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
@@ -91,7 +97,41 @@ func ValidatePassword(password string) error {
 	if len(password) > 72 { // bcrypt max
 		return fmt.Errorf("password is too long (max 72 characters)")
 	}
+
+	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasNumber = true
+		case isSpecialChar(r):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper {
+		return fmt.Errorf("password must contain at least one uppercase letter")
+	}
+	if !hasLower {
+		return fmt.Errorf("password must contain at least one lowercase letter")
+	}
+	if !hasNumber {
+		return fmt.Errorf("password must contain at least one number")
+	}
+	if !hasSpecial {
+		return fmt.Errorf("password must contain at least one special character")
+	}
+
 	return nil
+}
+
+// isSpecialChar checks if a character is a special character
+func isSpecialChar(r rune) bool {
+	specialChars := "!@#$%^&*()_+-=[]{}|;:'\",.<>?/`~\\"
+	return strings.ContainsRune(specialChars, r)
 }
 
 // CreateSession creates a new session for a user with optional IP address and user agent

@@ -2305,7 +2305,7 @@ func TestHealthEndpointAuthenticated(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a user and get auth token
-	token := ts.createTestUser(t, "health@example.com", "testpass123")
+	token := ts.createTestUser(t, "health@example.com", "Testpass123!")
 
 	resp := ts.doRequest("GET", "/api/health", nil, token)
 
@@ -2378,7 +2378,7 @@ func TestHealthEndpointDBDownAuthenticated(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a user and get auth token while DB is still up
-	token := ts.createTestUser(t, "healthdown@example.com", "testpass123")
+	token := ts.createTestUser(t, "healthdown@example.com", "Testpass123!")
 
 	// Close the database to simulate a connection failure
 	ts.db.Close()
@@ -3713,7 +3713,7 @@ func TestRateLimitingLogin(t *testing.T) {
 
 	// First 2 requests should succeed
 	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+		req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"Password123!"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.RemoteAddr = "192.168.1.100:12345"
 		w := httptest.NewRecorder()
@@ -3725,7 +3725,7 @@ func TestRateLimitingLogin(t *testing.T) {
 	}
 
 	// 3rd request should be rate limited
-	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"Password123!"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "192.168.1.100:12345"
 	w := httptest.NewRecorder()
@@ -3741,7 +3741,7 @@ func TestRateLimitingLogin(t *testing.T) {
 	}
 
 	// Different IP should still work
-	req = httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+	req = httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"test@example.com","password":"Password123!"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "192.168.1.200:12345" // Different IP
 	w = httptest.NewRecorder()
@@ -3769,7 +3769,7 @@ func TestRateLimitingRegister(t *testing.T) {
 
 	// First 2 requests should succeed
 	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+		req := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"email":"test@example.com","password":"Password123!"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.RemoteAddr = "192.168.1.100:12345"
 		w := httptest.NewRecorder()
@@ -3781,7 +3781,7 @@ func TestRateLimitingRegister(t *testing.T) {
 	}
 
 	// 3rd request should be rate limited
-	req := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+	req := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"email":"test@example.com","password":"Password123!"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "192.168.1.100:12345"
 	w := httptest.NewRecorder()
@@ -4282,7 +4282,7 @@ func TestGetSessions(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create user (registration creates first session)
-	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "password123")
+	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 
 	// Create a second session
 	auth.CreateSession(ts.db, userID, "10.0.0.1", "Chrome/100")
@@ -4344,7 +4344,7 @@ func TestRevokeSession(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create user (registration creates first session)
-	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "password123")
+	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 
 	// Create a second session that we'll revoke
 	otherSession, _ := auth.CreateSession(ts.db, userID, "10.0.0.1", "Other")
@@ -4372,7 +4372,7 @@ func TestRevokeCurrentSession(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create user (registration creates a session)
-	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "password123")
+	userID, regToken := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 
 	// Get the current session to find its ID
 	sessions, _ := ts.db.GetSessionsByUserID(userID)
@@ -4397,8 +4397,8 @@ func TestRevokeOtherUserSession(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create two users
-	_, token1 := ts.createTestUserWithID(t, "user1@example.com", "password123")
-	user2ID, _ := ts.createTestUserWithID(t, "user2@example.com", "password123")
+	_, token1 := ts.createTestUserWithID(t, "user1@example.com", "Password123!")
+	user2ID, _ := ts.createTestUserWithID(t, "user2@example.com", "Password123!")
 
 	// Get user2's session ID
 	sessions, _ := ts.db.GetSessionsByUserID(user2ID)
@@ -4603,7 +4603,7 @@ func TestForgotPassword(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a test user
-	ts.createTestUser(t, "test@example.com", "password123")
+	ts.createTestUser(t, "test@example.com", "Password123!")
 
 	// Clear any emails sent during user creation (verification email)
 	ts.emailService.Clear()
@@ -4673,7 +4673,7 @@ func TestResetPasswordSuccess(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a test user
-	ts.createTestUser(t, "test@example.com", "oldpassword123")
+	ts.createTestUser(t, "test@example.com", "Oldpassword123!")
 
 	// Clear any emails sent during user creation (verification email)
 	ts.emailService.Clear()
@@ -4712,7 +4712,7 @@ func TestResetPasswordSuccess(t *testing.T) {
 	// Reset password with the token
 	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
 		"token":    token,
-		"password": "newpassword123",
+		"password": "Newpassword123!",
 	}, "")
 
 	if w.Code != http.StatusOK {
@@ -4722,7 +4722,7 @@ func TestResetPasswordSuccess(t *testing.T) {
 	// Verify we can login with new password
 	w = ts.doRequest("POST", "/api/auth/login", map[string]string{
 		"email":    "test@example.com",
-		"password": "newpassword123",
+		"password": "Newpassword123!",
 	}, "")
 
 	if w.Code != http.StatusOK {
@@ -4732,7 +4732,7 @@ func TestResetPasswordSuccess(t *testing.T) {
 	// Verify old password no longer works
 	w = ts.doRequest("POST", "/api/auth/login", map[string]string{
 		"email":    "test@example.com",
-		"password": "oldpassword123",
+		"password": "Oldpassword123!",
 	}, "")
 
 	if w.Code != http.StatusUnauthorized {
@@ -4746,7 +4746,7 @@ func TestResetPasswordInvalidToken(t *testing.T) {
 
 	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
 		"token":    "invalid-token",
-		"password": "newpassword123",
+		"password": "Newpassword123!",
 	}, "")
 
 	if w.Code != http.StatusBadRequest {
@@ -4766,7 +4766,7 @@ func TestResetPasswordExpiredToken(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a test user
-	userID, _ := ts.createTestUserWithID(t, "test@example.com", "password123")
+	userID, _ := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 
 	// Manually create an expired token
 	tokenBytes := make([]byte, 32)
@@ -4780,7 +4780,7 @@ func TestResetPasswordExpiredToken(t *testing.T) {
 	// Try to use expired token
 	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
 		"token":    token,
-		"password": "newpassword123",
+		"password": "Newpassword123!",
 	}, "")
 
 	if w.Code != http.StatusBadRequest {
@@ -4793,7 +4793,7 @@ func TestResetPasswordWeakPassword(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a test user and get a valid token
-	ts.createTestUser(t, "test@example.com", "password123")
+	ts.createTestUser(t, "test@example.com", "Password123!")
 	ts.doRequest("POST", "/api/auth/forgot-password", map[string]string{
 		"email": "test@example.com",
 	}, "")
@@ -4825,7 +4825,7 @@ func TestResetPasswordTokenSingleUse(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a test user and get a valid token
-	ts.createTestUser(t, "test@example.com", "password123")
+	ts.createTestUser(t, "test@example.com", "Password123!")
 
 	// Clear emails from user creation (verification email)
 	ts.emailService.Clear()
@@ -4851,7 +4851,7 @@ func TestResetPasswordTokenSingleUse(t *testing.T) {
 	// First reset should succeed
 	w := ts.doRequest("POST", "/api/auth/reset-password", map[string]string{
 		"token":    token,
-		"password": "newpassword123",
+		"password": "Newpassword123!",
 	}, "")
 
 	if w.Code != http.StatusOK {
@@ -4985,7 +4985,7 @@ func TestReprocessVideoSuccess(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a user and video
-	userID, token := ts.createTestUserWithID(t, "reprocess@example.com", "password123")
+	userID, token := ts.createTestUserWithID(t, "reprocess@example.com", "Password123!")
 	video := ts.createTestVideo(t, &userID, nil)
 
 	// Create a failed transcription
@@ -5038,7 +5038,7 @@ func TestReprocessVideoNotOwner(t *testing.T) {
 	ts.createTestFailedTranscription(t, video.ID)
 
 	// Create another user and try to reprocess
-	_, token := ts.createTestUserWithID(t, "other@example.com", "password123")
+	_, token := ts.createTestUserWithID(t, "other@example.com", "Password123!")
 
 	resp := ts.doRequest("POST", "/api/videos/"+video.ID+"/reprocess", nil, token)
 
@@ -5051,7 +5051,7 @@ func TestReprocessVideoNotFound(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	_, token := ts.createTestUserWithID(t, "test@example.com", "password123")
+	_, token := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 
 	resp := ts.doRequest("POST", "/api/videos/nonexistent/reprocess", nil, token)
 
@@ -5064,7 +5064,7 @@ func TestReprocessVideoNoTranscription(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	userID, token := ts.createTestUserWithID(t, "test@example.com", "password123")
+	userID, token := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 	video := ts.createTestVideo(t, &userID, nil)
 	// No transcription created
 
@@ -5085,7 +5085,7 @@ func TestReprocessVideoNotError(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	userID, token := ts.createTestUserWithID(t, "test@example.com", "password123")
+	userID, token := ts.createTestUserWithID(t, "test@example.com", "Password123!")
 	video := ts.createTestVideo(t, &userID, nil)
 	ts.createTestTranscription(t, video.ID) // Complete transcription, not error
 

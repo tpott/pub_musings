@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**123 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**124 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -131,18 +131,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**123 tasks completed!**
+**124 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 119: Password complexity requirements - passwords now require uppercase, lowercase, number, and special character
 - ✅ Task 123: Document whisper model selection - large-v3-turbo recommended (6x faster than large-v3, slightly better accuracy)
 - ✅ Task 122: localStorage cleanup for stale upload sessions - on page load, removes upload sessions older than 48 hours to prevent localStorage pollution from abandoned uploads
 - ✅ Task 121: Incomplete upload session cleanup - cleanup scheduler now removes orphan chunk directories that exist on disk but don't have database records (handles server crashes, manual DB cleanup)
 - ✅ Task 117: Fixed database error handling in chunked upload progress - properly handle errors from GetTotalReceivedBytes and CountUploadChunks with logging
-- ✅ Task 116: Chunked uploads - large files (>50MB) automatically split into 50MB chunks, resumable via localStorage, works through Cloudflare 100MB limit
 
-### Pending Tasks (Tasks 118-120)
+### Pending Tasks (Tasks 118, 120)
 - Task 118: Add CAPTCHA to registration and login
-- Task 119: Add password complexity requirements
 - Task 120: Add encryption key rotation support
 
 See `TASKS.jsonl` for details.

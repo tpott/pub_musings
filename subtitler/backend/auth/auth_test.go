@@ -3,6 +3,7 @@ package auth
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,18 +103,68 @@ func TestValidatePassword(t *testing.T) {
 	tests := []struct {
 		password string
 		wantErr  bool
+		errMsg   string
 	}{
-		{"password123", false},
-		{"short", true},     // Too short
-		{"1234567", true},   // Too short (7 chars)
-		{"12345678", false}, // Exactly 8 chars (minimum)
-		{"", true},
+		// Valid passwords
+		{"Password1!", false, ""},
+		{"Abcdefg1@", false, ""},
+		{"Complex$Pass123", false, ""},
+		{"Test@2024", false, ""},
+
+		// Too short
+		{"short", true, "at least 8 characters"},
+		{"1234567", true, "at least 8 characters"},
+		{"Aa1!", true, "at least 8 characters"},
+		{"", true, "at least 8 characters"},
+
+		// Missing uppercase
+		{"password1!", true, "uppercase"},
+		{"abcdefg1@", true, "uppercase"},
+
+		// Missing lowercase
+		{"PASSWORD1!", true, "lowercase"},
+		{"ABCDEFG1@", true, "lowercase"},
+
+		// Missing number
+		{"Password!", true, "number"},
+		{"Abcdefgh@", true, "number"},
+
+		// Missing special character
+		{"Password1", true, "special character"},
+		{"Abcdefg12", true, "special character"},
+		{"12345678Aa", true, "special character"},
+
+		// Just passes all requirements (edge case)
+		{"Passw0rd!", false, ""},
 	}
 
 	for _, tt := range tests {
 		err := ValidatePassword(tt.password)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("ValidatePassword(%q) error = %v, wantErr %v", tt.password, err, tt.wantErr)
+		}
+		if tt.wantErr && err != nil && tt.errMsg != "" {
+			if !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("ValidatePassword(%q) error = %q, expected to contain %q", tt.password, err.Error(), tt.errMsg)
+			}
+		}
+	}
+}
+
+func TestIsSpecialChar(t *testing.T) {
+	// Test special characters
+	specialChars := "!@#$%^&*()_+-=[]{}|;:'\",.<>?/`~\\"
+	for _, r := range specialChars {
+		if !isSpecialChar(r) {
+			t.Errorf("isSpecialChar(%q) = false, want true", r)
+		}
+	}
+
+	// Test non-special characters
+	nonSpecial := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	for _, r := range nonSpecial {
+		if isSpecialChar(r) {
+			t.Errorf("isSpecialChar(%q) = true, want false", r)
 		}
 	}
 }

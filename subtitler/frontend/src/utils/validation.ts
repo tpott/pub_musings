@@ -31,6 +31,61 @@ export function validateEmail(email: string): string | null {
 }
 
 /**
+ * Password complexity requirements
+ */
+export const PASSWORD_REQUIREMENTS = {
+  minLength: 8,
+  maxLength: 72,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumber: true,
+  requireSpecial: true,
+};
+
+/**
+ * Special characters allowed in passwords
+ */
+export const SPECIAL_CHARACTERS = '!@#$%^&*()_+-=[]{}|;:\'",.<>?/`~\\';
+
+/**
+ * Check if character is a special character
+ */
+function isSpecialChar(char: string): boolean {
+  return SPECIAL_CHARACTERS.includes(char);
+}
+
+/**
+ * Check individual password complexity requirements
+ * @param password - Password to check
+ * @returns Object with booleans for each requirement
+ */
+export function checkPasswordComplexity(password: string): {
+  hasMinLength: boolean;
+  hasMaxLength: boolean;
+  hasUppercase: boolean;
+  hasLowercase: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+} {
+  let hasSpecial = false;
+  for (const char of password) {
+    if (isSpecialChar(char)) {
+      hasSpecial = true;
+      break;
+    }
+  }
+
+  return {
+    hasMinLength: password.length >= PASSWORD_REQUIREMENTS.minLength,
+    hasMaxLength: password.length <= PASSWORD_REQUIREMENTS.maxLength,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecial,
+  };
+}
+
+/**
  * Validate password strength
  * @param password - Password to validate
  * @returns Error message or null if valid
@@ -40,15 +95,74 @@ export function validatePassword(password: string): string | null {
     return 'Password is required';
   }
 
-  if (password.length < 8) {
+  const complexity = checkPasswordComplexity(password);
+
+  if (!complexity.hasMinLength) {
     return 'Password must be at least 8 characters';
   }
 
-  if (password.length > 72) {
+  if (!complexity.hasMaxLength) {
     return 'Password is too long (max 72 characters)';
   }
 
+  if (!complexity.hasUppercase) {
+    return 'Password must contain at least one uppercase letter';
+  }
+
+  if (!complexity.hasLowercase) {
+    return 'Password must contain at least one lowercase letter';
+  }
+
+  if (!complexity.hasNumber) {
+    return 'Password must contain at least one number';
+  }
+
+  if (!complexity.hasSpecial) {
+    return 'Password must contain at least one special character';
+  }
+
   return null;
+}
+
+/**
+ * Get all password validation errors (for showing all requirements at once)
+ * @param password - Password to validate
+ * @returns Array of error messages, empty if valid
+ */
+export function getPasswordErrors(password: string): string[] {
+  const errors: string[] = [];
+
+  if (!password || typeof password !== 'string') {
+    return ['Password is required'];
+  }
+
+  const complexity = checkPasswordComplexity(password);
+
+  if (!complexity.hasMinLength) {
+    errors.push('At least 8 characters');
+  }
+
+  if (!complexity.hasMaxLength) {
+    errors.push('Maximum 72 characters');
+  }
+
+  if (!complexity.hasUppercase) {
+    errors.push('At least one uppercase letter');
+  }
+
+  if (!complexity.hasLowercase) {
+    errors.push('At least one lowercase letter');
+  }
+
+  if (!complexity.hasNumber) {
+    errors.push('At least one number');
+  }
+
+  if (!complexity.hasSpecial) {
+    errors.push('At least one special character');
+  }
+
+  return errors;
 }
 
 /**

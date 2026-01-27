@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   validateEmail,
   validatePassword,
+  checkPasswordComplexity,
+  getPasswordErrors,
   validateTotpCode,
   validateVideoFile,
   validateSegmentTiming,
@@ -40,10 +42,12 @@ describe('validateEmail', () => {
 });
 
 describe('validatePassword', () => {
-  it('should accept valid passwords', () => {
-    expect(validatePassword('password123')).toBe(null);
-    expect(validatePassword('MySecureP@ss!')).toBe(null);
-    expect(validatePassword('12345678')).toBe(null);
+  it('should accept valid passwords meeting all requirements', () => {
+    expect(validatePassword('Password1!')).toBe(null);
+    expect(validatePassword('MySecureP@ss1')).toBe(null);
+    expect(validatePassword('Abcdefg1@')).toBe(null);
+    expect(validatePassword('Test@2024')).toBe(null);
+    expect(validatePassword('Complex$Pass123')).toBe(null);
   });
 
   it('should reject empty/missing password', () => {
@@ -55,11 +59,103 @@ describe('validatePassword', () => {
   it('should reject short passwords', () => {
     expect(validatePassword('short')).toBe('Password must be at least 8 characters');
     expect(validatePassword('1234567')).toBe('Password must be at least 8 characters');
+    expect(validatePassword('Aa1!')).toBe('Password must be at least 8 characters');
   });
 
   it('should reject excessively long passwords', () => {
-    const longPassword = 'a'.repeat(73);
+    const longPassword = 'Aa1!' + 'a'.repeat(69); // 73 chars
     expect(validatePassword(longPassword)).toBe('Password is too long (max 72 characters)');
+  });
+
+  it('should reject passwords without uppercase', () => {
+    expect(validatePassword('password1!')).toBe('Password must contain at least one uppercase letter');
+    expect(validatePassword('abcdefg1@')).toBe('Password must contain at least one uppercase letter');
+  });
+
+  it('should reject passwords without lowercase', () => {
+    expect(validatePassword('PASSWORD1!')).toBe('Password must contain at least one lowercase letter');
+    expect(validatePassword('ABCDEFG1@')).toBe('Password must contain at least one lowercase letter');
+  });
+
+  it('should reject passwords without numbers', () => {
+    expect(validatePassword('Password!')).toBe('Password must contain at least one number');
+    expect(validatePassword('Abcdefgh@')).toBe('Password must contain at least one number');
+  });
+
+  it('should reject passwords without special characters', () => {
+    expect(validatePassword('Password1')).toBe('Password must contain at least one special character');
+    expect(validatePassword('Abcdefg12')).toBe('Password must contain at least one special character');
+  });
+});
+
+describe('checkPasswordComplexity', () => {
+  it('should correctly identify all requirements met', () => {
+    const result = checkPasswordComplexity('Password1!');
+    expect(result.hasMinLength).toBe(true);
+    expect(result.hasMaxLength).toBe(true);
+    expect(result.hasUppercase).toBe(true);
+    expect(result.hasLowercase).toBe(true);
+    expect(result.hasNumber).toBe(true);
+    expect(result.hasSpecial).toBe(true);
+  });
+
+  it('should correctly identify missing requirements', () => {
+    const result = checkPasswordComplexity('password');
+    expect(result.hasMinLength).toBe(true);
+    expect(result.hasMaxLength).toBe(true);
+    expect(result.hasUppercase).toBe(false);
+    expect(result.hasLowercase).toBe(true);
+    expect(result.hasNumber).toBe(false);
+    expect(result.hasSpecial).toBe(false);
+  });
+
+  it('should detect special characters', () => {
+    expect(checkPasswordComplexity('test!')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test@')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test#')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test$')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test%')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test^')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test&')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test*')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test(')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test)')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test_')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test-')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test=')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test[')).toHaveProperty('hasSpecial', true);
+    expect(checkPasswordComplexity('test]')).toHaveProperty('hasSpecial', true);
+  });
+});
+
+describe('getPasswordErrors', () => {
+  it('should return empty array for valid password', () => {
+    const errors = getPasswordErrors('Password1!');
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should return all errors for password missing all requirements', () => {
+    const errors = getPasswordErrors('abc');
+    expect(errors).toContain('At least 8 characters');
+    expect(errors).toContain('At least one uppercase letter');
+    expect(errors).toContain('At least one number');
+    expect(errors).toContain('At least one special character');
+    expect(errors).not.toContain('At least one lowercase letter'); // Has lowercase
+  });
+
+  it('should handle empty password', () => {
+    const errors = getPasswordErrors('');
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBe('Password is required');
+  });
+
+  it('should return specific errors for missing requirements', () => {
+    const errors = getPasswordErrors('password');
+    expect(errors).toContain('At least one uppercase letter');
+    expect(errors).toContain('At least one number');
+    expect(errors).toContain('At least one special character');
+    expect(errors).not.toContain('At least 8 characters');
+    expect(errors).not.toContain('At least one lowercase letter');
   });
 });
 
