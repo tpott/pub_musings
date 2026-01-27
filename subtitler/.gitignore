@@ -12,6 +12,7 @@ backend/subtitler-prev
 backend/backend
 backend/uploads/
 backend/data/
+backend/csrf/data/
 
 # Design analysis artifacts (large binary files)
 design-analysis/

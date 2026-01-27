@@ -673,3 +673,50 @@ func (v *Validator) ValidateAbsolutePath(path string) error {
 3. Check for traversal patterns BEFORE converting to absolute (to catch `../etc/passwd`)
 4. Test with both relative and absolute paths in different environments
 5. Database paths may be stored differently depending on how UPLOAD_DIR is configured
+
+---
+
+### 2026-01-27: NEVER use scrollIntoView() for elements in scrollable containers
+
+**Problem:** Video scrolled out of view during playback. **THIS WAS REPORTED THREE TIMES.**
+
+**Root cause:** The code used `scrollIntoView({ behavior: 'smooth', block: 'nearest' })` to scroll subtitle segments into view during video playback. Despite `block: 'nearest'` sounding like it would only scroll if necessary, `scrollIntoView()` scrolls **ALL ancestor scrollable containers**, including the entire page.
+
+When:
+1. The video is at the top of the page
+2. The segments list is below the video
+3. A segment at the bottom of the list becomes active
+
+The browser scrolls the **entire page** to bring that segment into view, causing the video to scroll up and out of the viewport.
+
+**Solution:** Replace `scrollIntoView()` with manual container-only scrolling:
+```javascript
+// NEVER use this for elements inside scrollable containers:
+// el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+// Use this instead - only scrolls within the container:
+function scrollIntoContainerView(container: HTMLElement, element: HTMLElement) {
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+
+    if (elementRect.top < containerRect.top) {
+        container.scrollTop -= (containerRect.top - elementRect.top);
+    } else if (elementRect.bottom > containerRect.bottom) {
+        container.scrollTop += (elementRect.bottom - containerRect.bottom);
+    }
+}
+```
+
+**Lesson:**
+1. **NEVER use `scrollIntoView()` for elements inside scrollable containers** - it can scroll the entire page
+2. Always use manual `container.scrollTop` adjustment instead
+3. Add E2E tests that verify important elements stay visible during user interactions
+4. When a bug is reported multiple times, the fix wasn't thorough enough - add regression tests
+5. The `block: 'nearest'` option does NOT prevent page scrolling - it just affects where the element aligns
+
+**Files affected:**
+- `frontend/src/pages/upload.astro` - Fixed `navigateToSegment()` and `updateCurrentSubtitle()`
+- `frontend/src/pages/videos.astro` - Already had the correct fix
+- Added E2E regression tests in `frontend/e2e/upload-flow.spec.ts`
+
+**See also:** `specs/video-scroll-fix.md` for full analysis

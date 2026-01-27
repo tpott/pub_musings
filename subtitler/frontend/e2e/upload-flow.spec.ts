@@ -333,3 +333,123 @@ test.describe('Upload Validation', () => {
     await expect(dropzone).toHaveCSS('cursor', 'pointer');
   });
 });
+
+// Test video visibility during playback - REGRESSION TEST
+// This test ensures the video doesn't scroll out of view during playback.
+// Bug was reported THREE times before being fixed properly.
+test.describe('Video Visibility During Playback', () => {
+  test('video should stay visible during segment navigation', async ({ page }) => {
+    test.setTimeout(180000);
+
+    await page.goto('/upload');
+
+    // Upload video
+    const fileInput = page.locator('#fileInput');
+    await fileInput.setInputFiles(TEST_VIDEO_PATH);
+
+    // Wait for transcription
+    const transcriptionResult = await waitForTranscriptionStatus(page, 120000);
+
+    if (transcriptionResult !== 'complete') {
+      test.skip(true, 'Transcription not available or no segments');
+      return;
+    }
+
+    // Get the video element and verify it's visible
+    const videoPreview = page.locator('#videoPreview');
+    await expect(videoPreview).toHaveClass(/visible/);
+
+    const previewVideo = page.locator('#previewVideo');
+
+    // Helper to check if video is in viewport
+    async function isVideoInViewport(): Promise<boolean> {
+      return await previewVideo.evaluate((video) => {
+        const rect = video.getBoundingClientRect();
+        return (
+          rect.top >= 0 &&
+          rect.left >= 0 &&
+          rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+          rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
+      });
+    }
+
+    // Initial check - video should be visible
+    expect(await isVideoInViewport()).toBe(true);
+
+    // Get segments count
+    const segments = page.locator('#segments .segment');
+    const segmentCount = await segments.count();
+
+    if (segmentCount < 3) {
+      test.skip(true, 'Need at least 3 segments to test navigation');
+      return;
+    }
+
+    // Navigate through segments using Tab key
+    // Focus on video first, then Tab through segments
+    await previewVideo.focus();
+
+    // Tab through several segments
+    for (let i = 0; i < Math.min(5, segmentCount); i++) {
+      await page.keyboard.press('Tab');
+      await page.waitForTimeout(300); // Wait for scroll animation
+
+      // CRITICAL: Video should STILL be visible after each navigation
+      const videoVisible = await isVideoInViewport();
+      expect(videoVisible).toBe(true);
+    }
+  });
+
+  test('video should stay visible during playback with auto-scroll', async ({ page }) => {
+    test.setTimeout(180000);
+
+    await page.goto('/upload');
+
+    // Upload video
+    const fileInput = page.locator('#fileInput');
+    await fileInput.setInputFiles(TEST_VIDEO_PATH);
+
+    // Wait for transcription
+    const transcriptionResult = await waitForTranscriptionStatus(page, 120000);
+
+    if (transcriptionResult !== 'complete') {
+      test.skip(true, 'Transcription not available or no segments');
+      return;
+    }
+
+    const previewVideo = page.locator('#previewVideo');
+    await expect(page.locator('#videoPreview')).toHaveClass(/visible/);
+
+    // Helper to check if video is in viewport
+    async function isVideoInViewport(): Promise<boolean> {
+      return await previewVideo.evaluate((video) => {
+        const rect = video.getBoundingClientRect();
+        return (
+          rect.top >= 0 &&
+          rect.left >= 0 &&
+          rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+          rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
+      });
+    }
+
+    // Initial check
+    expect(await isVideoInViewport()).toBe(true);
+
+    // Start playback
+    await previewVideo.evaluate((v: HTMLVideoElement) => v.play());
+
+    // Let video play for a bit, checking visibility periodically
+    for (let i = 0; i < 5; i++) {
+      await page.waitForTimeout(500);
+
+      // CRITICAL: Video should STILL be visible during playback
+      const videoVisible = await isVideoInViewport();
+      expect(videoVisible).toBe(true);
+    }
+
+    // Pause video
+    await previewVideo.evaluate((v: HTMLVideoElement) => v.pause());
+  });
+});

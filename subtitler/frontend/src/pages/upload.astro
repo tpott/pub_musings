@@ -2529,6 +2529,20 @@ import '../styles/theme.css';
 				return transcriptionSegments.length - 1;
 			}
 
+			// Scroll element into view within container only (not the whole page)
+			// IMPORTANT: Never use scrollIntoView() - it can scroll the entire page
+			// and cause the video to go out of view. This was reported 3 times!
+			function scrollIntoContainerView(container: HTMLElement, element: HTMLElement) {
+				const containerRect = container.getBoundingClientRect();
+				const elementRect = element.getBoundingClientRect();
+
+				if (elementRect.top < containerRect.top) {
+					container.scrollTop -= (containerRect.top - elementRect.top);
+				} else if (elementRect.bottom > containerRect.bottom) {
+					container.scrollTop += (elementRect.bottom - containerRect.bottom);
+				}
+			}
+
 			// Navigate to segment by index
 			function navigateToSegment(index: number) {
 				if (transcriptionSegments.length === 0) return;
@@ -2536,12 +2550,12 @@ import '../styles/theme.css';
 				const seg = transcriptionSegments[clampedIndex];
 				previewVideo.currentTime = seg.start;
 
-				// Highlight and scroll to segment
+				// Highlight and scroll to segment within container only
 				const segmentElements = segments.querySelectorAll('.segment');
 				segmentElements.forEach((el, idx) => {
 					if (idx === clampedIndex) {
 						el.classList.add('active');
-						el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+						scrollIntoContainerView(segments, el as HTMLElement);
 					} else {
 						el.classList.remove('active');
 					}
@@ -2713,8 +2727,8 @@ import '../styles/theme.css';
 				segments.querySelectorAll('.segment').forEach((el, idx) => {
 					if (idx === currentIndex) {
 						el.classList.add('active');
-						// Scroll the segment into view if needed
-						el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+						// Scroll the segment into view within container only (not the whole page)
+						scrollIntoContainerView(segments, el as HTMLElement);
 					} else {
 						el.classList.remove('active');
 					}

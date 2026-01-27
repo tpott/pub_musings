@@ -138,9 +138,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**150 tasks completed.** 5 new tasks filed from deep inspection.
+**151 tasks completed.** 5 tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 156: Fix video scrolling out of view during playback (3rd report)
+  - **Root cause:** `scrollIntoView()` scrolls ALL ancestor containers including the page
+  - **Fix:** Replaced with container-only scrolling in upload.astro
+  - **Prevention:** Added E2E regression tests, LEARNINGS.md entry, and `specs/video-scroll-fix.md`
 - ✅ Task 148: Implement evaluation framework - Created `evaluation/` directory with: `generate.sh` (Piper TTS audio generation), `evaluate.py` (WER calculation via jiwer), `seeds/english-basic.yaml` (11 test sentences). Calculates WER, CER, and RTF metrics. Results saved to `evaluation/results/`. Comprehensive README with setup instructions.
 - ✅ Task 149: Estimated time remaining for transcription - Created `frontend/src/utils/processing-speed.ts` utility with 25 tests.
 - ✅ Task 150: Document magic link auth in API.md - Added comprehensive API documentation.
