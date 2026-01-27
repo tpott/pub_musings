@@ -3897,7 +3897,49 @@ func main() {
 				"-y",
 				outputPath,
 			)
+
+			// Start progress update goroutine for burn operation
+			// FFmpeg doesn't provide progress callbacks, so we simulate progress
+			// by incrementing from 20% to 85% in steps based on video duration
+			burnProgressDone := make(chan struct{})
+			go func() {
+				// Use video duration to estimate tick interval
+				// Shorter videos = shorter intervals, longer videos = longer intervals
+				// Estimate burn time as ~1x video duration for re-encoding
+				estimatedBurnTime := transcription.Duration
+				if estimatedBurnTime < 10 {
+					estimatedBurnTime = 10 // Minimum 10 seconds
+				}
+				if estimatedBurnTime > 600 {
+					estimatedBurnTime = 600 // Cap at 10 minutes
+				}
+
+				// Calculate tick interval to go from 20% to 85% (65 points) during burn
+				numTicks := 13 // 65 / 5 = 13 updates of 5% each
+				tickInterval := time.Duration(estimatedBurnTime/float64(numTicks)) * time.Second
+				if tickInterval < time.Second {
+					tickInterval = time.Second
+				}
+
+				ticker := time.NewTicker(tickInterval)
+				defer ticker.Stop()
+				progress := 20
+				for {
+					select {
+					case <-burnProgressDone:
+						return
+					case <-ticker.C:
+						if progress < 85 {
+							progress += 5
+							database.UpdateBurnJobStatus(uploadID, "processing", "Burning subtitles into video...", progress)
+						}
+					}
+				}
+			}()
+
 			cmdOutput, err := cmd.CombinedOutput()
+			close(burnProgressDone) // Stop progress updates
+
 			if err != nil {
 				logging.Error("ffmpeg burn subtitles failed", "error", err, "output", string(cmdOutput))
 				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err))
@@ -3959,11 +4001,36 @@ func main() {
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		// Build response with progress info
+		response := map[string]interface{}{
 			"status":   job.Status,
 			"message":  job.Message,
 			"progress": job.Progress,
-		})
+		}
+
+		// If processing, calculate estimated time remaining
+		if job.Status == "processing" && job.Progress > 0 {
+			// Get transcription for duration info
+			transcription, _ := database.GetTranscription(uploadID)
+			if transcription != nil && transcription.Duration > 0 {
+				response["duration"] = transcription.Duration
+
+				// Calculate elapsed time since job started
+				elapsed := time.Since(job.CreatedAt).Seconds()
+				if elapsed > 0 && job.Progress > 0 {
+					// Estimate total time based on current progress
+					// progress% complete took elapsed seconds, so 100% will take:
+					estimatedTotal := elapsed * 100 / float64(job.Progress)
+					estimatedRemaining := estimatedTotal - elapsed
+					if estimatedRemaining < 0 {
+						estimatedRemaining = 0
+					}
+					response["estimated_remaining_seconds"] = int(estimatedRemaining)
+				}
+			}
+		}
+
+		json.NewEncoder(w).Encode(response)
 	})
 
 	// Download burned video

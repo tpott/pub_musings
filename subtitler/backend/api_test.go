@@ -1610,6 +1610,67 @@ func (ts *testServer) registerHandlers() {
 		})
 	})
 
+	// Get burn job status
+	ts.mux.HandleFunc("GET /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Upload ID required",
+			})
+			return
+		}
+
+		job, err := ts.db.GetBurnJob(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get burn job status",
+			})
+			return
+		}
+
+		if job == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No burn job found for this video",
+			})
+			return
+		}
+
+		// Build response with progress info
+		response := map[string]interface{}{
+			"status":   job.Status,
+			"message":  job.Message,
+			"progress": job.Progress,
+		}
+
+		// If processing, calculate estimated time remaining
+		if job.Status == "processing" && job.Progress > 0 {
+			// Get transcription for duration info
+			transcription, _ := ts.db.GetTranscription(uploadID)
+			if transcription != nil && transcription.Duration > 0 {
+				response["duration"] = transcription.Duration
+
+				// Calculate elapsed time since job started
+				elapsed := time.Since(job.CreatedAt).Seconds()
+				if elapsed > 0 && job.Progress > 0 {
+					// Estimate total time based on current progress
+					estimatedTotal := elapsed * 100 / float64(job.Progress)
+					estimatedRemaining := estimatedTotal - elapsed
+					if estimatedRemaining < 0 {
+						estimatedRemaining = 0
+					}
+					response["estimated_remaining_seconds"] = int(estimatedRemaining)
+				}
+			}
+		}
+
+		json.NewEncoder(w).Encode(response)
+	})
+
 	// Upload endpoint with MIME type validation
 	ts.mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -3720,6 +3781,143 @@ func TestRateLimitingBurn(t *testing.T) {
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
+// TestBurnStatusWithETA tests that the burn status endpoint returns progress and ETA
+func TestBurnStatusWithETA(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video
+	video := &db.Video{
+		ID:          testGenerateID(),
+		Filename:    "test.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/test.mp4",
+		CreatedAt:   time.Now(),
+	}
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create video: %v", err)
+	}
+
+	// Create transcription with duration (needed for ETA calculation)
+	// First create the transcription record
+	if err := ts.db.CreateTranscription(&db.Transcription{
+		ID:        testGenerateID(),
+		VideoID:   video.ID,
+		Status:    "processing",
+		CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+	// Then complete it with duration (this sets the duration field)
+	if err := ts.db.CompleteTranscription(video.ID, "en", 120.0, "Test transcript", []db.Segment{}); err != nil {
+		t.Fatalf("Failed to complete transcription: %v", err)
+	}
+
+	// Create burn job in progress (started 10 seconds ago with 50% progress)
+	burnJob := &db.BurnJob{
+		ID:        testGenerateID(),
+		VideoID:   video.ID,
+		Status:    "processing",
+		Message:   "Burning subtitles...",
+		Progress:  50,
+		CreatedAt: time.Now().Add(-10 * time.Second), // Started 10 seconds ago
+	}
+	if err := ts.db.CreateBurnJob(burnJob); err != nil {
+		t.Fatalf("Failed to create burn job: %v", err)
+	}
+
+	// Get burn status
+	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response struct {
+		Status                    string  `json:"status"`
+		Message                   string  `json:"message"`
+		Progress                  int     `json:"progress"`
+		Duration                  float64 `json:"duration"`
+		EstimatedRemainingSeconds int     `json:"estimated_remaining_seconds"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Verify response fields
+	if response.Status != "processing" {
+		t.Errorf("Expected status 'processing', got '%s'", response.Status)
+	}
+	if response.Progress != 50 {
+		t.Errorf("Expected progress 50, got %d", response.Progress)
+	}
+	if response.Duration != 120.0 {
+		t.Errorf("Expected duration 120.0, got %f", response.Duration)
+	}
+	// ETA should be approximately 10 seconds (50% done in 10 seconds = ~10 seconds remaining)
+	// Allow for some variance due to timing
+	if response.EstimatedRemainingSeconds < 5 || response.EstimatedRemainingSeconds > 15 {
+		t.Errorf("Expected estimated_remaining_seconds ~10, got %d", response.EstimatedRemainingSeconds)
+	}
+}
+
+// TestBurnStatusComplete tests that completed burn jobs don't include ETA
+func TestBurnStatusComplete(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video
+	video := &db.Video{
+		ID:          testGenerateID(),
+		Filename:    "test.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/test.mp4",
+		CreatedAt:   time.Now(),
+	}
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create video: %v", err)
+	}
+
+	// Complete the burn job
+	burnJob := &db.BurnJob{
+		ID:        testGenerateID(),
+		VideoID:   video.ID,
+		Status:    "complete",
+		Message:   "Done",
+		Progress:  100,
+		CreatedAt: time.Now().Add(-30 * time.Second),
+	}
+	if err := ts.db.CreateBurnJob(burnJob); err != nil {
+		t.Fatalf("Failed to create burn job: %v", err)
+	}
+
+	// Get burn status
+	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Verify no ETA for complete job
+	if _, ok := response["estimated_remaining_seconds"]; ok {
+		t.Error("Expected no estimated_remaining_seconds for complete job")
+	}
+	if response["status"] != "complete" {
+		t.Errorf("Expected status 'complete', got '%v'", response["status"])
 	}
 }
 

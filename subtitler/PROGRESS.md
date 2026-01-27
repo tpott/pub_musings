@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**114 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**115 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -126,12 +126,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**2 tasks remaining** (112, 116):
+**1 task remaining** (116):
 
-1. UX improvement (112): Burn progress indicators
-2. Performance (116): Chunked uploads for large videos
+1. Performance (116): Chunked uploads for large videos
 
 ### Recently Completed
+- ✅ Task 112: Burn progress indicators - ffmpeg burn process now updates progress from 20% to 85% during encoding, GET /api/videos/{id}/burn returns estimated_remaining_seconds, frontend shows ETA during burning
 - ✅ Task 111: Video thumbnail generation - thumbnails auto-generated during upload at 10% of video duration, displayed on My Videos page, encrypted at rest
 - ✅ Task 115: Removed hardcoded Go paths - scripts now auto-detect Go in PATH or `$HOME/go/bin`
 - ✅ Task 114: Authenticated health check - public requests now return minimal `{"status": "ok/degraded"}`, authenticated users get full details

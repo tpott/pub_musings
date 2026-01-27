@@ -674,6 +674,12 @@ import '../styles/theme.css';
 				background-color: var(--error-bg);
 				border-color: var(--error-border);
 			}
+			.burn-eta {
+				font-size: 0.9rem;
+				color: var(--muted-text);
+				margin-top: 0.5rem;
+				margin-bottom: 0.5rem;
+			}
 			/* Language selector styles */
 			.language-section {
 				margin-bottom: 1rem;
@@ -1000,6 +1006,7 @@ import '../styles/theme.css';
 				</div>
 				<div class="burn-status" id="burnStatus">
 					<p id="burnStatusText">Starting...</p>
+					<p id="burnEtaText" class="burn-eta" style="display: none;"></p>
 					<div class="progress-bar" id="burnProgressBar">
 						<div class="progress-bar-fill" id="burnProgressFill"></div>
 					</div>
@@ -1047,6 +1054,7 @@ import '../styles/theme.css';
 			const burnBtn = document.getElementById('burnBtn') as HTMLButtonElement;
 			const burnStatus = document.getElementById('burnStatus') as HTMLElement;
 			const burnStatusText = document.getElementById('burnStatusText') as HTMLElement;
+			const burnEtaText = document.getElementById('burnEtaText') as HTMLElement;
 			const burnProgressBar = document.getElementById('burnProgressBar') as HTMLElement;
 			const burnProgressFill = document.getElementById('burnProgressFill') as HTMLElement;
 			const downloadBurnedBtn = document.getElementById('downloadBurnedBtn') as HTMLAnchorElement;
@@ -1455,6 +1463,17 @@ import '../styles/theme.css';
 					return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 				}
 				return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+			}
+
+			// Format duration for estimated time remaining display (human-readable)
+			function formatDuration(seconds: number): string {
+				if (seconds < 0) seconds = 0;
+				const mins = Math.floor(seconds / 60);
+				const secs = Math.floor(seconds % 60);
+				if (mins > 0) {
+					return `${mins}m ${secs}s`;
+				}
+				return `${secs}s`;
 			}
 
 			function displayTranscription(result: TranscriptionResult | null) {
@@ -1884,6 +1903,8 @@ import '../styles/theme.css';
 				burnStatus.classList.add('visible');
 				burnStatus.classList.remove('complete', 'error');
 				burnStatusText.textContent = 'Starting subtitle burn...';
+				burnEtaText.textContent = 'Calculating time remaining...';
+				burnEtaText.style.display = 'block';
 				burnProgressFill.style.width = '0%';
 				downloadBurnedBtn.style.display = 'none';
 
@@ -1929,12 +1950,24 @@ import '../styles/theme.css';
 						burnStatusText.textContent = result.message || 'Processing...';
 						burnProgressFill.style.width = `${result.progress || 0}%`;
 
+						// Display estimated time remaining if available
+						if (result.estimated_remaining_seconds !== undefined && result.estimated_remaining_seconds > 0) {
+							burnEtaText.textContent = `Estimated time remaining: ${formatDuration(result.estimated_remaining_seconds)}`;
+							burnEtaText.style.display = 'block';
+						} else if (result.status === 'processing' && result.progress < 20) {
+							burnEtaText.textContent = 'Calculating time remaining...';
+							burnEtaText.style.display = 'block';
+						} else {
+							burnEtaText.style.display = 'none';
+						}
+
 						if (result.status === 'processing') {
 							burnPollTimeout = setTimeout(poll, 2000);
 						} else if (result.status === 'complete') {
 							burnPollTimeout = null;
 							burnStatus.classList.add('complete');
 							burnStatusText.textContent = 'Subtitles burned successfully!';
+							burnEtaText.style.display = 'none';
 							burnProgressFill.style.width = '100%';
 							downloadBurnedBtn.href = `/api/videos/${currentUploadId}/burned`;
 							downloadBurnedBtn.style.display = 'inline-block';
@@ -1945,6 +1978,7 @@ import '../styles/theme.css';
 							burnPollTimeout = null;
 							burnStatus.classList.add('error');
 							burnStatusText.textContent = `Error: ${result.message}`;
+							burnEtaText.style.display = 'none';
 							burnBtn.disabled = false;
 							burnBtn.textContent = 'Retry Burn';
 							isBurning = false;
