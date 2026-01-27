@@ -893,7 +893,12 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 	}
 
 	if t.Status == "complete" {
-		segments, _ := t.GetSegments()
+		segments, err := t.GetSegments()
+		if err != nil {
+			logging.Error("Failed to get transcription segments", "transcription_id", t.ID, "video_id", t.VideoID, "error", err)
+			// Return empty segments array instead of failing completely
+			segments = []db.Segment{}
+		}
 		whisperSegments := make([]WhisperSegment, len(segments))
 		for i, s := range segments {
 			whisperSegments[i] = WhisperSegment{

@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**162 tasks completed.** All tasks from deep inspection complete.
+**163 tasks completed.** Working on deep inspection tasks.
 
 ### Recently Completed
+- ✅ Task 162: Handle GetSegments error in transcription status
+  - Fixed ignored error in `main.go:896` where `t.GetSegments()` error was discarded with `_`
+  - Now logs error with transcription_id, video_id, and returns empty segments array
+  - Updated test code in `api_test.go` to check errors explicitly with `t.Fatal`
+  - New tasks 163-166 created from deep inspection findings
 - ✅ Task 161: Add database query performance logging
   - Created `backend/db/profiler.go` with query timing wrapper
   - Logs slow queries (>100ms by default) with operation, table, duration, rows

@@ -3504,8 +3504,14 @@ func TestUpdateSegments(t *testing.T) {
 	}
 
 	// Verify update
-	transcription, _ := ts.db.GetTranscription(video.ID)
-	segments, _ := transcription.GetSegments()
+	transcription, err := ts.db.GetTranscription(video.ID)
+	if err != nil {
+		t.Fatalf("Failed to get transcription: %v", err)
+	}
+	segments, err := transcription.GetSegments()
+	if err != nil {
+		t.Fatalf("Failed to get segments: %v", err)
+	}
 
 	if segments[0].Text != "Updated text." {
 		t.Errorf("Expected 'Updated text.', got '%s'", segments[0].Text)
