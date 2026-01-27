@@ -961,16 +961,33 @@ import '../styles/theme.css';
 			let modalTriggerElement: HTMLElement | null = null;
 			let modalKeydownController: AbortController | null = null;
 
-			// Event delegation for modal segments - add a single listener to the container
+			// Event delegation for modal segments - add single listeners to the container
 			// This prevents memory leaks from repeatedly adding/removing per-element handlers
+			function activateSegment(segmentEl: HTMLElement) {
+				const start = parseFloat(segmentEl.getAttribute('data-start') || '0');
+				modalVideo.currentTime = start;
+				modalVideo.play();
+			}
+
 			modalSegments.addEventListener('click', (e) => {
 				const target = e.target as HTMLElement;
 				// Find the closest .modal-segment ancestor (handles clicks on child elements too)
 				const segmentEl = target.closest('.modal-segment') as HTMLElement | null;
 				if (segmentEl) {
-					const start = parseFloat(segmentEl.getAttribute('data-start') || '0');
-					modalVideo.currentTime = start;
-					modalVideo.play();
+					activateSegment(segmentEl);
+				}
+			});
+
+			// Keyboard support: Enter and Space activate segments
+			modalSegments.addEventListener('keydown', (e) => {
+				if (e.key !== 'Enter' && e.key !== ' ') {
+					return;
+				}
+				const target = e.target as HTMLElement;
+				const segmentEl = target.closest('.modal-segment') as HTMLElement | null;
+				if (segmentEl) {
+					e.preventDefault(); // Prevent Space from scrolling
+					activateSegment(segmentEl);
 				}
 			});
 
@@ -1101,10 +1118,12 @@ import '../styles/theme.css';
 			}
 
 			function renderModalSegments() {
-				// Render segments - click handling is done via event delegation on modalSegments
+				// Render segments - click/keyboard handling is done via event delegation on modalSegments
 				// (set up once on page load, not per-render, to prevent memory leaks)
+				// Segments have tabindex="0" and role="button" for keyboard accessibility
 				modalSegments.innerHTML = modalSubtitleSegments.map((seg, index) => `
-					<div class="modal-segment" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
+					<div class="modal-segment" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}"
+						tabindex="0" role="button" aria-label="Seek to ${formatTime(seg.start)}: ${escapeHtml(seg.text.substring(0, 50))}${seg.text.length > 50 ? '...' : ''}">
 						<div class="modal-segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
 						<div class="modal-segment-text">${escapeHtml(seg.text)}</div>
 					</div>

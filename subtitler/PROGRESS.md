@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**176 tasks completed.** Deep inspection created 12 new tasks (167-178).
+**177 tasks completed.** Deep inspection created 12 new tasks (167-178).
 
 ### Recently Completed
+- ✅ Task 173: Add keyboard support to modal segment navigation
+  - Added `tabindex="0"` and `role="button"` to segment elements
+  - Added `aria-label` with timestamp and truncated text for screen readers
+  - Added keydown handler for Enter and Space key activation
+  - Uses event delegation to prevent memory leaks
 - ✅ Task 172: Add aria-labels to video thumbnail buttons
   - Added `aria-label="Play video: {filename}"` to clickable thumbnails
   - Both img thumbnails and placeholder div thumbnails now have descriptive labels
