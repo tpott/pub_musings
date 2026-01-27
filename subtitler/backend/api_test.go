@@ -45,6 +45,7 @@ type testServer struct {
 	uploadDir            string
 	authLimiter          *ratelimit.Limiter
 	passwordResetLimiter *ratelimit.Limiter
+	downloadLimiter      *ratelimit.Limiter
 	emailService         *email.MockService
 	cleanup              func()
 }
@@ -90,6 +91,7 @@ func setupTestServer(t *testing.T) *testServer {
 		uploadDir:            uploadDir,
 		authLimiter:          ratelimit.New(5, time.Minute),
 		passwordResetLimiter: ratelimit.New(3, 15*time.Minute),
+		downloadLimiter:      ratelimit.New(30, time.Minute),
 		emailService:         email.NewMockService(),
 		cleanup: func() {
 			testDB.Close()
@@ -1147,7 +1149,7 @@ func (ts *testServer) registerHandlers() {
 	})
 
 	// Serve video file with Range request support (uses http.ServeFile which handles Range)
-	ts.mux.HandleFunc("GET /api/videos/{id}/video", func(w http.ResponseWriter, r *http.Request) {
+	ts.mux.HandleFunc("GET /api/videos/{id}/video", ts.downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
 		if uploadID == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -1172,10 +1174,10 @@ func (ts *testServer) registerHandlers() {
 
 		// http.ServeFile handles Range headers automatically for seekable files
 		http.ServeFile(w, r, video.FilePath)
-	})
+	}))
 
 	// Serve video thumbnail
-	ts.mux.HandleFunc("GET /api/videos/{id}/thumbnail", func(w http.ResponseWriter, r *http.Request) {
+	ts.mux.HandleFunc("GET /api/videos/{id}/thumbnail", ts.downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
 		if uploadID == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -1232,7 +1234,7 @@ func (ts *testServer) registerHandlers() {
 
 		// Serve the file
 		http.ServeFile(w, r, thumbPath)
-	})
+	}))
 
 	// Download SRT file
 	ts.mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
@@ -6492,4 +6494,49 @@ func TestCleanupOrphanChunkDirectoriesNoChunksDir(t *testing.T) {
 	if deletedCount != 0 {
 		t.Errorf("Expected 0 deletions when chunks dir doesn't exist, got %d", deletedCount)
 	}
+}
+
+func TestDownloadRateLimiting(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user and video
+	userID, token := ts.createTestUserWithID(t, "download-ratelimit@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Create a small downloadLimiter for testing (5 requests per minute)
+	testDownloadLimiter := ratelimit.New(5, time.Minute)
+
+	// Create a dedicated test server with the stricter limiter
+	testMux := http.NewServeMux()
+	testMux.HandleFunc("GET /api/videos/{id}/video", testDownloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, video.FilePath)
+	}))
+
+	testServer := httptest.NewServer(testMux)
+	defer testServer.Close()
+
+	// Make requests until rate limited
+	var lastResp *http.Response
+	for i := 0; i < 7; i++ {
+		req, _ := http.NewRequest("GET", testServer.URL+"/api/videos/"+video.ID+"/video", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		lastResp, _ = http.DefaultClient.Do(req)
+		if lastResp.StatusCode == http.StatusTooManyRequests {
+			break
+		}
+		lastResp.Body.Close()
+	}
+
+	// Should eventually get 429
+	if lastResp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 after exceeding rate limit, got %d", lastResp.StatusCode)
+	}
+
+	// Check Retry-After header
+	retryAfter := lastResp.Header.Get("Retry-After")
+	if retryAfter == "" {
+		t.Error("Expected Retry-After header in rate limited response")
+	}
+	lastResp.Body.Close()
 }

@@ -17,6 +17,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | **Upload** | 10 requests | 1 minute | Video upload |
 | **Transcription** | 5 requests | 1 minute | Start transcription, Reprocess |
 | **Burn** | 2 requests | 1 minute | Burn subtitles into video |
+| **Download** | 30 requests | 1 minute | Video, thumbnail, burned video downloads |
 | **Script Conversion** | 10 requests | 1 minute | Script detection, Text conversion |
 
 ## Endpoints by Category
@@ -62,6 +63,16 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | `POST /api/videos/{id}/burn` | Burn subtitles into video |
 
 **Note**: This endpoint has stricter limits because subtitle burning is CPU-intensive.
+
+### Download (30 req/min)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/videos/{id}/video` | Download original video file |
+| `GET /api/videos/{id}/thumbnail` | Download video thumbnail |
+| `GET /api/videos/{id}/burned` | Download video with burned subtitles |
+
+**Note**: These limits prevent bandwidth abuse and CPU exhaustion from repeated decryption operations.
 
 ### Script Conversion (10 req/min)
 

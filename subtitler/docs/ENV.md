@@ -11,7 +11,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `CSRF_SECRET`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
-| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
+| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
 
@@ -284,6 +284,16 @@ Rate limit for transcription requests. Consider whisper-server capacity when adj
 | Example | `BURN_RATE_LIMIT=5/min` |
 
 Rate limit for subtitle burning (CPU-intensive ffmpeg operation).
+
+### DOWNLOAD_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `30/min` |
+| Required | No |
+| Example | `DOWNLOAD_RATE_LIMIT=60/min` |
+
+Rate limit for file downloads (video, thumbnail, burned video). Prevents bandwidth abuse and CPU exhaustion from repeated decryption operations.
 
 ### SCRIPT_RATE_LIMIT
 

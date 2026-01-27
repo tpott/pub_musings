@@ -55,6 +55,8 @@ const (
 	defaultScriptRateWindow       = time.Minute
 	defaultChunkRateLimit         = 60
 	defaultChunkRateWindow        = time.Minute
+	defaultDownloadRateLimit      = 30
+	defaultDownloadRateWindow     = time.Minute
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
@@ -86,6 +88,8 @@ var (
 	scriptRateWindow       time.Duration
 	chunkRateLimit         int
 	chunkRateWindow        time.Duration
+	downloadRateLimit      int
+	downloadRateWindow     time.Duration
 
 	// Chunked upload configuration
 	chunkSize     int64
@@ -219,6 +223,7 @@ func initConfig() {
 	burnRateLimit, burnRateWindow = getEnvRateLimitOrDefault("BURN_RATE_LIMIT", defaultBurnRateLimit, defaultBurnRateWindow)
 	scriptRateLimit, scriptRateWindow = getEnvRateLimitOrDefault("SCRIPT_RATE_LIMIT", defaultScriptRateLimit, defaultScriptRateWindow)
 	chunkRateLimit, chunkRateWindow = getEnvRateLimitOrDefault("CHUNK_RATE_LIMIT", defaultChunkRateLimit, defaultChunkRateWindow)
+	downloadRateLimit, downloadRateWindow = getEnvRateLimitOrDefault("DOWNLOAD_RATE_LIMIT", defaultDownloadRateLimit, defaultDownloadRateWindow)
 
 	// Chunked upload configuration
 	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)
@@ -279,6 +284,7 @@ var transcribeLimiter *ratelimit.Limiter
 var burnLimiter *ratelimit.Limiter
 var scriptLimiter *ratelimit.Limiter
 var chunkLimiter *ratelimit.Limiter
+var downloadLimiter *ratelimit.Limiter
 
 // initRateLimiters creates rate limiters based on configuration
 // Must be called after initConfig()
@@ -290,6 +296,7 @@ func initRateLimiters() {
 	burnLimiter = ratelimit.New(burnRateLimit, burnRateWindow)
 	scriptLimiter = ratelimit.New(scriptRateLimit, scriptRateWindow)
 	chunkLimiter = ratelimit.New(chunkRateLimit, chunkRateWindow)
+	downloadLimiter = ratelimit.New(downloadRateLimit, downloadRateWindow)
 }
 
 // Global email service for transactional emails
@@ -4484,7 +4491,7 @@ func main() {
 	}))
 
 	// Serve uploaded video files for playback
-	mux.HandleFunc("GET /api/videos/{id}/video", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/videos/{id}/video", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
 		if uploadID == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -4543,10 +4550,10 @@ func main() {
 
 		// Serve the file
 		http.ServeFile(w, r, videoPath)
-	})
+	}))
 
 	// Serve video thumbnail
-	mux.HandleFunc("GET /api/videos/{id}/thumbnail", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/videos/{id}/thumbnail", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
 		if uploadID == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -4632,7 +4639,7 @@ func main() {
 
 		// Serve the file
 		http.ServeFile(w, r, thumbPath)
-	})
+	}))
 
 	// Start burning subtitles into video (rate limited: 2/min per IP)
 	// Mode: "burn" (default) hardcodes subtitles into video frames
@@ -4986,8 +4993,8 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// Download burned video
-	mux.HandleFunc("GET /api/videos/{id}/burned", func(w http.ResponseWriter, r *http.Request) {
+	// Download burned video (rate limited: 30/min per IP)
+	mux.HandleFunc("GET /api/videos/{id}/burned", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		uploadID := r.PathValue("id")
 		if uploadID == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -5074,7 +5081,7 @@ func main() {
 		// Set headers for download
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadName))
 		http.ServeFile(w, r, servePath)
-	})
+	}))
 
 	// Script detection endpoint (rate limited)
 	mux.HandleFunc("POST /api/text/detect-script", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
