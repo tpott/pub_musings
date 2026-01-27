@@ -4662,6 +4662,22 @@ func main() {
 			setCacheHeaders(w, etag, 3600) // 1 hour
 		}
 
+		// Audit log: file access
+		sessionID := r.URL.Query().Get("session_id")
+		var userID string
+		if token := auth.GetTokenFromRequest(r); token != "" {
+			if session, err := database.GetSessionByToken(token); err == nil && session != nil {
+				userID = session.UserID
+			}
+		}
+		logging.InfoContext(r.Context(), "File access: video download",
+			"file_type", "video",
+			"video_id", uploadID,
+			"user_id", userID,
+			"session_id", sessionID,
+			"client_ip", ratelimit.GetClientIP(r),
+		)
+
 		// Serve the file
 		http.ServeFile(w, r, videoPath)
 	}))
@@ -4762,6 +4778,22 @@ func main() {
 
 		// Set content type for JPEG
 		w.Header().Set("Content-Type", "image/jpeg")
+
+		// Audit log: file access
+		sessionID := r.URL.Query().Get("session_id")
+		var userID string
+		if token := auth.GetTokenFromRequest(r); token != "" {
+			if session, err := database.GetSessionByToken(token); err == nil && session != nil {
+				userID = session.UserID
+			}
+		}
+		logging.InfoContext(r.Context(), "File access: thumbnail download",
+			"file_type", "thumbnail",
+			"video_id", uploadID,
+			"user_id", userID,
+			"session_id", sessionID,
+			"client_ip", ratelimit.GetClientIP(r),
+		)
 
 		// Serve the file
 		http.ServeFile(w, r, thumbPath)
@@ -5214,6 +5246,22 @@ func main() {
 			baseName := strings.TrimSuffix(video.Filename, ext)
 			downloadName = baseName + "_subtitled.mp4"
 		}
+
+		// Audit log: file access
+		sessionID := r.URL.Query().Get("session_id")
+		var userID string
+		if token := auth.GetTokenFromRequest(r); token != "" {
+			if session, err := database.GetSessionByToken(token); err == nil && session != nil {
+				userID = session.UserID
+			}
+		}
+		logging.InfoContext(r.Context(), "File access: burned video download",
+			"file_type", "burned_video",
+			"video_id", uploadID,
+			"user_id", userID,
+			"session_id", sessionID,
+			"client_ip", ratelimit.GetClientIP(r),
+		)
 
 		// Set headers for download
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadName))
