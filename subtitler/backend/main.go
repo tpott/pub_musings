@@ -29,6 +29,7 @@ import (
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/errmsg"
 	"github.com/trevor/subtitler/backend/logging"
+	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
@@ -107,6 +108,9 @@ var (
 
 	// Subtitle font configuration
 	subtitleFont string
+
+	// Metrics API key (optional, for /metrics endpoint authentication)
+	metricsAPIKey string
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default
@@ -246,6 +250,9 @@ func initConfig() {
 	// - Noto Sans Tamil, Noto Sans Telugu, etc.
 	// Set SUBTITLE_FONT to the font path or name that supports your target scripts.
 	subtitleFont = getEnvOrDefault("SUBTITLE_FONT", "")
+
+	// Metrics API key for /metrics endpoint
+	metricsAPIKey = os.Getenv("METRICS_API_KEY")
 }
 
 // WhisperSegment represents a transcribed segment with timing
@@ -1033,6 +1040,47 @@ func main() {
 				"status": status.Status,
 			})
 		}
+	})
+
+	// Prometheus metrics endpoint
+	// Protected by API key (via METRICS_API_KEY env var) or admin authentication
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+		// Check API key first
+		apiKey := r.Header.Get("X-Metrics-API-Key")
+		if apiKey == "" {
+			apiKey = r.URL.Query().Get("api_key")
+		}
+
+		if metricsAPIKey != "" && apiKey == metricsAPIKey {
+			// Valid API key, serve metrics
+			metrics.Handler().ServeHTTP(w, r)
+			return
+		}
+
+		// Fall back to checking for admin user
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid session",
+			})
+			return
+		}
+
+		// For now, any authenticated user can view metrics
+		// TODO: Add admin role check when role system is implemented
+		metrics.Handler().ServeHTTP(w, r)
 	})
 
 	// Frontend log forwarding endpoint (for dev mode debugging)
@@ -2833,6 +2881,10 @@ func main() {
 			// Don't fail the upload, transcription record can be created later
 		}
 
+		// Record metrics
+		metrics.RecordUploadSuccess()
+		metrics.RecordUploadBytes(written)
+
 		// Return success with upload ID
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":    "success",
@@ -3435,6 +3487,10 @@ func main() {
 		}
 		os.Remove(chunksDir)
 
+		// Record metrics
+		metrics.RecordUploadSuccess()
+		metrics.RecordUploadBytes(totalWritten)
+
 		logging.InfoContext(r.Context(), "Completed chunked upload",
 			"session_id", req.UploadSessionID,
 			"upload_id", uploadID,
@@ -3613,6 +3669,8 @@ func main() {
 
 		// Process in background (capture language and key version in closure)
 		go func(lang string, kv int) {
+			transcriptionStart := time.Now()
+			metrics.RecordTranscriptionStarted()
 			logging.Info("Starting transcription", "upload_id", uploadID, "language", lang, "key_version", kv)
 
 			// Decrypt video file if encrypted
@@ -3622,6 +3680,7 @@ func main() {
 				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
+					metrics.RecordTranscriptionFailed()
 					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
 					return
 				}
@@ -3634,6 +3693,7 @@ func main() {
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
 				logging.Error("Audio extraction failed", "error", err)
+				metrics.RecordTranscriptionFailed()
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
@@ -3668,6 +3728,7 @@ func main() {
 
 			if err != nil {
 				logging.Error("Transcription failed", "error", err)
+				metrics.RecordTranscriptionFailed()
 				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
 				return
 			}
@@ -3683,8 +3744,10 @@ func main() {
 				}
 			}
 
-			// Success - save to database
-			logging.Info("Transcription complete", "upload_id", uploadID, "segment_count", len(result.Segments))
+			// Success - save to database and record metrics
+			transcriptionDuration := time.Since(transcriptionStart)
+			metrics.RecordTranscriptionCompleted(transcriptionDuration)
+			logging.Info("Transcription complete", "upload_id", uploadID, "segment_count", len(result.Segments), "duration_sec", transcriptionDuration.Seconds())
 			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
 				logging.Error("Error saving transcription result", "error", err)
 			}
@@ -4571,6 +4634,7 @@ func main() {
 				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
+					metrics.RecordTranscriptionFailed()
 					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
 					return
 				}
@@ -4583,6 +4647,7 @@ func main() {
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
 				logging.Error("Audio extraction failed", "error", err)
+				metrics.RecordTranscriptionFailed()
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
@@ -4615,6 +4680,7 @@ func main() {
 
 			if err != nil {
 				logging.Error("Transcription failed", "error", err)
+				metrics.RecordTranscriptionFailed()
 				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
 				return
 			}
@@ -5440,8 +5506,9 @@ func main() {
 	// 2. Request ID - add X-Request-ID for tracing
 	// 3. CSRF - validate CSRF tokens on state-changing requests
 	// 4. Per-user rate limiting - applies to authenticated users
+	// 5. Metrics - record request metrics for Prometheus
 	csrfMiddleware := csrf.Middleware(auth.GetTokenFromRequest)
-	handler := securityHeadersMiddleware(requestIDMiddleware(userRateLimitMiddleware(csrfMiddleware(mux))))
+	handler := metrics.MetricsMiddleware(securityHeadersMiddleware(requestIDMiddleware(userRateLimitMiddleware(csrfMiddleware(mux)))))
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		logging.Fatal("Failed to start server", "error", err)

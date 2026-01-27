@@ -350,6 +350,37 @@ Rate limit for script detection and conversion endpoints.
 
 Per-user rate limit for authenticated requests across all endpoints. Applied in addition to per-IP rate limiting. When authenticated users exceed this limit, they receive HTTP 429 with `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers. Anonymous requests are not affected (they rely on IP-based limiting).
 
+## Monitoring Configuration
+
+### METRICS_API_KEY
+
+| Property | Value |
+|----------|-------|
+| Default | (empty - requires authentication) |
+| Required | No |
+| Format | String (any secure random value) |
+| Example | `METRICS_API_KEY=your-secure-api-key-here` |
+
+API key for accessing the `/metrics` endpoint (Prometheus format). If set, requests with this key in the `X-Metrics-API-Key` header or `api_key` query parameter are allowed. If not set, authentication via user session is required.
+
+**Example usage:**
+```bash
+# With API key header
+curl -H "X-Metrics-API-Key: your-key" https://example.com/metrics
+
+# With query parameter
+curl "https://example.com/metrics?api_key=your-key"
+```
+
+**Exposed metrics:**
+- `http_requests_total` - HTTP requests by method, path, and status
+- `http_request_duration_seconds` - Request duration histogram
+- `transcription_total` - Transcription jobs by status (started/completed/failed)
+- `transcription_duration_seconds` - Transcription duration histogram
+- `active_sessions_total` - Current active user sessions
+- `uploads_bytes_total` - Total bytes uploaded
+- `uploads_total` - Upload count by status (success/failed)
+
 ## Maintenance Configuration
 
 ### DB_MAINTENANCE_INTERVAL
