@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**160 tasks completed.** 2 tasks pending from deep inspection.
+**161 tasks completed.** 1 task pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 160: Create metrics dashboard documentation
+  - Created comprehensive `docs/METRICS.md` documenting all 7 Prometheus metrics
+  - Included 20+ PromQL queries for traffic, latency, transcription, uploads
+  - Added Prometheus alert rules for errors, latency, queue backlog
+  - Added capacity planning section with baseline metrics and scaling indicators
+  - Recommended Grafana dashboard layout with panel descriptions
 - ✅ Task 159: Enhance SECURITY_EVENTS.md with monitoring examples
   - Added 8 journalctl commands for filtering security events
   - Added Prometheus alert rules for brute force, lockouts, rate limits, admin access
