@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**211 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**212 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**211 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**212 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 210: Backend - Add graceful shutdown with signal handling
+  - Added `shutdownCtx` and `shutdownCancel` for signaling background goroutines to stop
+  - Created `http.Server` with `Shutdown()` method instead of `ListenAndServe`
+  - Added signal handling for SIGTERM and SIGINT
+  - Updated `startCleanupScheduler()` and `startMaintenanceScheduler()` to exit on shutdown
+  - Default shutdown timeout of 30 seconds
+  - Added `TestShutdownContextCancellation` test
+
 - Task 209: Backend - Create respondError helper function
   - Created `httputil.RespondError(w, statusCode, message)` and `httputil.RespondErrorf(w, statusCode, format, args...)`
   - Helper sets Content-Type header and writes JSON error response in one call

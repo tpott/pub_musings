@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -376,6 +377,16 @@ var emailService email.EmailService
 
 // Global CAPTCHA verifier for bot protection
 var captchaVerifier captcha.Verifier
+
+// Shutdown context for graceful shutdown
+// Background goroutines should use this context to know when to stop
+var shutdownCtx context.Context
+var shutdownCancel context.CancelFunc
+
+// Graceful shutdown configuration
+const (
+	defaultShutdownTimeout = 30 * time.Second // Time allowed for graceful shutdown
+)
 
 // Global audio extractor for video processing
 var audioExtractor audio.Extractor
@@ -5626,6 +5637,10 @@ func main() {
 		})
 	}))
 
+	// Initialize shutdown context for graceful shutdown
+	// This context is used by background goroutines to know when to exit
+	shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
+
 	// Start the cleanup scheduler for expired videos
 	go startCleanupScheduler()
 
@@ -5643,13 +5658,49 @@ func main() {
 	csrfMiddleware := csrf.Middleware(auth.GetTokenFromRequest)
 	handler := metrics.MetricsMiddleware(securityHeadersMiddleware(requestIDMiddleware(userRateLimitMiddleware(csrfMiddleware(mux)))))
 
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		logging.Fatal("Failed to start server", "error", err)
+	// Create HTTP server with graceful shutdown support
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler,
 	}
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start server in a goroutine
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logging.Fatal("Failed to start server", "error", err)
+		}
+	}()
+
+	logging.Info("Server started successfully")
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	logging.Info("Received shutdown signal", "signal", sig.String())
+
+	// Initiate graceful shutdown
+	shutdownCancel() // Signal background goroutines to stop
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	defer cancel()
+
+	logging.Info("Shutting down server", "timeout", defaultShutdownTimeout)
+
+	// Gracefully shutdown the HTTP server
+	if err := server.Shutdown(ctx); err != nil {
+		logging.Error("Server shutdown error", "error", err)
+	}
+
+	logging.Info("Server shutdown complete")
 }
 
 // startCleanupScheduler runs periodic cleanup of expired videos.
 // Anonymous videos are deleted after 48 hours, registered user videos after 90 days.
+// The scheduler exits when shutdownCtx is cancelled.
 func startCleanupScheduler() {
 	// Run cleanup immediately on startup, then every hour
 	runCleanup()
@@ -5657,8 +5708,14 @@ func startCleanupScheduler() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		runCleanup()
+	for {
+		select {
+		case <-shutdownCtx.Done():
+			logging.Info("Cleanup scheduler shutting down")
+			return
+		case <-ticker.C:
+			runCleanup()
+		}
 	}
 }
 
@@ -5831,6 +5888,7 @@ func cleanupOrphanChunkDirectoriesWithDB(database *db.DB, baseUploadDir string) 
 // startMaintenanceScheduler runs periodic database maintenance (VACUUM and ANALYZE).
 // Set DB_MAINTENANCE_INTERVAL environment variable to configure interval (default: 24h).
 // Set to "0" or "disabled" to disable maintenance.
+// The scheduler exits when shutdownCtx is cancelled.
 func startMaintenanceScheduler() {
 	if dbMaintenanceInterval <= 0 {
 		logging.Info("Database maintenance scheduler disabled")
@@ -5842,8 +5900,14 @@ func startMaintenanceScheduler() {
 	ticker := time.NewTicker(dbMaintenanceInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		runDatabaseMaintenance()
+	for {
+		select {
+		case <-shutdownCtx.Done():
+			logging.Info("Maintenance scheduler shutting down")
+			return
+		case <-ticker.C:
+			runDatabaseMaintenance()
+		}
 	}
 }
 

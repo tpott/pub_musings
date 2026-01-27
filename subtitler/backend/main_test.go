@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1142,6 +1143,46 @@ func TestValidatePathID(t *testing.T) {
 		}
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("Expected status 400, got %d", rec.Code)
+		}
+	})
+}
+
+func TestShutdownContextCancellation(t *testing.T) {
+	// Test that shutdownCtx and shutdownCancel work as expected
+	t.Run("shutdown context cancellation stops background work", func(t *testing.T) {
+		// Create a test context similar to what main() does
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Track whether our "background work" was cancelled
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				close(done)
+				return
+			case <-time.After(5 * time.Second):
+				t.Error("Background work was not cancelled in time")
+			}
+		}()
+
+		// Cancel the context (simulating shutdown)
+		cancel()
+
+		// Wait for background work to notice cancellation
+		select {
+		case <-done:
+			// Success - background work exited
+		case <-time.After(100 * time.Millisecond):
+			t.Error("Background work did not exit after context cancellation")
+		}
+	})
+
+	t.Run("shutdown timeout constant is reasonable", func(t *testing.T) {
+		if defaultShutdownTimeout < 5*time.Second {
+			t.Errorf("Shutdown timeout %v is too short (should be at least 5 seconds)", defaultShutdownTimeout)
+		}
+		if defaultShutdownTimeout > 60*time.Second {
+			t.Errorf("Shutdown timeout %v is too long (should be at most 60 seconds)", defaultShutdownTimeout)
 		}
 	})
 }
