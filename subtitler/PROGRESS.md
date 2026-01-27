@@ -138,15 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**197 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
+**198 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
 
-### Pending Tasks (198-201)
+### Pending Tasks (199-201)
 - Task 198: Add aria-label to delete confirmation buttons (accessibility)
 - Task 199: Add database query context timeouts
 - Task 200: Validate zero-size file uploads
 - Task 201: Create ERROR_CODES.md with all API error codes
 
 ### Recently Completed (2026-01-27)
+- ✅ Task 198: Add aria-label to delete confirmation buttons
+  - Added `aria-label="Delete segment ${n}"` to segment delete buttons in upload.astro
+  - videos.astro already had proper aria-label for video delete buttons
+
 - ✅ Task 197: Add tests for chunked upload edge cases
   - Added 7 new tests: out-of-order chunks, gap in sequence, negative index,
     zero-size file, missing session ID, nonexistent session, no chunk data

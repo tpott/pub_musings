@@ -2285,7 +2285,7 @@ import '../styles/theme.css';
 								<div class="time-error" id="time-error-end-${index}" data-type="end" data-index="${index}" role="alert"></div>
 								<textarea class="segment-textarea" data-index="${index}">${escapeHtml(seg.text)}</textarea>
 								<div class="segment-actions">
-									<button class="segment-delete-btn" data-index="${index}">Delete</button>
+									<button class="segment-delete-btn" data-index="${index}" aria-label="Delete segment ${index + 1}">Delete</button>
 								</div>
 							</div>
 						</div>
