@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**156 tasks completed.** 2 tasks pending from deep inspection.
+**157 tasks completed.** 1 task pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 152: Add security event audit logging
+  - Created `backend/security/events.go` package for consistent audit logging
+  - 30+ event types covering: auth, 2FA, sessions, access control, rate limits
+  - Added callbacks to ratelimit package for violation logging
+  - Updated all auth handlers with security events
+  - Created `docs/SECURITY_EVENTS.md` with monitoring recommendations
+  - 15 unit tests for security package
 - ✅ Task 155: Create production security hardening checklist (docs)
   - Created comprehensive `docs/SECURITY_CHECKLIST.md` with 10 categories
   - Covers: server hardening, env var security, database, encryption, network, rate limiting, monitoring, backup, access control, dependencies
@@ -168,7 +175,6 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
-- Task 152: Add security event audit logging
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:

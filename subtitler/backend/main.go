@@ -33,6 +33,7 @@ import (
 	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
+	"github.com/trevor/subtitler/backend/security"
 	"github.com/trevor/subtitler/backend/totp"
 	"github.com/trevor/subtitler/backend/validation"
 )
@@ -321,6 +322,21 @@ func initRateLimiters() {
 	downloadLimiter = ratelimit.New(downloadRateLimit, downloadRateWindow)
 	metricsLimiter = ratelimit.New(metricsRateLimit, metricsRateWindow)
 	userLimiter = ratelimit.NewUserLimiter(userRateLimit, userRateWindow)
+
+	// Set up rate limit security event logging
+	ratelimit.OnLimitExceeded = func(r *http.Request, ip string, endpoint string) {
+		if endpoint == "" {
+			endpoint = r.URL.Path
+		}
+		security.RateLimitExceeded(r.Context(), ip, endpoint, "ip")
+	}
+	ratelimit.OnUserLimitExceeded = func(r *http.Request, userID string, endpoint string) {
+		if endpoint == "" {
+			endpoint = r.URL.Path
+		}
+		ip := ratelimit.GetClientIP(r)
+		security.RateLimitExceeded(r.Context(), ip, endpoint, "user:"+userID)
+	}
 }
 
 // Global email service for transactional emails
@@ -1288,7 +1304,8 @@ func main() {
 			logging.ErrorContext(r.Context(), "Error sending verification email", "error", err)
 		}
 
-		logging.InfoContext(r.Context(), "New user registered (pending verification)", "email", user.Email)
+		clientIP := ratelimit.GetClientIP(r)
+		security.Registration(r.Context(), clientIP, user.ID, user.Email)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":            "Account created. Please check your email to verify your account.",
@@ -1333,7 +1350,7 @@ func main() {
 		// Skip CAPTCHA for TOTP code submission (user already passed CAPTCHA on initial login)
 		if captchaVerifier.IsEnabled() && req.TOTPCode == "" {
 			if err := captchaVerifier.Verify(r.Context(), req.CaptchaToken, clientIP); err != nil {
-				logging.WarnContext(r.Context(), "CAPTCHA verification failed", "error", err, "ip", clientIP)
+				security.LoginFailedCaptcha(r.Context(), clientIP, err.Error())
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "CAPTCHA verification failed. Please try again.",
@@ -1349,6 +1366,7 @@ func main() {
 		}
 		if locked {
 			remainingMins := int(time.Until(unlockTime).Minutes()) + 1
+			security.LoginFailedLocked(r.Context(), clientIP, req.Email, remainingMins)
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"error":           "Too many failed login attempts. Please try again later.",
@@ -1376,6 +1394,7 @@ func main() {
 		}
 		if user == nil {
 			recordFailure()
+			security.LoginFailedUserNotFound(r.Context(), clientIP, req.Email)
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid email or password",
@@ -1386,6 +1405,13 @@ func main() {
 		// Check password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
 			recordFailure()
+			// Get current attempt count for logging (includes the one we just recorded)
+			attempts, _ := database.GetRecentFailedLoginAttempts(req.Email, time.Now().Add(-loginLockDuration))
+			security.LoginFailedPassword(r.Context(), clientIP, req.Email, attempts)
+			// Check if this attempt caused a lockout
+			if attempts >= maxLoginAttempts {
+				security.AccountLocked(r.Context(), clientIP, req.Email, attempts)
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid email or password",
@@ -1395,6 +1421,7 @@ func main() {
 
 		// Check if email is verified
 		if !user.EmailVerified {
+			security.LoginFailedUnverified(r.Context(), clientIP, req.Email)
 			w.WriteHeader(http.StatusForbidden)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"error":                   "Please verify your email address before logging in",
@@ -1420,12 +1447,14 @@ func main() {
 			// Validate the TOTP code
 			if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.TOTPCode) {
 				recordFailure()
+				security.TwoFAVerifyFailed(r.Context(), clientIP, user.ID, user.Email)
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Invalid 2FA code",
 				})
 				return
 			}
+			security.TwoFAVerifySuccess(r.Context(), clientIP, user.ID, user.Email)
 		}
 
 		// Login successful - clear failed attempts for this email
@@ -1448,7 +1477,8 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
-		logging.InfoContext(r.Context(), "User logged in", "user_id", user.ID, "email", user.Email)
+		security.LoginSuccess(r.Context(), clientIP, user.ID, user.Email)
+		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
 				"id":           user.ID,
@@ -1463,14 +1493,23 @@ func main() {
 	// Auth: Logout
 	mux.HandleFunc("POST /api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		clientIP := ratelimit.GetClientIP(r)
 
 		token := auth.GetTokenFromRequest(r)
+		var userID string
 		if token != "" {
+			// Get user ID before deleting session for audit logging
+			if user, _, err := auth.ValidateSession(database, token); err == nil && user != nil {
+				userID = user.ID
+			}
 			if err := database.DeleteSession(token); err != nil {
 				logging.ErrorContext(r.Context(), "Error deleting session", "error", err)
 			}
 		}
 
+		if userID != "" {
+			security.Logout(r.Context(), clientIP, userID)
+		}
 		auth.ClearSessionCookie(w)
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -1655,6 +1694,9 @@ func main() {
 			return
 		}
 
+		clientIP := ratelimit.GetClientIP(r)
+		security.SessionRevoked(r.Context(), clientIP, user.ID, sessionID, false)
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":  "success",
 			"message": "Session revoked",
@@ -1786,7 +1828,9 @@ func main() {
 		}
 
 		// Validate the code
+		clientIP := ratelimit.GetClientIP(r)
 		if !totp.Validate(*user.TOTPSecret, req.Code) {
+			security.TwoFAVerifyFailed(r.Context(), clientIP, user.ID, user.Email)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid code. Please try again.",
@@ -1830,7 +1874,7 @@ func main() {
 			return
 		}
 
-		logging.InfoContext(r.Context(), "2FA enabled for user", "email", user.Email, "recovery_codes_count", len(recoveryCodes))
+		security.TwoFAEnabled(r.Context(), clientIP, user.ID, user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":        "2FA has been enabled successfully",
 			"totp_enabled":   true,
@@ -1894,7 +1938,9 @@ func main() {
 		}
 
 		// Validate the TOTP code
+		clientIP := ratelimit.GetClientIP(r)
 		if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.Code) {
+			security.TwoFAVerifyFailed(r.Context(), clientIP, user.ID, user.Email)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid 2FA code",
@@ -1918,7 +1964,7 @@ func main() {
 			// Continue - 2FA is disabled even if codes couldn't be deleted
 		}
 
-		logging.InfoContext(r.Context(), "2FA disabled for user", "email", user.Email)
+		security.TwoFADisabled(r.Context(), clientIP, user.ID, user.Email, false)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":      "2FA has been disabled successfully",
 			"totp_enabled": false,
@@ -2027,7 +2073,9 @@ func main() {
 			}
 		}
 
+		clientIP := ratelimit.GetClientIP(r)
 		if matchedCodeID == "" {
+			security.RecoveryCodeFailed(r.Context(), clientIP, req.Email)
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid recovery code",
@@ -2057,7 +2105,6 @@ func main() {
 		}
 
 		// Create a new session with IP and user agent
-		clientIP := ratelimit.GetClientIP(r)
 		userAgent := r.Header.Get("User-Agent")
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
@@ -2072,7 +2119,9 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
-		logging.InfoContext(r.Context(), "2FA disabled via recovery code", "email", user.Email)
+		security.RecoveryCodeUsed(r.Context(), clientIP, user.ID, user.Email)
+		security.TwoFADisabled(r.Context(), clientIP, user.ID, user.Email, true)
+		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":      "2FA has been disabled. Please set up 2FA again if you want to re-enable it.",
 			"token":        session.Token,
@@ -2222,14 +2271,15 @@ func main() {
 		}()
 
 		// Look up user (don't reveal if exists)
+		clientIP := ratelimit.GetClientIP(r)
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error looking up user for password reset", "error", err)
 			return
 		}
 		if user == nil {
-			// User doesn't exist - return success anyway
-			logging.DebugContext(r.Context(), "Password reset requested for non-existent email", "email", req.Email)
+			// User doesn't exist - log for security monitoring, return success anyway
+			security.PasswordResetRequested(r.Context(), clientIP, req.Email, false)
 			return
 		}
 
@@ -2258,7 +2308,7 @@ func main() {
 			return
 		}
 
-		logging.InfoContext(r.Context(), "Password reset email sent", "email", user.Email)
+		security.PasswordResetRequested(r.Context(), clientIP, user.Email, true)
 	}))
 
 	// Auth: Reset password - completes password reset with token
@@ -2308,7 +2358,9 @@ func main() {
 		}
 
 		// Check if token exists and is valid
+		clientIP := ratelimit.GetClientIP(r)
 		if resetToken == nil {
+			security.PasswordResetFailed(r.Context(), clientIP, "token_not_found")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid or expired reset token",
@@ -2318,6 +2370,7 @@ func main() {
 
 		// Check if token is used or expired
 		if resetToken.Used || time.Now().After(resetToken.ExpiresAt) {
+			security.PasswordResetFailed(r.Context(), clientIP, "token_expired_or_used")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid or expired reset token",
@@ -2350,7 +2403,7 @@ func main() {
 			return
 		}
 
-		logging.InfoContext(r.Context(), "Password reset successful", "user_id", resetToken.UserID)
+		security.PasswordResetSuccess(r.Context(), clientIP, resetToken.UserID)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Password has been reset successfully. Please log in with your new password.",
 		})

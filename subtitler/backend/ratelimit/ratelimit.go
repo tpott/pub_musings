@@ -160,13 +160,30 @@ func (l *Limiter) GetLimit() int {
 	return l.limit
 }
 
+// RateLimitCallback is called when a rate limit is exceeded.
+// Parameters: context, IP, endpoint name
+type RateLimitCallback func(r *http.Request, ip string, endpoint string)
+
+// OnLimitExceeded is called when a rate limit is exceeded. Set this to add
+// custom logging for rate limit violations.
+var OnLimitExceeded RateLimitCallback
+
 // Wrap returns a middleware that rate-limits requests to the given handler.
 // If rate limited, responds with 429 Too Many Requests.
 func (l *Limiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
+	return l.WrapNamed("", next)
+}
+
+// WrapNamed returns a middleware that rate-limits requests with a named endpoint.
+// The endpoint name is used for logging/metrics when rate limits are exceeded.
+func (l *Limiter) WrapNamed(endpoint string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := GetClientIP(r)
 
 		if !l.Allow(ip) {
+			if OnLimitExceeded != nil {
+				OnLimitExceeded(r, ip, endpoint)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -214,12 +231,21 @@ func (ul *UserLimiter) GetLimit() int {
 // It should return the user ID if authenticated, or empty string if not.
 type UserRateLimitFunc func(r *http.Request) string
 
+// OnUserLimitExceeded is called when a per-user rate limit is exceeded.
+// Parameters: request, user ID, endpoint name
+var OnUserLimitExceeded func(r *http.Request, userID string, endpoint string)
+
 // WrapWithUserLimit returns a middleware that applies per-user rate limiting.
 // It uses the provided function to extract the user ID from the request.
 // If the user is not authenticated (empty userID), the request is allowed through
 // without per-user rate limiting (IP-based limiting should be applied separately).
 // Headers X-RateLimit-Limit and X-RateLimit-Remaining are added to responses.
 func (ul *UserLimiter) WrapWithUserLimit(getUserID UserRateLimitFunc, next http.HandlerFunc) http.HandlerFunc {
+	return ul.WrapWithUserLimitNamed("", getUserID, next)
+}
+
+// WrapWithUserLimitNamed returns a middleware that applies per-user rate limiting with a named endpoint.
+func (ul *UserLimiter) WrapWithUserLimitNamed(endpoint string, getUserID UserRateLimitFunc, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := getUserID(r)
 
@@ -234,6 +260,9 @@ func (ul *UserLimiter) WrapWithUserLimit(getUserID UserRateLimitFunc, next http.
 		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(ul.GetLimit()))
 
 		if !ul.AllowUser(userID) {
+			if OnUserLimitExceeded != nil {
+				OnUserLimitExceeded(r, userID, endpoint)
+			}
 			remaining := ul.RemainingUser(userID)
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 			w.Header().Set("Content-Type", "application/json")
