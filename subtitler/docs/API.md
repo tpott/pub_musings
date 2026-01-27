@@ -84,6 +84,7 @@ All error responses return a JSON object with an `error` field:
 - [Password Reset](#password-reset)
 - [Session Management](#session-management)
 - [Videos](#videos)
+- [Chunked Upload](#chunked-upload)
 - [Transcription](#transcription)
 - [Subtitles](#subtitles)
 - [Script Conversion](#script-conversion)
@@ -1140,6 +1141,297 @@ curl -X POST http://localhost:8080/api/videos/abc123/reprocess \
 # Anonymous user with session
 curl -X POST "http://localhost:8080/api/videos/abc123/reprocess?session_id=your-session"
 ```
+
+---
+
+## Chunked Upload
+
+For files larger than 50MB, use chunked uploads to ensure reliable uploads through Cloudflare's 100MB request limit and enable resumability for interrupted uploads.
+
+### When to Use Chunked Upload
+
+- Files **> 50MB**: Use chunked upload
+- Files **≤ 50MB**: Use standard `POST /api/upload`
+
+The frontend automatically selects the appropriate method.
+
+### Upload Flow
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│ 1. Initialize Session                                                  │
+│    POST /api/upload/init                                              │
+│    Returns: upload_session_id, total_chunks, chunk_size               │
+└───────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ 2. Upload Chunks (repeat for each chunk)                              │
+│    POST /api/upload/chunk                                             │
+│    Send: upload_session_id, chunk_index, chunk data                   │
+│    Returns: progress percentage                                       │
+└───────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│ 3. Complete Upload                                                     │
+│    POST /api/upload/complete                                          │
+│    Server reassembles, validates, encrypts, creates video record      │
+│    Returns: upload_id (same as standard upload response)              │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### POST /api/upload/init
+
+Initialize a chunked upload session.
+
+**Authentication**: Optional (affects upload limits)
+**Rate Limit**: 10 requests per minute per IP
+
+**Request Body**:
+```json
+{
+  "filename": "my_video.mp4",
+  "size": 157286400,
+  "content_type": "video/mp4",
+  "chunk_size": 52428800
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `filename` | string | Yes | Original filename |
+| `size` | integer | Yes | Total file size in bytes (must be > 0) |
+| `content_type` | string | Yes | MIME type (must be valid video type) |
+| `chunk_size` | integer | No | Chunk size (default: 50MB, min: 5MB) |
+
+**Query Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `session_id` | string | Anonymous session ID for tracking uploads |
+
+**Response** `200 OK`:
+```json
+{
+  "upload_session_id": "abc123def456...",
+  "chunk_size": 52428800,
+  "total_chunks": 3,
+  "expires_at": "2026-01-27T18:00:00Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `upload_session_id` | Unique session ID for subsequent requests |
+| `chunk_size` | Confirmed chunk size to use |
+| `total_chunks` | Number of chunks to upload |
+| `expires_at` | Session expiry time (24 hours from creation) |
+
+**Errors**:
+- `400 Bad Request`: Invalid MIME type, size exceeds limit, missing required fields, or size is 0
+- `403 Forbidden`: Anonymous upload limit reached (2 per session)
+- `429 Too Many Requests`: Rate limit exceeded
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/upload/init \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_token_here" \
+  -d '{
+    "filename": "large_video.mp4",
+    "size": 157286400,
+    "content_type": "video/mp4"
+  }'
+```
+
+---
+
+### POST /api/upload/chunk
+
+Upload a single chunk of the file.
+
+**Authentication**: Not required (uses upload_session_id for tracking)
+**Rate Limit**: 60 requests per minute per IP
+
+**Request**: `multipart/form-data`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `upload_session_id` | string | Yes | Session ID from init |
+| `chunk_index` | integer | Yes | 0-based chunk index |
+| `chunk` | file | Yes | Chunk data |
+
+**Response** `200 OK`:
+```json
+{
+  "chunk_index": 0,
+  "received_bytes": 52428800,
+  "total_received": 52428800,
+  "progress": 33
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `chunk_index` | Confirmed chunk index |
+| `received_bytes` | Bytes received for this chunk |
+| `total_received` | Total bytes received so far |
+| `progress` | Overall upload progress (0-100) |
+
+**Errors**:
+- `400 Bad Request`: Invalid chunk index, size mismatch, or missing fields
+- `404 Not Found`: Upload session not found or expired
+- `409 Conflict`: Chunk already uploaded (for duplicate requests, returns success)
+- `429 Too Many Requests`: Rate limit exceeded
+
+**Notes**:
+- Chunks can be uploaded in any order
+- Duplicate chunk uploads are idempotent (safe to retry)
+- Last chunk may be smaller than `chunk_size`
+
+**Example**:
+```bash
+# Upload first chunk (index 0)
+curl -X POST http://localhost:8080/api/upload/chunk \
+  -F "upload_session_id=abc123def456" \
+  -F "chunk_index=0" \
+  -F "chunk=@chunk_0.bin"
+
+# Upload second chunk (index 1)
+curl -X POST http://localhost:8080/api/upload/chunk \
+  -F "upload_session_id=abc123def456" \
+  -F "chunk_index=1" \
+  -F "chunk=@chunk_1.bin"
+```
+
+---
+
+### POST /api/upload/complete
+
+Complete the upload after all chunks are received.
+
+**Authentication**: Not required (uses upload_session_id)
+**Rate Limit**: 10 requests per minute per IP
+
+**Request Body**:
+```json
+{
+  "upload_session_id": "abc123def456..."
+}
+```
+
+**Response** `200 OK`:
+```json
+{
+  "status": "success",
+  "upload_id": "xyz789...",
+  "filename": "large_video.mp4",
+  "size": 157286400,
+  "message": "File uploaded successfully (157286400 bytes)"
+}
+```
+
+The response format matches the standard `POST /api/upload` response for compatibility.
+
+**Errors**:
+- `400 Bad Request`: Missing chunks, session not found, or validation failed
+- `404 Not Found`: Upload session not found or expired
+- `500 Internal Server Error`: File reassembly or processing failed
+
+**Processing Steps**:
+1. Verify all chunks received
+2. Reassemble chunks into final file
+3. Validate video with ffprobe
+4. Encrypt file (if encryption enabled)
+5. Generate thumbnail
+6. Create database records
+7. Clean up chunk files
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/upload/complete \
+  -H "Content-Type: application/json" \
+  -d '{"upload_session_id": "abc123def456..."}'
+```
+
+---
+
+### GET /api/upload/status/{session_id}
+
+Check upload session status for resumability.
+
+**Authentication**: Not required
+**Rate Limit**: 30 requests per minute per IP
+
+**Response** `200 OK`:
+```json
+{
+  "upload_session_id": "abc123def456...",
+  "filename": "large_video.mp4",
+  "total_size": 157286400,
+  "total_chunks": 3,
+  "received_chunks": [0, 1],
+  "received_bytes": 104857600,
+  "progress": 66,
+  "status": "in_progress",
+  "expires_at": "2026-01-27T18:00:00Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `upload_session_id` | Session ID |
+| `filename` | Original filename |
+| `total_size` | Total file size in bytes |
+| `total_chunks` | Total number of chunks expected |
+| `received_chunks` | Array of received chunk indices |
+| `received_bytes` | Total bytes received so far |
+| `progress` | Overall upload progress (0-100) |
+| `status` | `in_progress`, `complete`, or `expired` |
+| `expires_at` | Session expiry time |
+
+**Errors**:
+- `404 Not Found`: Session not found or expired
+
+**Example**:
+```bash
+curl http://localhost:8080/api/upload/status/abc123def456
+```
+
+---
+
+### Resuming an Interrupted Upload
+
+To resume an interrupted upload:
+
+1. **Check session status**:
+```bash
+curl http://localhost:8080/api/upload/status/abc123def456
+```
+
+2. **Identify missing chunks** from `received_chunks` array
+
+3. **Upload only missing chunks**:
+```bash
+# If chunks 0 and 1 are received, upload chunk 2
+curl -X POST http://localhost:8080/api/upload/chunk \
+  -F "upload_session_id=abc123def456" \
+  -F "chunk_index=2" \
+  -F "chunk=@chunk_2.bin"
+```
+
+4. **Complete the upload**:
+```bash
+curl -X POST http://localhost:8080/api/upload/complete \
+  -H "Content-Type: application/json" \
+  -d '{"upload_session_id": "abc123def456"}'
+```
+
+### Session Expiration
+
+- Sessions expire **24 hours** after creation
+- Expired sessions and their chunks are automatically cleaned up
+- If a session expires, start a new upload from the beginning
 
 ---
 

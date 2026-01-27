@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**201 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201), all now complete.
+**202 tasks completed.** Fifth deep inspection (2026-01-27) identified 9 new improvement tasks (202-210).
 
 ### Recently Completed (2026-01-27)
+- ✅ Task 202: Add chunked upload endpoints to API.md
+  - Added full documentation for POST /api/upload/init, POST /api/upload/chunk,
+    POST /api/upload/complete, GET /api/upload/status/{session_id}
+  - Includes request/response schemas, error codes, example curl commands
+  - Added flow diagram and resume instructions for interrupted uploads
+  - Updated table of contents with Chunked Upload section
+
 - ✅ Task 201: Create ERROR_CODES.md with all API error codes
   - Created docs/ERROR_CODES.md (189 lines) with comprehensive documentation
   - Covers HTTP status codes, error response format, all error categories
