@@ -138,7 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**194 tasks completed.** All tasks from third deep inspection completed.
+**194 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
+
+### Pending Tasks (195-201)
+- Task 195: Add RFC 5987 encoding for Content-Disposition filenames
+- Task 196: Add io.LimitReader to whisper response reading (memory safety)
+- Task 197: Add tests for chunked upload edge cases
+- Task 198: Add aria-label to delete confirmation buttons (accessibility)
+- Task 199: Add database query context timeouts
+- Task 200: Validate zero-size file uploads
+- Task 201: Create ERROR_CODES.md with all API error codes
 
 ### Recently Completed (2026-01-27)
 - ✅ Task 194: Improve error wrapping consistency in db.go
