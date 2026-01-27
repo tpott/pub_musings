@@ -138,10 +138,9 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**195 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
+**196 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
 
-### Pending Tasks (196-201)
-- Task 196: Add io.LimitReader to whisper response reading (memory safety)
+### Pending Tasks (197-201)
 - Task 197: Add tests for chunked upload edge cases
 - Task 198: Add aria-label to delete confirmation buttons (accessibility)
 - Task 199: Add database query context timeouts
@@ -149,6 +148,11 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Task 201: Create ERROR_CODES.md with all API error codes
 
 ### Recently Completed (2026-01-27)
+- ✅ Task 196: Add io.LimitReader to whisper response reading
+  - Added `maxWhisperResponseSize = 100 MB` constant
+  - Wrapped `io.ReadAll(resp.Body)` with `io.LimitReader()` for memory safety
+  - Prevents memory exhaustion from malformed whisper-server responses
+
 - ✅ Task 195: Add RFC 5987 encoding for Content-Disposition filenames
   - Created `backend/httputil` package with `ContentDisposition()` function
   - Implements RFC 5987 with ASCII fallback + `filename*=UTF-8''` encoding

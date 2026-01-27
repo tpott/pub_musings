@@ -77,8 +77,9 @@ const (
 	defaultDBMaintenanceInterval = 24 * time.Hour // Run VACUUM and ANALYZE daily
 
 	// Whisper transcription defaults
-	defaultWhisperThreads = 4                // Number of threads for whisper-cli
-	defaultWhisperTimeout = 30 * time.Minute // Timeout for whisper-server requests
+	defaultWhisperThreads  = 4                // Number of threads for whisper-cli
+	defaultWhisperTimeout  = 30 * time.Minute // Timeout for whisper-server requests
+	maxWhisperResponseSize = 100 << 20        // 100 MB max response from whisper-server (prevents memory exhaustion)
 )
 
 // Configuration values loaded from environment
@@ -732,8 +733,8 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 		}
 		defer resp.Body.Close()
 
-		// Read response
-		respBody, err = io.ReadAll(resp.Body)
+		// Read response with size limit to prevent memory exhaustion from malformed responses
+		respBody, err = io.ReadAll(io.LimitReader(resp.Body, maxWhisperResponseSize))
 		if err != nil {
 			lastErr = err
 			if attempt < maxRetries-1 {
