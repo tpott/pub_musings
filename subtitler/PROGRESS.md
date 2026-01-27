@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**207 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**208 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 206: Backend - Add chunk count validation before assembly
+  - Already implemented at main.go:3528-3542 (CountUploadChunks validation)
+  - Test exists: TestChunkedUploadCompleteIncomplete at api_test.go:7203
+  - Returns 400 with "Not all chunks received. Expected X, got Y" if chunks missing
+
 - Task 205: SECURITY - Sanitize whisper error messages before sending to client
   - Modified `dbTranscriptionToStatus()` to sanitize error messages
   - When status is "error" and verbose mode is off, returns user-friendly message
