@@ -138,13 +138,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**145 tasks completed.** 5 remaining from deep code inspection.
+**146 tasks completed.** 4 remaining from deep code inspection.
 
 ### Recently Completed
-- ✅ Task 145: Disaster recovery documentation - Created comprehensive docs/DISASTER_RECOVERY.md with: encryption key loss (unrecoverable), database corruption recovery, server failure procedures, whisper server recovery, backup verification checklist, and backup script example. Updated specs/deployment.md to reference the new doc.
+- ✅ Task 146: Per-user rate limiting - Added UserLimiter to ratelimit package with AllowUser, RemainingUser methods. Implemented userRateLimitMiddleware that applies per-user rate limits (60 req/min default, configurable via USER_RATE_LIMIT env var). Returns 429 with X-RateLimit-Limit and X-RateLimit-Remaining headers. Anonymous requests pass through to IP-based limiting. Added 6 comprehensive tests. Documentation added to docs/ENV.md.
 
 ### Pending Tasks (from deep inspection 2026-01-26)
-- Task 146: Per-user rate limiting (security hardening)
 - Task 147: Prometheus metrics endpoint (monitoring/observability)
 - Task 148: Implement evaluation framework (validate accuracy claims)
 - Task 149: Estimated time remaining for transcription (UX)

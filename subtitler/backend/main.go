@@ -60,6 +60,8 @@ const (
 	defaultChunkRateWindow        = time.Minute
 	defaultDownloadRateLimit      = 30
 	defaultDownloadRateWindow     = time.Minute
+	defaultUserRateLimit          = 60
+	defaultUserRateWindow         = time.Minute
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
@@ -93,6 +95,8 @@ var (
 	chunkRateWindow        time.Duration
 	downloadRateLimit      int
 	downloadRateWindow     time.Duration
+	userRateLimit          int
+	userRateWindow         time.Duration
 
 	// Chunked upload configuration
 	chunkSize     int64
@@ -227,6 +231,7 @@ func initConfig() {
 	scriptRateLimit, scriptRateWindow = getEnvRateLimitOrDefault("SCRIPT_RATE_LIMIT", defaultScriptRateLimit, defaultScriptRateWindow)
 	chunkRateLimit, chunkRateWindow = getEnvRateLimitOrDefault("CHUNK_RATE_LIMIT", defaultChunkRateLimit, defaultChunkRateWindow)
 	downloadRateLimit, downloadRateWindow = getEnvRateLimitOrDefault("DOWNLOAD_RATE_LIMIT", defaultDownloadRateLimit, defaultDownloadRateWindow)
+	userRateLimit, userRateWindow = getEnvRateLimitOrDefault("USER_RATE_LIMIT", defaultUserRateLimit, defaultUserRateWindow)
 
 	// Chunked upload configuration
 	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)
@@ -288,6 +293,7 @@ var burnLimiter *ratelimit.Limiter
 var scriptLimiter *ratelimit.Limiter
 var chunkLimiter *ratelimit.Limiter
 var downloadLimiter *ratelimit.Limiter
+var userLimiter *ratelimit.UserLimiter
 
 // initRateLimiters creates rate limiters based on configuration
 // Must be called after initConfig()
@@ -300,6 +306,7 @@ func initRateLimiters() {
 	scriptLimiter = ratelimit.New(scriptRateLimit, scriptRateWindow)
 	chunkLimiter = ratelimit.New(chunkRateLimit, chunkRateWindow)
 	downloadLimiter = ratelimit.New(downloadRateLimit, downloadRateWindow)
+	userLimiter = ratelimit.NewUserLimiter(userRateLimit, userRateWindow)
 }
 
 // Global email service for transactional emails
@@ -313,6 +320,21 @@ var audioExtractor audio.Extractor
 
 // Global path validator for file serving security
 var pathValidator *pathvalidator.Validator
+
+// getUserIDFromRequest extracts the user ID from the request if authenticated.
+// Returns empty string if not authenticated or session is invalid.
+// This is used for per-user rate limiting.
+func getUserIDFromRequest(r *http.Request) string {
+	token := auth.GetTokenFromRequest(r)
+	if token == "" {
+		return ""
+	}
+	user, _, err := auth.ValidateSession(database, token)
+	if err != nil || user == nil {
+		return ""
+	}
+	return user.ID
+}
 
 // generateRequestID creates a unique request ID for tracing
 func generateRequestID() string {
@@ -344,6 +366,39 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 		logging.InfoContext(ctx, "Request received", "method", r.Method, "path", r.URL.Path)
 
 		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
+// userRateLimitMiddleware applies per-user rate limiting for authenticated requests.
+// It adds X-RateLimit-Limit and X-RateLimit-Remaining headers to responses.
+// Anonymous requests are allowed through (they rely on IP-based rate limiting).
+func userRateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserIDFromRequest(r)
+
+		// If not authenticated, skip per-user rate limiting
+		if userID == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Add rate limit headers
+		w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", userLimiter.GetLimit()))
+
+		if !userLimiter.AllowUser(userID) {
+			remaining := userLimiter.RemainingUser(userID)
+			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"error":"Rate limit exceeded. Please try again later."}`))
+			return
+		}
+
+		remaining := userLimiter.RemainingUser(userID)
+		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -5384,8 +5439,9 @@ func main() {
 	// 1. Security headers - add CSP and other security headers
 	// 2. Request ID - add X-Request-ID for tracing
 	// 3. CSRF - validate CSRF tokens on state-changing requests
+	// 4. Per-user rate limiting - applies to authenticated users
 	csrfMiddleware := csrf.Middleware(auth.GetTokenFromRequest)
-	handler := securityHeadersMiddleware(requestIDMiddleware(csrfMiddleware(mux)))
+	handler := securityHeadersMiddleware(requestIDMiddleware(userRateLimitMiddleware(csrfMiddleware(mux))))
 
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		logging.Fatal("Failed to start server", "error", err)

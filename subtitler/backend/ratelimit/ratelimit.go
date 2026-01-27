@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -131,6 +132,34 @@ func GetClientIP(r *http.Request) string {
 	return ip
 }
 
+// Remaining returns the number of remaining requests allowed for the given key.
+func (l *Limiter) Remaining(key string) int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	now := time.Now()
+	cutoff := now.Add(-l.window)
+
+	requests := l.requests[key]
+	var count int
+	for _, t := range requests {
+		if t.After(cutoff) {
+			count++
+		}
+	}
+
+	remaining := l.limit - count
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+// GetLimit returns the configured limit for this limiter.
+func (l *Limiter) GetLimit() int {
+	return l.limit
+}
+
 // Wrap returns a middleware that rate-limits requests to the given handler.
 // If rate limited, responds with 429 Too Many Requests.
 func (l *Limiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
@@ -144,6 +173,78 @@ func (l *Limiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
 			w.Write([]byte(`{"error":"Too many requests. Please try again later."}`))
 			return
 		}
+
+		next(w, r)
+	}
+}
+
+// UserLimiter provides per-user rate limiting for authenticated requests.
+// It uses user ID as the key for authenticated users and falls back to IP for anonymous users.
+type UserLimiter struct {
+	limiter *Limiter
+}
+
+// NewUserLimiter creates a new per-user rate limiter with the specified limit and window.
+// Example: NewUserLimiter(60, time.Minute) allows 60 requests per minute per user.
+func NewUserLimiter(limit int, window time.Duration) *UserLimiter {
+	return &UserLimiter{
+		limiter: New(limit, window),
+	}
+}
+
+// AllowUser checks if the given user ID is allowed to make another request.
+// Returns true if under the limit, false if rate limited.
+func (ul *UserLimiter) AllowUser(userID string) bool {
+	key := "user:" + userID
+	return ul.limiter.Allow(key)
+}
+
+// RemainingUser returns the number of remaining requests for the given user ID.
+func (ul *UserLimiter) RemainingUser(userID string) int {
+	key := "user:" + userID
+	return ul.limiter.Remaining(key)
+}
+
+// GetLimit returns the configured limit for this limiter.
+func (ul *UserLimiter) GetLimit() int {
+	return ul.limiter.GetLimit()
+}
+
+// UserRateLimitFunc is a function type for extracting user ID from a request.
+// It should return the user ID if authenticated, or empty string if not.
+type UserRateLimitFunc func(r *http.Request) string
+
+// WrapWithUserLimit returns a middleware that applies per-user rate limiting.
+// It uses the provided function to extract the user ID from the request.
+// If the user is not authenticated (empty userID), the request is allowed through
+// without per-user rate limiting (IP-based limiting should be applied separately).
+// Headers X-RateLimit-Limit and X-RateLimit-Remaining are added to responses.
+func (ul *UserLimiter) WrapWithUserLimit(getUserID UserRateLimitFunc, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := getUserID(r)
+
+		// If not authenticated, skip per-user rate limiting
+		// (IP-based limiting should be applied separately)
+		if userID == "" {
+			next(w, r)
+			return
+		}
+
+		// Add rate limit headers
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(ul.GetLimit()))
+
+		if !ul.AllowUser(userID) {
+			remaining := ul.RemainingUser(userID)
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"error":"Rate limit exceeded. Please try again later."}`))
+			return
+		}
+
+		remaining := ul.RemainingUser(userID)
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 
 		next(w, r)
 	}

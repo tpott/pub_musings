@@ -359,3 +359,149 @@ func TestWrapDifferentIPs(t *testing.T) {
 		t.Errorf("IP 2 first request: expected 200, got %d", w3.Code)
 	}
 }
+
+// --- UserLimiter tests ---
+
+func TestNewUserLimiter(t *testing.T) {
+	ul := NewUserLimiter(60, time.Minute)
+	if ul == nil {
+		t.Fatal("expected user limiter to be created")
+	}
+	if ul.GetLimit() != 60 {
+		t.Errorf("expected limit 60, got %d", ul.GetLimit())
+	}
+}
+
+func TestUserLimiterAllowUser(t *testing.T) {
+	ul := NewUserLimiter(5, time.Minute)
+	userID := "user123"
+
+	// Should allow 5 requests
+	for i := 0; i < 5; i++ {
+		if !ul.AllowUser(userID) {
+			t.Errorf("request %d should be allowed", i+1)
+		}
+	}
+
+	// 6th request should be denied
+	if ul.AllowUser(userID) {
+		t.Error("6th request should be denied")
+	}
+}
+
+func TestUserLimiterDifferentUsers(t *testing.T) {
+	ul := NewUserLimiter(2, time.Minute)
+
+	// User 1 uses up limit
+	ul.AllowUser("user1")
+	ul.AllowUser("user1")
+	if ul.AllowUser("user1") {
+		t.Error("user1 should be rate limited")
+	}
+
+	// User 2 should still be allowed
+	if !ul.AllowUser("user2") {
+		t.Error("user2 should be allowed")
+	}
+}
+
+func TestUserLimiterRemaining(t *testing.T) {
+	ul := NewUserLimiter(5, time.Minute)
+	userID := "user123"
+
+	// Initially should have 5 remaining
+	if remaining := ul.RemainingUser(userID); remaining != 5 {
+		t.Errorf("expected 5 remaining, got %d", remaining)
+	}
+
+	// After one request, should have 4 remaining
+	ul.AllowUser(userID)
+	if remaining := ul.RemainingUser(userID); remaining != 4 {
+		t.Errorf("expected 4 remaining, got %d", remaining)
+	}
+
+	// Use up all remaining
+	for i := 0; i < 4; i++ {
+		ul.AllowUser(userID)
+	}
+
+	// Should have 0 remaining
+	if remaining := ul.RemainingUser(userID); remaining != 0 {
+		t.Errorf("expected 0 remaining, got %d", remaining)
+	}
+}
+
+func TestUserLimiterWrapWithUserLimit(t *testing.T) {
+	ul := NewUserLimiter(2, time.Minute)
+	called := 0
+
+	// Mock function that returns user ID
+	getUserID := func(r *http.Request) string {
+		return r.Header.Get("X-User-ID")
+	}
+
+	handler := ul.WrapWithUserLimit(getUserID, func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Create request with user ID
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-User-ID", "user123")
+
+	// First two requests should succeed
+	for i := 0; i < 2; i++ {
+		w := httptest.NewRecorder()
+		handler(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("request %d: expected status 200, got %d", i+1, w.Code)
+		}
+		// Check rate limit headers are set
+		if w.Header().Get("X-RateLimit-Limit") != "2" {
+			t.Errorf("expected X-RateLimit-Limit header to be 2, got %s", w.Header().Get("X-RateLimit-Limit"))
+		}
+	}
+
+	// Third request should be rate limited
+	w := httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("expected status 429, got %d", w.Code)
+	}
+	if called != 2 {
+		t.Errorf("expected handler to be called 2 times, got %d", called)
+	}
+	// Check remaining header shows 0
+	if w.Header().Get("X-RateLimit-Remaining") != "0" {
+		t.Errorf("expected X-RateLimit-Remaining header to be 0, got %s", w.Header().Get("X-RateLimit-Remaining"))
+	}
+}
+
+func TestUserLimiterSkipsAnonymous(t *testing.T) {
+	ul := NewUserLimiter(1, time.Minute)
+	called := 0
+
+	// Mock function that returns empty string for anonymous
+	getUserID := func(r *http.Request) string {
+		return "" // No user ID = anonymous
+	}
+
+	handler := ul.WrapWithUserLimit(getUserID, func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Anonymous requests should not be rate limited by user limiter
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest("GET", "/test", nil)
+		w := httptest.NewRecorder()
+		handler(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("request %d: expected status 200, got %d", i+1, w.Code)
+		}
+	}
+
+	if called != 5 {
+		t.Errorf("expected handler to be called 5 times, got %d", called)
+	}
+}

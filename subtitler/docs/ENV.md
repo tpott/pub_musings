@@ -11,7 +11,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
-| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
+| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `USER_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
 
@@ -339,6 +339,16 @@ Rate limit for file downloads (video, thumbnail, burned video). Prevents bandwid
 | Example | `SCRIPT_RATE_LIMIT=20/min` |
 
 Rate limit for script detection and conversion endpoints.
+
+### USER_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `60/min` |
+| Required | No |
+| Example | `USER_RATE_LIMIT=120/min` |
+
+Per-user rate limit for authenticated requests across all endpoints. Applied in addition to per-IP rate limiting. When authenticated users exceed this limit, they receive HTTP 429 with `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers. Anonymous requests are not affected (they rely on IP-based limiting).
 
 ## Maintenance Configuration
 
