@@ -1251,15 +1251,24 @@ curl -o subtitles.json http://localhost:8080/api/videos/abc123/subtitles.json
 
 ### POST /api/videos/{id}/burn
 
-Start burning subtitles into video file.
+Start embedding subtitles into video file.
 
 **Authentication**: Not required
+
+**Query Parameters**:
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `mode` | string | `burn` | Embedding mode: `burn` or `embed` |
+
+**Modes**:
+- `burn`: Hardcode subtitles into video frames. Slower (re-encodes video), but subtitles are always visible on any player.
+- `embed`: Create soft subtitle track. Much faster (no re-encoding), subtitles can be toggled on/off by player. May not work on all players.
 
 **Response** `200 OK` (started):
 ```json
 {
   "status": "processing",
-  "message": "Subtitle burn started",
+  "message": "Burning subtitles into video...",
   "progress": 0
 }
 ```
@@ -1274,12 +1283,16 @@ Start burning subtitles into video file.
 ```
 
 **Errors**:
-- `400 Bad Request`: Transcription not complete
+- `400 Bad Request`: Transcription not complete, or invalid mode
 - `404 Not Found`: Video or transcription not found
 
-**Example**:
+**Examples**:
 ```bash
+# Burn subtitles into video (slower, always visible)
 curl -X POST http://localhost:8080/api/videos/abc123/burn
+
+# Embed soft subtitle track (faster, toggleable)
+curl -X POST "http://localhost:8080/api/videos/abc123/burn?mode=embed"
 ```
 
 ---

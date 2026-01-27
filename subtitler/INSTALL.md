@@ -167,6 +167,49 @@ curl http://127.0.0.1:8765/health
 
 ## Optional Dependencies
 
+### Fonts for Indic Script Support (Hindi, Tamil, Telugu, etc.)
+
+When burning subtitles into video, FFmpeg needs fonts that support the character set being used. For Indic scripts (Devanagari, Tamil, Telugu, etc.), you need to install appropriate fonts.
+
+**Ubuntu/Debian:**
+```bash
+# Install Noto fonts (comprehensive Unicode coverage)
+sudo apt-get install -y fonts-noto fonts-noto-cjk fonts-noto-extra
+
+# Or install specific Indic fonts
+sudo apt-get install -y fonts-noto-core fonts-indic
+```
+
+**macOS:**
+- Noto fonts are not included by default
+- Download from https://fonts.google.com/noto
+- Or install via Homebrew: `brew install font-noto-sans-devanagari` (requires `brew tap homebrew/cask-fonts`)
+
+**Configure the subtitle font:**
+Set the `SUBTITLE_FONT` environment variable to a font that supports your target scripts:
+
+```bash
+# Use a specific font file
+export SUBTITLE_FONT="/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+
+# Or use a font name (fontconfig will resolve it)
+export SUBTITLE_FONT="Noto Sans Devanagari"
+```
+
+**Verify fonts are installed:**
+```bash
+# List fonts supporting Hindi
+fc-list :lang=hi
+
+# List all Noto fonts
+fc-list | grep -i noto
+```
+
+**Why this matters:**
+- Without proper fonts, non-Latin characters appear as empty boxes (□) in burned subtitles
+- The downloadable SRT/VTT files are not affected (they contain the text correctly)
+- Only the "burn into video" feature requires the fonts
+
 ### SQLite3 (usually pre-installed)
 
 The backend uses SQLite for data storage. It's typically pre-installed on most systems.

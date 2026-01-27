@@ -13,6 +13,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `CSRF_SECRET`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
+| Subtitles | `SUBTITLE_FONT` |
 
 ## Server Configuration
 
@@ -306,6 +307,34 @@ Rate limit for script detection and conversion endpoints.
 | Example | `DB_MAINTENANCE_INTERVAL=12h` |
 
 Interval for automatic SQLite maintenance (VACUUM and ANALYZE). Set to `0` or `disabled` to disable.
+
+## Subtitle Configuration
+
+### SUBTITLE_FONT
+
+| Property | Value |
+|----------|-------|
+| Default | (empty - uses system default) |
+| Required | No |
+| Format | Font name or path |
+| Example | `SUBTITLE_FONT=Noto Sans Devanagari` |
+
+Font to use when burning subtitles into video. Required for proper rendering of non-Latin scripts like Hindi (Devanagari), Tamil, Telugu, etc.
+
+**Font name:** Use the font family name as recognized by fontconfig:
+```bash
+SUBTITLE_FONT="Noto Sans Devanagari"
+```
+
+**Font path:** Use the full path to a font file:
+```bash
+SUBTITLE_FONT="/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+```
+
+**Why this is needed:**
+- Without this setting, non-Latin characters may appear as boxes (□) in burned subtitles
+- The downloaded SRT/VTT files contain the correct text - only the burn feature is affected
+- Install fonts that support your target scripts (see INSTALL.md for details)
 
 ## Configuration Examples
 

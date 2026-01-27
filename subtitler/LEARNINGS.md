@@ -470,3 +470,57 @@ if (csrfToken) {
 3. The browser's `textContent → innerHTML` trick is an effective way to escape HTML
 4. Regular code audits should search for innerHTML, eval, and other dangerous patterns
 5. Consider using a shared utility to avoid duplicating escapeHtml across files
+
+---
+
+### 2026-01-26: FFmpeg subtitle embedding - burn vs embed modes
+
+**Problem:** User reported burning subtitles into video was very slow.
+
+**Investigation:** The original implementation used `-vf subtitles` filter which re-encodes the entire video frame by frame. This is slow but produces subtitles that are always visible and work on any player.
+
+**Solution:** Added two modes to the burn endpoint:
+1. **burn** (default): Uses `-vf subtitles` to hardcode subtitles into video frames. Slow but universal.
+2. **embed**: Uses `-c:s mov_text` to create a soft subtitle track. Fast because it just copies video/audio streams without re-encoding.
+
+```bash
+# Burn mode (slow, ~1x video duration, subtitles always visible)
+ffmpeg -i input.mp4 -vf "subtitles='subs.srt'" output.mp4
+
+# Embed mode (fast, ~seconds, subtitles can be toggled)
+ffmpeg -i input.mp4 -i subs.srt -c:v copy -c:a copy -c:s mov_text output.mp4
+```
+
+**Lesson:**
+1. `-c:v copy -c:a copy` avoids re-encoding - huge speed improvement
+2. `-c:s mov_text` is the subtitle codec for MP4 containers
+3. Soft subtitles can be toggled on/off by the player, but may not work on all players
+4. Always provide both options - some users need speed, others need universal compatibility
+5. Consider user feedback as task suggestions - this was exactly what the user needed
+
+---
+
+### 2026-01-26: FFmpeg font configuration for Indic scripts
+
+**Problem:** User reported Hindi subtitles showed as empty boxes (□) in burned videos.
+
+**Root cause:** FFmpeg's subtitles filter uses system fonts via fontconfig. Without fonts that support Devanagari (and other Indic scripts), characters are rendered as missing glyph boxes.
+
+**Solution:** Added `SUBTITLE_FONT` environment variable:
+1. If set, adds `FontName=<font>` to the ffmpeg subtitles filter style
+2. Users must install appropriate fonts (e.g., Noto Sans Devanagari)
+3. Documented font installation in INSTALL.md
+
+```go
+subtitleStyle := "FontSize=24,PrimaryColour=&HFFFFFF,..."
+if subtitleFont != "" {
+    subtitleStyle = fmt.Sprintf("FontName=%s,%s", subtitleFont, subtitleStyle)
+}
+```
+
+**Lesson:**
+1. Font support is essential for international text - test with non-Latin scripts
+2. Noto fonts provide excellent Unicode coverage for many scripts
+3. The problem only affects burned subtitles - SRT/VTT downloads contain correct text
+4. Make font configuration optional (don't break existing users)
+5. Document font requirements clearly - not everyone knows they need Indic fonts

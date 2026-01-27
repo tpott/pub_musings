@@ -138,17 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**126 tasks completed!**
+**129 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 132: Soft subtitles option - Added `mode=embed` parameter to burn endpoint for fast soft subtitle embedding. Uses `-c:s mov_text` which copies streams instead of re-encoding. Much faster than burn mode.
+- ✅ Task 133: Devanagari font rendering - Added `SUBTITLE_FONT` environment variable for configuring fonts in burned subtitles. Required for proper rendering of Hindi, Tamil, Telugu and other Indic scripts.
 - ✅ Task 125: XSS protection - Added escapeHtml utility function and tests. Verified all innerHTML usages properly escape user content (filenames, segment text, IP addresses).
-- ✅ Task 120: Encryption key rotation support - MultiKeyEncryptor supports versioned keys, videos track their key version, CLI tool for rotation and re-encryption. Zero-downtime rotation with gradual re-encryption.
-- ✅ Task 118: CAPTCHA protection for registration and login - hCaptcha integration with optional enable via environment variables (`CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY`). Disabled by default for development.
-- ✅ Task 119: Password complexity requirements - passwords now require uppercase, lowercase, number, and special character
-- ✅ Task 123: Document whisper model selection - large-v3-turbo recommended (6x faster than large-v3, slightly better accuracy)
+- ✅ Task 120: Encryption key rotation support - MultiKeyEncryptor supports versioned keys, videos track their key version, CLI tool for rotation and re-encryption.
+- ✅ Task 118: CAPTCHA protection for registration and login - hCaptcha integration with optional enable via environment variables.
 
 ### Pending Tasks
-Tasks 124-131 added for future work (see TASKS.jsonl).
+Tasks 124, 126-131 for future work (see TASKS.jsonl).
 
 See `TASKS.jsonl` for details.
 

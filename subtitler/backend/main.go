@@ -93,6 +93,9 @@ var (
 
 	// Database maintenance configuration
 	dbMaintenanceInterval time.Duration
+
+	// Subtitle font configuration
+	subtitleFont string
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default
@@ -223,6 +226,13 @@ func initConfig() {
 
 	// Database maintenance configuration
 	dbMaintenanceInterval = getEnvDurationOrDefault("DB_MAINTENANCE_INTERVAL", defaultDBMaintenanceInterval)
+
+	// Subtitle font configuration
+	// For proper Indic script rendering (Hindi, Tamil, etc.), install fonts like:
+	// - Noto Sans Devanagari (for Hindi, Marathi, Sanskrit)
+	// - Noto Sans Tamil, Noto Sans Telugu, etc.
+	// Set SUBTITLE_FONT to the font path or name that supports your target scripts.
+	subtitleFont = getEnvOrDefault("SUBTITLE_FONT", "")
 }
 
 // WhisperSegment represents a transcribed segment with timing
@@ -4505,6 +4515,8 @@ func main() {
 	})
 
 	// Start burning subtitles into video (rate limited: 2/min per IP)
+	// Mode: "burn" (default) hardcodes subtitles into video frames
+	//       "embed" creates soft subtitle track (much faster, no re-encoding)
 	mux.HandleFunc("POST /api/videos/{id}/burn", burnLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -4513,6 +4525,20 @@ func main() {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Upload ID required",
+			})
+			return
+		}
+
+		// Parse burn mode: "burn" (hardcode into video) or "embed" (soft subtitle track)
+		// Default is "burn" for backwards compatibility
+		burnMode := r.URL.Query().Get("mode")
+		if burnMode == "" {
+			burnMode = "burn"
+		}
+		if burnMode != "burn" && burnMode != "embed" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid mode - must be 'burn' or 'embed'",
 			})
 			return
 		}
@@ -4603,9 +4629,9 @@ func main() {
 			database.UpdateBurnJobStatus(uploadID, "processing", "Starting subtitle burn...", 0)
 		}
 
-		// Process in background (capture key version)
-		go func(kv int) {
-			logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", kv)
+		// Process in background (capture key version and burn mode)
+		go func(kv int, mode string) {
+			logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", kv, "mode", mode)
 
 			// Decrypt video if encrypted
 			workingVideoPath := videoPath
@@ -4657,18 +4683,47 @@ func main() {
 			}
 			defer os.Remove(srtPath)
 
-			database.UpdateBurnJobStatus(uploadID, "processing", "Burning subtitles into video...", 20)
+			progressMsg := "Burning subtitles into video..."
+			if mode == "embed" {
+				progressMsg = "Embedding subtitle track..."
+			}
+			database.UpdateBurnJobStatus(uploadID, "processing", progressMsg, 20)
 
-			// Burn subtitles using ffmpeg with subtitles filter
 			// Output to a temp file first, then encrypt
 			outputPath := filepath.Join(uploadDir, uploadID+"_burned.mp4")
-			cmd := exec.Command("ffmpeg",
-				"-i", workingVideoPath,
-				"-vf", fmt.Sprintf("subtitles='%s':force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'", srtPath),
-				"-c:a", "copy",
-				"-y",
-				outputPath,
-			)
+
+			var cmd *exec.Cmd
+			if mode == "embed" {
+				// Embed mode: Create soft subtitle track (much faster, no re-encoding)
+				// Uses mov_text codec which is compatible with MP4/MOV containers
+				// Subtitles can be toggled on/off by the player
+				cmd = exec.Command("ffmpeg",
+					"-i", workingVideoPath,
+					"-i", srtPath,
+					"-c:v", "copy", // Copy video stream (no re-encoding)
+					"-c:a", "copy", // Copy audio stream (no re-encoding)
+					"-c:s", "mov_text", // Embed subtitles as text track
+					"-y",
+					outputPath,
+				)
+			} else {
+				// Burn mode: Hardcode subtitles into video frames (slower, re-encodes video)
+				// Build subtitle style with optional font for Indic script support
+				// FontName is added if SUBTITLE_FONT env var is set, enabling proper rendering
+				// of Hindi, Tamil, Telugu and other scripts that require specific fonts
+				subtitleStyle := "FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2"
+				if subtitleFont != "" {
+					subtitleStyle = fmt.Sprintf("FontName=%s,%s", subtitleFont, subtitleStyle)
+				}
+
+				cmd = exec.Command("ffmpeg",
+					"-i", workingVideoPath,
+					"-vf", fmt.Sprintf("subtitles='%s':force_style='%s'", srtPath, subtitleStyle),
+					"-c:a", "copy",
+					"-y",
+					outputPath,
+				)
+			}
 
 			// Start progress update goroutine for burn operation
 			// FFmpeg doesn't provide progress callbacks, so we simulate progress
@@ -4677,8 +4732,13 @@ func main() {
 			go func() {
 				// Use video duration to estimate tick interval
 				// Shorter videos = shorter intervals, longer videos = longer intervals
-				// Estimate burn time as ~1x video duration for re-encoding
+				// Embed mode is much faster (no re-encoding), burn mode takes ~1x video duration
 				estimatedBurnTime := transcription.Duration
+				if mode == "embed" {
+					// Embed mode is fast - just copying streams plus adding subtitle track
+					// Estimate ~5-10 seconds for most videos
+					estimatedBurnTime = 10
+				}
 				if estimatedBurnTime < 10 {
 					estimatedBurnTime = 10 // Minimum 10 seconds
 				}
@@ -4696,6 +4756,7 @@ func main() {
 				ticker := time.NewTicker(tickInterval)
 				defer ticker.Stop()
 				progress := 20
+				statusMsg := progressMsg
 				for {
 					select {
 					case <-burnProgressDone:
@@ -4703,7 +4764,7 @@ func main() {
 					case <-ticker.C:
 						if progress < 85 {
 							progress += 5
-							database.UpdateBurnJobStatus(uploadID, "processing", "Burning subtitles into video...", progress)
+							database.UpdateBurnJobStatus(uploadID, "processing", statusMsg, progress)
 						}
 					}
 				}
@@ -4730,9 +4791,9 @@ func main() {
 			}
 			os.Remove(outputPath) // Remove unencrypted file
 
-			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion)
+			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion, "mode", mode)
 			database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion)
-		}(keyVersion)
+		}(keyVersion, burnMode)
 
 		// Return immediately with processing status
 		json.NewEncoder(w).Encode(map[string]interface{}{
