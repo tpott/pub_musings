@@ -79,6 +79,7 @@ All error responses return a JSON object with an `error` field:
 - [Health](#health)
 - [Debug](#debug)
 - [Authentication](#authentication-endpoints)
+- [Magic Link (Passwordless)](#magic-link-passwordless-authentication)
 - [Two-Factor Authentication (2FA)](#two-factor-authentication-2fa)
 - [Password Reset](#password-reset)
 - [Session Management](#session-management)
@@ -390,6 +391,146 @@ curl -X POST http://localhost:8080/api/auth/logout \
 - CSRF tokens are derived from session tokens using HMAC-SHA256
 - Tokens remain valid as long as the session is valid
 - Exempt endpoints (no CSRF required): login, register, forgot-password, reset-password
+
+---
+
+## Magic Link (Passwordless) Authentication
+
+Magic link authentication allows users to log in without entering their password. A secure, single-use link is sent to the user's email address.
+
+### Authentication Flow
+
+```
+┌──────────┐     POST /api/auth/magic-link      ┌──────────┐
+│  User    │ ─────────────────────────────────► │  Server  │
+│          │   { email: "user@example.com" }    │          │
+└──────────┘                                    └──────────┘
+                                                      │
+                                                      ▼
+                                               ┌──────────┐
+                                               │  Email   │
+                                               │  Sent    │
+                                               └──────────┘
+                                                      │
+                                                      ▼
+┌──────────┐       Click link in email         ┌──────────┐
+│  User    │ ◄──────────────────────────────── │  Email   │
+│          │   /magic-link?token=abc123...     │  Inbox   │
+└──────────┘                                   └──────────┘
+      │
+      ▼
+┌──────────┐  GET /api/auth/magic-link/verify  ┌──────────┐
+│ Frontend │ ─────────────────────────────────►│  Server  │
+│          │     ?token=abc123...              │          │
+└──────────┘                                   └──────────┘
+      │                                              │
+      │                              ┌───────────────┘
+      ▼                              ▼
+┌──────────────────────────────────────────────────────────┐
+│                Session Cookie Set                        │
+│                   User Logged In                         │
+└──────────────────────────────────────────────────────────┘
+```
+
+### POST /api/auth/magic-link
+
+Request a magic link login email.
+
+**Authentication**: Not required
+**Rate Limited**: Yes (3 per 15 minutes per IP - same as password reset)
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `email` | string | Yes | Valid email format |
+
+**Response** `200 OK`:
+```json
+{
+  "message": "If an account exists with that email, a login link has been sent."
+}
+```
+
+**Note**: This endpoint always returns a success response regardless of whether the email exists. This prevents attackers from using it to enumerate valid email addresses.
+
+**Requirements for Magic Link**:
+- Account must exist
+- Email must be verified
+
+If either condition is not met, the endpoint still returns success but no email is sent.
+
+**Errors**:
+- `400 Bad Request`: Invalid email format
+- `429 Too Many Requests`: Rate limit exceeded
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/auth/magic-link \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+---
+
+### GET /api/auth/magic-link/verify
+
+Verify a magic link token and log the user in. Creates a new session.
+
+**Authentication**: Not required
+**Rate Limited**: Yes (5/min per IP)
+
+**Query Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Token from the magic link email |
+
+**Response** `200 OK`:
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "id": "abc123...",
+    "email": "user@example.com"
+  }
+}
+```
+
+A session cookie is also set in the response headers.
+
+**Errors**:
+- `400 Bad Request`: Token is missing, invalid, expired, or already used
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Server error during verification
+
+**Example**:
+```bash
+# Typically called by the frontend when user clicks the magic link
+curl "http://localhost:8080/api/auth/magic-link/verify?token=abc123def456..."
+```
+
+---
+
+### Magic Link Security
+
+| Property | Value | Description |
+|----------|-------|-------------|
+| Token length | 32 bytes (64 hex chars) | Sufficient entropy for security |
+| Token storage | SHA-256 hash | Raw token never stored |
+| Expiry | 15 minutes | Short window for security |
+| Usage | Single-use | Token invalidated after first use |
+| 2FA bypass | Yes | Magic link proves email access |
+
+**Important Notes**:
+- Magic links bypass 2FA because email access proves the user's identity
+- Tokens can only be used once - clicking the link twice will fail
+- Links expire after 15 minutes - request a new one if expired
+- The frontend page at `/magic-link?token=...` handles the verification automatically
 
 ---
 

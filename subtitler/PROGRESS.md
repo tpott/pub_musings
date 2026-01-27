@@ -138,15 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**147 tasks completed.** 3 remaining from deep code inspection.
+**148 tasks completed.** 2 remaining from deep code inspection.
 
 ### Recently Completed
-- ✅ Task 147: Prometheus metrics endpoint - Created backend/metrics package with Prometheus client library. Added /metrics endpoint protected by API key (METRICS_API_KEY) or user auth. Implemented MetricsMiddleware for HTTP request tracking. Metrics: http_requests_total, http_request_duration_seconds, transcription_total/duration, active_sessions_total, uploads_bytes_total. 8 tests pass. Documentation added to docs/ENV.md.
+- ✅ Task 150: Document magic link auth in API.md - Added comprehensive documentation for POST /api/auth/magic-link and GET /api/auth/magic-link/verify endpoints. Includes ASCII flow diagram, request/response schemas, error codes, rate limits, security properties table, and curl examples. Added section to Table of Contents.
 
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 148: Implement evaluation framework (validate accuracy claims)
 - Task 149: Estimated time remaining for transcription (UX)
-- Task 150: Document magic link auth in API.md (documentation gap)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:
