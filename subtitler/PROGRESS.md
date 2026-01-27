@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**163 tasks completed.** Working on deep inspection tasks.
+**164 tasks completed.** Working on deep inspection tasks.
 
 ### Recently Completed
+- ✅ Task 163: Make whisper parameters configurable
+  - Added `WHISPER_THREADS` (default 4) for whisper-cli thread count
+  - Added `WHISPER_TEMPERATURE` (default 0.0) for whisper-server temperature
+  - Added `WHISPER_TIMEOUT` (default 30m) for whisper-server request timeout
+  - Added `getEnvIntOrDefault()` helper function for int env vars
+  - Updated docs/ENV.md with all new environment variables
 - ✅ Task 162: Handle GetSegments error in transcription status
   - Fixed ignored error in `main.go:896` where `t.GetSegments()` error was discarded with `_`
   - Now logs error with transcription_id, video_id, and returns empty segments array

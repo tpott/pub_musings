@@ -8,7 +8,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 |----------|-----------|
 | Server | `PORT` |
 | Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `MAX_UPLOAD_SIZE` |
-| Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
+| Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL`, `WHISPER_THREADS`, `WHISPER_TEMPERATURE`, `WHISPER_TIMEOUT` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Admin | `INITIAL_ADMIN_EMAIL` |
@@ -106,6 +106,37 @@ Set to `true` to use whisper-server with the default URL. Not needed if `WHISPER
 | Example | `WHISPER_MODEL=/path/to/ggml-large-v3-turbo.bin` |
 
 Path to the Whisper model file. Only used in CLI mode (when server mode is disabled).
+
+### WHISPER_THREADS
+
+| Property | Value |
+|----------|-------|
+| Default | `4` |
+| Required | No |
+| Example | `WHISPER_THREADS=8` |
+
+Number of threads for whisper-cli to use during transcription. Only applies to CLI mode. Increase for faster transcription on multi-core systems. Decrease to limit CPU usage.
+
+### WHISPER_TEMPERATURE
+
+| Property | Value |
+|----------|-------|
+| Default | `0.0` |
+| Required | No |
+| Example | `WHISPER_TEMPERATURE=0.2` |
+
+Temperature parameter for Whisper transcription (server mode only). Lower values (0.0) give more deterministic output. Higher values (0.2-0.5) can help with challenging audio but may reduce accuracy.
+
+### WHISPER_TIMEOUT
+
+| Property | Value |
+|----------|-------|
+| Default | `30m` (30 minutes) |
+| Required | No |
+| Format | Go duration format (e.g., `30m`, `1h`, `45m30s`) |
+| Example | `WHISPER_TIMEOUT=1h` |
+
+Timeout for whisper-server HTTP requests (server mode only). Long videos may require extended timeouts. If transcription fails with timeout errors, increase this value.
 
 ## Email Configuration
 

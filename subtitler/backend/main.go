@@ -73,6 +73,10 @@ const (
 
 	// Database maintenance defaults
 	defaultDBMaintenanceInterval = 24 * time.Hour // Run VACUUM and ANALYZE daily
+
+	// Whisper transcription defaults
+	defaultWhisperThreads = 4                // Number of threads for whisper-cli
+	defaultWhisperTimeout = 30 * time.Minute // Timeout for whisper-server requests
 )
 
 // Configuration values loaded from environment
@@ -116,6 +120,11 @@ var (
 
 	// Metrics API key (optional, for /metrics endpoint authentication)
 	metricsAPIKey string
+
+	// Whisper transcription configuration
+	whisperThreads     int
+	whisperTemperature string
+	whisperTimeout     time.Duration
 )
 
 // getEnvOrDefault returns the value of an environment variable or a default
@@ -124,6 +133,21 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// getEnvIntOrDefault parses an integer from environment variable.
+// Returns default value if not set or invalid.
+func getEnvIntOrDefault(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		logging.Warn("Invalid integer, using default", "key", key, "value", value, "default", defaultValue)
+		return defaultValue
+	}
+	return n
 }
 
 // getEnvSizeOrDefault parses a size from environment variable (e.g., "500M", "1G")
@@ -259,6 +283,11 @@ func initConfig() {
 
 	// Metrics API key for /metrics endpoint
 	metricsAPIKey = os.Getenv("METRICS_API_KEY")
+
+	// Whisper transcription configuration
+	whisperThreads = getEnvIntOrDefault("WHISPER_THREADS", defaultWhisperThreads)
+	whisperTemperature = getEnvOrDefault("WHISPER_TEMPERATURE", "0.0")
+	whisperTimeout = getEnvDurationOrDefault("WHISPER_TIMEOUT", defaultWhisperTimeout)
 }
 
 // WhisperSegment represents a transcribed segment with timing
@@ -591,7 +620,7 @@ func transcribeAudio(audioPath, outputPath, language string) (*WhisperResult, er
 		"-f", audioPath,
 		"-oj",             // output JSON
 		"-of", outputPath, // output file (without extension, whisper adds .json)
-		"-t", "4", // 4 threads
+		"-t", strconv.Itoa(whisperThreads), // thread count (configurable via WHISPER_THREADS)
 		"-l", language, // language code or "auto"
 	)
 
@@ -644,7 +673,7 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 	// Add request parameters
 	// Use verbose_json to get segments with timing
 	writer.WriteField("response_format", "verbose_json")
-	writer.WriteField("temperature", "0.0")
+	writer.WriteField("temperature", whisperTemperature) // configurable via WHISPER_TEMPERATURE
 	writer.WriteField("language", language)
 
 	writer.Close()
@@ -667,8 +696,8 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 		}
 		req.Header.Set("Content-Type", formDataContentType)
 
-		// Send request (with long timeout for transcription)
-		client := &http.Client{Timeout: 30 * time.Minute}
+		// Send request (with long timeout for transcription, configurable via WHISPER_TIMEOUT)
+		client := &http.Client{Timeout: whisperTimeout}
 		resp, err = client.Do(req)
 		if err != nil {
 			lastErr = err
