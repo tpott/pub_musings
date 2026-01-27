@@ -1,46 +1,24 @@
 # Linters Guide
 
-This guide covers setting up and running linters for the Subtitler project.
+This guide covers the linting setup for the Subtitler project.
+
+## Current Linting Setup
+
+The project uses minimal linting to keep the toolchain simple. All linting is handled by `scripts/lint.sh`:
+
+```bash
+./scripts/lint.sh
+```
+
+This runs:
+- **Backend**: `go fmt` and `go vet` for formatting and static analysis
+- **Frontend**: `npm run build` (TypeScript compilation catches type errors)
 
 ## Backend (Go)
 
-### golangci-lint
-
-[golangci-lint](https://golangci-lint.run/) is the recommended linter aggregator for Go projects.
-
-**Installation:**
-
-```bash
-# Linux/macOS (recommended)
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.2
-
-# macOS (Homebrew)
-brew install golangci-lint
-
-# Go install (not recommended for CI)
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
-```
-
-**Verify installation:**
-```bash
-golangci-lint --version
-```
-
-**Run linter:**
-```bash
-cd backend
-golangci-lint run
-```
-
-**Run with fixes:**
-```bash
-cd backend
-golangci-lint run --fix
-```
-
 ### go fmt
 
-The built-in Go formatter should be run before commits.
+The built-in Go formatter ensures consistent code style.
 
 ```bash
 cd backend
@@ -56,39 +34,43 @@ cd backend
 go vet ./...
 ```
 
-### Configuration (Optional)
+### golangci-lint (Optional - NOT CURRENTLY USED)
 
-Create `.golangci.yml` in the backend directory for custom configuration:
+[golangci-lint](https://golangci-lint.run/) is available for more comprehensive linting if needed.
 
-```yaml
-# backend/.golangci.yml
-run:
-  timeout: 5m
+**Installation:**
+```bash
+# Linux/macOS (recommended)
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.2
 
-linters:
-  enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - goimports
-
-linters-settings:
-  gofmt:
-    simplify: true
-
-issues:
-  exclude-use-default: false
+# macOS (Homebrew)
+brew install golangci-lint
 ```
+
+**Run linter:**
+```bash
+cd backend
+golangci-lint run
+```
+
+**Note:** The project does not currently have a `.golangci.yml` configuration file. Add one if you want to customize linter rules.
 
 ## Frontend (TypeScript/Astro)
 
-### ESLint
+### TypeScript Compilation
 
-[ESLint](https://eslint.org/) is the standard linter for JavaScript/TypeScript projects.
+TypeScript errors are caught during the build process:
+
+```bash
+cd frontend
+npm run build
+```
+
+This performs full type checking via Astro's build process.
+
+### ESLint (Optional - NOT CURRENTLY USED)
+
+ESLint is NOT currently integrated into the project. If you want to add it:
 
 **Installation:**
 ```bash
@@ -96,12 +78,8 @@ cd frontend
 npm install -D eslint @eslint/js typescript-eslint eslint-plugin-astro
 ```
 
-**Create configuration:**
-
-Create `eslint.config.mjs` in the frontend directory:
-
+**Create `eslint.config.mjs`:**
 ```javascript
-// frontend/eslint.config.mjs
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import astro from 'eslint-plugin-astro';
@@ -110,13 +88,11 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...astro.configs.recommended,
-  {
-    ignores: ['dist/**', 'node_modules/**', '.astro/**']
-  }
+  { ignores: ['dist/**', 'node_modules/**', '.astro/**'] }
 ];
 ```
 
-**Add scripts to package.json:**
+**Add to `package.json`:**
 ```json
 {
   "scripts": {
@@ -126,32 +102,17 @@ export default [
 }
 ```
 
-**Run linter:**
-```bash
-cd frontend
-npm run lint
-```
+### Prettier (Optional - NOT CURRENTLY USED)
 
-**Run with fixes:**
-```bash
-cd frontend
-npm run lint:fix
-```
-
-### Prettier (Optional)
-
-[Prettier](https://prettier.io/) is an opinionated code formatter.
+Prettier is NOT currently integrated. If you want to add it:
 
 **Installation:**
 ```bash
 cd frontend
-npm install -D prettier eslint-config-prettier
+npm install -D prettier
 ```
 
-**Create configuration:**
-
-Create `.prettierrc` in the frontend directory:
-
+**Create `.prettierrc`:**
 ```json
 {
   "semi": true,
@@ -161,53 +122,30 @@ Create `.prettierrc` in the frontend directory:
 }
 ```
 
-**Add scripts to package.json:**
-```json
-{
-  "scripts": {
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
-  }
-}
+## Pre-commit Hook
+
+The project uses a shell script pre-commit hook (NOT Husky):
+
+```bash
+# Install the hook
+ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 ```
 
-**Run formatter:**
-```bash
-cd frontend
-npm run format
-```
+The hook runs `lint.sh`, `test-backend.sh`, and `test-frontend.sh` before each commit.
+
+See `scripts/pre-commit` for details.
 
 ## Quick Reference
 
-| Tool | Language | Command |
-|------|----------|---------|
-| go fmt | Go | `cd backend && go fmt ./...` |
-| go vet | Go | `cd backend && go vet ./...` |
-| golangci-lint | Go | `cd backend && golangci-lint run` |
-| ESLint | TypeScript/Astro | `cd frontend && npm run lint` |
-| Prettier | TypeScript/Astro | `cd frontend && npm run format` |
-
-## Pre-commit Hooks (Optional)
-
-Use [pre-commit](https://pre-commit.com/) or [Husky](https://typicode.github.io/husky/) to run linters automatically before commits.
-
-**Example with Husky:**
-```bash
-cd frontend
-npm install -D husky lint-staged
-npx husky init
-echo "cd frontend && npx lint-staged" > .husky/pre-commit
-```
-
-Add to `package.json`:
-```json
-{
-  "lint-staged": {
-    "*.{ts,tsx,astro}": ["eslint --fix", "prettier --write"],
-    "*.{json,md}": ["prettier --write"]
-  }
-}
-```
+| Tool | Status | Command |
+|------|--------|---------|
+| go fmt | **IN USE** | `go fmt ./...` |
+| go vet | **IN USE** | `go vet ./...` |
+| npm build | **IN USE** | `npm run build` (type checking) |
+| golangci-lint | Optional | `golangci-lint run` |
+| ESLint | Not integrated | (see setup above) |
+| Prettier | Not integrated | (see setup above) |
+| Husky | Not used | (shell script hook instead) |
 
 ## See Also
 

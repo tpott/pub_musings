@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**166 tasks completed.** Working on deep inspection tasks.
+**167 tasks completed.** Deep inspection tasks complete.
 
 ### Recently Completed
+- ✅ Task 166: Clarify LINTERS.md about optional tools
+  - Reorganized to clearly show what's IN USE vs optional
+  - Added "NOT CURRENTLY USED" labels to ESLint, Prettier, Husky sections
+  - Updated Quick Reference table with status column
+  - Clarified pre-commit hook uses shell script, not Husky
 - ✅ Task 165: Update BROWSER_TESTING.md to match Playwright config
   - Updated config example to show only Chromium (matches actual config)
   - Added note explaining Firefox/WebKit are optional
