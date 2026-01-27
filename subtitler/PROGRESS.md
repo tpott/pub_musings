@@ -138,9 +138,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**143 tasks completed!**
+**144 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 142: Database indices for frequent queries - Already implemented! All required indices exist in 001_initial_schema.up.sql: idx_users_email, idx_videos_user_id, idx_videos_session_id, idx_sessions_user_id, idx_sessions_expires_at, idx_transcriptions_video_id.
 - ✅ Task 140: File access audit logging - Added structured logging to all file download endpoints (video, thumbnail, burned video). Each download is logged with file_type, video_id, user_id, session_id, and client_ip. Helps audit access patterns and investigate security incidents.
 - ✅ Task 141: Max limit validation for pagination - Already implemented! GET /api/videos caps limit at 100 when client requests more. Verified with existing test at api_test.go:3085.
 - ✅ Task 139: Add aria-labels to download buttons - Added descriptive aria-labels to all SRT/VTT/JSON download buttons in videos.astro and upload.astro. Labels like "Download subtitles in VTT format" help screen reader users understand what each button does.
@@ -162,7 +163,7 @@ Created 9 new tasks from code review:
 - Task 139 (done): Add aria-labels to download buttons
 - Task 140 (done): Add file access audit logging
 - Task 141 (done): Max limit validation for pagination (already implemented)
-- Task 142: Add database indices for frequent queries
+- Task 142 (done): Add database indices for frequent queries (already implemented)
 
 See `TASKS.jsonl` for details.
 
