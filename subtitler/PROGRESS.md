@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**217 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**218 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**217 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**218 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 223: Research - Bionic Reading implementation
+  - Documented what letters to bold (first 30-50% of each word)
+  - Researched algorithm variations (fixation percentage, min word length)
+  - Reviewed scientific evidence (no proven benefits for general population)
+  - Documented alternatives: BeeLine Reader (color gradients), OpenDyslexic font
+  - Created implementation plan for Task 224
+  - See: `specs/bionic-reading.md`
+
 - Task 215: Frontend - Rename Security to Settings with tabs
   - Created new `/settings` page with tab navigation (Security, Account, Preferences)
   - Security tab contains all existing 2FA and session management features
