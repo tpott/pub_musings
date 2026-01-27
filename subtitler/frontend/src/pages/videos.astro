@@ -678,6 +678,7 @@ import '../styles/theme.css';
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
 			import { getOrCreateSessionId } from '../utils/session';
 			import { escapeHtml } from '../utils/html';
+			import { renderBionicText, isBionicEnabled } from '../utils/bionic';
 			import { downloadSRT, downloadVTT, downloadJSON } from '../utils/subtitles';
 			import type { TranscriptionSegment } from '../types/transcription';
 
@@ -1198,13 +1199,17 @@ import '../styles/theme.css';
 				// Render segments - click/keyboard handling is done via event delegation on modalSegments
 				// (set up once on page load, not per-render, to prevent memory leaks)
 				// Segments have tabindex="0" and role="button" for keyboard accessibility
-				modalSegments.innerHTML = modalSubtitleSegments.map((seg, index) => `
+				const useBionic = isBionicEnabled();
+				modalSegments.innerHTML = modalSubtitleSegments.map((seg, index) => {
+					// Use bionic text for display if enabled
+					const displayText = useBionic ? renderBionicText(seg.text, { enabled: true }) : escapeHtml(seg.text);
+					return `
 					<div class="modal-segment" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}"
 						tabindex="0" role="button" aria-label="Seek to ${formatTime(seg.start)}: ${escapeHtml(seg.text.substring(0, 50))}${seg.text.length > 50 ? '...' : ''}">
 						<div class="modal-segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
-						<div class="modal-segment-text">${escapeHtml(seg.text)}</div>
+						<div class="modal-segment-text">${displayText}</div>
 					</div>
-				`).join('');
+				`}).join('');
 			}
 
 			function setupModalSubtitleSync() {

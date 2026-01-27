@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**218 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**219 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,23 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**218 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**219 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 224: Feature - Implement Bionic Reading mode for subtitles
+  - Created `frontend/src/utils/bionic.ts` with bionic reading utility functions
+  - `toBionicSegments()`: Converts text to array of {text, bold} segments
+  - `toBionicHTML()`: Generates HTML with `<strong>` tags for fixation points
+  - `renderBionicText()`: Main entry point, checks localStorage settings
+  - localStorage keys: `subtitler:bionic-reading`, `subtitler:bionic-fixation`
+  - Added toggle and fixation slider to Settings > Preferences tab
+  - Live preview of bionic text in settings
+  - Applied to upload.astro segments (view mode only, not edit mode)
+  - Applied to videos.astro modal segments
+  - Created 49 unit tests in bionic.test.ts covering all edge cases
+  - Disclaimer text warns users about lack of scientific evidence
+  - See: `specs/bionic-reading.md`
+
 - Task 223: Research - Bionic Reading implementation
   - Documented what letters to bold (first 30-50% of each word)
   - Researched algorithm variations (fixation percentage, min word length)

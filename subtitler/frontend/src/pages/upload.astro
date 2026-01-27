@@ -1392,6 +1392,7 @@ import '../styles/theme.css';
 			import { getOrCreateSessionId, cleanupStaleUploadSessions, recordUploadSession, removeUploadSessionRecord } from '../utils/session';
 			import { parseTimeString } from '../utils/validation';
 			import { escapeHtml } from '../utils/html';
+			import { renderBionicText, isBionicEnabled } from '../utils/bionic';
 			import {
 				recordProcessingTime,
 				estimateTimeRemaining,
@@ -2420,14 +2421,18 @@ import '../styles/theme.css';
 
 			function renderSegments() {
 				const segsToRender = isEditMode ? editedSegments : transcriptionSegments;
+				// Only apply bionic reading in view mode (not edit mode)
+				const useBionic = !isEditMode && isBionicEnabled();
 
 				if (segsToRender.length > 0) {
 					segments.innerHTML = segsToRender.map((seg, index) => {
 						const feedback = getSegmentFeedback(index);
+						// Use bionic text for display, plain escapeHtml for editing
+						const displayText = useBionic ? renderBionicText(seg.text, { enabled: true }) : escapeHtml(seg.text);
 						return `
 						<div class="segment${isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
 							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
-							<div class="segment-text">${escapeHtml(seg.text)}</div>
+							<div class="segment-text">${displayText}</div>
 							<div class="segment-edit">
 								<div class="time-inputs">
 									<label>Start:</label>

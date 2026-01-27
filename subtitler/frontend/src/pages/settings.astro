@@ -424,6 +424,166 @@ import '../styles/theme.css';
 			.placeholder-content p {
 				font-size: 0.95rem;
 			}
+			/* Toggle switch */
+			.toggle-row {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 0.75rem 0;
+			}
+			.toggle-label-group {
+				flex: 1;
+			}
+			.toggle-label {
+				font-weight: 500;
+				font-size: 0.95rem;
+				margin-bottom: 0.25rem;
+				display: block;
+			}
+			.toggle-description {
+				color: var(--text-secondary);
+				font-size: 0.85rem;
+				line-height: 1.4;
+			}
+			.toggle-switch {
+				position: relative;
+				width: 48px;
+				height: 26px;
+				margin-left: 1rem;
+				flex-shrink: 0;
+			}
+			.toggle-switch input {
+				opacity: 0;
+				width: 0;
+				height: 0;
+			}
+			.toggle-slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: var(--border-color);
+				transition: 0.2s;
+				border-radius: 26px;
+			}
+			.toggle-slider:before {
+				position: absolute;
+				content: "";
+				height: 20px;
+				width: 20px;
+				left: 3px;
+				bottom: 3px;
+				background-color: white;
+				transition: 0.2s;
+				border-radius: 50%;
+			}
+			.toggle-switch input:checked + .toggle-slider {
+				background-color: var(--accent-color);
+			}
+			.toggle-switch input:focus + .toggle-slider {
+				box-shadow: 0 0 0 3px var(--focus-ring);
+			}
+			.toggle-switch input:checked + .toggle-slider:before {
+				transform: translateX(22px);
+			}
+			/* Fixation slider */
+			.slider-row {
+				padding: 1rem 0;
+				border-top: 1px solid var(--border-color);
+				margin-top: 0.5rem;
+			}
+			.slider-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-bottom: 0.5rem;
+			}
+			.slider-label {
+				font-weight: 500;
+				font-size: 0.9rem;
+			}
+			.slider-value {
+				font-size: 0.85rem;
+				color: var(--text-secondary);
+				background-color: var(--bg-color);
+				padding: 0.125rem 0.5rem;
+				border-radius: 4px;
+			}
+			.slider-input {
+				width: 100%;
+				height: 6px;
+				border-radius: 3px;
+				background: var(--border-color);
+				outline: none;
+				-webkit-appearance: none;
+				appearance: none;
+			}
+			.slider-input::-webkit-slider-thumb {
+				-webkit-appearance: none;
+				appearance: none;
+				width: 18px;
+				height: 18px;
+				border-radius: 50%;
+				background: var(--accent-color);
+				cursor: pointer;
+			}
+			.slider-input::-moz-range-thumb {
+				width: 18px;
+				height: 18px;
+				border-radius: 50%;
+				background: var(--accent-color);
+				cursor: pointer;
+				border: none;
+			}
+			.slider-input:focus::-webkit-slider-thumb {
+				box-shadow: 0 0 0 3px var(--focus-ring);
+			}
+			.slider-labels {
+				display: flex;
+				justify-content: space-between;
+				margin-top: 0.5rem;
+				font-size: 0.75rem;
+				color: var(--text-secondary);
+			}
+			/* Preview section */
+			.preview-section {
+				margin-top: 1rem;
+				padding: 1rem;
+				background-color: var(--bg-color);
+				border-radius: 8px;
+				border: 1px solid var(--border-color);
+			}
+			.preview-label {
+				font-size: 0.8rem;
+				color: var(--text-secondary);
+				margin-bottom: 0.5rem;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
+			.preview-text {
+				font-size: 1.1rem;
+				line-height: 1.6;
+			}
+			.preview-text strong {
+				font-weight: 700;
+			}
+			/* Disclaimer */
+			.disclaimer {
+				margin-top: 1rem;
+				padding: 0.75rem 1rem;
+				background-color: var(--warning-bg);
+				border: 1px solid var(--warning-border);
+				border-radius: 6px;
+				font-size: 0.85rem;
+				color: var(--warning-color);
+				line-height: 1.4;
+			}
+			.disabled-section {
+				opacity: 0.5;
+				pointer-events: none;
+			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
 				.nav {
@@ -708,12 +868,55 @@ import '../styles/theme.css';
 					</div>
 				</div>
 
-				<!-- Preferences Tab Content (placeholder) -->
+				<!-- Preferences Tab Content -->
 				<div id="preferences-tab" class="tab-content" role="tabpanel" aria-labelledby="preferences-tab-btn">
 					<div class="card">
+						<div class="card-header">
+							<h2 class="card-title">Reading Preferences</h2>
+						</div>
+
+						<!-- Bionic Reading Toggle -->
+						<div class="toggle-row">
+							<div class="toggle-label-group">
+								<span class="toggle-label">Bionic Reading</span>
+								<span class="toggle-description">Bold the first portion of each word to create visual anchors</span>
+							</div>
+							<label class="toggle-switch">
+								<input type="checkbox" id="bionicToggle" aria-label="Enable Bionic Reading" />
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+
+						<!-- Fixation Slider (only visible when enabled) -->
+						<div id="bionicOptions" class="slider-row disabled-section">
+							<div class="slider-header">
+								<span class="slider-label">Fixation Intensity</span>
+								<span id="fixationValue" class="slider-value">40%</span>
+							</div>
+							<input type="range" id="fixationSlider" class="slider-input" min="30" max="50" value="40" step="5" aria-label="Fixation percentage" />
+							<div class="slider-labels">
+								<span>Light (30%)</span>
+								<span>Moderate (40%)</span>
+								<span>Strong (50%)</span>
+							</div>
+						</div>
+
+						<!-- Preview -->
+						<div id="bionicPreview" class="preview-section">
+							<div class="preview-label">Preview</div>
+							<div id="previewText" class="preview-text">The quick brown fox jumps over the lazy dog.</div>
+						</div>
+
+						<!-- Disclaimer -->
+						<div class="disclaimer">
+							Note: Scientific studies have not found measurable improvements in reading speed or comprehension for most people. Some individuals find this feature subjectively helpful for focus. Try it to see if it works for you.
+						</div>
+					</div>
+
+					<div class="card">
 						<div class="placeholder-content">
-							<h3>Preferences</h3>
-							<p>Preference settings coming soon. You'll be able to customize your experience, notification settings, and display options here.</p>
+							<h3>More Preferences</h3>
+							<p>Additional preference settings coming soon.</p>
 						</div>
 					</div>
 				</div>
@@ -724,6 +927,13 @@ import '../styles/theme.css';
 			import { validatePassword, validateTotpCode } from '../utils/validation';
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
 			import { escapeHtml } from '../utils/html';
+			import {
+				isBionicEnabled,
+				getBionicFixation,
+				setBionicEnabled,
+				setBionicFixation,
+				toBionicHTML,
+			} from '../utils/bionic';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const notLoggedIn = document.getElementById('notLoggedIn') as HTMLElement;
@@ -1463,6 +1673,60 @@ ${recoveryCodes.join('\n')}
 					loadSessions();
 				}
 			};
+
+			// Bionic Reading preferences
+			const bionicToggle = document.getElementById('bionicToggle') as HTMLInputElement;
+			const bionicOptions = document.getElementById('bionicOptions') as HTMLElement;
+			const fixationSlider = document.getElementById('fixationSlider') as HTMLInputElement;
+			const fixationValue = document.getElementById('fixationValue') as HTMLElement;
+			const previewText = document.getElementById('previewText') as HTMLElement;
+
+			const PREVIEW_SAMPLE = 'The quick brown fox jumps over the lazy dog.';
+
+			function updateBionicPreview() {
+				const enabled = bionicToggle.checked;
+				const fixation = parseInt(fixationSlider.value, 10) / 100;
+
+				if (enabled) {
+					previewText.innerHTML = toBionicHTML(PREVIEW_SAMPLE, { fixationPercent: fixation });
+				} else {
+					previewText.textContent = PREVIEW_SAMPLE;
+				}
+
+				// Update options visibility
+				if (enabled) {
+					bionicOptions.classList.remove('disabled-section');
+				} else {
+					bionicOptions.classList.add('disabled-section');
+				}
+			}
+
+			function initBionicSettings() {
+				// Load saved settings
+				const enabled = isBionicEnabled();
+				const fixation = getBionicFixation();
+
+				bionicToggle.checked = enabled;
+				fixationSlider.value = Math.round(fixation * 100).toString();
+				fixationValue.textContent = Math.round(fixation * 100) + '%';
+
+				updateBionicPreview();
+			}
+
+			bionicToggle.addEventListener('change', () => {
+				setBionicEnabled(bionicToggle.checked);
+				updateBionicPreview();
+			});
+
+			fixationSlider.addEventListener('input', () => {
+				const value = parseInt(fixationSlider.value, 10);
+				fixationValue.textContent = value + '%';
+				setBionicFixation(value / 100);
+				updateBionicPreview();
+			});
+
+			// Initialize bionic settings when page loads
+			initBionicSettings();
 
 			checkAuth();
 		</script>
