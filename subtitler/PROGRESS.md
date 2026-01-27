@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**125 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**126 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -118,7 +118,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Content Security Policy headers (Task 108)
 - ✅ Authenticated health check (Task 114) - public requests get minimal response, auth required for details
 
-### Technical Infrastructure (Tasks 109, 113)
+### Technical Infrastructure (Tasks 109, 113, 120)
 - ✅ Database migration system (Task 109)
   - Migration files in `backend/db/migrations/` as versioned .sql files
   - Schema version tracked in `schema_migrations` table
@@ -129,20 +129,26 @@ This file tracks high-level progress on the subtitler project. For detailed spec
   - Log levels: Debug, Info, Warn, Error, Fatal
   - Context-aware logging with request_id, user_id, video_id, session_id
   - Configure via `LOG_LEVEL` env var (debug, info, warn, error)
+- ✅ Encryption key rotation support (Task 120)
+  - Multi-key encryptor supports multiple key versions
+  - Videos track which key version encrypted them
+  - CLI tool: `go run ./cmd/rotate-keys [status|rotate|reencrypt]`
+  - Zero-downtime key rotation with gradual re-encryption
+  - See: `specs/key-rotation.md`, `specs/encryption.md`
 
 ## Current Work
 
-**125 tasks completed!**
+**126 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 120: Encryption key rotation support - MultiKeyEncryptor supports versioned keys, videos track their key version, CLI tool for rotation and re-encryption. Zero-downtime rotation with gradual re-encryption.
 - ✅ Task 118: CAPTCHA protection for registration and login - hCaptcha integration with optional enable via environment variables (`CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY`). Disabled by default for development.
 - ✅ Task 119: Password complexity requirements - passwords now require uppercase, lowercase, number, and special character
 - ✅ Task 123: Document whisper model selection - large-v3-turbo recommended (6x faster than large-v3, slightly better accuracy)
 - ✅ Task 122: localStorage cleanup for stale upload sessions - on page load, removes upload sessions older than 48 hours to prevent localStorage pollution from abandoned uploads
-- ✅ Task 121: Incomplete upload session cleanup - cleanup scheduler now removes orphan chunk directories that exist on disk but don't have database records (handles server crashes, manual DB cleanup)
 
-### Pending Tasks (Task 120)
-- Task 120: Add encryption key rotation support
+### All Tasks Complete
+No pending tasks.
 
 See `TASKS.jsonl` for details.
 
@@ -152,7 +158,7 @@ See `TASKS.jsonl` for details.
 |---------|----------|
 | Main specification | `specs/subtitler.md` |
 | Authentication | `specs/auth.md`, `specs/totp.md` |
-| Encryption | `specs/encryption.md` |
+| Encryption | `specs/encryption.md`, `specs/key-rotation.md` |
 | Email service | `specs/email.md` |
 | Lyrics alignment | `specs/lyrics-alignment.md` |
 | Script conversion | `specs/script-conversion.md` |

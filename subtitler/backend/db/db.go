@@ -25,6 +25,7 @@ type Video struct {
 	ContentType   string    `json:"content_type"`
 	FilePath      string    `json:"file_path"`
 	ThumbnailPath *string   `json:"thumbnail_path,omitempty"` // path to encrypted thumbnail image
+	KeyVersion    int       `json:"key_version"`              // encryption key version (for key rotation)
 	CreatedAt     time.Time `json:"created_at"`
 	UserID        *string   `json:"user_id,omitempty"` // null for anonymous uploads
 	SessionID     *string   `json:"session_id,omitempty"`
@@ -78,14 +79,15 @@ type Session struct {
 
 // BurnJob represents a subtitle burning job
 type BurnJob struct {
-	ID          string     `json:"id"`
-	VideoID     string     `json:"video_id"`
-	Status      string     `json:"status"` // pending, processing, complete, error
-	Message     string     `json:"message,omitempty"`
-	Progress    int        `json:"progress"`
-	OutputPath  string     `json:"output_path,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ID               string     `json:"id"`
+	VideoID          string     `json:"video_id"`
+	Status           string     `json:"status"` // pending, processing, complete, error
+	Message          string     `json:"message,omitempty"`
+	Progress         int        `json:"progress"`
+	OutputPath       string     `json:"output_path,omitempty"`
+	OutputKeyVersion *int       `json:"output_key_version,omitempty"` // encryption key version for output file
+	CreatedAt        time.Time  `json:"created_at"`
+	CompletedAt      *time.Time `json:"completed_at,omitempty"`
 }
 
 // RecoveryCode represents a hashed 2FA recovery code
@@ -306,10 +308,15 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 
 // CreateVideo creates a new video record
 func (db *DB) CreateVideo(video *Video) error {
+	// Default key_version to 1 if not set
+	keyVersion := video.KeyVersion
+	if keyVersion == 0 {
+		keyVersion = 1
+	}
 	_, err := db.conn.Exec(`
-		INSERT INTO videos (id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.ThumbnailPath, video.CreatedAt, video.UserID, video.SessionID)
+		INSERT INTO videos (id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.ThumbnailPath, keyVersion, video.CreatedAt, video.UserID, video.SessionID)
 	return err
 }
 
@@ -317,9 +324,9 @@ func (db *DB) CreateVideo(video *Video) error {
 func (db *DB) GetVideo(id string) (*Video, error) {
 	video := &Video{}
 	err := db.conn.QueryRow(`
-		SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos WHERE id = ?
-	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.ThumbnailPath, &video.CreatedAt, &video.UserID, &video.SessionID)
+	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.ThumbnailPath, &video.KeyVersion, &video.CreatedAt, &video.UserID, &video.SessionID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -432,17 +439,17 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 
 	if userID != nil {
 		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
+			SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 			FROM videos WHERE user_id = ? ORDER BY created_at DESC
 		`, *userID)
 	} else if sessionID != nil {
 		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
+			SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 			FROM videos WHERE session_id = ? ORDER BY created_at DESC
 		`, *sessionID)
 	} else {
 		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
+			SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 			FROM videos ORDER BY created_at DESC
 		`)
 	}
@@ -455,7 +462,7 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 	var videos []Video
 	for rows.Next() {
 		var v Video
-		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
 			return nil, err
 		}
 		videos = append(videos, v)
@@ -667,7 +674,7 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 	registeredExpiry := now.Add(-90 * 24 * time.Hour)
 
 	rows, err := db.conn.Query(`
-		SELECT id, filename, size, content_type, file_path, thumbnail_path, created_at, user_id, session_id
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos
 		WHERE (user_id IS NULL AND created_at < ?)
 		   OR (user_id IS NOT NULL AND created_at < ?)
@@ -681,7 +688,7 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 	var videos []Video
 	for rows.Next() {
 		var v Video
-		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
 			return nil, err
 		}
 		videos = append(videos, v)
@@ -727,12 +734,13 @@ func (db *DB) CreateBurnJob(job *BurnJob) error {
 func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
 	job := &BurnJob{}
 	var message, outputPath sql.NullString
+	var outputKeyVersion sql.NullInt64
 	var completedAt sql.NullTime
 
 	err := db.conn.QueryRow(`
-		SELECT id, video_id, status, message, progress, output_path, created_at, completed_at
+		SELECT id, video_id, status, message, progress, output_path, output_key_version, created_at, completed_at
 		FROM burn_jobs WHERE video_id = ? ORDER BY created_at DESC LIMIT 1
-	`, videoID).Scan(&job.ID, &job.VideoID, &job.Status, &message, &job.Progress, &outputPath, &job.CreatedAt, &completedAt)
+	`, videoID).Scan(&job.ID, &job.VideoID, &job.Status, &message, &job.Progress, &outputPath, &outputKeyVersion, &job.CreatedAt, &completedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -746,6 +754,10 @@ func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
 	}
 	if outputPath.Valid {
 		job.OutputPath = outputPath.String
+	}
+	if outputKeyVersion.Valid {
+		v := int(outputKeyVersion.Int64)
+		job.OutputKeyVersion = &v
 	}
 	if completedAt.Valid {
 		job.CompletedAt = &completedAt.Time
@@ -764,13 +776,18 @@ func (db *DB) UpdateBurnJobStatus(videoID, status, message string, progress int)
 
 // CompleteBurnJob marks a burn job as complete with the output file path
 func (db *DB) CompleteBurnJob(videoID, outputPath string) error {
+	return db.CompleteBurnJobWithKeyVersion(videoID, outputPath, 1)
+}
+
+// CompleteBurnJobWithKeyVersion marks a burn job as complete with output file path and key version
+func (db *DB) CompleteBurnJobWithKeyVersion(videoID, outputPath string, keyVersion int) error {
 	now := time.Now()
 	_, err := db.conn.Exec(`
 		UPDATE burn_jobs
 		SET status = 'complete', message = 'Subtitles burned successfully', progress = 100,
-		    output_path = ?, completed_at = ?
+		    output_path = ?, output_key_version = ?, completed_at = ?
 		WHERE video_id = ?
-	`, outputPath, now, videoID)
+	`, outputPath, keyVersion, now, videoID)
 	return err
 }
 
@@ -1670,4 +1687,86 @@ func (db *DB) UploadSessionExists(sessionID string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetVideosByKeyVersion returns all videos encrypted with a specific key version
+func (db *DB) GetVideosByKeyVersion(keyVersion int) ([]Video, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
+		FROM videos WHERE key_version = ? ORDER BY created_at
+	`, keyVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var videos []Video
+	for rows.Next() {
+		var v Video
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+			return nil, err
+		}
+		videos = append(videos, v)
+	}
+	return videos, rows.Err()
+}
+
+// GetVideosWithOldKeyVersion returns videos encrypted with keys older than the specified version
+// Useful for finding files that need re-encryption during key rotation
+func (db *DB) GetVideosWithOldKeyVersion(currentVersion, limit int) ([]Video, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
+		FROM videos WHERE key_version < ? ORDER BY created_at LIMIT ?
+	`, currentVersion, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var videos []Video
+	for rows.Next() {
+		var v Video
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+			return nil, err
+		}
+		videos = append(videos, v)
+	}
+	return videos, rows.Err()
+}
+
+// CountVideosByKeyVersion returns the count of videos per key version
+func (db *DB) CountVideosByKeyVersion() (map[int]int, error) {
+	rows, err := db.conn.Query(`
+		SELECT key_version, COUNT(*) FROM videos GROUP BY key_version ORDER BY key_version
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[int]int)
+	for rows.Next() {
+		var version, count int
+		if err := rows.Scan(&version, &count); err != nil {
+			return nil, err
+		}
+		counts[version] = count
+	}
+	return counts, rows.Err()
+}
+
+// UpdateVideoKeyVersion updates the key version and file path for a video after re-encryption
+func (db *DB) UpdateVideoKeyVersion(videoID string, newKeyVersion int, newFilePath string) error {
+	_, err := db.conn.Exec(`
+		UPDATE videos SET key_version = ?, file_path = ? WHERE id = ?
+	`, newKeyVersion, newFilePath, videoID)
+	return err
+}
+
+// UpdateVideoThumbnailKeyVersion updates the thumbnail path for a video after re-encryption
+func (db *DB) UpdateVideoThumbnailKeyVersion(videoID string, newThumbnailPath string) error {
+	_, err := db.conn.Exec(`
+		UPDATE videos SET thumbnail_path = ? WHERE id = ?
+	`, newThumbnailPath, videoID)
+	return err
 }

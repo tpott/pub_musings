@@ -422,3 +422,28 @@ if (csrfToken) {
 2. Get async values (like CSRF tokens) BEFORE entering Promise callbacks
 3. The `csrfFetch` wrapper only helps with `fetch()` - XHR is on its own
 4. When adding CSRF protection, audit all POST/PUT/DELETE/PATCH endpoints for XHR usage
+
+---
+
+### 2026-01-26: Multi-key encryption requires tracking key version per file
+
+**Problem:** Implementing encryption key rotation required significant changes beyond just adding a new key. Files encrypted with old keys need to be decryptable while new files use the new key.
+
+**Solution:**
+1. Created `MultiKeyEncryptor` that manages multiple age keys with versioning
+2. Added `key_version` column to `videos` table (migration 004)
+3. Updated all encrypt calls to capture and store the key version
+4. Updated all decrypt calls to use the file's stored key version
+5. CLI tool (`go run ./cmd/rotate-keys`) for rotation and re-encryption
+
+**Key architecture decisions:**
+- Keys stored in `data/keys/` as `key_v1.age`, `key_v2.age`, etc.
+- `current` symlink points to active key (or `currentVersion` file)
+- Encryption uses current key, decryption uses file's recorded version
+- Re-encryption is batched and can be run incrementally
+
+**Lesson:**
+1. Key rotation requires version tracking at the data layer, not just the crypto layer
+2. All encryption/decryption calls must be audited and updated together
+3. A CLI tool for operations staff is essential - rotation shouldn't require code changes
+4. Zero-downtime rotation requires files to remain readable during the transition period

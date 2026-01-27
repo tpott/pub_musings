@@ -16,8 +16,11 @@ All uploaded video/audio files are encrypted at rest using the `age` encryption 
 
 | File | Purpose |
 |------|---------|
-| `backend/crypto/crypto.go` | Encryptor type and methods |
-| `backend/crypto/crypto_test.go` | Unit tests |
+| `backend/crypto/crypto.go` | Single-key Encryptor type and methods |
+| `backend/crypto/multi.go` | Multi-key encryptor with rotation support |
+| `backend/crypto/crypto_test.go` | Unit tests for single-key encryptor |
+| `backend/crypto/multi_test.go` | Unit tests for multi-key encryptor |
+| `backend/cmd/rotate-keys/main.go` | CLI tool for key rotation operations |
 | `backend/main.go` | Integration with upload/serve/burn flows |
 
 ## Encryptor Type
@@ -185,7 +188,7 @@ Setting `ENCRYPTION_ENABLED=false` affects only NEW file uploads:
 ### Considerations
 
 - Single key for all files (no per-file key derivation)
-- No key rotation mechanism
+- Key rotation supported via MultiKeyEncryptor (see [key-rotation.md](key-rotation.md))
 - Decrypted files briefly exist on disk during processing
 - Database metadata not encrypted (transcriptions, user info)
 
@@ -210,5 +213,6 @@ cd backend && go test ./crypto -v
 
 ## Related Specs
 
+- [key-rotation.md](key-rotation.md) - Key rotation implementation and CLI
 - [auth.md](auth.md) - Authentication (separate from encryption)
 - [totp.md](totp.md) - 2FA (uses different crypto primitives)

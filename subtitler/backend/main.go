@@ -252,8 +252,14 @@ type TranscriptionStatus struct {
 // Global database connection
 var database *db.DB
 
-// Global encryptor for file encryption
-var encryptor *crypto.Encryptor
+// Global multi-key encryptor for file encryption with key rotation support
+var multiEnc *crypto.MultiKeyEncryptor
+
+// encryptor returns the current encryptor for backward compatibility
+// This is a convenience function that returns the encryptor for the current key version
+func encryptor() *crypto.Encryptor {
+	return multiEnc.GetEncryptor()
+}
 
 // Global rate limiters (initialized by initRateLimiters after config is loaded)
 var authLimiter *ratelimit.Limiter
@@ -710,6 +716,18 @@ func findVideoFile(uploadID string) (string, error) {
 	return matches[0], nil
 }
 
+// getVideoForDecryption retrieves video with key version for decryption operations
+func getVideoForDecryption(uploadID string) (*db.Video, error) {
+	video, err := database.GetVideo(uploadID)
+	if err != nil {
+		return nil, err
+	}
+	if video == nil {
+		return nil, fmt.Errorf("video not found for upload ID: %s", uploadID)
+	}
+	return video, nil
+}
+
 // generateETag creates an ETag from input data using SHA256
 func generateETag(data string) string {
 	hash := sha256.Sum256([]byte(data))
@@ -813,18 +831,22 @@ func main() {
 	defer database.Close()
 	logging.Info("Database initialized", "path", dbPath)
 
-	// Initialize encryptor for file encryption at rest
-	var isNewKey bool
-	encryptor, isNewKey, err = crypto.LoadOrGenerateKey(keyPath)
-	if err != nil {
+	// Initialize multi-key encryptor for file encryption at rest with key rotation support
+	// Check if KEYS_DIR is set (new multi-key mode), otherwise use legacy keyPath
+	keysDir := os.Getenv("KEYS_DIR")
+	if keysDir == "" {
+		// Default to data/keys subdirectory, but check for legacy single-key setup
+		keysDir = filepath.Join(filepath.Dir(keyPath), "keys")
+	}
+	multiEnc = crypto.NewMultiKeyEncryptor(keysDir)
+	if err := multiEnc.LoadOrInitialize(); err != nil {
 		logging.Fatal("Failed to initialize encryption", "error", err)
 	}
-	if isNewKey {
-		logging.Info("Generated new encryption key", "path", keyPath)
-	} else {
-		logging.Info("Loaded encryption key", "path", keyPath)
-	}
-	logging.Info("Encryption initialized", "public_key", encryptor.PublicKey())
+	logging.Info("Encryption initialized",
+		"keys_dir", keysDir,
+		"current_version", multiEnc.GetCurrentVersion(),
+		"available_versions", multiEnc.GetVersions(),
+		"public_key", encryptor().PublicKey())
 
 	// Initialize email service
 	emailService = email.NewResendService()
@@ -2583,8 +2605,8 @@ func main() {
 			logging.WarnContext(r.Context(), "Failed to generate thumbnail", "path", destPath, "error", err)
 			// Non-fatal: continue without thumbnail
 		} else {
-			// Encrypt the thumbnail
-			encPath, err := encryptor.EncryptFile(thumbPath)
+			// Encrypt the thumbnail with current key version
+			encPath, _, err := multiEnc.EncryptFile(thumbPath)
 			if err != nil {
 				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
 				os.Remove(thumbPath) // Clean up unencrypted thumbnail
@@ -2595,8 +2617,8 @@ func main() {
 			}
 		}
 
-		// Encrypt the file at rest
-		encPath, err := encryptor.EncryptFile(destPath)
+		// Encrypt the file at rest with current key version
+		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			os.Remove(destPath)
@@ -2609,9 +2631,9 @@ func main() {
 
 		// Remove the unencrypted file
 		os.Remove(destPath)
-		logging.InfoContext(r.Context(), "Encrypted file", "src_path", destPath, "enc_path", encPath)
+		logging.InfoContext(r.Context(), "Encrypted file", "src_path", destPath, "enc_path", encPath, "key_version", keyVersion)
 
-		// Save video to database with encrypted file path
+		// Save video to database with encrypted file path and key version
 		video := &db.Video{
 			ID:            uploadID,
 			Filename:      header.Filename,
@@ -2619,6 +2641,7 @@ func main() {
 			ContentType:   contentType,
 			FilePath:      encPath,
 			ThumbnailPath: encThumbPath,
+			KeyVersion:    keyVersion,
 			CreatedAt:     time.Now(),
 		}
 		// Set user_id if authenticated
@@ -3191,7 +3214,7 @@ func main() {
 		if err := audio.GenerateThumbnail(destPath, thumbPath); err != nil {
 			logging.WarnContext(r.Context(), "Failed to generate thumbnail", "path", destPath, "error", err)
 		} else {
-			encPath, err := encryptor.EncryptFile(thumbPath)
+			encPath, _, err := multiEnc.EncryptFile(thumbPath)
 			if err != nil {
 				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
 				os.Remove(thumbPath)
@@ -3201,8 +3224,8 @@ func main() {
 			}
 		}
 
-		// Encrypt the file
-		encPath, err := encryptor.EncryptFile(destPath)
+		// Encrypt the file with current key version
+		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			os.Remove(destPath)
@@ -3212,7 +3235,7 @@ func main() {
 		}
 		os.Remove(destPath)
 
-		// Save video to database
+		// Save video to database with key version
 		video := &db.Video{
 			ID:            uploadID,
 			Filename:      session.Filename,
@@ -3220,6 +3243,7 @@ func main() {
 			ContentType:   session.ContentType,
 			FilePath:      encPath,
 			ThumbnailPath: encThumbPath,
+			KeyVersion:    keyVersion,
 			CreatedAt:     time.Now(),
 			UserID:        session.UserID,
 			SessionID:     session.SessionID,
@@ -3377,8 +3401,8 @@ func main() {
 			language = "auto"
 		}
 
-		// Find the video file
-		videoPath, err := findVideoFile(uploadID)
+		// Find the video file and get key version for decryption
+		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3386,6 +3410,8 @@ func main() {
 			})
 			return
 		}
+		videoPath := video.FilePath
+		keyVersion := video.KeyVersion
 
 		// Check if already processing from database
 		existingTranscription, err := database.GetTranscription(uploadID)
@@ -3430,15 +3456,15 @@ func main() {
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 		}
 
-		// Process in background (capture language in closure)
-		go func(lang string) {
-			logging.Info("Starting transcription", "upload_id", uploadID, "language", lang)
+		// Process in background (capture language and key version in closure)
+		go func(lang string, kv int) {
+			logging.Info("Starting transcription", "upload_id", uploadID, "language", lang, "key_version", kv)
 
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
 			if strings.HasSuffix(videoPath, ".age") {
 				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
-				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
 					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
@@ -3510,7 +3536,7 @@ func main() {
 
 			// Clean up intermediate files
 			os.Remove(audioPath)
-		}(language)
+		}(language, keyVersion)
 
 		// Return immediately with processing status
 		json.NewEncoder(w).Encode(map[string]string{
@@ -4234,28 +4260,22 @@ func main() {
 			return
 		}
 
-		// Find the video file
-		videoPath, err := findVideoFile(uploadID)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
-			return
-		}
+		// Use already-fetched video for file path and key version
+		videoPath := video.FilePath
+		keyVersion := video.KeyVersion
 
 		// Update transcription status to processing
 		database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 
 		// Process in background (same logic as POST /api/transcribe/{id})
-		go func() {
-			logging.Info("Reprocessing transcription", "upload_id", uploadID)
+		go func(kv int) {
+			logging.Info("Reprocessing transcription", "upload_id", uploadID, "key_version", kv)
 
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
 			if strings.HasSuffix(videoPath, ".age") {
 				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
-				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
 					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
@@ -4325,7 +4345,7 @@ func main() {
 
 			// Clean up
 			os.Remove(audioPath)
-		}()
+		}(keyVersion)
 
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "processing",
@@ -4345,24 +4365,8 @@ func main() {
 			return
 		}
 
-		// Get video metadata from database for ETag generation
-		var etag string
-		if database != nil {
-			video, err := database.GetVideo(uploadID)
-			if err == nil && video != nil {
-				// Generate ETag from video ID + creation time + size
-				// Video files don't change after upload, so this is stable
-				etag = generateETag(fmt.Sprintf("%s-%d-%d", video.ID, video.CreatedAt.Unix(), video.Size))
-
-				// Check for conditional request (If-None-Match)
-				if handleConditionalRequest(w, r, etag) {
-					return // 304 Not Modified sent
-				}
-			}
-		}
-
-		// Find the video file
-		videoPath, err := findVideoFile(uploadID)
+		// Get video metadata from database for ETag generation and decryption
+		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
@@ -4372,10 +4376,21 @@ func main() {
 			return
 		}
 
+		// Generate ETag from video ID + creation time + size
+		// Video files don't change after upload, so this is stable
+		etag := generateETag(fmt.Sprintf("%s-%d-%d", video.ID, video.CreatedAt.Unix(), video.Size))
+
+		// Check for conditional request (If-None-Match)
+		if handleConditionalRequest(w, r, etag) {
+			return // 304 Not Modified sent
+		}
+
+		videoPath := video.FilePath
+
 		// If file is encrypted, decrypt to temp file for serving
 		// (http.ServeFile needs seekable file for range requests)
 		if strings.HasSuffix(videoPath, ".age") {
-			decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+			decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, video.KeyVersion)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Failed to decrypt video for serving", "error", err)
 				w.Header().Set("Content-Type", "application/json")
@@ -4463,8 +4478,9 @@ func main() {
 		}
 
 		// If file is encrypted, decrypt to temp file for serving
+		// Thumbnail uses same key version as the video
 		if strings.HasSuffix(thumbPath, ".age") {
-			decryptedPath, err := encryptor.DecryptToTempFile(thumbPath)
+			decryptedPath, err := multiEnc.DecryptToTempFile(thumbPath, video.KeyVersion)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Failed to decrypt thumbnail for serving", "error", err)
 				w.Header().Set("Content-Type", "application/json")
@@ -4551,8 +4567,8 @@ func main() {
 			}
 		}
 
-		// Find the video file
-		videoPath, err := findVideoFile(uploadID)
+		// Find the video file and get key version
+		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -4560,6 +4576,8 @@ func main() {
 			})
 			return
 		}
+		videoPath := video.FilePath
+		keyVersion := video.KeyVersion
 
 		// Create or update burn job
 		if existingJob == nil {
@@ -4585,15 +4603,15 @@ func main() {
 			database.UpdateBurnJobStatus(uploadID, "processing", "Starting subtitle burn...", 0)
 		}
 
-		// Process in background
-		go func() {
-			logging.Info("Starting subtitle burn", "upload_id", uploadID)
+		// Process in background (capture key version)
+		go func(kv int) {
+			logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", kv)
 
 			// Decrypt video if encrypted
 			workingVideoPath := videoPath
 			if strings.HasSuffix(videoPath, ".age") {
 				database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5)
-				decryptedPath, err := encryptor.DecryptToTempFile(videoPath)
+				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
 					database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
@@ -4702,8 +4720,8 @@ func main() {
 
 			database.UpdateBurnJobStatus(uploadID, "processing", "Encrypting output...", 90)
 
-			// Encrypt the output file
-			encOutputPath, err := encryptor.EncryptFile(outputPath)
+			// Encrypt the output file with current key version
+			encOutputPath, keyVersion, err := multiEnc.EncryptFile(outputPath)
 			if err != nil {
 				logging.Error("Failed to encrypt burned video", "error", err)
 				os.Remove(outputPath)
@@ -4712,9 +4730,9 @@ func main() {
 			}
 			os.Remove(outputPath) // Remove unencrypted file
 
-			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath)
-			database.CompleteBurnJob(uploadID, encOutputPath)
-		}()
+			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion)
+			database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion)
+		}(keyVersion)
 
 		// Return immediately with processing status
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -4843,7 +4861,12 @@ func main() {
 		// Decrypt if encrypted
 		servePath := job.OutputPath
 		if strings.HasSuffix(job.OutputPath, ".age") {
-			decryptedPath, err := encryptor.DecryptToTempFile(job.OutputPath)
+			// Use burn job's output key version (defaults to 1 for older jobs)
+			outputKeyVersion := 1
+			if job.OutputKeyVersion != nil {
+				outputKeyVersion = *job.OutputKeyVersion
+			}
+			decryptedPath, err := multiEnc.DecryptToTempFile(job.OutputPath, outputKeyVersion)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Failed to decrypt burned video", "error", err)
 				w.Header().Set("Content-Type", "application/json")
