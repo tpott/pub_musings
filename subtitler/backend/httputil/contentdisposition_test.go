@@ -1,6 +1,9 @@
 package httputil
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -353,6 +356,136 @@ func TestContentDispositionEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ContentDisposition(tt.filename)
 			tt.check(t, result)
+		})
+	}
+}
+
+// ========== RespondError Tests ==========
+
+func TestRespondError(t *testing.T) {
+	tests := []struct {
+		name        string
+		statusCode  int
+		message     string
+		wantCode    int
+		wantMessage string
+	}{
+		{
+			name:        "bad request",
+			statusCode:  http.StatusBadRequest,
+			message:     "Invalid input",
+			wantCode:    http.StatusBadRequest,
+			wantMessage: "Invalid input",
+		},
+		{
+			name:        "not found",
+			statusCode:  http.StatusNotFound,
+			message:     "Resource not found",
+			wantCode:    http.StatusNotFound,
+			wantMessage: "Resource not found",
+		},
+		{
+			name:        "internal server error",
+			statusCode:  http.StatusInternalServerError,
+			message:     "Something went wrong",
+			wantCode:    http.StatusInternalServerError,
+			wantMessage: "Something went wrong",
+		},
+		{
+			name:        "forbidden",
+			statusCode:  http.StatusForbidden,
+			message:     "Access denied",
+			wantCode:    http.StatusForbidden,
+			wantMessage: "Access denied",
+		},
+		{
+			name:        "unauthorized",
+			statusCode:  http.StatusUnauthorized,
+			message:     "Authentication required",
+			wantCode:    http.StatusUnauthorized,
+			wantMessage: "Authentication required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			RespondError(w, tt.statusCode, tt.message)
+
+			// Check status code
+			if w.Code != tt.wantCode {
+				t.Errorf("RespondError() status = %d, want %d", w.Code, tt.wantCode)
+			}
+
+			// Check Content-Type header
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "application/json" {
+				t.Errorf("RespondError() Content-Type = %q, want %q", contentType, "application/json")
+			}
+
+			// Parse and check response body
+			var resp map[string]string
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("Failed to parse response JSON: %v", err)
+			}
+
+			if resp["error"] != tt.wantMessage {
+				t.Errorf("RespondError() error = %q, want %q", resp["error"], tt.wantMessage)
+			}
+		})
+	}
+}
+
+func TestRespondErrorf(t *testing.T) {
+	tests := []struct {
+		name        string
+		statusCode  int
+		format      string
+		args        []interface{}
+		wantMessage string
+	}{
+		{
+			name:        "with format args",
+			statusCode:  http.StatusBadRequest,
+			format:      "Not all chunks received. Expected %d, got %d",
+			args:        []interface{}{10, 5},
+			wantMessage: "Not all chunks received. Expected 10, got 5",
+		},
+		{
+			name:        "with string arg",
+			statusCode:  http.StatusNotFound,
+			format:      "Video %s not found",
+			args:        []interface{}{"abc123"},
+			wantMessage: "Video abc123 not found",
+		},
+		{
+			name:        "no args",
+			statusCode:  http.StatusInternalServerError,
+			format:      "Plain error message",
+			args:        nil,
+			wantMessage: "Plain error message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			RespondErrorf(w, tt.statusCode, tt.format, tt.args...)
+
+			// Check status code
+			if w.Code != tt.statusCode {
+				t.Errorf("RespondErrorf() status = %d, want %d", w.Code, tt.statusCode)
+			}
+
+			// Parse and check response body
+			var resp map[string]string
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("Failed to parse response JSON: %v", err)
+			}
+
+			if resp["error"] != tt.wantMessage {
+				t.Errorf("RespondErrorf() error = %q, want %q", resp["error"], tt.wantMessage)
+			}
 		})
 	}
 }

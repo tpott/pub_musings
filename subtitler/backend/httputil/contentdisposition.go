@@ -2,10 +2,34 @@
 package httputil
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"unicode"
 )
+
+// RespondError writes a JSON error response with the given status code and message.
+// Sets Content-Type header to application/json before writing.
+// This helper reduces duplicate code across API handlers.
+func RespondError(w http.ResponseWriter, statusCode int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": message,
+	})
+}
+
+// RespondErrorf writes a JSON error response using a formatted message.
+// Convenience wrapper around RespondError for sprintf-style formatting.
+func RespondErrorf(w http.ResponseWriter, statusCode int, format string, args ...interface{}) {
+	msg := format
+	if len(args) > 0 {
+		msg = fmt.Sprintf(format, args...)
+	}
+	RespondError(w, statusCode, msg)
+}
 
 // ContentDisposition generates a Content-Disposition header value for file downloads.
 // It follows RFC 5987 to properly encode non-ASCII filenames, ensuring compatibility

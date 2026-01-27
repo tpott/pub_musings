@@ -1250,8 +1250,6 @@ func main() {
 
 	// Auth: Register new user (rate limited)
 	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		// Parse request body
 		var req struct {
 			Email        string `json:"email"`
@@ -1259,10 +1257,7 @@ func main() {
 			CaptchaToken string `json:"captcha_token,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid request body",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -1271,10 +1266,7 @@ func main() {
 			clientIP := ratelimit.GetClientIP(r)
 			if err := captchaVerifier.Verify(r.Context(), req.CaptchaToken, clientIP); err != nil {
 				logging.WarnContext(r.Context(), "CAPTCHA verification failed", "error", err, "ip", clientIP)
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "CAPTCHA verification failed. Please try again.",
-				})
+				httputil.RespondError(w, http.StatusBadRequest, "CAPTCHA verification failed. Please try again.")
 				return
 			}
 		}
@@ -1284,19 +1276,13 @@ func main() {
 
 		// Validate email
 		if err := auth.ValidateEmail(req.Email); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Validate password
 		if err := auth.ValidatePassword(req.Password); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -1304,10 +1290,7 @@ func main() {
 		existingUser, err := database.GetUserByEmail(req.Email)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error checking existing user", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Registration failed",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Registration failed")
 			return
 		}
 		if existingUser != nil {
@@ -1411,8 +1394,6 @@ func main() {
 	const loginLockDuration = 15 * time.Minute
 
 	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		// Parse request body
 		var req struct {
 			Email        string `json:"email"`
@@ -1421,10 +1402,7 @@ func main() {
 			CaptchaToken string `json:"captcha_token,omitempty"` // Required if CAPTCHA is enabled
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid request body",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -1437,10 +1415,7 @@ func main() {
 		if captchaVerifier.IsEnabled() && req.TOTPCode == "" {
 			if err := captchaVerifier.Verify(r.Context(), req.CaptchaToken, clientIP); err != nil {
 				security.LoginFailedCaptcha(r.Context(), clientIP, err.Error())
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "CAPTCHA verification failed. Please try again.",
-				})
+				httputil.RespondError(w, http.StatusBadRequest, "CAPTCHA verification failed. Please try again.")
 				return
 			}
 		}
@@ -1605,24 +1580,16 @@ func main() {
 
 	// Auth: Get current user
 	mux.HandleFunc("GET /api/auth/me", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get user",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get user")
 			return
 		}
 
 		if user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Not authenticated",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Not authenticated")
 			return
 		}
 
@@ -2320,16 +2287,11 @@ func main() {
 
 	// Auth: Forgot password - initiates password reset flow (stricter rate limiting)
 	mux.HandleFunc("POST /api/auth/forgot-password", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		var req struct {
 			Email string `json:"email"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid request body",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -2338,10 +2300,7 @@ func main() {
 
 		// Validate email format
 		if err := auth.ValidateEmail(req.Email); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -3097,8 +3056,6 @@ func main() {
 
 	// Initialize chunked upload session (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload/init", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
@@ -3111,22 +3068,19 @@ func main() {
 			ChunkSize   int64  `json:"chunk_size"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		// Validate required fields
 		if req.Filename == "" || req.ContentType == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: filename, content_type"})
+			httputil.RespondError(w, http.StatusBadRequest, "Missing required fields: filename, content_type")
 			return
 		}
 
 		// Validate file size is positive (reject zero-size files)
 		if req.Size <= 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "File size must be greater than zero. Empty files are not allowed."})
+			httputil.RespondError(w, http.StatusBadRequest, "File size must be greater than zero. Empty files are not allowed.")
 			return
 		}
 
@@ -3468,20 +3422,16 @@ func main() {
 
 	// Complete chunked upload (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload/complete", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		var req struct {
 			UploadSessionID string `json:"upload_session_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		if req.UploadSessionID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Missing upload_session_id"})
+			httputil.RespondError(w, http.StatusBadRequest, "Missing upload_session_id")
 			return
 		}
 
@@ -3489,13 +3439,11 @@ func main() {
 		session, err := database.GetUploadSession(req.UploadSessionID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting upload session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get upload session"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get upload session")
 			return
 		}
 		if session == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			httputil.RespondError(w, http.StatusNotFound, "Upload session not found")
 			return
 		}
 
@@ -3506,22 +3454,19 @@ func main() {
 
 		if session.UserID != nil {
 			if user == nil || *session.UserID != user.ID {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				httputil.RespondError(w, http.StatusForbidden, "Access denied")
 				return
 			}
 		} else if session.SessionID != nil {
 			if requestSessionID == "" || *session.SessionID != requestSessionID {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				httputil.RespondError(w, http.StatusForbidden, "Access denied")
 				return
 			}
 		}
 
 		// Check session status
 		if session.Status != "in_progress" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session is not in progress"})
+			httputil.RespondError(w, http.StatusBadRequest, "Upload session is not in progress")
 			return
 		}
 
@@ -4005,8 +3950,6 @@ func main() {
 
 	// Get transcription status/result
 	mux.HandleFunc("GET /api/transcribe/{id}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -4015,28 +3958,21 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription status",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription status")
 			return
 		}
 
 		if transcription == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this upload",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found for this upload")
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(dbTranscriptionToStatus(transcription))
 	})
 
 	// Update segments for a transcription (edit subtitles)
 	mux.HandleFunc("PUT /api/transcribe/{id}/segments", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -4046,17 +3982,11 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription")
 			return
 		}
 		if transcription == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this upload",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found for this upload")
 			return
 		}
 		if transcription.Status != "complete" {
@@ -4574,8 +4504,6 @@ func main() {
 
 	// List all videos
 	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
@@ -4596,10 +4524,7 @@ func main() {
 		// SECURITY: Require either authenticated user or session_id to filter videos
 		// Without this check, anonymous requests would return ALL videos in the database
 		if userPtr == nil && sessionPtr == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication or session_id required to list videos",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Authentication or session_id required to list videos")
 			return
 		}
 
@@ -4623,10 +4548,7 @@ func main() {
 		result, err := database.ListVideosPaginated(userPtr, sessionPtr, limit, offset)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error listing videos", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to list videos",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to list videos")
 			return
 		}
 
@@ -4665,8 +4587,6 @@ func main() {
 
 	// Delete a video
 	mux.HandleFunc("DELETE /api/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		videoID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
 		if !valid {
 			return
@@ -4676,17 +4596,11 @@ func main() {
 		video, err := database.GetVideo(videoID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get video",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
 			return
 		}
 		if video == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Video not found",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
 			return
 		}
 
@@ -4706,10 +4620,7 @@ func main() {
 		}
 
 		if !hasAccess {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "You do not have permission to delete this video",
-			})
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to delete this video")
 			return
 		}
 
@@ -4717,10 +4628,7 @@ func main() {
 		deletedFiles, err := database.DeleteVideo(videoID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error deleting video from database", "video_id", videoID, "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to delete video",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to delete video")
 			return
 		}
 

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**204 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**211 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**210 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**211 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 209: Backend - Create respondError helper function
+  - Created `httputil.RespondError(w, statusCode, message)` and `httputil.RespondErrorf(w, statusCode, format, args...)`
+  - Helper sets Content-Type header and writes JSON error response in one call
+  - Applied to 10 handlers: upload/complete, register, login, transcribe, segments, delete, videos list, auth/me, upload/init, forgot-password
+  - Added comprehensive tests for both functions
+  - Reduces boilerplate from 3 lines to 1 line per error response
+
 - Task 208: Frontend - Consolidate duplicate escapeHtml functions
   - Removed escapeHtml from format.ts (kept in html.ts)
   - Removed duplicate tests from format.test.ts (covered by html.test.ts)
