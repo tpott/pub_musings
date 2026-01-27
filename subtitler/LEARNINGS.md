@@ -549,3 +549,37 @@ if subtitleFont != "" {
 3. Validation errors are different from internal errors - user feedback is important
 4. The `SetVerbose()` function enables testing both modes without environment variable manipulation
 5. Test with real-world sensitive patterns (file paths, IPs, SQL, API keys) to catch leaks
+
+---
+
+### 2026-01-26: Path validation - check BEFORE filepath.Clean
+
+**Problem:** When implementing path traversal prevention, calling `filepath.Clean()` before checking for `..` segments was ineffective because `filepath.Clean("uploads/../etc/passwd")` returns `"etc/passwd"` - the traversal is normalized away before we can detect it.
+
+**Solution:** Check for traversal patterns BEFORE calling `filepath.Clean`:
+```go
+// Wrong order - traversal normalized away
+cleanPath := filepath.Clean(path)
+if containsTraversalPatterns(cleanPath) {  // Won't catch "uploads/../etc"
+    return ErrPathTraversal
+}
+
+// Correct order - check original path
+if containsTraversalPatterns(path) {  // Catches "uploads/../etc"
+    return ErrPathTraversal
+}
+cleanPath := filepath.Clean(path)
+```
+
+**Key design decisions:**
+1. Check for `..` as a complete path segment, not just substring (allows `..test` as valid filename)
+2. Check for null bytes which can be used in some path attacks
+3. Use `isWithinDir()` for absolute path validation with proper separator handling
+4. Support multiple allowed directories (uploads/, data/)
+5. `SafeJoin()` validates the base directory is allowed before joining
+
+**Lesson:**
+1. `filepath.Clean()` normalizes paths but removes evidence of traversal attempts
+2. Check for malicious patterns BEFORE normalization
+3. `..` as a complete path segment (separated by `/`) is different from `..` as a substring in a filename
+4. Always verify the final path is within allowed directories as a defense-in-depth measure
