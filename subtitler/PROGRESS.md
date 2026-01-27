@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**158 tasks completed.** All tasks from deep inspection complete.
+**159 tasks completed.** 3 new tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 158: Implement metrics path normalization
+  - Added regex patterns for 32-char hex IDs, UUIDs with dashes, and numeric IDs
+  - `normalizePath()` reduces cardinality by replacing dynamic IDs with `{id}` placeholder
+  - 15+ test cases for various path patterns including edge cases
+  - Prevents Prometheus metrics cardinality explosion from unique video/session IDs
 - ✅ Task 151: Implement admin role system for metrics endpoint
   - Created migration 005 to add `role` column to users table (default: "user")
   - Added `Role` field to User struct and `IsAdmin()` method

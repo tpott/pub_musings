@@ -3,11 +3,22 @@ package metrics
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+// Path normalization patterns - compiled once at package init
+var (
+	// Matches 32-character hex strings (UUIDs without dashes, typical IDs)
+	hexIDPattern = regexp.MustCompile(`/[a-f0-9]{32}(/|$)`)
+	// Matches standard UUIDs with dashes (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+	uuidPattern = regexp.MustCompile(`/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(/|$)`)
+	// Matches pure numeric IDs (1 or more digits)
+	numericIDPattern = regexp.MustCompile(`/\d+(/|$)`)
 )
 
 var (
@@ -133,12 +144,21 @@ func RecordUploadFailed() {
 }
 
 // normalizePath normalizes URL paths for consistent metric labels.
-// Replaces dynamic path segments (UUIDs, etc.) with placeholders.
+// Replaces dynamic path segments (UUIDs, IDs, etc.) with placeholders.
+// This prevents cardinality explosion from unique IDs in Prometheus metrics.
+//
+// Examples:
+//   - /api/videos/abc123def456.../video -> /api/videos/{id}/video
+//   - /api/auth/sessions/12345 -> /api/auth/sessions/{id}
+//   - /api/upload/chunk/a1b2c3d4-e5f6-... -> /api/upload/chunk/{id}
 func normalizePath(path string) string {
-	// Keep path as-is for now - can be enhanced to replace dynamic segments
-	// For example: /api/videos/abc123/video -> /api/videos/{id}/video
-	// This prevents cardinality explosion from unique IDs
-	return path
+	// Replace 32-character hex IDs (most common in this codebase)
+	normalized := hexIDPattern.ReplaceAllString(path, "/{id}$1")
+	// Replace standard UUIDs with dashes
+	normalized = uuidPattern.ReplaceAllString(normalized, "/{id}$1")
+	// Replace pure numeric IDs last (to avoid matching hex IDs)
+	normalized = numericIDPattern.ReplaceAllString(normalized, "/{id}$1")
+	return normalized
 }
 
 // ResponseRecorder wraps http.ResponseWriter to capture the status code.

@@ -184,3 +184,118 @@ func TestMetricsEndpoint(t *testing.T) {
 		t.Error("expected transcription_total metric in output")
 	}
 }
+
+func TestNormalizePath(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		// Static paths (no changes)
+		{
+			name:     "static path",
+			input:    "/api/health",
+			expected: "/api/health",
+		},
+		{
+			name:     "static path with multiple segments",
+			input:    "/api/auth/login",
+			expected: "/api/auth/login",
+		},
+
+		// 32-character hex IDs (common in this codebase)
+		{
+			name:     "hex ID in middle of path",
+			input:    "/api/videos/abc123def456789012345678901234ab/video",
+			expected: "/api/videos/{id}/video",
+		},
+		{
+			name:     "hex ID at end of path",
+			input:    "/api/videos/abc123def456789012345678901234ab",
+			expected: "/api/videos/{id}",
+		},
+		{
+			name:     "hex ID with subtitles suffix",
+			input:    "/api/videos/1234567890abcdef1234567890abcdef/subtitles.srt",
+			expected: "/api/videos/{id}/subtitles.srt",
+		},
+		{
+			name:     "hex ID for thumbnail",
+			input:    "/api/videos/fedcba0987654321fedcba0987654321/thumbnail",
+			expected: "/api/videos/{id}/thumbnail",
+		},
+
+		// Standard UUIDs with dashes
+		{
+			name:     "UUID in path",
+			input:    "/api/upload/chunk/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			expected: "/api/upload/chunk/{id}",
+		},
+		{
+			name:     "UUID with trailing path",
+			input:    "/api/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890/revoke",
+			expected: "/api/sessions/{id}/revoke",
+		},
+
+		// Numeric IDs
+		{
+			name:     "numeric ID",
+			input:    "/api/auth/sessions/12345",
+			expected: "/api/auth/sessions/{id}",
+		},
+		{
+			name:     "single digit ID",
+			input:    "/api/items/1",
+			expected: "/api/items/{id}",
+		},
+
+		// Multiple IDs in same path (edge case)
+		{
+			name:     "multiple hex IDs",
+			input:    "/api/videos/abc123def456789012345678901234ab/chunks/def456abc789012345678901234567cd",
+			expected: "/api/videos/{id}/chunks/{id}",
+		},
+
+		// Query strings should not be affected
+		{
+			name:     "path with query params",
+			input:    "/api/videos?limit=10",
+			expected: "/api/videos?limit=10",
+		},
+
+		// Short hex strings should not match (need full 32 chars)
+		{
+			name:     "short hex should not match",
+			input:    "/api/videos/abc123",
+			expected: "/api/videos/abc123",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := normalizePath(tc.input)
+			if result != tc.expected {
+				t.Errorf("normalizePath(%q) = %q, want %q", tc.input, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestNormalizePathReducesCardinality(t *testing.T) {
+	// Simulate recording metrics for many unique IDs
+	uniquePaths := []string{
+		"/api/videos/abc123def456789012345678901234ab/video",
+		"/api/videos/def456abc789012345678901234567cd/video",
+		"/api/videos/111222333444555666777888999000aa/video",
+		"/api/videos/fffeeeddddcccbbbaaaa9998887776ab/video",
+	}
+
+	// All should normalize to the same path
+	for _, path := range uniquePaths {
+		normalized := normalizePath(path)
+		expected := "/api/videos/{id}/video"
+		if normalized != expected {
+			t.Errorf("Expected all paths to normalize to %q, got %q for input %q", expected, normalized, path)
+		}
+	}
+}
