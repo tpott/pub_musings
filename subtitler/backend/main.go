@@ -3878,6 +3878,7 @@ func main() {
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
+			defer os.Remove(audioPath) // Clean up audio file when done (even on panic/error)
 
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
@@ -3935,9 +3936,7 @@ func main() {
 			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
 				logging.Error("Error saving transcription result", "error", err)
 			}
-
-			// Clean up intermediate files
-			os.Remove(audioPath)
+			// Note: audioPath is cleaned up by defer above
 		}(language, keyVersion)
 
 		// Return immediately with processing status
@@ -4812,6 +4811,7 @@ func main() {
 				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
 				return
 			}
+			defer os.Remove(audioPath) // Clean up audio file when done (even on panic/error)
 
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
@@ -4864,9 +4864,7 @@ func main() {
 			if err := database.CompleteTranscription(uploadID, result.Language, result.Duration, result.Text, segments); err != nil {
 				logging.Error("Error saving transcription result", "error", err)
 			}
-
-			// Clean up
-			os.Remove(audioPath)
+			// Note: audioPath is cleaned up by defer above
 		}(keyVersion)
 
 		json.NewEncoder(w).Encode(map[string]string{
@@ -5255,6 +5253,9 @@ func main() {
 
 			// Output to a temp file first, then encrypt
 			outputPath := filepath.Join(uploadDir, uploadID+"_burned.mp4")
+			// Defer removal of unencrypted output file (cleaned up even on panic/error)
+			// Note: This is a no-op if the file doesn't exist or was already removed
+			defer os.Remove(outputPath)
 
 			var cmd *exec.Cmd
 			if mode == "embed" {
@@ -5351,11 +5352,11 @@ func main() {
 			encOutputPath, keyVersion, err := multiEnc.EncryptFile(outputPath)
 			if err != nil {
 				logging.Error("Failed to encrypt burned video", "error", err)
-				os.Remove(outputPath)
+				// Note: outputPath is cleaned up by defer above
 				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err))
 				return
 			}
-			os.Remove(outputPath) // Remove unencrypted file
+			// Note: outputPath (unencrypted file) is cleaned up by defer above
 
 			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion, "mode", mode)
 			database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion)

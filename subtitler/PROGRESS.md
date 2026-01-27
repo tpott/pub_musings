@@ -138,16 +138,22 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**184 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**185 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
-### Pending Tasks (182-187)
+### Pending Tasks (183-187)
 Deep inspection found these issues:
-- Task 182: Temp file cleanup in transcription goroutines
 - Task 183: Per-email rate limit for magic links (SECURITY)
 - Task 185: Script conversion error reporting
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 182: Implement comprehensive temp file cleanup in transcription goroutines
+  - Added `defer os.Remove(audioPath)` in transcription goroutine
+  - Added `defer os.Remove(audioPath)` in reprocess goroutine
+  - Added `defer os.Remove(outputPath)` in burn goroutine (unencrypted temp file)
+  - Removed manual cleanup calls that are now handled by defer
+  - All temp files now cleaned up even on panic/error
+
 - ✅ Task 181: Add transaction locking for transcription status updates
   - Modified `UpdateTranscriptionStatus()` to only update when status is 'pending' or 'processing'
   - Modified `UpdateBurnJobStatus()` with same fix
