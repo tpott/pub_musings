@@ -115,6 +115,95 @@ import '../styles/theme.css';
 				max-width: 100%;
 				border-radius: 8px;
 			}
+			/* Playback speed control */
+			.video-controls {
+				display: flex;
+				align-items: center;
+				gap: 0.75rem;
+				margin-top: 0.75rem;
+				padding: 0.5rem;
+				background-color: var(--secondary-bg);
+				border-radius: 6px;
+			}
+			.speed-control {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			.speed-label {
+				font-size: 0.8rem;
+				color: var(--text-secondary);
+			}
+			.speed-btn {
+				padding: 0.25rem 0.5rem;
+				background-color: var(--btn-secondary-bg);
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-size: 0.8rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+				min-width: 50px;
+				text-align: center;
+			}
+			.speed-btn:hover {
+				background-color: var(--btn-secondary-hover);
+			}
+			.speed-btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.speed-btn.active {
+				background-color: var(--accent-color);
+				color: #fff;
+				border-color: var(--accent-color);
+			}
+			.speed-dropdown {
+				position: relative;
+				display: inline-block;
+			}
+			.speed-options {
+				position: absolute;
+				bottom: 100%;
+				left: 0;
+				margin-bottom: 4px;
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+				display: none;
+				z-index: 100;
+				min-width: 80px;
+			}
+			.speed-options.visible {
+				display: block;
+			}
+			.speed-option {
+				display: block;
+				width: 100%;
+				padding: 0.5rem 0.75rem;
+				background: none;
+				border: none;
+				text-align: left;
+				font-size: 0.85rem;
+				color: var(--text-color);
+				cursor: pointer;
+				transition: background-color 0.15s;
+			}
+			.speed-option:first-child {
+				border-radius: 6px 6px 0 0;
+			}
+			.speed-option:last-child {
+				border-radius: 0 0 6px 6px;
+			}
+			.speed-option:hover {
+				background-color: var(--hover-bg);
+			}
+			.speed-option.active {
+				background-color: var(--accent-color);
+				color: #fff;
+			}
 			.transcription {
 				margin-top: 2rem;
 				padding: 1.5rem;
@@ -1160,6 +1249,22 @@ import '../styles/theme.css';
 
 			<div class="video-preview" id="videoPreview">
 				<video id="previewVideo" controls></video>
+				<div class="video-controls">
+					<div class="speed-control">
+						<span class="speed-label">Speed:</span>
+						<div class="speed-dropdown" id="speedDropdown">
+							<button class="speed-btn" id="speedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
+							<div class="speed-options" id="speedOptions" role="menu">
+								<button class="speed-option" data-speed="0.5" role="menuitem">0.5x</button>
+								<button class="speed-option" data-speed="0.75" role="menuitem">0.75x</button>
+								<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
+								<button class="speed-option" data-speed="1.25" role="menuitem">1.25x</button>
+								<button class="speed-option" data-speed="1.5" role="menuitem">1.5x</button>
+								<button class="speed-option" data-speed="2" role="menuitem">2x</button>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			<div class="language-section" id="languageSection" style="display: none;">
@@ -1287,9 +1392,9 @@ import '../styles/theme.css';
 					</a>
 					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
 					<div class="download-group">
-						<a href="#" class="download-btn" id="downloadSrt" aria-label="Download subtitles in SRT format">Download SRT</a>
-						<a href="#" class="download-btn download-btn-secondary" id="downloadVtt" aria-label="Download subtitles in VTT format">VTT</a>
-						<a href="#" class="download-btn download-btn-secondary" id="downloadJson" aria-label="Download subtitles in JSON format">JSON</a>
+						<a href="#" class="download-btn" id="downloadSrt" aria-label="View subtitles in SRT format">SRT</a>
+						<a href="#" class="download-btn download-btn-secondary" id="downloadVtt" aria-label="View subtitles in VTT format">VTT</a>
+						<a href="#" class="download-btn download-btn-secondary" id="downloadJson" aria-label="View subtitles in JSON format">JSON</a>
 					</div>
 					<button class="burn-btn" id="burnBtn">Burn Subtitles into Video</button>
 					<button class="keyboard-help-btn" id="keyboardHelpBtn" aria-label="Show keyboard shortcuts">
@@ -1352,6 +1457,14 @@ import '../styles/theme.css';
 								<span class="shortcut-description">Forward 10s</span>
 								<span class="shortcut-keys"><span class="shortcut-key">L</span></span>
 							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Slower speed</span>
+								<span class="shortcut-keys"><span class="shortcut-key">[</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Faster speed</span>
+								<span class="shortcut-keys"><span class="shortcut-key">]</span></span>
+							</li>
 						</ul>
 					</div>
 					<div class="shortcut-section">
@@ -1400,10 +1513,18 @@ import '../styles/theme.css';
 				hasHistoricalData
 			} from '../utils/processing-speed';
 			import {
-				downloadSRT,
-				downloadVTT,
-				downloadJSON
+				openSRT,
+				openVTT,
+				openJSON
 			} from '../utils/subtitles';
+			import {
+				PLAYBACK_SPEEDS,
+				getSavedSpeed,
+				setPlaybackSpeed,
+				increaseSpeed,
+				decreaseSpeed,
+				formatSpeed
+			} from '../utils/playback-speed';
 			import type {
 				TranscriptionSegment,
 				TranscriptionResult,
@@ -1466,6 +1587,9 @@ import '../styles/theme.css';
 			const keyboardHelpBtn = document.getElementById('keyboardHelpBtn') as HTMLButtonElement;
 			const keyboardShortcutsModal = document.getElementById('keyboardShortcutsModal') as HTMLElement;
 			const modalClose = document.getElementById('modalClose') as HTMLButtonElement;
+			const speedBtn = document.getElementById('speedBtn') as HTMLButtonElement;
+			const speedOptions = document.getElementById('speedOptions') as HTMLElement;
+			const speedDropdown = document.getElementById('speedDropdown') as HTMLElement;
 
 			// Language display names for showing detected language
 			const languageDisplayNames: Record<string, string> = {
@@ -2992,6 +3116,22 @@ import '../styles/theme.css';
 						e.preventDefault();
 						previewVideo.currentTime = Math.min(previewVideo.duration, previewVideo.currentTime + 10);
 						break;
+					case '[':  // [: Slower speed
+						e.preventDefault();
+						{
+							const newSpeed = decreaseSpeed(previewVideo.playbackRate);
+							setPlaybackSpeed(previewVideo, newSpeed);
+							updateSpeedUI(newSpeed);
+						}
+						break;
+					case ']':  // ]: Faster speed
+						e.preventDefault();
+						{
+							const newSpeed = increaseSpeed(previewVideo.playbackRate);
+							setPlaybackSpeed(previewVideo, newSpeed);
+							updateSpeedUI(newSpeed);
+						}
+						break;
 					case '?':  // ?: Show keyboard shortcuts
 						e.preventDefault();
 						openKeyboardModal();
@@ -3007,6 +3147,80 @@ import '../styles/theme.css';
 				previewVideo.addEventListener('timeupdate', updateCurrentSubtitle);
 				subtitleSyncActive = true;
 			}
+
+			// Playback speed control
+			let speedMenuOpen = false;
+
+			function updateSpeedUI(speed: number) {
+				// Update button text
+				speedBtn.textContent = formatSpeed(speed);
+
+				// Update active state in dropdown
+				speedOptions.querySelectorAll('.speed-option').forEach(option => {
+					const optionSpeed = parseFloat((option as HTMLElement).dataset.speed || '1');
+					if (optionSpeed === speed) {
+						option.classList.add('active');
+					} else {
+						option.classList.remove('active');
+					}
+				});
+			}
+
+			function toggleSpeedMenu() {
+				speedMenuOpen = !speedMenuOpen;
+				speedOptions.classList.toggle('visible', speedMenuOpen);
+				speedBtn.setAttribute('aria-expanded', speedMenuOpen.toString());
+			}
+
+			function closeSpeedMenu() {
+				speedMenuOpen = false;
+				speedOptions.classList.remove('visible');
+				speedBtn.setAttribute('aria-expanded', 'false');
+			}
+
+			// Initialize speed from localStorage
+			function initializeSpeed() {
+				const savedSpeed = getSavedSpeed();
+				previewVideo.playbackRate = savedSpeed;
+				updateSpeedUI(savedSpeed);
+			}
+
+			// Speed button click toggles dropdown
+			speedBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				toggleSpeedMenu();
+			});
+
+			// Speed option selection
+			speedOptions.addEventListener('click', (e) => {
+				const target = e.target as HTMLElement;
+				if (target.classList.contains('speed-option')) {
+					const speed = parseFloat(target.dataset.speed || '1');
+					if (PLAYBACK_SPEEDS.includes(speed as any)) {
+						setPlaybackSpeed(previewVideo, speed as any);
+						updateSpeedUI(speed);
+					}
+					closeSpeedMenu();
+				}
+			});
+
+			// Close menu when clicking outside
+			document.addEventListener('click', (e) => {
+				if (speedMenuOpen && !speedDropdown.contains(e.target as Node)) {
+					closeSpeedMenu();
+				}
+			});
+
+			// Close menu on Escape
+			document.addEventListener('keydown', (e) => {
+				if (e.key === 'Escape' && speedMenuOpen) {
+					closeSpeedMenu();
+					speedBtn.focus();
+				}
+			});
+
+			// Initialize speed on page load
+			initializeSpeed();
 
 			function updateCurrentSubtitle() {
 				const currentTime = previewVideo.currentTime;
@@ -3024,9 +3238,14 @@ import '../styles/theme.css';
 					}
 				}
 
-				// Update the current subtitle display
+				// Update the current subtitle display with bionic reading if enabled
 				if (currentSeg) {
-					currentSubtitle.textContent = currentSeg.text.trim();
+					const useBionic = isBionicEnabled();
+					if (useBionic) {
+						currentSubtitle.innerHTML = renderBionicText(currentSeg.text.trim(), { enabled: true });
+					} else {
+						currentSubtitle.textContent = currentSeg.text.trim();
+					}
 				} else {
 					currentSubtitle.textContent = '';
 				}
@@ -3154,39 +3373,36 @@ import '../styles/theme.css';
 
 			burnBtn.addEventListener('click', startBurn);
 
-			// Download buttons - generate files client-side from loaded segments
+			// Subtitle buttons - open content in new tabs for viewing
 			// No server request needed since we have the data in memory
 			downloadSrt.addEventListener('click', (e) => {
 				e.preventDefault();
-				const segsToDownload = isEditMode ? editedSegments : transcriptionSegments;
-				if (segsToDownload.length === 0) {
-					showStatus('No subtitles to download', 'error');
+				const segsToView = isEditMode ? editedSegments : transcriptionSegments;
+				if (segsToView.length === 0) {
+					showStatus('No subtitles to view', 'error');
 					return;
 				}
-				const filename = currentUploadId || 'subtitles';
-				downloadSRT(segsToDownload, filename);
+				openSRT(segsToView);
 			});
 
 			downloadVtt.addEventListener('click', (e) => {
 				e.preventDefault();
-				const segsToDownload = isEditMode ? editedSegments : transcriptionSegments;
-				if (segsToDownload.length === 0) {
-					showStatus('No subtitles to download', 'error');
+				const segsToView = isEditMode ? editedSegments : transcriptionSegments;
+				if (segsToView.length === 0) {
+					showStatus('No subtitles to view', 'error');
 					return;
 				}
-				const filename = currentUploadId || 'subtitles';
-				downloadVTT(segsToDownload, filename);
+				openVTT(segsToView);
 			});
 
 			downloadJson.addEventListener('click', (e) => {
 				e.preventDefault();
-				const segsToDownload = isEditMode ? editedSegments : transcriptionSegments;
-				if (segsToDownload.length === 0) {
-					showStatus('No subtitles to download', 'error');
+				const segsToView = isEditMode ? editedSegments : transcriptionSegments;
+				if (segsToView.length === 0) {
+					showStatus('No subtitles to view', 'error');
 					return;
 				}
-				const filename = currentUploadId || 'subtitles';
-				downloadJSON(segsToDownload, filename);
+				openJSON(segsToView);
 			});
 
 			// Auth handling

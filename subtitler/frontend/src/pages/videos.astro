@@ -495,6 +495,90 @@ import '../styles/theme.css';
 				border-radius: 8px;
 				background-color: #000;
 			}
+			/* Playback speed control */
+			.modal-video-controls {
+				display: flex;
+				align-items: center;
+				gap: 0.75rem;
+				margin-top: 0.75rem;
+				padding: 0.5rem;
+				background-color: var(--secondary-bg);
+				border-radius: 6px;
+			}
+			.speed-control {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			.speed-label {
+				font-size: 0.8rem;
+				color: var(--text-secondary);
+			}
+			.speed-btn {
+				padding: 0.25rem 0.5rem;
+				background-color: var(--btn-secondary-bg);
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-size: 0.8rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+				min-width: 50px;
+				text-align: center;
+			}
+			.speed-btn:hover {
+				background-color: var(--btn-secondary-hover);
+			}
+			.speed-btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.speed-dropdown {
+				position: relative;
+				display: inline-block;
+			}
+			.speed-options {
+				position: absolute;
+				bottom: 100%;
+				left: 0;
+				margin-bottom: 4px;
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+				display: none;
+				z-index: 100;
+				min-width: 80px;
+			}
+			.speed-options.visible {
+				display: block;
+			}
+			.speed-option {
+				display: block;
+				width: 100%;
+				padding: 0.5rem 0.75rem;
+				background: none;
+				border: none;
+				text-align: left;
+				font-size: 0.85rem;
+				color: var(--text-color);
+				cursor: pointer;
+				transition: background-color 0.15s;
+			}
+			.speed-option:first-child {
+				border-radius: 6px 6px 0 0;
+			}
+			.speed-option:last-child {
+				border-radius: 0 0 6px 6px;
+			}
+			.speed-option:hover {
+				background-color: var(--hover-bg);
+			}
+			.speed-option.active {
+				background-color: var(--accent-color);
+				color: #fff;
+			}
 			.modal-current-subtitle {
 				margin-top: 1rem;
 				padding: 1rem;
@@ -675,12 +759,28 @@ import '../styles/theme.css';
 					<div class="modal-error" id="modalError" style="display: none;"></div>
 					<div id="modalVideoContainer" style="display: none;">
 						<video class="modal-video" id="modalVideo" controls></video>
+						<div class="modal-video-controls">
+							<div class="speed-control">
+								<span class="speed-label">Speed:</span>
+								<div class="speed-dropdown" id="modalSpeedDropdown">
+									<button class="speed-btn" id="modalSpeedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
+									<div class="speed-options" id="modalSpeedOptions" role="menu">
+										<button class="speed-option" data-speed="0.5" role="menuitem">0.5x</button>
+										<button class="speed-option" data-speed="0.75" role="menuitem">0.75x</button>
+										<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
+										<button class="speed-option" data-speed="1.25" role="menuitem">1.25x</button>
+										<button class="speed-option" data-speed="1.5" role="menuitem">1.5x</button>
+										<button class="speed-option" data-speed="2" role="menuitem">2x</button>
+									</div>
+								</div>
+							</div>
+						</div>
 						<div class="modal-current-subtitle" id="modalCurrentSubtitle"></div>
 						<div class="modal-segments" id="modalSegments"></div>
 						<div class="modal-actions">
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener" aria-label="Download subtitles in SRT format">SRT</a>
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener" aria-label="Download subtitles in VTT format">VTT</a>
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener" aria-label="Download subtitles in JSON format">JSON</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener" aria-label="View subtitles in SRT format">SRT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener" aria-label="View subtitles in VTT format">VTT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener" aria-label="View subtitles in JSON format">JSON</a>
 							<a href="#" class="modal-edit-link" id="modalEditLink" aria-label="Edit subtitles">Edit</a>
 						</div>
 					</div>
@@ -693,7 +793,15 @@ import '../styles/theme.css';
 			import { getOrCreateSessionId } from '../utils/session';
 			import { escapeHtml } from '../utils/html';
 			import { renderBionicText, isBionicEnabled } from '../utils/bionic';
-			import { downloadSRT, downloadVTT, downloadJSON } from '../utils/subtitles';
+			import { openSRT, openVTT, openJSON } from '../utils/subtitles';
+			import {
+				PLAYBACK_SPEEDS,
+				getSavedSpeed,
+				setPlaybackSpeed,
+				increaseSpeed,
+				decreaseSpeed,
+				formatSpeed
+			} from '../utils/playback-speed';
 			import type { TranscriptionSegment } from '../types/transcription';
 
 			const loading = document.getElementById('loading') as HTMLElement;
@@ -1077,6 +1185,9 @@ import '../styles/theme.css';
 			const modalDownloadVtt = document.getElementById('modalDownloadVtt') as HTMLAnchorElement;
 			const modalDownloadJson = document.getElementById('modalDownloadJson') as HTMLAnchorElement;
 			const modalEditLink = document.getElementById('modalEditLink') as HTMLAnchorElement;
+			const modalSpeedBtn = document.getElementById('modalSpeedBtn') as HTMLButtonElement;
+			const modalSpeedOptions = document.getElementById('modalSpeedOptions') as HTMLElement;
+			const modalSpeedDropdown = document.getElementById('modalSpeedDropdown') as HTMLElement;
 
 			let currentModalVideoId: string | null = null;
 			let modalSubtitleSegments: TranscriptionSegment[] = [];
@@ -1137,9 +1248,89 @@ import '../styles/theme.css';
 				document.addEventListener('keydown', handleModalKeydown, { signal: modalKeydownController.signal });
 			}
 
+			// Modal playback speed control
+			let modalSpeedMenuOpen = false;
+
+			function updateModalSpeedUI(speed: number) {
+				modalSpeedBtn.textContent = formatSpeed(speed);
+				modalSpeedOptions.querySelectorAll('.speed-option').forEach(option => {
+					const optionSpeed = parseFloat((option as HTMLElement).dataset.speed || '1');
+					if (optionSpeed === speed) {
+						option.classList.add('active');
+					} else {
+						option.classList.remove('active');
+					}
+				});
+			}
+
+			function toggleModalSpeedMenu() {
+				modalSpeedMenuOpen = !modalSpeedMenuOpen;
+				modalSpeedOptions.classList.toggle('visible', modalSpeedMenuOpen);
+				modalSpeedBtn.setAttribute('aria-expanded', modalSpeedMenuOpen.toString());
+			}
+
+			function closeModalSpeedMenu() {
+				modalSpeedMenuOpen = false;
+				modalSpeedOptions.classList.remove('visible');
+				modalSpeedBtn.setAttribute('aria-expanded', 'false');
+			}
+
+			function initializeModalSpeed() {
+				const savedSpeed = getSavedSpeed();
+				modalVideo.playbackRate = savedSpeed;
+				updateModalSpeedUI(savedSpeed);
+			}
+
+			// Speed button click toggles dropdown
+			modalSpeedBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				toggleModalSpeedMenu();
+			});
+
+			// Speed option selection
+			modalSpeedOptions.addEventListener('click', (e) => {
+				const target = e.target as HTMLElement;
+				if (target.classList.contains('speed-option')) {
+					const speed = parseFloat(target.dataset.speed || '1');
+					if (PLAYBACK_SPEEDS.includes(speed as any)) {
+						setPlaybackSpeed(modalVideo, speed as any);
+						updateModalSpeedUI(speed);
+					}
+					closeModalSpeedMenu();
+				}
+			});
+
+			// Close menu when clicking outside (within modal)
+			videoModal.addEventListener('click', (e) => {
+				if (modalSpeedMenuOpen && !modalSpeedDropdown.contains(e.target as Node)) {
+					closeModalSpeedMenu();
+				}
+			});
+
 			function handleModalKeydown(e: KeyboardEvent) {
 				if (e.key === 'Escape') {
+					// Close speed menu first if open
+					if (modalSpeedMenuOpen) {
+						closeModalSpeedMenu();
+						return;
+					}
 					closeVideoModal();
+					return;
+				}
+
+				// Speed control shortcuts
+				if (e.key === '[') {
+					e.preventDefault();
+					const newSpeed = decreaseSpeed(modalVideo.playbackRate);
+					setPlaybackSpeed(modalVideo, newSpeed);
+					updateModalSpeedUI(newSpeed);
+					return;
+				}
+				if (e.key === ']') {
+					e.preventDefault();
+					const newSpeed = increaseSpeed(modalVideo.playbackRate);
+					setPlaybackSpeed(modalVideo, newSpeed);
+					updateModalSpeedUI(newSpeed);
 					return;
 				}
 
@@ -1229,6 +1420,9 @@ import '../styles/theme.css';
 					// Set up subtitle sync
 					setupModalSubtitleSync();
 
+					// Initialize playback speed
+					initializeModalSpeed();
+
 					// Show video container
 					modalLoading.style.display = 'none';
 					modalVideoContainer.style.display = 'block';
@@ -1281,9 +1475,14 @@ import '../styles/theme.css';
 					}
 				}
 
-				// Update the current subtitle display
+				// Update the current subtitle display with bionic reading if enabled
 				if (currentSeg) {
-					modalCurrentSubtitle.textContent = currentSeg.text.trim();
+					const useBionic = isBionicEnabled();
+					if (useBionic) {
+						modalCurrentSubtitle.innerHTML = renderBionicText(currentSeg.text.trim(), { enabled: true });
+					} else {
+						modalCurrentSubtitle.textContent = currentSeg.text.trim();
+					}
 				} else {
 					modalCurrentSubtitle.textContent = '';
 				}
@@ -1340,36 +1539,33 @@ import '../styles/theme.css';
 				}
 			}
 
-			// Modal download handlers - generate files client-side from loaded segments
+			// Modal subtitle buttons - open content in new tabs for viewing
 			// No server request needed since segments are already in memory
 			modalDownloadSrt.addEventListener('click', (e) => {
 				e.preventDefault();
 				if (modalSubtitleSegments.length === 0) {
-					alert('No subtitles available to download');
+					alert('No subtitles available to view');
 					return;
 				}
-				const filename = currentModalVideoId || 'subtitles';
-				downloadSRT(modalSubtitleSegments, filename);
+				openSRT(modalSubtitleSegments);
 			});
 
 			modalDownloadVtt.addEventListener('click', (e) => {
 				e.preventDefault();
 				if (modalSubtitleSegments.length === 0) {
-					alert('No subtitles available to download');
+					alert('No subtitles available to view');
 					return;
 				}
-				const filename = currentModalVideoId || 'subtitles';
-				downloadVTT(modalSubtitleSegments, filename);
+				openVTT(modalSubtitleSegments);
 			});
 
 			modalDownloadJson.addEventListener('click', (e) => {
 				e.preventDefault();
 				if (modalSubtitleSegments.length === 0) {
-					alert('No subtitles available to download');
+					alert('No subtitles available to view');
 					return;
 				}
-				const filename = currentModalVideoId || 'subtitles';
-				downloadJSON(modalSubtitleSegments, filename);
+				openJSON(modalSubtitleSegments);
 			});
 
 			// Modal close handlers

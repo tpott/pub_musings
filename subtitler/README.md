@@ -95,6 +95,8 @@ The subtitle editor supports keyboard shortcuts for efficient video editing:
 | `J` | Rewind 10 seconds |
 | `K` | Pause |
 | `L` | Forward 10 seconds |
+| `[` | Slower playback speed |
+| `]` | Faster playback speed |
 
 **Subtitle Navigation:**
 | Shortcut | Action |

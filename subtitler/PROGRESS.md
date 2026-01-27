@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**221 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**222 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**221 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**222 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 221: Feature - Variable playback speed for language learning
+  - Added speed control dropdown to video player (upload.astro and videos.astro modal)
+  - Speed options: 0.5x, 0.75x, 1x (default), 1.25x, 1.5x, 2x
+  - Keyboard shortcuts: `[` for slower, `]` for faster
+  - Speed preference persisted in localStorage (`subtitler:playback-speed`)
+  - Created `frontend/src/utils/playback-speed.ts` utility with 27 unit tests
+  - Updated keyboard shortcuts documentation in modal and README.md
+  - Uses native HTML5 `playbackRate` with browser's pitch preservation
+  - See: `specs/playback-speed.md`
+
 - Task 219: Feature - Detect embedded subtitles
   - Added `GetSubtitleTracks()` to `backend/audio/audio.go` using ffprobe
   - Created `SubtitleTrack` struct with index, language, title, codec, default, forced, text_based

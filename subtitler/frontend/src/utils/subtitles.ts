@@ -146,3 +146,45 @@ export function downloadJSON(segments: TranscriptionSegment[], baseFilename: str
   const content = generateJSON(segments);
   triggerDownload(content, `${baseFilename}.json`, 'application/json; charset=utf-8');
 }
+
+/**
+ * Open content in a new browser tab
+ */
+export function openInNewTab(content: string, mimeType: string): void {
+  const { url, revoke } = createDownloadURL(content, mimeType);
+
+  const newTab = window.open(url, '_blank');
+
+  // Revoke after a delay to ensure tab has loaded
+  // Use longer delay for tab vs download since tab needs time to render
+  setTimeout(revoke, 1000);
+
+  // If popup was blocked, fall back to navigating current window
+  if (!newTab) {
+    window.location.href = url;
+  }
+}
+
+/**
+ * Open SRT content in new tab
+ */
+export function openSRT(segments: TranscriptionSegment[]): void {
+  const content = generateSRT(segments);
+  openInNewTab(content, 'text/plain; charset=utf-8');
+}
+
+/**
+ * Open VTT content in new tab
+ */
+export function openVTT(segments: TranscriptionSegment[]): void {
+  const content = generateVTT(segments);
+  openInNewTab(content, 'text/vtt; charset=utf-8');
+}
+
+/**
+ * Open JSON content in new tab
+ */
+export function openJSON(segments: TranscriptionSegment[]): void {
+  const content = generateJSON(segments);
+  openInNewTab(content, 'application/json; charset=utf-8');
+}

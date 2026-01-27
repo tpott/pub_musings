@@ -778,3 +778,33 @@ This is an information disclosure vulnerability - production error messages shou
 2. **Raw error messages should NEVER be returned in production** - use user-friendly messages
 3. The existing `errmsg` package pattern should be applied consistently to all error paths
 4. When adding features that store errors, trace the entire path: creation → storage → retrieval → client response
+
+---
+
+### 2026-01-27: Backend deploy fails with "Failed to connect to bus: No medium found"
+
+**Problem:** Webhook-deployer service fails to restart subtitler backend. Error: `Failed to connect to bus: No medium found`. Manual `./deploy-subtitler-backend.sh` works fine.
+
+**Investigation:**
+1. The webhook-deployer runs as a systemd service
+2. When systemd service tries to run `sudo systemctl restart subtitler`, it fails to connect to D-Bus
+3. D-Bus socket may not be accessible from within the service context
+4. Running manually as user `trevor` works because the user session has D-Bus access
+
+**Potential solutions:**
+1. **PrivateMounts=no** - Allow service to see system D-Bus socket
+2. **Type=notify** with socket activation - Service auto-starts on request
+3. **Environment=DBUS_SESSION_BUS_ADDRESS** - Point to system bus
+4. **polkit rule** - Grant webhook service permission to restart subtitler
+
+**Lesson:** Services running within systemd may have limited access to D-Bus. Either configure the service unit to allow D-Bus access or use alternative restart mechanisms (kill/respawn, socket activation, etc.).
+
+---
+
+### 2026-01-27: SRT/VTT/JSON buttons should open in new tabs, not download
+
+**Problem:** User feedback - "SRT / VTT / JSON buttons SHOULD NOT BE DOWNLOADS. I DON'T WANT DOWNLOADS."
+
+**Solution:** Changed from `downloadSRT()/downloadVTT()/downloadJSON()` functions to `openSRT()/openVTT()/openJSON()` which open content in new browser tabs using `window.open()` with blob URLs.
+
+**Lesson:** Understand user intent before implementing. "View subtitles" ≠ "Download subtitles". The user wanted to preview/copy subtitle content in browser, not download files.
