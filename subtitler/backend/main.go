@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -3870,14 +3871,17 @@ func main() {
 
 			// Start a goroutine to simulate progress updates during transcription
 			// Since whisper doesn't provide progress callbacks, we estimate based on time
-			progressDone := make(chan struct{})
+			// Use context for cancellation so it's safe to call cancel multiple times
+			// (e.g., from defer recover and normal completion)
+			progressCtx, cancelProgress := context.WithCancel(context.Background())
+			defer cancelProgress() // Ensure cleanup even if we panic
 			go func() {
 				ticker := time.NewTicker(5 * time.Second)
 				defer ticker.Stop()
 				progress := 30
 				for {
 					select {
-					case <-progressDone:
+					case <-progressCtx.Done():
 						return
 					case <-ticker.C:
 						// Increment progress slowly from 30% to 90% during transcription
@@ -3892,7 +3896,7 @@ func main() {
 			// Run whisper (server or CLI based on configuration)
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
 			result, err := transcribe(audioPath, outputPath, lang)
-			close(progressDone) // Stop progress simulation
+			cancelProgress() // Stop progress simulation
 
 			if err != nil {
 				logging.Error("Transcription failed", "error", err)
@@ -4832,14 +4836,16 @@ func main() {
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
 			// Start progress simulation goroutine
-			progressDone := make(chan struct{})
+			// Use context for cancellation so it's safe to call cancel multiple times
+			progressCtx, cancelProgress := context.WithCancel(context.Background())
+			defer cancelProgress() // Ensure cleanup even if we panic
 			go func() {
 				ticker := time.NewTicker(5 * time.Second)
 				defer ticker.Stop()
 				progress := 30
 				for {
 					select {
-					case <-progressDone:
+					case <-progressCtx.Done():
 						return
 					case <-ticker.C:
 						if progress < 90 {
@@ -4853,7 +4859,7 @@ func main() {
 			// Run whisper (reprocess uses auto-detect)
 			outputPath := filepath.Join(uploadDir, uploadID+"_transcript")
 			result, err := transcribe(audioPath, outputPath, "auto")
-			close(progressDone)
+			cancelProgress() // Stop progress simulation
 
 			if err != nil {
 				logging.Error("Transcription failed", "error", err)
@@ -5318,7 +5324,9 @@ func main() {
 			// Start progress update goroutine for burn operation
 			// FFmpeg doesn't provide progress callbacks, so we simulate progress
 			// by incrementing from 20% to 85% in steps based on video duration
-			burnProgressDone := make(chan struct{})
+			// Use context for cancellation so it's safe to call cancel multiple times
+			burnProgressCtx, cancelBurnProgress := context.WithCancel(context.Background())
+			defer cancelBurnProgress() // Ensure cleanup even if we panic
 			go func() {
 				// Use video duration to estimate tick interval
 				// Shorter videos = shorter intervals, longer videos = longer intervals
@@ -5349,7 +5357,7 @@ func main() {
 				statusMsg := progressMsg
 				for {
 					select {
-					case <-burnProgressDone:
+					case <-burnProgressCtx.Done():
 						return
 					case <-ticker.C:
 						if progress < 85 {
@@ -5361,7 +5369,7 @@ func main() {
 			}()
 
 			cmdOutput, err := cmd.CombinedOutput()
-			close(burnProgressDone) // Stop progress updates
+			cancelBurnProgress() // Stop progress updates
 
 			if err != nil {
 				logging.Error("ffmpeg burn subtitles failed", "error", err, "output", string(cmdOutput))

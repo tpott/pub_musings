@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**172 tasks completed.** Deep inspection created 12 new tasks (167-178).
+**173 tasks completed.** Deep inspection created 12 new tasks (167-178).
 
 ### Recently Completed
+- ✅ Task 169: Add context cancellation to progress simulation goroutines
+  - Replaced `chan struct{}` with `context.WithCancel()` in 3 locations
+  - POST /api/transcribe/{id}, POST /api/videos/{id}/reprocess, POST /api/burn/{id}
+  - Context pattern is safer: cancel() is idempotent, close(chan) panics if called twice
+  - Added `defer cancelProgress()` to ensure cleanup even on panic
 - ✅ Task 177: Add E2E test reference to TESTING.md
   - Added note in Frontend Tests section referencing BROWSER_TESTING.md
 - ✅ Task 176: Add cross-references to ENV.md
