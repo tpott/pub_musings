@@ -8,6 +8,7 @@ frontend/.astro/
 
 # Backend
 backend/subtitler
+backend/subtitler-prev
 backend/backend
 backend/uploads/
 backend/data/

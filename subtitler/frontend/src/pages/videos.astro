@@ -662,10 +662,10 @@ import '../styles/theme.css';
 						<div class="modal-current-subtitle" id="modalCurrentSubtitle"></div>
 						<div class="modal-segments" id="modalSegments"></div>
 						<div class="modal-actions">
-							<a href="#" class="modal-download-btn" id="modalDownloadSrt">Download SRT</a>
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt">VTT</a>
-							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson">JSON</a>
-							<a href="#" class="modal-edit-link" id="modalEditLink">Edit Subtitles</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener">SRT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener">VTT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener">JSON</a>
+							<a href="#" class="modal-edit-link" id="modalEditLink">Edit</a>
 						</div>
 					</div>
 				</div>
@@ -761,8 +761,8 @@ import '../styles/theme.css';
 				return `
 					<div class="video-card" data-video-id="${video.id}">
 						${hasThumbnail
-							? `<img class="video-thumbnail" src="/api/videos/${video.id}/thumbnail" alt="Thumbnail for ${escapeHtml(video.filename)}" loading="lazy" />`
-							: `<div class="video-thumbnail-placeholder">🎬</div>`
+							? `<img class="video-thumbnail${showViewBtn ? ' clickable-thumbnail' : ''}" src="/api/videos/${video.id}/thumbnail" alt="Thumbnail for ${escapeHtml(video.filename)}" loading="lazy" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" style="cursor: pointer;"` : ''} />`
+							: `<div class="video-thumbnail-placeholder${showViewBtn ? ' clickable-thumbnail' : ''}" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" style="cursor: pointer;"` : ''}>🎬</div>`
 						}
 						<div class="video-info">
 							<div class="video-filename">${escapeHtml(video.filename)}</div>
@@ -775,9 +775,9 @@ import '../styles/theme.css';
 						</div>
 						<div class="video-actions">
 							${showViewBtn ? `<button class="btn btn-primary btn-view" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}">View</button>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary">SRT</a>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary">VTT</a>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary">JSON</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary" target="_blank" rel="noopener">SRT</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary" target="_blank" rel="noopener">VTT</a>` : ''}
+							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary" target="_blank" rel="noopener">JSON</a>` : ''}
 							${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
 							${showRetryBtn ? `<button class="btn btn-retry" data-video-id="${video.id}">Retry</button>` : ''}
 							<button class="btn btn-delete" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Delete ${escapeHtml(video.filename)}">Delete</button>
@@ -910,6 +910,27 @@ import '../styles/theme.css';
 						const filename = button.dataset.filename;
 						if (videoId) {
 							openVideoModal(videoId, filename || 'Video');
+						}
+					});
+				});
+			}
+
+			function attachThumbnailHandlers() {
+				const thumbnails = videoList.querySelectorAll('.clickable-thumbnail');
+				thumbnails.forEach((thumb) => {
+					const el = thumb as HTMLElement;
+					const handler = () => {
+						const videoId = el.dataset.videoId;
+						const filename = el.dataset.filename;
+						if (videoId) {
+							openVideoModal(videoId, filename || 'Video');
+						}
+					};
+					el.addEventListener('click', handler);
+					el.addEventListener('keydown', (e) => {
+						if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+							e.preventDefault();
+							handler();
 						}
 					});
 				});
@@ -1063,8 +1084,18 @@ import '../styles/theme.css';
 				modalSegments.querySelectorAll('.modal-segment').forEach((el, idx) => {
 					if (idx === currentIndex) {
 						el.classList.add('active');
-						// Scroll the segment into view if needed
-						el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+						// Scroll the segment into view within the container only (not the whole page)
+						const container = modalSegments;
+						const segmentEl = el as HTMLElement;
+						const containerRect = container.getBoundingClientRect();
+						const segmentRect = segmentEl.getBoundingClientRect();
+
+						// Only scroll if segment is outside the visible area of the container
+						if (segmentRect.top < containerRect.top) {
+							container.scrollTop -= (containerRect.top - segmentRect.top);
+						} else if (segmentRect.bottom > containerRect.bottom) {
+							container.scrollTop += (segmentRect.bottom - containerRect.bottom);
+						}
 					} else {
 						el.classList.remove('active');
 					}
@@ -1174,6 +1205,7 @@ import '../styles/theme.css';
 					videoList.style.display = 'flex';
 					attachRetryHandlers();
 					attachViewHandlers();
+					attachThumbnailHandlers();
 					attachDeleteHandlers();
 					updatePaginationUI();
 

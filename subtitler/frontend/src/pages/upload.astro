@@ -2282,7 +2282,65 @@ import '../styles/theme.css';
 
 			retranscribeBtn.addEventListener('click', retranscribe);
 
+			// Load existing video if ?id= param is present
+			async function loadExistingVideo() {
+				const urlParams = new URLSearchParams(window.location.search);
+				const videoId = urlParams.get('id');
+				if (!videoId) return;
+
+				currentUploadId = videoId;
+
+				try {
+					// Load video metadata and transcription
+					const response = await fetch(`/api/transcribe/${videoId}`);
+					const result = await response.json();
+
+					if (result.status === 'complete' && result.result) {
+						// Show video preview
+						previewVideo.src = `/api/videos/${videoId}/video`;
+						videoPreview.classList.add('visible');
+
+						// Show language section
+						languageSection.style.display = 'block';
+						retranscribeBtn.style.display = 'inline-block';
+
+						// Display transcription
+						transcription.classList.add('visible');
+						transcriptionStatus.textContent = 'Transcription complete!';
+						displayTranscription(result.result);
+
+						// Hide dropzone since we're viewing an existing video
+						dropzone.style.display = 'none';
+					} else if (result.status === 'processing' || result.status === 'pending') {
+						// Show video preview
+						previewVideo.src = `/api/videos/${videoId}/video`;
+						videoPreview.classList.add('visible');
+
+						// Show language section
+						languageSection.style.display = 'block';
+
+						// Hide dropzone
+						dropzone.style.display = 'none';
+
+						// Start polling
+						transcription.classList.add('visible');
+						pollTranscriptionStatus(videoId);
+					} else if (result.status === 'error') {
+						// Show video preview
+						previewVideo.src = `/api/videos/${videoId}/video`;
+						videoPreview.classList.add('visible');
+						dropzone.style.display = 'none';
+
+						transcription.classList.add('visible');
+						transcriptionStatus.textContent = `Error: ${result.message || 'Transcription failed'}`;
+					}
+				} catch (err) {
+					console.error('Failed to load video:', err);
+				}
+			}
+
 			checkAuth();
+			loadExistingVideo();
 		</script>
 		<CookieConsent />
 	</body>
