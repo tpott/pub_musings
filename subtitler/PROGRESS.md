@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**212 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**213 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**212 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**213 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 212: Frontend - Add subtitle alignment feedback buttons
+  - Added feedback buttons (good 👍, misaligned ⏱️, missing ❓) to each segment
+  - Feedback stored per-segment in localStorage keyed by video ID
+  - Toggle behavior: clicking same feedback clears it, clicking different sets new
+  - Buttons hidden in edit mode, visible in view mode
+  - Documented backend integration plan for POST /api/videos/{id}/feedback
+
 - Task 210: Backend - Add graceful shutdown with signal handling
   - Added `shutdownCtx` and `shutdownCancel` for signaling background goroutines to stop
   - Created `http.Server` with `Shutdown()` method instead of `ListenAndServe`

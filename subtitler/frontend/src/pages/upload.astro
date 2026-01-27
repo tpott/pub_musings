@@ -426,6 +426,52 @@ import '../styles/theme.css';
 			.segment-delete-btn:hover {
 				background-color: var(--delete-btn-hover);
 			}
+			/* Segment feedback buttons */
+			.segment-feedback {
+				display: flex;
+				gap: 0.25rem;
+				margin-top: 0.5rem;
+				padding-top: 0.5rem;
+				border-top: 1px solid var(--border-color);
+			}
+			.segment.editing .segment-feedback {
+				display: none;
+			}
+			.feedback-btn {
+				padding: 0.2rem 0.4rem;
+				background-color: var(--btn-secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-size: 0.7rem;
+				cursor: pointer;
+				transition: all 0.2s;
+				display: flex;
+				align-items: center;
+				gap: 0.2rem;
+			}
+			.feedback-btn:hover {
+				background-color: var(--btn-secondary-hover);
+			}
+			.feedback-btn.active {
+				background-color: var(--accent-color);
+				color: white;
+				border-color: var(--accent-color);
+			}
+			.feedback-btn.good.active {
+				background-color: #22c55e;
+				border-color: #22c55e;
+			}
+			.feedback-btn.misaligned.active {
+				background-color: #f59e0b;
+				border-color: #f59e0b;
+			}
+			.feedback-btn.missing.active {
+				background-color: #ef4444;
+				border-color: #ef4444;
+			}
+			.feedback-btn .emoji {
+				font-size: 0.85rem;
+			}
 			.add-segment-btn {
 				display: none;
 				width: 100%;
@@ -1502,6 +1548,70 @@ import '../styles/theme.css';
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
 
+			// Segment alignment feedback storage
+			// Feedback types: 'good' (thumbs up), 'misaligned' (timing off), 'missing' (words missing)
+			//
+			// Backend Integration Plan:
+			// To send feedback to the backend, create a POST /api/videos/{id}/feedback endpoint that accepts:
+			// {
+			//   "segments": [
+			//     { "index": 0, "feedback": "good", "start": 0.0, "end": 2.5, "text": "..." },
+			//     { "index": 3, "feedback": "misaligned", "start": 10.0, "end": 12.0, "text": "..." }
+			//   ],
+			//   "submitted_at": "2026-01-27T12:00:00Z"
+			// }
+			// The backend can store this in a feedback table for analytics and model improvement.
+			// Call getAllFeedback() to get all feedback data when the user clicks a "Submit Feedback" button.
+			//
+			type FeedbackType = 'good' | 'misaligned' | 'missing' | null;
+
+			function getFeedbackStorageKey(): string {
+				return `subtitler:feedback:${currentUploadId}`;
+			}
+
+			function getSegmentFeedback(index: number): FeedbackType {
+				if (!currentUploadId) return null;
+				try {
+					const stored = localStorage.getItem(getFeedbackStorageKey());
+					if (stored) {
+						const feedbackMap = JSON.parse(stored) as Record<string, FeedbackType>;
+						return feedbackMap[index.toString()] || null;
+					}
+				} catch {
+					// Ignore parse errors
+				}
+				return null;
+			}
+
+			function setSegmentFeedback(index: number, feedback: FeedbackType): void {
+				if (!currentUploadId) return;
+				try {
+					const key = getFeedbackStorageKey();
+					const stored = localStorage.getItem(key);
+					const feedbackMap: Record<string, FeedbackType> = stored ? JSON.parse(stored) : {};
+
+					if (feedback === null) {
+						delete feedbackMap[index.toString()];
+					} else {
+						feedbackMap[index.toString()] = feedback;
+					}
+
+					localStorage.setItem(key, JSON.stringify(feedbackMap));
+				} catch {
+					// Ignore storage errors
+				}
+			}
+
+			function getAllFeedback(): Record<string, FeedbackType> {
+				if (!currentUploadId) return {};
+				try {
+					const stored = localStorage.getItem(getFeedbackStorageKey());
+					return stored ? JSON.parse(stored) : {};
+				} catch {
+					return {};
+				}
+			}
+
 			// Undo/redo state management
 			const MAX_HISTORY_SIZE = 50;
 			let undoStack: TranscriptionSegment[][] = [];
@@ -2281,7 +2391,9 @@ import '../styles/theme.css';
 				const segsToRender = isEditMode ? editedSegments : transcriptionSegments;
 
 				if (segsToRender.length > 0) {
-					segments.innerHTML = segsToRender.map((seg, index) => `
+					segments.innerHTML = segsToRender.map((seg, index) => {
+						const feedback = getSegmentFeedback(index);
+						return `
 						<div class="segment${isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
 							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
 							<div class="segment-text">${escapeHtml(seg.text)}</div>
@@ -2299,8 +2411,19 @@ import '../styles/theme.css';
 									<button class="segment-delete-btn" data-index="${index}" aria-label="Delete segment ${index + 1}">Delete</button>
 								</div>
 							</div>
+							<div class="segment-feedback">
+								<button class="feedback-btn good${feedback === 'good' ? ' active' : ''}" data-feedback="good" data-index="${index}" aria-label="Mark segment ${index + 1} as good alignment" title="Good alignment">
+									<span class="emoji">👍</span>
+								</button>
+								<button class="feedback-btn misaligned${feedback === 'misaligned' ? ' active' : ''}" data-feedback="misaligned" data-index="${index}" aria-label="Mark segment ${index + 1} as misaligned" title="Timing is off">
+									<span class="emoji">⏱️</span> Misaligned
+								</button>
+								<button class="feedback-btn missing${feedback === 'missing' ? ' active' : ''}" data-feedback="missing" data-index="${index}" aria-label="Mark segment ${index + 1} as missing words" title="Words are missing">
+									<span class="emoji">❓</span> Missing
+								</button>
+							</div>
 						</div>
-					`).join('');
+					`}).join('');
 
 					// Add event handlers
 					if (isEditMode) {
@@ -2324,11 +2447,43 @@ import '../styles/theme.css';
 			}
 
 			function setupClickHandlers() {
+				// Segment click to seek video
 				segments.querySelectorAll('.segment').forEach(el => {
-					el.addEventListener('click', () => {
+					el.addEventListener('click', (e) => {
+						// Don't trigger seek if clicking on feedback buttons
+						if ((e.target as HTMLElement).closest('.feedback-btn')) return;
+
 						const start = parseFloat(el.getAttribute('data-start') || '0');
 						previewVideo.currentTime = start;
 						previewVideo.play();
+					});
+				});
+
+				// Feedback button handlers
+				segments.querySelectorAll('.feedback-btn').forEach(btn => {
+					btn.addEventListener('click', (e) => {
+						e.stopPropagation(); // Prevent segment click handler
+						const target = e.currentTarget as HTMLButtonElement;
+						const index = parseInt(target.getAttribute('data-index') || '0', 10);
+						const feedbackType = target.getAttribute('data-feedback') as FeedbackType;
+						const currentFeedback = getSegmentFeedback(index);
+
+						// Toggle: if clicking the same feedback, clear it; otherwise set new feedback
+						if (currentFeedback === feedbackType) {
+							setSegmentFeedback(index, null);
+						} else {
+							setSegmentFeedback(index, feedbackType);
+						}
+
+						// Update button states without re-rendering entire segment list
+						const segmentEl = target.closest('.segment');
+						if (segmentEl) {
+							const newFeedback = getSegmentFeedback(index);
+							segmentEl.querySelectorAll('.feedback-btn').forEach(b => {
+								const btnFeedback = b.getAttribute('data-feedback');
+								b.classList.toggle('active', btnFeedback === newFeedback);
+							});
+						}
 					});
 				});
 			}
