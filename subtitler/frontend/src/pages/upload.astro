@@ -306,10 +306,42 @@ import '../styles/theme.css';
 			.cancel-btn:hover {
 				background-color: var(--btn-secondary-hover);
 			}
+			.undo-redo-btn {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.5rem 0.75rem;
+				background-color: var(--btn-secondary-bg);
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s, opacity 0.2s;
+				min-width: 40px;
+			}
+			.undo-redo-btn:hover:not(:disabled) {
+				background-color: var(--btn-secondary-hover);
+			}
+			.undo-redo-btn:disabled {
+				opacity: 0.4;
+				cursor: not-allowed;
+			}
+			.undo-redo-btn svg {
+				width: 16px;
+				height: 16px;
+			}
+			.undo-redo-separator {
+				width: 1px;
+				height: 24px;
+				background-color: var(--border-color);
+				margin: 0 0.25rem;
+			}
 			.edit-actions {
 				display: none;
 				gap: 0.5rem;
 				margin-bottom: 1rem;
+				align-items: center;
 			}
 			.edit-actions.visible {
 				display: flex;
@@ -941,6 +973,13 @@ import '../styles/theme.css';
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
 				<div class="current-subtitle" id="currentSubtitle"></div>
 				<div class="edit-actions" id="editActions">
+					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+					</button>
+					<button class="undo-redo-btn" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo last undone edit">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+					</button>
+					<div class="undo-redo-separator"></div>
 					<button class="save-btn" id="saveBtn">Save Changes</button>
 					<button class="cancel-btn" id="cancelBtn">Cancel</button>
 				</div>
@@ -1047,6 +1086,8 @@ import '../styles/theme.css';
 			const downloadVtt = document.getElementById('downloadVtt') as HTMLAnchorElement;
 			const downloadJson = document.getElementById('downloadJson') as HTMLAnchorElement;
 			const editBtn = document.getElementById('editBtn') as HTMLButtonElement;
+			const undoBtn = document.getElementById('undoBtn') as HTMLButtonElement;
+			const redoBtn = document.getElementById('redoBtn') as HTMLButtonElement;
 			const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
 			const cancelBtn = document.getElementById('cancelBtn') as HTMLButtonElement;
 			const editActions = document.getElementById('editActions') as HTMLElement;
@@ -1136,6 +1177,11 @@ import '../styles/theme.css';
 			let editedSegments: TranscriptionSegment[] = [];
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
+
+			// Undo/redo state management
+			const MAX_HISTORY_SIZE = 50;
+			let undoStack: TranscriptionSegment[][] = [];
+			let redoStack: TranscriptionSegment[][] = [];
 
 			// Cleanup management for long-running operations
 			let transcriptionPollTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1919,8 +1965,11 @@ import '../styles/theme.css';
 			}
 
 			function setupEditHandlers() {
-				// Text editing
+				// Text editing - save history on focus (before user starts typing)
 				segments.querySelectorAll('.segment-textarea').forEach((textarea: Element) => {
+					textarea.addEventListener('focus', () => {
+						pushToHistory();
+					});
 					textarea.addEventListener('input', (e) => {
 						const target = e.target as HTMLTextAreaElement;
 						const index = parseInt(target.getAttribute('data-index') || '0', 10);
@@ -1929,8 +1978,11 @@ import '../styles/theme.css';
 					});
 				});
 
-				// Time inputs
+				// Time inputs - save history before change
 				segments.querySelectorAll('.time-input-start').forEach((input: Element) => {
+					input.addEventListener('focus', () => {
+						pushToHistory();
+					});
 					input.addEventListener('change', (e) => {
 						const target = e.target as HTMLInputElement;
 						const index = parseInt(target.getAttribute('data-index') || '0', 10);
@@ -1956,6 +2008,9 @@ import '../styles/theme.css';
 				});
 
 				segments.querySelectorAll('.time-input-end').forEach((input: Element) => {
+					input.addEventListener('focus', () => {
+						pushToHistory();
+					});
 					input.addEventListener('change', (e) => {
 						const target = e.target as HTMLInputElement;
 						const index = parseInt(target.getAttribute('data-index') || '0', 10);
@@ -1980,10 +2035,11 @@ import '../styles/theme.css';
 					});
 				});
 
-				// Delete buttons
+				// Delete buttons - save history before deletion
 				segments.querySelectorAll('.segment-delete-btn').forEach((btn: Element) => {
 					btn.addEventListener('click', (e) => {
 						e.stopPropagation();
+						pushToHistory();
 						const index = parseInt(btn.getAttribute('data-index') || '0', 10);
 						editedSegments.splice(index, 1);
 						// Re-assign IDs
@@ -2004,6 +2060,73 @@ import '../styles/theme.css';
 				unsavedIndicator.classList.remove('visible');
 			}
 
+			// Undo/redo helper functions
+			function updateUndoRedoButtons() {
+				undoBtn.disabled = undoStack.length === 0;
+				redoBtn.disabled = redoStack.length === 0;
+			}
+
+			function pushToHistory() {
+				// Deep copy current state
+				const snapshot = JSON.parse(JSON.stringify(editedSegments));
+				undoStack.push(snapshot);
+
+				// Limit history size
+				if (undoStack.length > MAX_HISTORY_SIZE) {
+					undoStack.shift();
+				}
+
+				// Clear redo stack when new edit is made
+				redoStack = [];
+				updateUndoRedoButtons();
+			}
+
+			function performUndo() {
+				if (undoStack.length === 0) return;
+
+				// Save current state to redo stack
+				redoStack.push(JSON.parse(JSON.stringify(editedSegments)));
+
+				// Restore previous state
+				editedSegments = undoStack.pop()!;
+
+				// Re-assign IDs to ensure consistency
+				editedSegments.forEach((seg, i) => seg.id = i);
+
+				updateUndoRedoButtons();
+				renderSegments();
+
+				// Still has unsaved changes if state differs from original
+				if (JSON.stringify(editedSegments) !== JSON.stringify(transcriptionSegments)) {
+					markUnsaved();
+				} else {
+					clearUnsaved();
+				}
+			}
+
+			function performRedo() {
+				if (redoStack.length === 0) return;
+
+				// Save current state to undo stack
+				undoStack.push(JSON.parse(JSON.stringify(editedSegments)));
+
+				// Restore next state
+				editedSegments = redoStack.pop()!;
+
+				// Re-assign IDs to ensure consistency
+				editedSegments.forEach((seg, i) => seg.id = i);
+
+				updateUndoRedoButtons();
+				renderSegments();
+				markUnsaved();
+			}
+
+			function clearHistory() {
+				undoStack = [];
+				redoStack = [];
+				updateUndoRedoButtons();
+			}
+
 			function enterEditMode() {
 				isEditMode = true;
 				editBtn.classList.add('active');
@@ -2012,6 +2135,7 @@ import '../styles/theme.css';
 				addSegmentBtn.classList.add('visible');
 				fullText.style.display = 'none';
 				editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
+				clearHistory(); // Reset undo/redo stacks when entering edit mode
 				renderSegments();
 			}
 
@@ -2063,6 +2187,7 @@ import '../styles/theme.css';
 			}
 
 			function addNewSegment() {
+				pushToHistory();
 				// Get the last segment's end time or 0
 				const lastSeg = editedSegments[editedSegments.length - 1];
 				const startTime = lastSeg ? lastSeg.end : 0;
@@ -2112,6 +2237,26 @@ import '../styles/theme.css';
 			});
 
 			addSegmentBtn.addEventListener('click', addNewSegment);
+
+			// Undo/redo button event listeners
+			undoBtn.addEventListener('click', performUndo);
+			redoBtn.addEventListener('click', performRedo);
+
+			// Keyboard shortcuts for undo/redo (only active in edit mode)
+			document.addEventListener('keydown', (e) => {
+				if (!isEditMode) return;
+
+				// Check for Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
+				if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+					e.preventDefault();
+					performUndo();
+				}
+				// Check for Ctrl+Shift+Z or Ctrl+Y (Windows/Linux) or Cmd+Shift+Z (Mac)
+				if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+					e.preventDefault();
+					performRedo();
+				}
+			});
 
 			function setupSubtitleSync() {
 				// Remove existing listener if present to avoid duplicates

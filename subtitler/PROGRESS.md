@@ -138,35 +138,31 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**145 tasks completed!**
+**143 tasks completed.** 7 remaining from deep code inspection.
 
 ### Recently Completed
-- ✅ Task 138: Upload timeout mechanism - Added timeout support to both single-file and chunked uploads. Single-file uploads have a 5-minute timeout. Chunked uploads have a 1-minute timeout per chunk. User-friendly timeout error message with retry suggestion. Cleanup on page unload and when starting new uploads.
-- ✅ Task 142: Database indices for frequent queries - Already implemented! All required indices exist in 001_initial_schema.up.sql: idx_users_email, idx_videos_user_id, idx_videos_session_id, idx_sessions_user_id, idx_sessions_expires_at, idx_transcriptions_video_id.
-- ✅ Task 140: File access audit logging - Added structured logging to all file download endpoints (video, thumbnail, burned video). Each download is logged with file_type, video_id, user_id, session_id, and client_ip. Helps audit access patterns and investigate security incidents.
-- ✅ Task 141: Max limit validation for pagination - Already implemented! GET /api/videos caps limit at 100 when client requests more. Verified with existing test at api_test.go:3085.
-- ✅ Task 139: Add aria-labels to download buttons - Added descriptive aria-labels to all SRT/VTT/JSON download buttons in videos.astro and upload.astro. Labels like "Download subtitles in VTT format" help screen reader users understand what each button does.
-- ✅ Task 137: Add focus management to video modal - When video modal opens, focus moves to close button. Tab/Shift+Tab keys are trapped inside the modal (cycles between focusable elements). Focus is restored to the trigger element (View button or thumbnail) when the modal closes. Improves keyboard accessibility.
-- ✅ Task 136: Consolidate duplicate escapeHtml functions - Removed duplicate escapeHtml implementations from upload.astro, videos.astro, and security.astro. Each file now imports from utils/html.ts instead. The format.ts version remains separate as it has different behavior (handles null/undefined, escapes quotes) for test compatibility.
-- ✅ Task 135: Persist CSRF secret across restarts - Modified csrf package to persist generated secrets to `data/csrf.key` file. Priority order: 1) CSRF_SECRET env var, 2) existing file, 3) generate new and save. Added CSRF_SECRET_PATH env var for custom file location. File created with 0600 permissions. Tests verify persistence, env var priority, and directory creation. Documented in ENV.md.
-- ✅ Task 134: Apply pathvalidator to file-serving endpoints - Integrated the pathvalidator package into video download, thumbnail, and burned video endpoints. Each endpoint now validates file paths from the database stay within the uploads directory before serving. Returns 403 Forbidden if path validation fails (e.g., if database is compromised and contains path traversal). Added comprehensive test `TestVideoDownloadPathValidation` with subtests for valid paths, video path traversal, and thumbnail path traversal.
-- ✅ Task 131: HSTS and security headers - Added `Strict-Transport-Security` header (enabled when HTTPS_ONLY=true) and `Permissions-Policy` header to disable unused browser features (geolocation, camera, microphone, etc.). Updated specs/auth.md with full documentation. Tests verify both headers are present.
-- ✅ Task 130: Path validation utility - Created `pathvalidator` package to prevent path traversal attacks. Validates that file paths stay within allowed directories (uploads/, data/). Functions: `New()`, `ValidatePath()`, `SafeJoin()`, `ValidateAndResolve()`. Comprehensive tests verify protection against `../` traversal, null bytes, and symlink-based attacks.
-- ✅ Task 129: Production error messages - Created `errmsg` package with user-friendly error messages that don't leak internal details. Added `LOG_VERBOSE` env var (default false) to enable detailed errors in development. Updated endpoints to use the new error handling. Documented in ENV.md and API.md with security warnings. Tests verify that production errors don't leak paths, IPs, or SQL queries.
+- ✅ Task 143: Undo/redo for subtitle editor - Implemented full undo/redo functionality with history stack (max 50 states). Added undo/redo buttons with SVG icons and disabled states. Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z or Ctrl+Y (redo). History captured on text focus, time input focus, segment deletion, and segment addition. Created `utils/history.ts` utility with comprehensive tests. All verification passes.
 
-### Tasks 134-142 (ALL COMPLETE)
-All 9 tasks from code review batch are complete:
-- Task 134 (done): Apply pathvalidator to file-serving endpoints
-- Task 135 (done): Persist CSRF secret across restarts
-- Task 136 (done): Consolidate duplicate escapeHtml functions
-- Task 137 (done): Add focus management to video modal
-- Task 138 (done): Add upload timeout mechanism
-- Task 139 (done): Add aria-labels to download buttons
-- Task 140 (done): Add file access audit logging
-- Task 141 (done): Max limit validation for pagination (already implemented)
-- Task 142 (done): Add database indices for frequent queries (already implemented)
+### Pending Tasks (from deep inspection 2026-01-26)
+- Task 144: Keyboard shortcuts for subtitle editor (accessibility)
+- Task 145: Disaster recovery documentation (operational readiness)
+- Task 146: Per-user rate limiting (security hardening)
+- Task 147: Prometheus metrics endpoint (monitoring/observability)
+- Task 148: Implement evaluation framework (validate accuracy claims)
+- Task 149: Estimated time remaining for transcription (UX)
+- Task 150: Document magic link auth in API.md (documentation gap)
 
-**No remaining tasks in TASKS.jsonl. Project is feature-complete.**
+### Previously Completed (Tasks 134-142)
+All 9 tasks from code review batch complete:
+- Task 134: Apply pathvalidator to file-serving endpoints
+- Task 135: Persist CSRF secret across restarts
+- Task 136: Consolidate duplicate escapeHtml functions
+- Task 137: Add focus management to video modal
+- Task 138: Add upload timeout mechanism
+- Task 139: Add aria-labels to download buttons
+- Task 140: Add file access audit logging
+- Task 141: Max limit validation for pagination (already implemented)
+- Task 142: Add database indices for frequent queries (already implemented)
 
 ## Key Files
 
