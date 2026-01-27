@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -51,6 +52,12 @@ const (
 	defaultBurnRateWindow         = time.Minute
 	defaultScriptRateLimit        = 10
 	defaultScriptRateWindow       = time.Minute
+	defaultChunkRateLimit         = 60
+	defaultChunkRateWindow        = time.Minute
+
+	// Chunked upload defaults
+	defaultChunkSize     = 50 << 20       // 50 MB
+	defaultSessionExpiry = 24 * time.Hour // 24 hours
 
 	// Database maintenance defaults
 	defaultDBMaintenanceInterval = 24 * time.Hour // Run VACUUM and ANALYZE daily
@@ -76,6 +83,12 @@ var (
 	burnRateWindow         time.Duration
 	scriptRateLimit        int
 	scriptRateWindow       time.Duration
+	chunkRateLimit         int
+	chunkRateWindow        time.Duration
+
+	// Chunked upload configuration
+	chunkSize     int64
+	sessionExpiry time.Duration
 
 	// Database maintenance configuration
 	dbMaintenanceInterval time.Duration
@@ -201,6 +214,11 @@ func initConfig() {
 	transcribeRateLimit, transcribeRateWindow = getEnvRateLimitOrDefault("TRANSCRIBE_RATE_LIMIT", defaultTranscribeRateLimit, defaultTranscribeRateWindow)
 	burnRateLimit, burnRateWindow = getEnvRateLimitOrDefault("BURN_RATE_LIMIT", defaultBurnRateLimit, defaultBurnRateWindow)
 	scriptRateLimit, scriptRateWindow = getEnvRateLimitOrDefault("SCRIPT_RATE_LIMIT", defaultScriptRateLimit, defaultScriptRateWindow)
+	chunkRateLimit, chunkRateWindow = getEnvRateLimitOrDefault("CHUNK_RATE_LIMIT", defaultChunkRateLimit, defaultChunkRateWindow)
+
+	// Chunked upload configuration
+	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)
+	sessionExpiry = getEnvDurationOrDefault("UPLOAD_SESSION_EXPIRY", defaultSessionExpiry)
 
 	// Database maintenance configuration
 	dbMaintenanceInterval = getEnvDurationOrDefault("DB_MAINTENANCE_INTERVAL", defaultDBMaintenanceInterval)
@@ -243,6 +261,7 @@ var uploadLimiter *ratelimit.Limiter
 var transcribeLimiter *ratelimit.Limiter
 var burnLimiter *ratelimit.Limiter
 var scriptLimiter *ratelimit.Limiter
+var chunkLimiter *ratelimit.Limiter
 
 // initRateLimiters creates rate limiters based on configuration
 // Must be called after initConfig()
@@ -253,6 +272,7 @@ func initRateLimiters() {
 	transcribeLimiter = ratelimit.New(transcribeRateLimit, transcribeRateWindow)
 	burnLimiter = ratelimit.New(burnRateLimit, burnRateWindow)
 	scriptLimiter = ratelimit.New(scriptRateLimit, scriptRateWindow)
+	chunkLimiter = ratelimit.New(chunkRateLimit, chunkRateWindow)
 }
 
 // Global email service for transactional emails
@@ -2602,6 +2622,672 @@ func main() {
 		})
 	}))
 
+	// Initialize chunked upload session (rate limited: 10/min per IP)
+	mux.HandleFunc("POST /api/upload/init", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Get authenticated user (if any)
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+
+		// Parse request body
+		var req struct {
+			Filename    string `json:"filename"`
+			Size        int64  `json:"size"`
+			ContentType string `json:"content_type"`
+			ChunkSize   int64  `json:"chunk_size"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate required fields
+		if req.Filename == "" || req.Size <= 0 || req.ContentType == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: filename, size, content_type"})
+			return
+		}
+
+		// Validate MIME type
+		allowedMIMETypes := map[string]bool{
+			"video/mp4":        true,
+			"video/webm":       true,
+			"video/quicktime":  true,
+			"video/x-m4v":      true,
+			"video/mpeg":       true,
+			"video/x-msvideo":  true,
+			"video/x-matroska": true,
+			"video/ogg":        true,
+		}
+		if !allowedMIMETypes[req.ContentType] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
+				"provided_mimetype": req.ContentType,
+			})
+			return
+		}
+
+		// Validate total size
+		if req.Size > maxUploadSize {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("File too large. Maximum size is %d MB", maxUploadSize/(1<<20)),
+			})
+			return
+		}
+
+		// Get session_id from query for anonymous tracking
+		sessionID := r.URL.Query().Get("session_id")
+
+		// Enforce upload limit for anonymous users
+		if user == nil && sessionID != "" {
+			count, err := database.CountVideosBySession(sessionID)
+			if err != nil {
+				logging.ErrorContext(r.Context(), "Error counting videos for session", "error", err)
+			} else if count >= 2 {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Anonymous users are limited to 2 uploads. Please register to upload more videos.",
+				})
+				return
+			}
+		}
+
+		// Use default chunk size if not specified
+		requestedChunkSize := req.ChunkSize
+		if requestedChunkSize <= 0 {
+			requestedChunkSize = chunkSize
+		}
+		// Cap chunk size at server's configured limit
+		if requestedChunkSize > chunkSize {
+			requestedChunkSize = chunkSize
+		}
+
+		// Calculate total chunks
+		totalChunks := int((req.Size + requestedChunkSize - 1) / requestedChunkSize)
+
+		// Generate session ID
+		uploadSessionID, err := generateID()
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error generating upload session ID", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate session ID"})
+			return
+		}
+
+		// Create session record
+		expiresAt := time.Now().Add(sessionExpiry)
+		session := &db.UploadSession{
+			ID:          uploadSessionID,
+			Filename:    req.Filename,
+			ContentType: req.ContentType,
+			TotalSize:   req.Size,
+			ChunkSize:   requestedChunkSize,
+			TotalChunks: totalChunks,
+			Status:      "in_progress",
+			CreatedAt:   time.Now(),
+			ExpiresAt:   expiresAt,
+		}
+		if user != nil {
+			session.UserID = &user.ID
+		}
+		if sessionID != "" {
+			session.SessionID = &sessionID
+		}
+
+		if err := database.CreateUploadSession(session); err != nil {
+			logging.ErrorContext(r.Context(), "Error creating upload session", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create upload session"})
+			return
+		}
+
+		// Create chunks directory
+		chunksDir := filepath.Join(uploadDir, "chunks", uploadSessionID)
+		if err := os.MkdirAll(chunksDir, 0755); err != nil {
+			logging.ErrorContext(r.Context(), "Error creating chunks directory", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create chunks directory"})
+			return
+		}
+
+		logging.InfoContext(r.Context(), "Created chunked upload session",
+			"session_id", uploadSessionID,
+			"filename", req.Filename,
+			"total_size", req.Size,
+			"chunk_size", requestedChunkSize,
+			"total_chunks", totalChunks)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"upload_session_id": uploadSessionID,
+			"chunk_size":        requestedChunkSize,
+			"total_chunks":      totalChunks,
+			"expires_at":        expiresAt.Format(time.RFC3339),
+		})
+	}))
+
+	// Upload a single chunk (rate limited: 60/min per IP)
+	mux.HandleFunc("POST /api/upload/chunk", chunkLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Limit chunk size
+		r.Body = http.MaxBytesReader(w, r.Body, chunkSize+10*1024) // chunk + overhead
+
+		// Parse multipart form
+		if err := r.ParseMultipartForm(chunkSize + 10*1024); err != nil {
+			logging.ErrorContext(r.Context(), "Error parsing chunk form", "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Chunk too large or invalid form data"})
+			return
+		}
+
+		// Get session ID and chunk index from form
+		uploadSessionID := r.FormValue("upload_session_id")
+		chunkIndexStr := r.FormValue("chunk_index")
+		if uploadSessionID == "" || chunkIndexStr == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing upload_session_id or chunk_index"})
+			return
+		}
+
+		chunkIndex, err := strconv.Atoi(chunkIndexStr)
+		if err != nil || chunkIndex < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid chunk_index"})
+			return
+		}
+
+		// Get session
+		session, err := database.GetUploadSession(uploadSessionID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting upload session", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get upload session"})
+			return
+		}
+		if session == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			return
+		}
+
+		// Check session expiration
+		if time.Now().After(session.ExpiresAt) {
+			w.WriteHeader(http.StatusGone)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session has expired"})
+			return
+		}
+
+		// Check session status
+		if session.Status != "in_progress" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session is not in progress"})
+			return
+		}
+
+		// Validate ownership
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		requestSessionID := r.URL.Query().Get("session_id")
+
+		if session.UserID != nil {
+			if user == nil || *session.UserID != user.ID {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				return
+			}
+		} else if session.SessionID != nil {
+			if requestSessionID == "" || *session.SessionID != requestSessionID {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				return
+			}
+		}
+
+		// Validate chunk index
+		if chunkIndex >= session.TotalChunks {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid chunk index"})
+			return
+		}
+
+		// Check if chunk already exists (idempotent)
+		existingChunk, err := database.GetUploadChunk(uploadSessionID, chunkIndex)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error checking existing chunk", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to check chunk status"})
+			return
+		}
+		if existingChunk != nil {
+			// Chunk already uploaded, return success for idempotency
+			totalReceived, _ := database.GetTotalReceivedBytes(uploadSessionID)
+			chunkCount, _ := database.CountUploadChunks(uploadSessionID)
+			progress := int(float64(chunkCount) / float64(session.TotalChunks) * 100)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"chunk_index":    chunkIndex,
+				"received_bytes": existingChunk.Size,
+				"total_received": totalReceived,
+				"progress":       progress,
+				"already_exists": true,
+			})
+			return
+		}
+
+		// Get the chunk file
+		chunkFile, _, err := r.FormFile("chunk")
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting chunk file", "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No chunk data provided"})
+			return
+		}
+		defer chunkFile.Close()
+
+		// Calculate expected chunk size
+		expectedSize := session.ChunkSize
+		if chunkIndex == session.TotalChunks-1 {
+			// Last chunk may be smaller
+			expectedSize = session.TotalSize - int64(chunkIndex)*session.ChunkSize
+		}
+
+		// Save chunk to disk
+		chunkPath := filepath.Join(uploadDir, "chunks", uploadSessionID, fmt.Sprintf("chunk_%d.part", chunkIndex))
+		destFile, err := os.Create(chunkPath)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error creating chunk file", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
+			return
+		}
+		defer destFile.Close()
+
+		written, err := io.Copy(destFile, chunkFile)
+		if err != nil {
+			os.Remove(chunkPath)
+			logging.ErrorContext(r.Context(), "Error writing chunk file", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
+			return
+		}
+		destFile.Close()
+
+		// Validate chunk size (allow up to expected size; last chunk may be smaller)
+		if written > expectedSize {
+			os.Remove(chunkPath)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("Chunk too large. Expected max %d bytes, got %d", expectedSize, written),
+			})
+			return
+		}
+
+		// Record chunk in database
+		chunkID, err := generateID()
+		if err != nil {
+			os.Remove(chunkPath)
+			logging.ErrorContext(r.Context(), "Error generating chunk ID", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate chunk ID"})
+			return
+		}
+
+		chunk := &db.UploadChunk{
+			ID:              chunkID,
+			UploadSessionID: uploadSessionID,
+			ChunkIndex:      chunkIndex,
+			ChunkPath:       chunkPath,
+			Size:            written,
+			CreatedAt:       time.Now(),
+		}
+		if err := database.CreateUploadChunk(chunk); err != nil {
+			os.Remove(chunkPath)
+			logging.ErrorContext(r.Context(), "Error saving chunk record", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record chunk"})
+			return
+		}
+
+		// Calculate progress
+		totalReceived, _ := database.GetTotalReceivedBytes(uploadSessionID)
+		chunkCount, _ := database.CountUploadChunks(uploadSessionID)
+		progress := int(float64(chunkCount) / float64(session.TotalChunks) * 100)
+
+		logging.InfoContext(r.Context(), "Received chunk",
+			"session_id", uploadSessionID,
+			"chunk_index", chunkIndex,
+			"size", written,
+			"progress", progress)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"chunk_index":    chunkIndex,
+			"received_bytes": written,
+			"total_received": totalReceived,
+			"progress":       progress,
+		})
+	}))
+
+	// Complete chunked upload (rate limited: 10/min per IP)
+	mux.HandleFunc("POST /api/upload/complete", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			UploadSessionID string `json:"upload_session_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		if req.UploadSessionID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing upload_session_id"})
+			return
+		}
+
+		// Get session
+		session, err := database.GetUploadSession(req.UploadSessionID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting upload session", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get upload session"})
+			return
+		}
+		if session == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			return
+		}
+
+		// Validate ownership
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		requestSessionID := r.URL.Query().Get("session_id")
+
+		if session.UserID != nil {
+			if user == nil || *session.UserID != user.ID {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				return
+			}
+		} else if session.SessionID != nil {
+			if requestSessionID == "" || *session.SessionID != requestSessionID {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				return
+			}
+		}
+
+		// Check session status
+		if session.Status != "in_progress" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session is not in progress"})
+			return
+		}
+
+		// Verify all chunks received
+		chunkCount, err := database.CountUploadChunks(req.UploadSessionID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error counting chunks", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to verify chunks"})
+			return
+		}
+		if chunkCount != session.TotalChunks {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("Not all chunks received. Expected %d, got %d", session.TotalChunks, chunkCount),
+			})
+			return
+		}
+
+		// Get chunks in order
+		chunks, err := database.GetUploadChunks(req.UploadSessionID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting chunks", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get chunks"})
+			return
+		}
+
+		// Generate upload ID for the final file
+		uploadID, err := generateID()
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error generating upload ID", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
+			return
+		}
+
+		// Get file extension
+		ext := filepath.Ext(session.Filename)
+		if ext == "" {
+			ext = ".mp4"
+		}
+
+		// Reassemble chunks into final file
+		destPath := filepath.Join(uploadDir, uploadID+ext)
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create destination file"})
+			return
+		}
+
+		var totalWritten int64
+		for _, chunk := range chunks {
+			chunkFile, err := os.Open(chunk.ChunkPath)
+			if err != nil {
+				destFile.Close()
+				os.Remove(destPath)
+				logging.ErrorContext(r.Context(), "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read chunk"})
+				return
+			}
+			written, err := io.Copy(destFile, chunkFile)
+			chunkFile.Close()
+			if err != nil {
+				destFile.Close()
+				os.Remove(destPath)
+				logging.ErrorContext(r.Context(), "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to assemble file"})
+				return
+			}
+			totalWritten += written
+		}
+		destFile.Close()
+
+		logging.InfoContext(r.Context(), "Reassembled chunks", "upload_id", uploadID, "total_bytes", totalWritten)
+
+		// Validate the assembled file
+		if err := audio.ValidateVideoFile(destPath); err != nil {
+			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
+			os.Remove(destPath)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Assembled file is not a valid video. Please try uploading again.",
+			})
+			return
+		}
+
+		// Generate thumbnail
+		thumbPath := filepath.Join(uploadDir, uploadID+"_thumb.jpg")
+		var encThumbPath *string
+		if err := audio.GenerateThumbnail(destPath, thumbPath); err != nil {
+			logging.WarnContext(r.Context(), "Failed to generate thumbnail", "path", destPath, "error", err)
+		} else {
+			encPath, err := encryptor.EncryptFile(thumbPath)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
+				os.Remove(thumbPath)
+			} else {
+				os.Remove(thumbPath)
+				encThumbPath = &encPath
+			}
+		}
+
+		// Encrypt the file
+		encPath, err := encryptor.EncryptFile(destPath)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
+			os.Remove(destPath)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to encrypt file"})
+			return
+		}
+		os.Remove(destPath)
+
+		// Save video to database
+		video := &db.Video{
+			ID:            uploadID,
+			Filename:      session.Filename,
+			Size:          totalWritten,
+			ContentType:   session.ContentType,
+			FilePath:      encPath,
+			ThumbnailPath: encThumbPath,
+			CreatedAt:     time.Now(),
+			UserID:        session.UserID,
+			SessionID:     session.SessionID,
+		}
+		if err := database.CreateVideo(video); err != nil {
+			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
+			os.Remove(encPath)
+			if encThumbPath != nil {
+				os.Remove(*encThumbPath)
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save video record"})
+			return
+		}
+
+		// Create transcription record
+		transcriptionID, err := generateID()
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
+		} else {
+			transcription := &db.Transcription{
+				ID:        transcriptionID,
+				VideoID:   uploadID,
+				Status:    "pending",
+				Message:   "Video uploaded, ready for transcription",
+				Progress:  0,
+				CreatedAt: time.Now(),
+			}
+			if err := database.CreateTranscription(transcription); err != nil {
+				logging.ErrorContext(r.Context(), "Error creating transcription record", "error", err)
+			}
+		}
+
+		// Mark session as complete
+		if err := database.UpdateUploadSessionStatus(req.UploadSessionID, "complete"); err != nil {
+			logging.ErrorContext(r.Context(), "Error updating session status", "error", err)
+		}
+
+		// Clean up chunk files
+		chunksDir := filepath.Join(uploadDir, "chunks", req.UploadSessionID)
+		for _, chunk := range chunks {
+			os.Remove(chunk.ChunkPath)
+		}
+		os.Remove(chunksDir)
+
+		logging.InfoContext(r.Context(), "Completed chunked upload",
+			"session_id", req.UploadSessionID,
+			"upload_id", uploadID,
+			"filename", session.Filename,
+			"size", totalWritten)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":    "success",
+			"upload_id": uploadID,
+			"filename":  session.Filename,
+			"size":      totalWritten,
+			"message":   fmt.Sprintf("File uploaded successfully (%d bytes)", totalWritten),
+		})
+	}))
+
+	// Get chunked upload status (rate limited: 30/min per IP)
+	mux.HandleFunc("GET /api/upload/status/{session_id}", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadSessionID := r.PathValue("session_id")
+		if uploadSessionID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Session ID required"})
+			return
+		}
+
+		session, err := database.GetUploadSession(uploadSessionID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting upload session", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get upload session"})
+			return
+		}
+		if session == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			return
+		}
+
+		// Validate ownership
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		requestSessionID := r.URL.Query().Get("session_id")
+
+		if session.UserID != nil {
+			if user == nil || *session.UserID != user.ID {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				return
+			}
+		} else if session.SessionID != nil {
+			if requestSessionID == "" || *session.SessionID != requestSessionID {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				return
+			}
+		}
+
+		// Get received chunks
+		receivedChunks, err := database.GetReceivedChunkIndices(uploadSessionID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting received chunks", "error", err)
+			receivedChunks = []int{}
+		}
+
+		receivedBytes, _ := database.GetTotalReceivedBytes(uploadSessionID)
+		progress := 0
+		if session.TotalChunks > 0 {
+			progress = int(float64(len(receivedChunks)) / float64(session.TotalChunks) * 100)
+		}
+
+		// Check if expired
+		status := session.Status
+		if time.Now().After(session.ExpiresAt) && status == "in_progress" {
+			status = "expired"
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"upload_session_id": session.ID,
+			"filename":          session.Filename,
+			"total_size":        session.TotalSize,
+			"chunk_size":        session.ChunkSize,
+			"total_chunks":      session.TotalChunks,
+			"received_chunks":   receivedChunks,
+			"received_bytes":    receivedBytes,
+			"progress":          progress,
+			"status":            status,
+			"expires_at":        session.ExpiresAt.Format(time.RFC3339),
+		})
+	}))
+
 	// Start transcription for an upload (rate limited: 5/min per IP)
 	// Optional query parameter: language (ISO 639-1 code, e.g., "en", "es", "ja")
 	// If not provided or "auto", whisper will auto-detect the language
@@ -4325,6 +5011,32 @@ func runCleanup() {
 		logging.Error("Error deleting expired login attempts", "error", err)
 	} else if loginAttemptCount > 0 {
 		logging.Info("Deleted expired login attempts", "count", loginAttemptCount)
+	}
+
+	// Clean up expired upload sessions
+	expiredSessions, err := database.GetExpiredUploadSessions()
+	if err != nil {
+		logging.Error("Error getting expired upload sessions", "error", err)
+	} else if len(expiredSessions) > 0 {
+		sessionDeleteCount := 0
+		for _, session := range expiredSessions {
+			chunkPaths, err := database.DeleteUploadSession(session.ID)
+			if err != nil {
+				logging.Error("Error deleting upload session", "session_id", session.ID, "error", err)
+				continue
+			}
+			// Delete chunk files
+			for _, path := range chunkPaths {
+				os.Remove(path)
+			}
+			// Try to remove the chunks directory
+			chunksDir := filepath.Join(uploadDir, "chunks", session.ID)
+			os.Remove(chunksDir)
+			sessionDeleteCount++
+		}
+		if sessionDeleteCount > 0 {
+			logging.Info("Deleted expired upload sessions", "count", sessionDeleteCount)
+		}
 	}
 
 	logging.Info("Cleanup complete", "videos_deleted", deletedCount)

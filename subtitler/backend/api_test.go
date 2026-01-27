@@ -1722,6 +1722,361 @@ func (ts *testServer) registerHandlers() {
 			"filename": header.Filename,
 		})
 	})
+
+	// Chunked upload init endpoint
+	ts.mux.HandleFunc("POST /api/upload/init", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Filename    string `json:"filename"`
+			Size        int64  `json:"size"`
+			ContentType string `json:"content_type"`
+			ChunkSize   int64  `json:"chunk_size"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate required fields
+		if req.Filename == "" || req.Size <= 0 || req.ContentType == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
+			return
+		}
+
+		// Validate MIME type
+		allowedMIMETypes := map[string]bool{
+			"video/mp4":        true,
+			"video/webm":       true,
+			"video/quicktime":  true,
+			"video/x-m4v":      true,
+			"video/mpeg":       true,
+			"video/x-msvideo":  true,
+			"video/x-matroska": true,
+			"video/ogg":        true,
+		}
+		if !allowedMIMETypes[req.ContentType] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Unsupported video format"})
+			return
+		}
+
+		// Check file size
+		if req.Size > 500<<20 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "File too large"})
+			return
+		}
+
+		// Get authenticated user (if any)
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+
+		// Get session_id from query for anonymous tracking
+		sessionID := r.URL.Query().Get("session_id")
+
+		// Use provided chunk size or default
+		chunkSize := req.ChunkSize
+		if chunkSize <= 0 {
+			chunkSize = 50 << 20 // 50 MB
+		}
+
+		totalChunks := int((req.Size + chunkSize - 1) / chunkSize)
+
+		// Generate session ID
+		uploadSessionID := testGenerateID()
+
+		expiresAt := time.Now().Add(24 * time.Hour)
+		session := &db.UploadSession{
+			ID:          uploadSessionID,
+			Filename:    req.Filename,
+			ContentType: req.ContentType,
+			TotalSize:   req.Size,
+			ChunkSize:   chunkSize,
+			TotalChunks: totalChunks,
+			Status:      "in_progress",
+			CreatedAt:   time.Now(),
+			ExpiresAt:   expiresAt,
+		}
+		if user != nil {
+			session.UserID = &user.ID
+		}
+		if sessionID != "" {
+			session.SessionID = &sessionID
+		}
+
+		if err := ts.db.CreateUploadSession(session); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create upload session"})
+			return
+		}
+
+		// Create chunks directory
+		chunksDir := filepath.Join(ts.uploadDir, "chunks", uploadSessionID)
+		if err := os.MkdirAll(chunksDir, 0755); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create chunks directory"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"upload_session_id": uploadSessionID,
+			"chunk_size":        chunkSize,
+			"total_chunks":      totalChunks,
+			"expires_at":        expiresAt.Format(time.RFC3339),
+		})
+	})
+
+	// Chunked upload chunk endpoint
+	ts.mux.HandleFunc("POST /api/upload/chunk", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse multipart form
+		if err := r.ParseMultipartForm(60 << 20); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid form data"})
+			return
+		}
+
+		uploadSessionID := r.FormValue("upload_session_id")
+		chunkIndexStr := r.FormValue("chunk_index")
+		if uploadSessionID == "" || chunkIndexStr == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing upload_session_id or chunk_index"})
+			return
+		}
+
+		var chunkIndex int
+		fmt.Sscanf(chunkIndexStr, "%d", &chunkIndex)
+
+		// Get session
+		session, err := ts.db.GetUploadSession(uploadSessionID)
+		if err != nil || session == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			return
+		}
+
+		// Check session status
+		if session.Status != "in_progress" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session is not in progress"})
+			return
+		}
+
+		// Validate chunk index
+		if chunkIndex < 0 || chunkIndex >= session.TotalChunks {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid chunk index"})
+			return
+		}
+
+		// Check for existing chunk (idempotency)
+		existing, _ := ts.db.GetUploadChunk(uploadSessionID, chunkIndex)
+		if existing != nil {
+			total, _ := ts.db.GetTotalReceivedBytes(uploadSessionID)
+			count, _ := ts.db.CountUploadChunks(uploadSessionID)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"chunk_index":    chunkIndex,
+				"received_bytes": existing.Size,
+				"total_received": total,
+				"progress":       count * 100 / session.TotalChunks,
+				"already_exists": true,
+			})
+			return
+		}
+
+		// Get chunk data
+		chunkFile, _, err := r.FormFile("chunk")
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No chunk data provided"})
+			return
+		}
+		defer chunkFile.Close()
+
+		// Save chunk
+		chunkPath := filepath.Join(ts.uploadDir, "chunks", uploadSessionID, fmt.Sprintf("chunk_%d.part", chunkIndex))
+		destFile, err := os.Create(chunkPath)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
+			return
+		}
+
+		written, err := io.Copy(destFile, chunkFile)
+		destFile.Close()
+		if err != nil {
+			os.Remove(chunkPath)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
+			return
+		}
+
+		// Record chunk
+		chunk := &db.UploadChunk{
+			ID:              testGenerateID(),
+			UploadSessionID: uploadSessionID,
+			ChunkIndex:      chunkIndex,
+			ChunkPath:       chunkPath,
+			Size:            written,
+			CreatedAt:       time.Now(),
+		}
+		if err := ts.db.CreateUploadChunk(chunk); err != nil {
+			os.Remove(chunkPath)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record chunk"})
+			return
+		}
+
+		total, _ := ts.db.GetTotalReceivedBytes(uploadSessionID)
+		count, _ := ts.db.CountUploadChunks(uploadSessionID)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"chunk_index":    chunkIndex,
+			"received_bytes": written,
+			"total_received": total,
+			"progress":       count * 100 / session.TotalChunks,
+		})
+	})
+
+	// Chunked upload complete endpoint
+	ts.mux.HandleFunc("POST /api/upload/complete", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			UploadSessionID string `json:"upload_session_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		session, err := ts.db.GetUploadSession(req.UploadSessionID)
+		if err != nil || session == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			return
+		}
+
+		// Verify all chunks received
+		chunkCount, _ := ts.db.CountUploadChunks(req.UploadSessionID)
+		if chunkCount != session.TotalChunks {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("Not all chunks received. Expected %d, got %d", session.TotalChunks, chunkCount),
+			})
+			return
+		}
+
+		// Get chunks in order
+		chunks, err := ts.db.GetUploadChunks(req.UploadSessionID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get chunks"})
+			return
+		}
+
+		// Generate upload ID
+		uploadID := testGenerateID()
+		ext := filepath.Ext(session.Filename)
+		if ext == "" {
+			ext = ".mp4"
+		}
+
+		// Reassemble chunks
+		destPath := filepath.Join(ts.uploadDir, uploadID+ext)
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create destination file"})
+			return
+		}
+
+		var totalWritten int64
+		for _, chunk := range chunks {
+			chunkFile, err := os.Open(chunk.ChunkPath)
+			if err != nil {
+				destFile.Close()
+				os.Remove(destPath)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read chunk"})
+				return
+			}
+			written, _ := io.Copy(destFile, chunkFile)
+			chunkFile.Close()
+			totalWritten += written
+		}
+		destFile.Close()
+
+		// Mark session complete
+		ts.db.UpdateUploadSessionStatus(req.UploadSessionID, "complete")
+
+		// Clean up chunks
+		for _, chunk := range chunks {
+			os.Remove(chunk.ChunkPath)
+		}
+		chunksDir := filepath.Join(ts.uploadDir, "chunks", req.UploadSessionID)
+		os.Remove(chunksDir)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":    "success",
+			"upload_id": uploadID,
+			"filename":  session.Filename,
+			"size":      totalWritten,
+		})
+	})
+
+	// Chunked upload status endpoint
+	ts.mux.HandleFunc("GET /api/upload/status/{session_id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadSessionID := r.PathValue("session_id")
+		if uploadSessionID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Session ID required"})
+			return
+		}
+
+		session, err := ts.db.GetUploadSession(uploadSessionID)
+		if err != nil || session == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			return
+		}
+
+		receivedChunks, _ := ts.db.GetReceivedChunkIndices(uploadSessionID)
+		if receivedChunks == nil {
+			receivedChunks = []int{}
+		}
+		receivedBytes, _ := ts.db.GetTotalReceivedBytes(uploadSessionID)
+
+		progress := 0
+		if session.TotalChunks > 0 {
+			progress = len(receivedChunks) * 100 / session.TotalChunks
+		}
+
+		status := session.Status
+		if time.Now().After(session.ExpiresAt) && status == "in_progress" {
+			status = "expired"
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"upload_session_id": session.ID,
+			"filename":          session.Filename,
+			"total_size":        session.TotalSize,
+			"chunk_size":        session.ChunkSize,
+			"total_chunks":      session.TotalChunks,
+			"received_chunks":   receivedChunks,
+			"received_bytes":    receivedBytes,
+			"progress":          progress,
+			"status":            status,
+			"expires_at":        session.ExpiresAt.Format(time.RFC3339),
+		})
+	})
 }
 
 // request helpers
@@ -5359,5 +5714,363 @@ func TestThumbnailEndpointConditionalRequest(t *testing.T) {
 
 	if rr2.Code != http.StatusNotModified {
 		t.Errorf("Expected status 304 Not Modified, got %d", rr2.Code)
+	}
+}
+
+// ========== Chunked Upload Tests ==========
+
+func TestChunkedUploadInit(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Test successful init
+	resp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         150000000, // 150 MB
+		"content_type": "video/mp4",
+		"chunk_size":   50000000, // 50 MB
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["upload_session_id"] == nil {
+		t.Error("Expected upload_session_id in response")
+	}
+	if result["total_chunks"].(float64) != 3 {
+		t.Errorf("Expected 3 chunks, got %v", result["total_chunks"])
+	}
+}
+
+func TestChunkedUploadInitInvalidMIME(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.txt",
+		"size":         1000,
+		"content_type": "text/plain",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request, got %d", resp.Code)
+	}
+}
+
+func TestChunkedUploadInitFileTooLarge(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "huge.mp4",
+		"size":         600000000, // 600 MB, over 500 MB limit
+		"content_type": "video/mp4",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request, got %d", resp.Code)
+	}
+}
+
+func TestChunkedUploadChunk(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	if initResp.Code != http.StatusOK {
+		t.Fatalf("Init failed: %s", initResp.Body.String())
+	}
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Upload first chunk
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", sessionID)
+	writer.WriteField("chunk_index", "0")
+	part, _ := writer.CreateFormFile("chunk", "chunk_0")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var chunkResult map[string]interface{}
+	json.NewDecoder(rr.Body).Decode(&chunkResult)
+
+	if chunkResult["chunk_index"].(float64) != 0 {
+		t.Errorf("Expected chunk_index 0, got %v", chunkResult["chunk_index"])
+	}
+	if chunkResult["received_bytes"].(float64) != 500 {
+		t.Errorf("Expected 500 bytes, got %v", chunkResult["received_bytes"])
+	}
+}
+
+func TestChunkedUploadChunkIdempotency(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   1000,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Upload chunk twice
+	for i := 0; i < 2; i++ {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		writer.WriteField("upload_session_id", sessionID)
+		writer.WriteField("chunk_index", "0")
+		part, _ := writer.CreateFormFile("chunk", "chunk_0")
+		part.Write(make([]byte, 1000))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Request %d: Expected 200 OK, got %d", i+1, rr.Code)
+		}
+	}
+
+	// Verify only one chunk was stored
+	count, _ := ts.db.CountUploadChunks(sessionID)
+	if count != 1 {
+		t.Errorf("Expected 1 chunk, got %d", count)
+	}
+}
+
+func TestChunkedUploadComplete(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session with small chunks
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+	totalChunks := int(initResult["total_chunks"].(float64))
+
+	// Upload all chunks
+	for i := 0; i < totalChunks; i++ {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		writer.WriteField("upload_session_id", sessionID)
+		writer.WriteField("chunk_index", fmt.Sprintf("%d", i))
+		part, _ := writer.CreateFormFile("chunk", fmt.Sprintf("chunk_%d", i))
+		// Write chunk data
+		chunkSize := 500
+		if i == totalChunks-1 {
+			chunkSize = 1000 - i*500 // Last chunk may be smaller
+		}
+		part.Write(make([]byte, chunkSize))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("Chunk %d upload failed: %s", i, rr.Body.String())
+		}
+	}
+
+	// Complete upload
+	completeResp := ts.doRequest("POST", "/api/upload/complete", map[string]interface{}{
+		"upload_session_id": sessionID,
+	}, "")
+
+	if completeResp.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d: %s", completeResp.Code, completeResp.Body.String())
+	}
+
+	var completeResult map[string]interface{}
+	json.NewDecoder(completeResp.Body).Decode(&completeResult)
+
+	if completeResult["upload_id"] == nil {
+		t.Error("Expected upload_id in response")
+	}
+	if completeResult["filename"].(string) != "test.mp4" {
+		t.Errorf("Expected filename test.mp4, got %v", completeResult["filename"])
+	}
+}
+
+func TestChunkedUploadCompleteIncomplete(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session with 2 chunks
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Upload only first chunk
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", sessionID)
+	writer.WriteField("chunk_index", "0")
+	part, _ := writer.CreateFormFile("chunk", "chunk_0")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	// Try to complete (should fail)
+	completeResp := ts.doRequest("POST", "/api/upload/complete", map[string]interface{}{
+		"upload_session_id": sessionID,
+	}, "")
+
+	if completeResp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request, got %d", completeResp.Code)
+	}
+}
+
+func TestChunkedUploadStatus(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         2000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Upload 2 of 4 chunks
+	for i := 0; i < 2; i++ {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		writer.WriteField("upload_session_id", sessionID)
+		writer.WriteField("chunk_index", fmt.Sprintf("%d", i))
+		part, _ := writer.CreateFormFile("chunk", fmt.Sprintf("chunk_%d", i))
+		part.Write(make([]byte, 500))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+	}
+
+	// Check status
+	statusReq := httptest.NewRequest("GET", "/api/upload/status/"+sessionID, nil)
+	statusRR := httptest.NewRecorder()
+	ts.mux.ServeHTTP(statusRR, statusReq)
+
+	if statusRR.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", statusRR.Code)
+	}
+
+	var statusResult map[string]interface{}
+	json.NewDecoder(statusRR.Body).Decode(&statusResult)
+
+	if statusResult["progress"].(float64) != 50 {
+		t.Errorf("Expected 50%% progress, got %v", statusResult["progress"])
+	}
+	if statusResult["status"].(string) != "in_progress" {
+		t.Errorf("Expected status in_progress, got %v", statusResult["status"])
+	}
+
+	receivedChunks := statusResult["received_chunks"].([]interface{})
+	if len(receivedChunks) != 2 {
+		t.Errorf("Expected 2 received chunks, got %d", len(receivedChunks))
+	}
+}
+
+func TestChunkedUploadStatusNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	req := httptest.NewRequest("GET", "/api/upload/status/nonexistent", nil)
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found, got %d", rr.Code)
+	}
+}
+
+func TestChunkedUploadInvalidChunkIndex(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session with 2 chunks
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Try to upload chunk with invalid index (3, when only 0 and 1 are valid)
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", sessionID)
+	writer.WriteField("chunk_index", "3")
+	part, _ := writer.CreateFormFile("chunk", "chunk_3")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**115 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**116 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -30,11 +30,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Session listing and revocation
 - See: `specs/auth.md`, `specs/totp.md`, `specs/email.md`
 
-### Upload Limits & Retention (Tasks 13-14, 61)
+### Upload Limits & Retention (Tasks 13-14, 61, 116)
 - ✅ Anonymous users: 2 uploads, 48-hour retention
 - ✅ Registered users: unlimited uploads, 90-day retention
 - ✅ Auto-delete scheduler for expired files
 - ✅ Retention countdown display in UI
+- ✅ Chunked uploads for large videos (Task 116)
+  - Files >50MB automatically split into 50MB chunks
+  - Resumable uploads with localStorage tracking
+  - Works through Cloudflare's 100MB request limit
+  - See: `specs/chunked-upload.md`
 
 ### Subtitle Features (Tasks 15-17, 44, 51, 56-57, 69-70, 85, 102)
 - ✅ Subtitle editor (text and timing)
@@ -126,11 +131,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**1 task remaining** (116):
-
-1. Performance (116): Chunked uploads for large videos
+**All 116 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 116: Chunked uploads - large files (>50MB) automatically split into 50MB chunks, resumable via localStorage, works through Cloudflare 100MB limit
 - ✅ Task 112: Burn progress indicators - ffmpeg burn process now updates progress from 20% to 85% during encoding, GET /api/videos/{id}/burn returns estimated_remaining_seconds, frontend shows ETA during burning
 - ✅ Task 111: Video thumbnail generation - thumbnails auto-generated during upload at 10% of video duration, displayed on My Videos page, encrypted at rest
 - ✅ Task 115: Removed hardcoded Go paths - scripts now auto-detect Go in PATH or `$HOME/go/bin`
@@ -148,6 +152,7 @@ See `TASKS.jsonl` for details.
 | Email service | `specs/email.md` |
 | Lyrics alignment | `specs/lyrics-alignment.md` |
 | Script conversion | `specs/script-conversion.md` |
+| Chunked uploads | `specs/chunked-upload.md` |
 | API documentation | `docs/API.md` |
 | Test documentation | `TESTING.md`, `BROWSER_TESTING.md` |
 | Learnings | `LEARNINGS.md` |

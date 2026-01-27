@@ -1308,69 +1308,239 @@ import '../styles/theme.css';
 				progressFill.style.width = '0%';
 			}
 
+			// Chunk size for chunked uploads (50 MB)
+			const CHUNK_SIZE = 50 * 1024 * 1024;
+
+			// LocalStorage key for upload session resumability
+			const UPLOAD_SESSION_PREFIX = 'subtitler:upload_session:';
+
 			async function uploadFile(file: File) {
 				isUploading = true;
-				const formData = new FormData();
-				formData.append('video', file);
 
 				try {
 					showStatus('Uploading...');
 					showProgress(0);
 
-					// Use XMLHttpRequest for progress tracking
-					const xhr = new XMLHttpRequest();
-
-					xhr.upload.addEventListener('progress', (e) => {
-						if (e.lengthComputable) {
-							const percent = Math.round((e.loaded / e.total) * 100);
-							showProgress(percent);
-							showStatus(`Uploading... ${percent}%`);
-						}
-					});
-
-					const uploadPromise = new Promise<any>((resolve, reject) => {
-						xhr.onload = () => {
-							if (xhr.status >= 200 && xhr.status < 300) {
-								try {
-									resolve(JSON.parse(xhr.responseText));
-								} catch {
-									reject(new Error('Invalid JSON response'));
-								}
-							} else {
-								try {
-									const error = JSON.parse(xhr.responseText);
-									reject(new Error(error.error || 'Upload failed'));
-								} catch {
-									reject(new Error(`Upload failed: ${xhr.status}`));
-								}
-							}
-						};
-						xhr.onerror = () => reject(new Error('Network error'));
-					});
-
-					// For anonymous users, include session_id for tracking
-					let uploadUrl = '/api/upload';
-					if (!isAuthenticated) {
-						const sessionId = getOrCreateSessionId();
-						uploadUrl = `/api/upload?session_id=${encodeURIComponent(sessionId)}`;
+					// Use chunked upload for files larger than chunk size
+					if (file.size > CHUNK_SIZE) {
+						await uploadFileChunked(file);
+					} else {
+						await uploadFileSingle(file);
 					}
-					xhr.open('POST', uploadUrl);
-					xhr.send(formData);
-
-					const result = await uploadPromise;
-					hideProgress();
-					showStatus(`Upload complete! Starting transcription...`, 'success');
-
-					// Store upload ID and start transcription
-					currentUploadId = result.upload_id;
-					startTranscription(result.upload_id);
-
 				} catch (error) {
 					hideProgress();
 					showStatus(`Upload failed: ${error instanceof Error ? error.message : error}`, 'error');
 				} finally {
 					isUploading = false;
 				}
+			}
+
+			// Single-file upload for small files
+			async function uploadFileSingle(file: File) {
+				const formData = new FormData();
+				formData.append('video', file);
+
+				// Use XMLHttpRequest for progress tracking
+				const xhr = new XMLHttpRequest();
+
+				xhr.upload.addEventListener('progress', (e) => {
+					if (e.lengthComputable) {
+						const percent = Math.round((e.loaded / e.total) * 100);
+						showProgress(percent);
+						showStatus(`Uploading... ${percent}%`);
+					}
+				});
+
+				const uploadPromise = new Promise<any>((resolve, reject) => {
+					xhr.onload = () => {
+						if (xhr.status >= 200 && xhr.status < 300) {
+							try {
+								resolve(JSON.parse(xhr.responseText));
+							} catch {
+								reject(new Error('Invalid JSON response'));
+							}
+						} else {
+							try {
+								const error = JSON.parse(xhr.responseText);
+								reject(new Error(error.error || 'Upload failed'));
+							} catch {
+								reject(new Error(`Upload failed: ${xhr.status}`));
+							}
+						}
+					};
+					xhr.onerror = () => reject(new Error('Network error'));
+				});
+
+				// For anonymous users, include session_id for tracking
+				let uploadUrl = '/api/upload';
+				if (!isAuthenticated) {
+					const sessionId = getOrCreateSessionId();
+					uploadUrl = `/api/upload?session_id=${encodeURIComponent(sessionId)}`;
+				}
+				xhr.open('POST', uploadUrl);
+				xhr.send(formData);
+
+				const result = await uploadPromise;
+				hideProgress();
+				showStatus(`Upload complete! Starting transcription...`, 'success');
+
+				// Store upload ID and start transcription
+				currentUploadId = result.upload_id;
+				startTranscription(result.upload_id);
+			}
+
+			// Chunked upload for large files
+			async function uploadFileChunked(file: File) {
+				const sessionKey = `${UPLOAD_SESSION_PREFIX}${file.name}:${file.size}`;
+				let sessionId = localStorage.getItem(sessionKey);
+				let uploadSession: any = null;
+				let receivedChunks: number[] = [];
+
+				// Check for resumable session
+				if (sessionId) {
+					try {
+						const statusUrl = getSessionQueryUrl(`/api/upload/status/${sessionId}`);
+						const statusRes = await fetch(statusUrl);
+						if (statusRes.ok) {
+							uploadSession = await statusRes.json();
+							if (uploadSession.status === 'in_progress') {
+								receivedChunks = uploadSession.received_chunks || [];
+								showStatus(`Resuming upload... ${uploadSession.progress}% complete`);
+								showProgress(uploadSession.progress);
+							} else {
+								// Session expired or completed, start fresh
+								localStorage.removeItem(sessionKey);
+								sessionId = null;
+								uploadSession = null;
+							}
+						} else {
+							// Session not found, start fresh
+							localStorage.removeItem(sessionKey);
+							sessionId = null;
+						}
+					} catch {
+						localStorage.removeItem(sessionKey);
+						sessionId = null;
+					}
+				}
+
+				// Initialize new upload session if needed
+				if (!sessionId) {
+					const initUrl = getSessionQueryUrl('/api/upload/init');
+					const initRes = await fetch(initUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							filename: file.name,
+							size: file.size,
+							content_type: file.type || 'video/mp4',
+							chunk_size: CHUNK_SIZE
+						})
+					});
+
+					if (!initRes.ok) {
+						const error = await initRes.json().catch(() => ({ error: 'Failed to initialize upload' }));
+						throw new Error(error.error || 'Failed to initialize upload');
+					}
+
+					uploadSession = await initRes.json();
+					sessionId = uploadSession.upload_session_id;
+					localStorage.setItem(sessionKey, sessionId);
+					receivedChunks = [];
+				}
+
+				const totalChunks = uploadSession.total_chunks;
+
+				// Upload chunks
+				for (let i = 0; i < totalChunks; i++) {
+					// Skip already uploaded chunks
+					if (receivedChunks.includes(i)) {
+						continue;
+					}
+
+					const start = i * CHUNK_SIZE;
+					const end = Math.min(start + CHUNK_SIZE, file.size);
+					const chunk = file.slice(start, end);
+
+					const formData = new FormData();
+					formData.append('upload_session_id', sessionId!);
+					formData.append('chunk_index', i.toString());
+					formData.append('chunk', chunk);
+
+					// Upload chunk with progress tracking
+					const xhr = new XMLHttpRequest();
+
+					xhr.upload.addEventListener('progress', (e) => {
+						if (e.lengthComputable) {
+							// Calculate overall progress including current chunk progress
+							const chunkProgress = e.loaded / e.total;
+							const overallProgress = ((i + chunkProgress) / totalChunks) * 100;
+							showProgress(Math.round(overallProgress));
+							showStatus(`Uploading chunk ${i + 1}/${totalChunks}... ${Math.round(chunkProgress * 100)}%`);
+						}
+					});
+
+					const chunkUrl = getSessionQueryUrl('/api/upload/chunk');
+					await new Promise<void>((resolve, reject) => {
+						xhr.onload = () => {
+							if (xhr.status >= 200 && xhr.status < 300) {
+								resolve();
+							} else {
+								try {
+									const error = JSON.parse(xhr.responseText);
+									reject(new Error(error.error || `Chunk ${i} upload failed`));
+								} catch {
+									reject(new Error(`Chunk ${i} upload failed: ${xhr.status}`));
+								}
+							}
+						};
+						xhr.onerror = () => reject(new Error(`Network error uploading chunk ${i}`));
+
+						xhr.open('POST', chunkUrl);
+						xhr.send(formData);
+					});
+
+					// Update progress after successful chunk
+					const progress = Math.round(((i + 1) / totalChunks) * 100);
+					showProgress(progress);
+					showStatus(`Uploaded chunk ${i + 1}/${totalChunks} (${progress}%)`);
+				}
+
+				// Complete the upload
+				showStatus('Finalizing upload...');
+				const completeUrl = getSessionQueryUrl('/api/upload/complete');
+				const completeRes = await fetch(completeUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ upload_session_id: sessionId })
+				});
+
+				if (!completeRes.ok) {
+					const error = await completeRes.json().catch(() => ({ error: 'Failed to complete upload' }));
+					throw new Error(error.error || 'Failed to complete upload');
+				}
+
+				const result = await completeRes.json();
+
+				// Clean up localStorage
+				localStorage.removeItem(sessionKey);
+
+				hideProgress();
+				showStatus(`Upload complete! Starting transcription...`, 'success');
+
+				// Store upload ID and start transcription
+				currentUploadId = result.upload_id;
+				startTranscription(result.upload_id);
+			}
+
+			// Helper to add session_id query param for anonymous users
+			function getSessionQueryUrl(baseUrl: string): string {
+				if (!isAuthenticated) {
+					const sessionId = getOrCreateSessionId();
+					const separator = baseUrl.includes('?') ? '&' : '?';
+					return `${baseUrl}${separator}session_id=${encodeURIComponent(sessionId)}`;
+				}
+				return baseUrl;
 			}
 
 			async function startTranscription(uploadId: string, language?: string) {

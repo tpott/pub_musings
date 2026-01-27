@@ -189,7 +189,11 @@ export WHISPER_SERVER_URL="http://10.0.2.2:8765"
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/health` | Health check |
-| POST | `/api/upload` | Upload video file |
+| POST | `/api/upload` | Upload video file (single request) |
+| POST | `/api/upload/init` | Initialize chunked upload session |
+| POST | `/api/upload/chunk` | Upload a single chunk |
+| POST | `/api/upload/complete` | Complete chunked upload |
+| GET | `/api/upload/status/{session_id}` | Get upload session status |
 | POST | `/api/transcribe/{id}` | Start transcription |
 | GET | `/api/transcribe/{id}` | Get transcription status |
 | PUT | `/api/transcribe/{id}/segments` | Update subtitle segments |
