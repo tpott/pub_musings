@@ -138,9 +138,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**175 tasks completed.** Deep inspection created 12 new tasks (167-178).
+**176 tasks completed.** Deep inspection created 12 new tasks (167-178).
 
 ### Recently Completed
+- ✅ Task 172: Add aria-labels to video thumbnail buttons
+  - Added `aria-label="Play video: {filename}"` to clickable thumbnails
+  - Both img thumbnails and placeholder div thumbnails now have descriptive labels
+  - Screen readers can now identify what clicking thumbnails will do
 - ✅ Task 171: Remove persistent keydown listener in videos.astro
   - Moved keydown handler setup from page-load to modal-open
   - Used AbortController to add/remove document keydown listener dynamically

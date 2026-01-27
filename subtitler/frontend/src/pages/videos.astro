@@ -762,8 +762,8 @@ import '../styles/theme.css';
 				return `
 					<div class="video-card" data-video-id="${video.id}">
 						${hasThumbnail
-							? `<img class="video-thumbnail${showViewBtn ? ' clickable-thumbnail' : ''}" src="/api/videos/${video.id}/thumbnail" alt="Thumbnail for ${escapeHtml(video.filename)}" loading="lazy" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" style="cursor: pointer;"` : ''} />`
-							: `<div class="video-thumbnail-placeholder${showViewBtn ? ' clickable-thumbnail' : ''}" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" style="cursor: pointer;"` : ''}>🎬</div>`
+							? `<img class="video-thumbnail${showViewBtn ? ' clickable-thumbnail' : ''}" src="/api/videos/${video.id}/thumbnail" alt="Thumbnail for ${escapeHtml(video.filename)}" loading="lazy" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" aria-label="Play video: ${escapeHtml(video.filename)}" style="cursor: pointer;"` : ''} />`
+							: `<div class="video-thumbnail-placeholder${showViewBtn ? ' clickable-thumbnail' : ''}" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" aria-label="Play video: ${escapeHtml(video.filename)}" style="cursor: pointer;"` : ''}>🎬</div>`
 						}
 						<div class="video-info">
 							<div class="video-filename">${escapeHtml(video.filename)}</div>
