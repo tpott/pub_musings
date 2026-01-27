@@ -141,14 +141,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 **126 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 125: XSS protection - Added escapeHtml utility function and tests. Verified all innerHTML usages properly escape user content (filenames, segment text, IP addresses).
 - ✅ Task 120: Encryption key rotation support - MultiKeyEncryptor supports versioned keys, videos track their key version, CLI tool for rotation and re-encryption. Zero-downtime rotation with gradual re-encryption.
 - ✅ Task 118: CAPTCHA protection for registration and login - hCaptcha integration with optional enable via environment variables (`CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY`). Disabled by default for development.
 - ✅ Task 119: Password complexity requirements - passwords now require uppercase, lowercase, number, and special character
 - ✅ Task 123: Document whisper model selection - large-v3-turbo recommended (6x faster than large-v3, slightly better accuracy)
-- ✅ Task 122: localStorage cleanup for stale upload sessions - on page load, removes upload sessions older than 48 hours to prevent localStorage pollution from abandoned uploads
 
-### All Tasks Complete
-No pending tasks.
+### Pending Tasks
+Tasks 124-131 added for future work (see TASKS.jsonl).
 
 See `TASKS.jsonl` for details.
 

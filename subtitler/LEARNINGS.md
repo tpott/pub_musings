@@ -447,3 +447,26 @@ if (csrfToken) {
 2. All encryption/decryption calls must be audited and updated together
 3. A CLI tool for operations staff is essential - rotation shouldn't require code changes
 4. Zero-downtime rotation requires files to remain readable during the transition period
+
+---
+
+### 2026-01-26: XSS protection via escapeHtml
+
+**Problem:** Code analysis identified potential XSS vulnerabilities through innerHTML usage with user-controlled data.
+
+**Investigation:** Examined all innerHTML usages in frontend:
+- `videos.astro` - Already uses escapeHtml for filenames and segment text ✓
+- `upload.astro` - Already uses escapeHtml for segment text ✓
+- `security.astro` - Missing escapeHtml for session IP addresses
+
+**Solution:**
+1. Added escapeHtml function to security.astro for session IP addresses
+2. Created shared `frontend/src/utils/html.ts` utility with comprehensive tests
+3. Tests verify escaping of HTML tags, scripts, event handlers, and XSS attempts
+
+**Lesson:**
+1. Even "trusted" backend data like IP addresses should be escaped - defense in depth
+2. innerHTML with template literals is a common XSS vector - always audit
+3. The browser's `textContent → innerHTML` trick is an effective way to escape HTML
+4. Regular code audits should search for innerHTML, eval, and other dangerous patterns
+5. Consider using a shared utility to avoid duplicating escapeHtml across files

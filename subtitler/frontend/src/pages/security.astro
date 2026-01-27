@@ -1203,6 +1203,12 @@ ${recoveryCodes.join('\n')}
 				is_current: boolean;
 			}
 
+			function escapeHtml(text: string): string {
+				const div = document.createElement('div');
+				div.textContent = text;
+				return div.innerHTML;
+			}
+
 			function parseUserAgent(ua: string): string {
 				if (!ua) return 'Unknown device';
 				// Simple user agent parsing
@@ -1246,7 +1252,7 @@ ${recoveryCodes.join('\n')}
 									${session.is_current ? '<span class="session-current-badge">Current</span>' : ''}
 								</div>
 								<div class="session-meta">
-									${session.ip_address || 'Unknown IP'} · Created ${formatDate(session.created_at)}
+									${escapeHtml(session.ip_address || 'Unknown IP')} · Created ${formatDate(session.created_at)}
 								</div>
 							</div>
 							${!session.is_current ? `<button class="btn btn-revoke" data-session-id="${session.id}">Revoke</button>` : ''}
