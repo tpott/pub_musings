@@ -82,6 +82,34 @@ See [LINTERS.md](LINTERS.md) for linting setup:
 
 See [BROWSER_TESTING.md](BROWSER_TESTING.md) for E2E testing with Playwright.
 
+### Keyboard Shortcuts
+
+The subtitle editor supports keyboard shortcuts for efficient video editing:
+
+**Video Playback:**
+| Shortcut | Action |
+|----------|--------|
+| `Space` | Play / Pause |
+| `←` | Seek backward 5 seconds |
+| `→` | Seek forward 5 seconds |
+| `J` | Rewind 10 seconds |
+| `K` | Pause |
+| `L` | Forward 10 seconds |
+
+**Subtitle Navigation:**
+| Shortcut | Action |
+|----------|--------|
+| `Tab` | Jump to next segment |
+| `Shift+Tab` | Jump to previous segment |
+
+**Editing (in edit mode):**
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Z` | Undo |
+| `Ctrl+Shift+Z` | Redo |
+
+Press `?` to show the keyboard shortcuts help modal in the app.
+
 ### Debugging
 
 #### Go Backend (Delve)

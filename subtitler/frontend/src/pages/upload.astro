@@ -788,6 +788,147 @@ import '../styles/theme.css';
 			.download-burned-btn:hover {
 				background-color: var(--btn-teal-hover);
 			}
+			/* Keyboard shortcuts help button */
+			.keyboard-help-btn {
+				background: none;
+				border: 1px solid var(--border-color);
+				color: var(--text-secondary);
+				padding: 0.5rem 1rem;
+				border-radius: 6px;
+				font-size: 0.85rem;
+				cursor: pointer;
+				transition: all 0.2s;
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			.keyboard-help-btn:hover {
+				background-color: var(--border-color);
+				color: var(--text-color);
+			}
+			.keyboard-help-btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.keyboard-help-btn svg {
+				width: 16px;
+				height: 16px;
+			}
+			/* Keyboard shortcuts modal */
+			.modal-overlay {
+				display: none;
+				position: fixed;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: rgba(0, 0, 0, 0.6);
+				z-index: 1000;
+				padding: 2rem;
+				overflow-y: auto;
+			}
+			.modal-overlay.visible {
+				display: flex;
+				align-items: flex-start;
+				justify-content: center;
+			}
+			.modal-content {
+				background-color: var(--bg-color);
+				border-radius: 12px;
+				max-width: 500px;
+				width: 100%;
+				margin-top: 2rem;
+				box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+			}
+			.modal-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 1rem 1.5rem;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.modal-title {
+				font-size: 1.25rem;
+				font-weight: 600;
+				margin: 0;
+			}
+			.modal-close {
+				background: none;
+				border: none;
+				font-size: 1.5rem;
+				cursor: pointer;
+				color: var(--text-secondary);
+				padding: 0.25rem;
+				border-radius: 4px;
+				line-height: 1;
+			}
+			.modal-close:hover {
+				background-color: var(--border-color);
+				color: var(--text-color);
+			}
+			.modal-close:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.modal-body {
+				padding: 1.5rem;
+			}
+			.shortcut-section {
+				margin-bottom: 1.5rem;
+			}
+			.shortcut-section:last-child {
+				margin-bottom: 0;
+			}
+			.shortcut-section-title {
+				font-size: 0.85rem;
+				font-weight: 600;
+				color: var(--text-secondary);
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+				margin-bottom: 0.75rem;
+			}
+			.shortcut-list {
+				list-style: none;
+				padding: 0;
+				margin: 0;
+			}
+			.shortcut-item {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 0.5rem 0;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.shortcut-item:last-child {
+				border-bottom: none;
+			}
+			.shortcut-keys {
+				display: flex;
+				gap: 0.25rem;
+			}
+			.shortcut-key {
+				display: inline-block;
+				padding: 0.25rem 0.5rem;
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				font-family: monospace;
+				font-size: 0.85rem;
+				min-width: 1.5rem;
+				text-align: center;
+			}
+			.shortcut-description {
+				color: var(--text-color);
+				font-size: 0.9rem;
+			}
+			.shortcut-note {
+				margin-top: 1rem;
+				padding: 0.75rem;
+				background-color: var(--secondary-bg);
+				border-radius: 6px;
+				font-size: 0.85rem;
+				color: var(--text-secondary);
+			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
 				.nav {
@@ -1042,6 +1183,10 @@ import '../styles/theme.css';
 						<a href="#" class="download-btn download-btn-secondary" id="downloadJson" aria-label="Download subtitles in JSON format">JSON</a>
 					</div>
 					<button class="burn-btn" id="burnBtn">Burn Subtitles into Video</button>
+					<button class="keyboard-help-btn" id="keyboardHelpBtn" aria-label="Show keyboard shortcuts">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M6 16h8"/></svg>
+						Shortcuts
+					</button>
 				</div>
 				<div class="burn-status" id="burnStatus">
 					<p id="burnStatusText">Starting...</p>
@@ -1052,6 +1197,76 @@ import '../styles/theme.css';
 					<a href="#" class="download-burned-btn" id="downloadBurnedBtn" style="display: none;">Download Video with Subtitles</a>
 				</div>
 				<div class="full-text" id="fullText"></div>
+			</div>
+		</div>
+
+		<!-- Keyboard shortcuts modal -->
+		<div class="modal-overlay" id="keyboardShortcutsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title" id="modalTitle">Keyboard Shortcuts</h2>
+					<button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
+				</div>
+				<div class="modal-body">
+					<div class="shortcut-section">
+						<div class="shortcut-section-title">Video Playback</div>
+						<ul class="shortcut-list">
+							<li class="shortcut-item">
+								<span class="shortcut-description">Play / Pause</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Space</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Seek backward 5s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">←</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Seek forward 5s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">→</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Rewind 10s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">J</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Pause</span>
+								<span class="shortcut-keys"><span class="shortcut-key">K</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Forward 10s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">L</span></span>
+							</li>
+						</ul>
+					</div>
+					<div class="shortcut-section">
+						<div class="shortcut-section-title">Subtitle Navigation</div>
+						<ul class="shortcut-list">
+							<li class="shortcut-item">
+								<span class="shortcut-description">Next segment</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Tab</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Previous segment</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Shift</span><span class="shortcut-key">Tab</span></span>
+							</li>
+						</ul>
+					</div>
+					<div class="shortcut-section">
+						<div class="shortcut-section-title">Editing (in edit mode)</div>
+						<ul class="shortcut-list">
+							<li class="shortcut-item">
+								<span class="shortcut-description">Undo</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">Z</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Redo</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">Shift</span><span class="shortcut-key">Z</span></span>
+							</li>
+						</ul>
+					</div>
+					<div class="shortcut-note">
+						Note: Playback shortcuts work when focus is not in a text field. In edit mode, use Tab/Shift+Tab to navigate between segments.
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -1115,6 +1330,9 @@ import '../styles/theme.css';
 			const retranscribeBtn = document.getElementById('retranscribeBtn') as HTMLButtonElement;
 			const detectedLanguage = document.getElementById('detectedLanguage') as HTMLElement;
 			const detectedLanguageValue = document.getElementById('detectedLanguageValue') as HTMLElement;
+			const keyboardHelpBtn = document.getElementById('keyboardHelpBtn') as HTMLButtonElement;
+			const keyboardShortcutsModal = document.getElementById('keyboardShortcutsModal') as HTMLElement;
+			const modalClose = document.getElementById('modalClose') as HTMLButtonElement;
 
 			// Language display names for showing detected language
 			const languageDisplayNames: Record<string, string> = {
@@ -2242,19 +2460,177 @@ import '../styles/theme.css';
 			undoBtn.addEventListener('click', performUndo);
 			redoBtn.addEventListener('click', performRedo);
 
-			// Keyboard shortcuts for undo/redo (only active in edit mode)
-			document.addEventListener('keydown', (e) => {
-				if (!isEditMode) return;
+			// Helper to check if focus is in a text input
+			function isTextInputFocused(): boolean {
+				const active = document.activeElement;
+				if (!active) return false;
+				const tag = active.tagName.toLowerCase();
+				return tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable;
+			}
 
-				// Check for Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
-				if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-					e.preventDefault();
-					performUndo();
+			// Helper to get current segment index based on video time
+			function getCurrentSegmentIndex(): number {
+				const currentTime = previewVideo.currentTime;
+				for (let i = 0; i < transcriptionSegments.length; i++) {
+					const seg = transcriptionSegments[i];
+					if (currentTime >= seg.start && currentTime <= seg.end) {
+						return i;
+					}
 				}
-				// Check for Ctrl+Shift+Z or Ctrl+Y (Windows/Linux) or Cmd+Shift+Z (Mac)
-				if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+				// If not in a segment, find the next one
+				for (let i = 0; i < transcriptionSegments.length; i++) {
+					if (transcriptionSegments[i].start > currentTime) {
+						return Math.max(0, i - 1);
+					}
+				}
+				return transcriptionSegments.length - 1;
+			}
+
+			// Navigate to segment by index
+			function navigateToSegment(index: number) {
+				if (transcriptionSegments.length === 0) return;
+				const clampedIndex = Math.max(0, Math.min(index, transcriptionSegments.length - 1));
+				const seg = transcriptionSegments[clampedIndex];
+				previewVideo.currentTime = seg.start;
+
+				// Highlight and scroll to segment
+				const segmentElements = segments.querySelectorAll('.segment');
+				segmentElements.forEach((el, idx) => {
+					if (idx === clampedIndex) {
+						el.classList.add('active');
+						el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+					} else {
+						el.classList.remove('active');
+					}
+				});
+			}
+
+			// Keyboard shortcuts modal handling
+			function openKeyboardModal() {
+				keyboardShortcutsModal.classList.add('visible');
+				modalClose.focus();
+				// Trap focus in modal
+				document.addEventListener('keydown', trapFocus);
+			}
+
+			function closeKeyboardModal() {
+				keyboardShortcutsModal.classList.remove('visible');
+				keyboardHelpBtn.focus();
+				document.removeEventListener('keydown', trapFocus);
+			}
+
+			function trapFocus(e: KeyboardEvent) {
+				if (e.key === 'Escape') {
+					closeKeyboardModal();
+					return;
+				}
+				if (e.key !== 'Tab') return;
+
+				const focusableElements = keyboardShortcutsModal.querySelectorAll(
+					'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+				);
+				const firstElement = focusableElements[0] as HTMLElement;
+				const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+				if (e.shiftKey && document.activeElement === firstElement) {
 					e.preventDefault();
-					performRedo();
+					lastElement.focus();
+				} else if (!e.shiftKey && document.activeElement === lastElement) {
+					e.preventDefault();
+					firstElement.focus();
+				}
+			}
+
+			keyboardHelpBtn.addEventListener('click', openKeyboardModal);
+			modalClose.addEventListener('click', closeKeyboardModal);
+			keyboardShortcutsModal.addEventListener('click', (e) => {
+				if (e.target === keyboardShortcutsModal) {
+					closeKeyboardModal();
+				}
+			});
+
+			// Global keyboard shortcuts
+			document.addEventListener('keydown', (e) => {
+				// Don't handle shortcuts when modal is open (except Escape)
+				if (keyboardShortcutsModal.classList.contains('visible')) {
+					return;
+				}
+
+				// Undo/redo shortcuts (edit mode only)
+				if (isEditMode) {
+					// Check for Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
+					if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+						e.preventDefault();
+						performUndo();
+						return;
+					}
+					// Check for Ctrl+Shift+Z or Ctrl+Y (Windows/Linux) or Cmd+Shift+Z (Mac)
+					if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+						e.preventDefault();
+						performRedo();
+						return;
+					}
+				}
+
+				// Tab/Shift+Tab for segment navigation (works in both modes)
+				if (e.key === 'Tab' && transcriptionSegments.length > 0) {
+					// Only intercept if video is visible (transcription is ready)
+					if (!videoPreview.classList.contains('visible')) return;
+
+					e.preventDefault();
+					const currentIndex = getCurrentSegmentIndex();
+					if (e.shiftKey) {
+						// Previous segment
+						navigateToSegment(currentIndex - 1);
+					} else {
+						// Next segment
+						navigateToSegment(currentIndex + 1);
+					}
+					return;
+				}
+
+				// Skip other shortcuts if in a text input
+				if (isTextInputFocused()) return;
+
+				// Video playback shortcuts (only when video is visible)
+				if (!videoPreview.classList.contains('visible')) return;
+
+				switch (e.key) {
+					case ' ':  // Space: Play/Pause
+						e.preventDefault();
+						if (previewVideo.paused) {
+							previewVideo.play();
+						} else {
+							previewVideo.pause();
+						}
+						break;
+					case 'ArrowLeft':  // Left arrow: Seek back 5s
+						e.preventDefault();
+						previewVideo.currentTime = Math.max(0, previewVideo.currentTime - 5);
+						break;
+					case 'ArrowRight':  // Right arrow: Seek forward 5s
+						e.preventDefault();
+						previewVideo.currentTime = Math.min(previewVideo.duration, previewVideo.currentTime + 5);
+						break;
+					case 'j':
+					case 'J':  // J: Rewind 10s
+						e.preventDefault();
+						previewVideo.currentTime = Math.max(0, previewVideo.currentTime - 10);
+						break;
+					case 'k':
+					case 'K':  // K: Pause
+						e.preventDefault();
+						previewVideo.pause();
+						break;
+					case 'l':
+					case 'L':  // L: Forward 10s
+						e.preventDefault();
+						previewVideo.currentTime = Math.min(previewVideo.duration, previewVideo.currentTime + 10);
+						break;
+					case '?':  // ?: Show keyboard shortcuts
+						e.preventDefault();
+						openKeyboardModal();
+						break;
 				}
 			});
 

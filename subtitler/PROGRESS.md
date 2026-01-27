@@ -138,13 +138,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**143 tasks completed.** 7 remaining from deep code inspection.
+**144 tasks completed.** 6 remaining from deep code inspection.
 
 ### Recently Completed
-- ✅ Task 143: Undo/redo for subtitle editor - Implemented full undo/redo functionality with history stack (max 50 states). Added undo/redo buttons with SVG icons and disabled states. Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z or Ctrl+Y (redo). History captured on text focus, time input focus, segment deletion, and segment addition. Created `utils/history.ts` utility with comprehensive tests. All verification passes.
+- ✅ Task 144: Keyboard shortcuts for subtitle editor - Added comprehensive keyboard shortcuts: Space (play/pause), Left/Right arrows (±5s seek), J/K/L (rewind/pause/forward 10s), Tab/Shift+Tab (segment navigation). Added keyboard help modal with accessible focus trap. Shortcuts only work when not in text input. Added "Shortcuts" button with keyboard icon. Documentation added to README.md. All verification passes.
 
 ### Pending Tasks (from deep inspection 2026-01-26)
-- Task 144: Keyboard shortcuts for subtitle editor (accessibility)
 - Task 145: Disaster recovery documentation (operational readiness)
 - Task 146: Per-user rate limiting (security hardening)
 - Task 147: Prometheus metrics endpoint (monitoring/observability)
