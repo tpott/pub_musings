@@ -37,6 +37,8 @@ go run main.go
 | `SCRIPT_RATE_LIMIT` | `10/min` | Rate limit for script detection/conversion |
 | `DB_MAINTENANCE_INTERVAL` | `24h` | Interval for SQLite maintenance (VACUUM + ANALYZE) |
 
+> **Note:** This table shows commonly-used variables. For a complete reference including debugging, logging, security, and CAPTCHA configuration, see [../docs/ENV.md](../docs/ENV.md).
+
 ### Database Maintenance
 
 The backend runs automatic SQLite maintenance (VACUUM and ANALYZE) to keep the database optimized. This is controlled by the `DB_MAINTENANCE_INTERVAL` environment variable.

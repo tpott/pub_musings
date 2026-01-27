@@ -3828,6 +3828,15 @@ func main() {
 
 		// Process in background (capture language and key version in closure)
 		go func(lang string, kv int) {
+			// Panic recovery to prevent goroutine crashes from leaving jobs in stuck state
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Error("Panic in transcription goroutine", "upload_id", uploadID, "panic", r)
+					metrics.RecordTranscriptionFailed()
+					database.FailTranscription(uploadID, "Internal error: transcription process crashed")
+				}
+			}()
+
 			transcriptionStart := time.Now()
 			metrics.RecordTranscriptionStarted()
 			logging.Info("Starting transcription", "upload_id", uploadID, "language", lang, "key_version", kv)
@@ -4784,6 +4793,15 @@ func main() {
 
 		// Process in background (same logic as POST /api/transcribe/{id})
 		go func(kv int) {
+			// Panic recovery to prevent goroutine crashes from leaving jobs in stuck state
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Error("Panic in reprocess goroutine", "upload_id", uploadID, "panic", r)
+					metrics.RecordTranscriptionFailed()
+					database.FailTranscription(uploadID, "Internal error: reprocess crashed")
+				}
+			}()
+
 			logging.Info("Reprocessing transcription", "upload_id", uploadID, "key_version", kv)
 
 			// Decrypt video file if encrypted
@@ -5195,6 +5213,14 @@ func main() {
 
 		// Process in background (capture key version and burn mode)
 		go func(kv int, mode string) {
+			// Panic recovery to prevent goroutine crashes from leaving jobs in stuck state
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Error("Panic in burn goroutine", "upload_id", uploadID, "panic", r)
+					database.FailBurnJob(uploadID, "Internal error: burn process crashed")
+				}
+			}()
+
 			logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", kv, "mode", mode)
 
 			// Decrypt video if encrypted

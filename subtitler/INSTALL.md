@@ -226,7 +226,7 @@ sqlite3 --version
 
 ## Environment Variables
 
-The backend supports the following environment variables:
+The backend supports many environment variables for configuration. Here are the key ones for installation:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -234,6 +234,8 @@ The backend supports the following environment variables:
 | `WHISPER_MODEL` | `$HOME/Github/whisper.cpp/models/ggml-medium.bin` | Path to whisper model file (CLI mode only) |
 | `WHISPER_SERVER_URL` | `http://127.0.0.1:8765` | URL of whisper-server (enables server mode when set) |
 | `USE_WHISPER_SERVER` | `false` | Set to `true` to use whisper-server even without custom URL |
+
+> **Complete reference:** For all environment variables including rate limits, email settings, security options, and debugging configuration, see [docs/ENV.md](docs/ENV.md).
 
 **Whisper Mode Selection:**
 - **CLI mode (default):** Uses `whisper-cli` spawned as subprocess. Simple but slower (model loaded each time).

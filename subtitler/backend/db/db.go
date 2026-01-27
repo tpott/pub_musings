@@ -480,14 +480,16 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 		return nil, err
 	}
 
-	// Build paginated query
+	// Build paginated query with parameterized LIMIT/OFFSET
 	query := `SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos ` + whereClause + ` ORDER BY created_at DESC`
 
 	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+		query += " LIMIT ?"
+		args = append(args, limit)
 		if offset > 0 {
-			query += fmt.Sprintf(" OFFSET %d", offset)
+			query += " OFFSET ?"
+			args = append(args, offset)
 		}
 	}
 

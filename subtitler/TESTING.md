@@ -106,8 +106,10 @@ npm install
 npm test
 
 # Run tests in watch mode (for development)
-npm test:watch
+npm run test:watch
 ```
+
+> **Note:** The frontend also has end-to-end (E2E) browser tests using Playwright. For E2E testing documentation, see [BROWSER_TESTING.md](BROWSER_TESTING.md).
 
 ### Test Files
 

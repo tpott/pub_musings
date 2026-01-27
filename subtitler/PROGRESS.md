@@ -138,9 +138,24 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**167 tasks completed.** Deep inspection tasks complete.
+**172 tasks completed.** Deep inspection created 12 new tasks (167-178).
 
 ### Recently Completed
+- ✅ Task 177: Add E2E test reference to TESTING.md
+  - Added note in Frontend Tests section referencing BROWSER_TESTING.md
+- ✅ Task 176: Add cross-references to ENV.md
+  - Added ENV.md reference to backend/README.md after env var table
+  - Added ENV.md reference to INSTALL.md env var section
+- ✅ Task 175: Fix TESTING.md npm run command typo
+  - Corrected `npm test:watch` to `npm run test:watch`
+- ✅ Task 168: Add panic recovery to transcription/burn goroutines
+  - Added defer recover() to POST /api/transcribe/{id} goroutine
+  - Added defer recover() to POST /api/videos/{id}/reprocess goroutine
+  - Added defer recover() to POST /api/burn/{id} goroutine
+  - Goroutine crashes now log error and mark jobs as failed
+- ✅ Task 167: Use parameterized queries for pagination
+  - Changed db/db.go ListVideosPaginated() from fmt.Sprintf to parameterized ? placeholders
+  - Prevents theoretical SQL injection in LIMIT/OFFSET clauses
 - ✅ Task 166: Clarify LINTERS.md about optional tools
   - Reorganized to clearly show what's IN USE vs optional
   - Added "NOT CURRENTLY USED" labels to ESLint, Prettier, Husky sections
