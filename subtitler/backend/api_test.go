@@ -7252,6 +7252,235 @@ func TestCleanupOrphanChunkDirectoriesNoChunksDir(t *testing.T) {
 	}
 }
 
+func TestChunkedUploadOutOfOrder(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session with 3 chunks
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1500,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Upload chunks out of order: 2, 0, 1
+	chunkOrder := []int{2, 0, 1}
+	for _, chunkIndex := range chunkOrder {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		writer.WriteField("upload_session_id", sessionID)
+		writer.WriteField("chunk_index", strconv.Itoa(chunkIndex))
+		part, _ := writer.CreateFormFile("chunk", fmt.Sprintf("chunk_%d", chunkIndex))
+		part.Write(make([]byte, 500))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Chunk %d: Expected 200 OK, got %d: %s", chunkIndex, rr.Code, rr.Body.String())
+		}
+	}
+
+	// Verify all chunks are stored
+	count, _ := ts.db.CountUploadChunks(sessionID)
+	if count != 3 {
+		t.Errorf("Expected 3 chunks, got %d", count)
+	}
+}
+
+func TestChunkedUploadGapInSequence(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session with 3 chunks
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1500,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Upload chunks 0 and 2, skipping chunk 1
+	for _, chunkIndex := range []int{0, 2} {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		writer.WriteField("upload_session_id", sessionID)
+		writer.WriteField("chunk_index", strconv.Itoa(chunkIndex))
+		part, _ := writer.CreateFormFile("chunk", fmt.Sprintf("chunk_%d", chunkIndex))
+		part.Write(make([]byte, 500))
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Chunk %d: Expected 200 OK, got %d: %s", chunkIndex, rr.Code, rr.Body.String())
+		}
+	}
+
+	// Try to complete - should fail because chunk 1 is missing
+	completeResp := ts.doRequest("POST", "/api/upload/complete", map[string]interface{}{
+		"upload_session_id": sessionID,
+	}, "")
+
+	if completeResp.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request when chunks are missing, got %d: %s", completeResp.Code, completeResp.Body.String())
+	}
+
+	var completeResult map[string]string
+	json.NewDecoder(completeResp.Body).Decode(&completeResult)
+	// Error message could say "Not all chunks received" or similar
+	errorMsg := strings.ToLower(completeResult["error"])
+	if !strings.Contains(errorMsg, "incomplete") && !strings.Contains(errorMsg, "not all") && !strings.Contains(errorMsg, "chunks") {
+		t.Errorf("Error message should mention incomplete/missing chunks, got: %s", completeResult["error"])
+	}
+}
+
+func TestChunkedUploadNegativeChunkIndex(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Try to upload chunk with negative index
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", sessionID)
+	writer.WriteField("chunk_index", "-1")
+	part, _ := writer.CreateFormFile("chunk", "chunk_neg")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for negative chunk index, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestChunkedUploadZeroSizeFile(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to initialize session with zero size
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         0,
+		"content_type": "video/mp4",
+	}, "")
+
+	// Should either reject or handle zero-size gracefully
+	if initResp.Code != http.StatusBadRequest && initResp.Code != http.StatusOK {
+		t.Errorf("Expected 400 Bad Request or 200 OK for zero-size file, got %d", initResp.Code)
+	}
+}
+
+func TestChunkedUploadMissingSessionID(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to upload chunk without session ID
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("chunk_index", "0")
+	part, _ := writer.CreateFormFile("chunk", "chunk_0")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for missing session ID, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestChunkedUploadNonexistentSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to upload chunk with fake session ID
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", "nonexistent123456789012345678901234")
+	writer.WriteField("chunk_index", "0")
+	part, _ := writer.CreateFormFile("chunk", "chunk_0")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found for nonexistent session, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestChunkedUploadNoChunkData(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Try to upload chunk without chunk data (only form fields)
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", sessionID)
+	writer.WriteField("chunk_index", "0")
+	// No chunk file added
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request when no chunk data provided, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestDownloadRateLimiting(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
