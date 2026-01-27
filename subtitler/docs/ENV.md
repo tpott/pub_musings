@@ -10,7 +10,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `MAX_UPLOAD_SIZE` |
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
-| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `CSRF_SECRET` |
+| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `CSRF_SECRET`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 
@@ -202,6 +202,30 @@ Note: Disabling only affects new files. Existing encrypted files (`.age` extensi
 
 HMAC key for generating CSRF tokens. If not set, a random secret is generated on startup. Setting this ensures CSRF tokens remain valid across server restarts.
 
+### CAPTCHA_SITE_KEY
+
+| Property | Value |
+|----------|-------|
+| Default | *(none)* |
+| Required | No (but required with CAPTCHA_SECRET_KEY) |
+| Example | `CAPTCHA_SITE_KEY=10000000-ffff-ffff-ffff-000000000001` |
+
+Public hCaptcha site key. Both `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` must be set to enable CAPTCHA protection. Get keys from [hCaptcha](https://www.hcaptcha.com/).
+
+### CAPTCHA_SECRET_KEY
+
+| Property | Value |
+|----------|-------|
+| Default | *(none)* |
+| Required | No (but enables CAPTCHA when set) |
+| Example | `CAPTCHA_SECRET_KEY=0x...` |
+
+Secret hCaptcha key for server-side verification. When set (along with `CAPTCHA_SITE_KEY`), CAPTCHA protection is enabled for registration and login forms. This helps prevent automated bot attacks.
+
+**Behavior:**
+- **Not set:** CAPTCHA is disabled; registration and login work without CAPTCHA
+- **Set:** CAPTCHA required on registration and initial login (not required for TOTP code entry)
+
 ## Rate Limit Configuration
 
 All rate limits use the format `count/window` where:
@@ -331,6 +355,8 @@ RESEND_API_KEY=re_...
 APP_URL=https://subtitler.example.com
 EMAIL_FROM=noreply@subtitler.example.com
 CSRF_SECRET=your-persistent-csrf-secret
+CAPTCHA_SITE_KEY=your-hcaptcha-site-key
+CAPTCHA_SECRET_KEY=your-hcaptcha-secret-key
 ```
 
 ## See Also

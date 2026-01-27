@@ -271,6 +271,11 @@ import '../styles/theme.css';
 			#magicLinkSection {
 				margin-top: 1rem;
 			}
+			.captcha-container {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
 				.container {
@@ -338,6 +343,10 @@ import '../styles/theme.css';
 						<div class="forgot-link">
 							<a href="/forgot-password">Forgot password?</a>
 						</div>
+						<div id="captchaContainer" class="form-group captcha-container" style="display: none;">
+							<div id="hcaptcha"></div>
+							<div id="captchaError" class="field-error"></div>
+						</div>
 					</div>
 					<div id="totpSection" class="hidden">
 						<p class="totp-info">Enter the 6-digit code from your authenticator app</p>
@@ -382,6 +391,7 @@ import '../styles/theme.css';
 
 		<script>
 			import { validateEmail, validatePassword, validateTotpCode } from '../utils/validation';
+			import { getCaptchaConfig, renderCaptcha, getCaptchaToken, resetCaptcha } from '../utils/captcha';
 
 			const form = document.getElementById('loginForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
@@ -401,10 +411,33 @@ import '../styles/theme.css';
 			const emailError = document.getElementById('emailError') as HTMLElement;
 			const passwordError = document.getElementById('passwordError') as HTMLElement;
 			const totpError = document.getElementById('totpError') as HTMLElement;
+			const captchaContainer = document.getElementById('captchaContainer') as HTMLElement;
+			const captchaError = document.getElementById('captchaError') as HTMLElement;
 
 			let totpRequired = false;
 			let recoveryMode = false;
 			let unverifiedEmail = '';
+			let captchaEnabled = false;
+			let captchaSiteKey = '';
+			let captchaReady = false;
+			let captchaPassed = false; // Track if CAPTCHA was already passed (for TOTP retry)
+
+			// Initialize CAPTCHA on page load
+			async function initCaptcha() {
+				const config = await getCaptchaConfig();
+				if (config.enabled && config.site_key) {
+					captchaEnabled = true;
+					captchaSiteKey = config.site_key;
+					captchaContainer.style.display = 'flex';
+					try {
+						await renderCaptcha('hcaptcha', captchaSiteKey);
+						captchaReady = true;
+					} catch (err) {
+						console.error('Failed to render CAPTCHA:', err);
+					}
+				}
+			}
+			initCaptcha();
 
 			function clearFieldError(input: HTMLInputElement, errorEl: HTMLElement) {
 				input.classList.remove('input-error');
@@ -558,6 +591,7 @@ import '../styles/theme.css';
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				hideMessages();
+				captchaError.style.display = 'none';
 
 				const email = emailInput.value.trim();
 				const password = passwordInput.value;
@@ -583,6 +617,17 @@ import '../styles/theme.css';
 					const totpValidation = validateTotpCode(totpCode);
 					if (totpValidation) {
 						showFieldError(totpInput, totpError, totpValidation);
+						hasErrors = true;
+					}
+				}
+
+				// Validate CAPTCHA if enabled (only on initial login, not TOTP retry)
+				let captchaToken = '';
+				if (captchaEnabled && !totpRequired && !captchaPassed) {
+					captchaToken = getCaptchaToken('hcaptcha') || '';
+					if (!captchaToken) {
+						captchaError.textContent = 'Please complete the CAPTCHA';
+						captchaError.style.display = 'block';
 						hasErrors = true;
 					}
 				}
@@ -634,9 +679,12 @@ import '../styles/theme.css';
 				// Normal login flow
 
 				try {
-					const body: { email: string; password: string; totp_code?: string } = { email, password };
+					const body: { email: string; password: string; totp_code?: string; captcha_token?: string } = { email, password };
 					if (totpRequired && totpCode) {
 						body.totp_code = totpCode;
+					}
+					if (captchaToken) {
+						body.captcha_token = captchaToken;
 					}
 
 					const response = await fetch('/api/auth/login', {
@@ -652,6 +700,12 @@ import '../styles/theme.css';
 					if (!response.ok) {
 						// Check if 2FA is required
 						if (data.totp_required) {
+							// Mark CAPTCHA as passed so we don't require it again for TOTP
+							captchaPassed = true;
+							// Hide CAPTCHA container when showing TOTP input
+							if (captchaEnabled) {
+								captchaContainer.style.display = 'none';
+							}
 							showTotpInput();
 							setLoading(false);
 							return;
@@ -663,6 +717,10 @@ import '../styles/theme.css';
 							return;
 						}
 						showError(data.error || 'Login failed');
+						// Reset CAPTCHA on failure
+						if (captchaEnabled && !captchaPassed) {
+							resetCaptcha('hcaptcha');
+						}
 						setLoading(false);
 						return;
 					}

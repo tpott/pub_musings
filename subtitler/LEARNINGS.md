@@ -29,6 +29,21 @@ current specs/, current code, current application behavior and then file new tas
 
 ---
 
+### 2026-01-26: hCaptcha CAPTCHA integration
+
+**Problem:** Adding CAPTCHA to protect registration/login from bots.
+
+**Solution:** Used hCaptcha (privacy-focused alternative to reCAPTCHA):
+1. Backend `captcha` package with `Verifier` interface (allows disabled/enabled/mock modes)
+2. `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` env vars - both required to enable
+3. Frontend loads hCaptcha script dynamically only when needed
+4. For TOTP login flow, CAPTCHA only required on initial login, not on TOTP code entry (user already passed CAPTCHA)
+5. Frontend stores `captchaPassed` state to hide widget after successful validation
+
+**Lesson:** Optional features should gracefully degrade. Using a Verifier interface with disabled/mock implementations makes testing easy and allows development without CAPTCHA keys.
+
+---
+
 ### 2026-01-22: Go binary not in PATH
 
 **Problem:** `go test` failed with "command not found"

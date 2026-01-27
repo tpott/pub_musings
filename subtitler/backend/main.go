@@ -22,6 +22,7 @@ import (
 	"github.com/trevor/subtitler/backend/align"
 	"github.com/trevor/subtitler/backend/audio"
 	"github.com/trevor/subtitler/backend/auth"
+	"github.com/trevor/subtitler/backend/captcha"
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
@@ -277,6 +278,9 @@ func initRateLimiters() {
 
 // Global email service for transactional emails
 var emailService email.EmailService
+
+// Global CAPTCHA verifier for bot protection
+var captchaVerifier captcha.Verifier
 
 // Global audio extractor for video processing
 var audioExtractor audio.Extractor
@@ -830,6 +834,17 @@ func main() {
 		logging.Info("Email service disabled (no RESEND_API_KEY set)")
 	}
 
+	// Initialize CAPTCHA verifier
+	captchaVerifier = captcha.New(captcha.Config{
+		SiteKey:   os.Getenv("CAPTCHA_SITE_KEY"),
+		SecretKey: os.Getenv("CAPTCHA_SECRET_KEY"),
+	})
+	if captchaVerifier.IsEnabled() {
+		logging.Info("CAPTCHA protection enabled")
+	} else {
+		logging.Info("CAPTCHA protection disabled (no CAPTCHA_SECRET_KEY set)")
+	}
+
 	// Initialize audio extractor and check ffmpeg availability
 	audioExtractor = audio.NewFFmpegExtractor()
 	if err := audio.CheckFFmpegAvailable(); err != nil {
@@ -943,14 +958,24 @@ func main() {
 		})
 	})
 
+	// CAPTCHA config endpoint (returns site key if CAPTCHA is enabled)
+	mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"enabled":  captchaVerifier.IsEnabled(),
+			"site_key": os.Getenv("CAPTCHA_SITE_KEY"),
+		})
+	})
+
 	// Auth: Register new user (rate limited)
 	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body
 		var req struct {
-			Email    string `json:"email"`
-			Password string `json:"password"`
+			Email        string `json:"email"`
+			Password     string `json:"password"`
+			CaptchaToken string `json:"captcha_token,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -958,6 +983,19 @@ func main() {
 				"error": "Invalid request body",
 			})
 			return
+		}
+
+		// Verify CAPTCHA if enabled
+		if captchaVerifier.IsEnabled() {
+			clientIP := ratelimit.GetClientIP(r)
+			if err := captchaVerifier.Verify(r.Context(), req.CaptchaToken, clientIP); err != nil {
+				logging.WarnContext(r.Context(), "CAPTCHA verification failed", "error", err, "ip", clientIP)
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "CAPTCHA verification failed. Please try again.",
+				})
+				return
+			}
 		}
 
 		// Normalize email
@@ -1095,9 +1133,10 @@ func main() {
 
 		// Parse request body
 		var req struct {
-			Email    string `json:"email"`
-			Password string `json:"password"`
-			TOTPCode string `json:"totp_code,omitempty"` // Required if 2FA is enabled
+			Email        string `json:"email"`
+			Password     string `json:"password"`
+			TOTPCode     string `json:"totp_code,omitempty"`     // Required if 2FA is enabled
+			CaptchaToken string `json:"captcha_token,omitempty"` // Required if CAPTCHA is enabled
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -1110,6 +1149,19 @@ func main() {
 		// Normalize email
 		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 		clientIP := ratelimit.GetClientIP(r)
+
+		// Verify CAPTCHA if enabled (only for initial login attempt, not TOTP retry)
+		// Skip CAPTCHA for TOTP code submission (user already passed CAPTCHA on initial login)
+		if captchaVerifier.IsEnabled() && req.TOTPCode == "" {
+			if err := captchaVerifier.Verify(r.Context(), req.CaptchaToken, clientIP); err != nil {
+				logging.WarnContext(r.Context(), "CAPTCHA verification failed", "error", err, "ip", clientIP)
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "CAPTCHA verification failed. Please try again.",
+				})
+				return
+			}
+		}
 
 		// Check if email is locked due to too many failed attempts
 		locked, unlockTime, err := database.IsEmailLocked(req.Email, maxLoginAttempts, loginLockDuration)

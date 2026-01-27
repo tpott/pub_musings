@@ -9,6 +9,7 @@ The authentication system provides:
 - Magic link (passwordless) authentication
 - Cookie-based sessions with Bearer token support
 - Optional two-factor authentication via TOTP (see [totp.md](totp.md))
+- Optional CAPTCHA protection (hCaptcha) for registration and login
 
 ## Files
 
@@ -16,6 +17,8 @@ The authentication system provides:
 |------|---------|
 | `backend/auth/auth.go` | Main auth logic: hashing, sessions, validation |
 | `backend/auth/auth_test.go` | Unit tests for auth module |
+| `backend/captcha/captcha.go` | CAPTCHA verification (hCaptcha) |
+| `backend/captcha/captcha_test.go` | Unit tests for CAPTCHA module |
 | `backend/db/db.go` | User and session database operations |
 | `backend/email/email.go` | Email service for verification emails |
 | `frontend/src/pages/login.astro` | Login page |

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**124 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**125 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -28,6 +28,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Password reset via email (Resend API)
 - ✅ Rate limiting on auth endpoints (IP + per-email)
 - ✅ Session listing and revocation
+- ✅ CAPTCHA protection via hCaptcha (Task 118)
 - See: `specs/auth.md`, `specs/totp.md`, `specs/email.md`
 
 ### Upload Limits & Retention (Tasks 13-14, 61, 116)
@@ -131,17 +132,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**124 tasks completed!**
+**125 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 118: CAPTCHA protection for registration and login - hCaptcha integration with optional enable via environment variables (`CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY`). Disabled by default for development.
 - ✅ Task 119: Password complexity requirements - passwords now require uppercase, lowercase, number, and special character
 - ✅ Task 123: Document whisper model selection - large-v3-turbo recommended (6x faster than large-v3, slightly better accuracy)
 - ✅ Task 122: localStorage cleanup for stale upload sessions - on page load, removes upload sessions older than 48 hours to prevent localStorage pollution from abandoned uploads
 - ✅ Task 121: Incomplete upload session cleanup - cleanup scheduler now removes orphan chunk directories that exist on disk but don't have database records (handles server crashes, manual DB cleanup)
-- ✅ Task 117: Fixed database error handling in chunked upload progress - properly handle errors from GetTotalReceivedBytes and CountUploadChunks with logging
 
-### Pending Tasks (Tasks 118, 120)
-- Task 118: Add CAPTCHA to registration and login
+### Pending Tasks (Task 120)
 - Task 120: Add encryption key rotation support
 
 See `TASKS.jsonl` for details.
