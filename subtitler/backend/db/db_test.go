@@ -2235,3 +2235,257 @@ func TestEmailVerificationTokenCleanupWithMultipleTokens(t *testing.T) {
 		t.Errorf("Expected 0 tokens after verification (cleanup of all tokens), got %d", count)
 	}
 }
+
+// TestTranscriptionStatusRaceProtection verifies that progress updates don't
+// overwrite completed/failed status (race condition fix)
+func TestTranscriptionStatusRaceProtection(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a video first (foreign key)
+	video := &Video{
+		ID:          "video-race-test",
+		Filename:    "test.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/video-race-test.mp4",
+		CreatedAt:   time.Now(),
+	}
+	if err := db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create video: %v", err)
+	}
+
+	t.Run("progress update blocked after completion", func(t *testing.T) {
+		// Create transcription in processing state
+		transcription := &Transcription{
+			ID:        "trans-race-1",
+			VideoID:   "video-race-test",
+			Status:    "processing",
+			Message:   "Transcribing...",
+			Progress:  50,
+			CreatedAt: time.Now(),
+		}
+		if err := db.CreateTranscription(transcription); err != nil {
+			t.Fatalf("Failed to create transcription: %v", err)
+		}
+
+		// Complete the transcription
+		segments := []Segment{{ID: 0, Start: 0, End: 1, Text: "Test"}}
+		if err := db.CompleteTranscription("video-race-test", "en", 1.0, "Test", segments); err != nil {
+			t.Fatalf("Failed to complete transcription: %v", err)
+		}
+
+		// Simulate a late progress update (race condition scenario)
+		// This should NOT overwrite the completed status
+		if err := db.UpdateTranscriptionStatus("video-race-test", "processing", "Late update", 75); err != nil {
+			t.Fatalf("UpdateTranscriptionStatus returned error: %v", err)
+		}
+
+		// Verify status is still 'complete', not 'processing'
+		retrieved, err := db.GetTranscription("video-race-test")
+		if err != nil {
+			t.Fatalf("Failed to get transcription: %v", err)
+		}
+		if retrieved.Status != "complete" {
+			t.Errorf("Status was overwritten by late progress update: expected 'complete', got '%s'", retrieved.Status)
+		}
+		if retrieved.Progress != 100 {
+			t.Errorf("Progress was overwritten: expected 100, got %d", retrieved.Progress)
+		}
+
+		// Cleanup for next subtest
+		db.conn.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, "video-race-test")
+	})
+
+	t.Run("progress update blocked after failure", func(t *testing.T) {
+		// Create transcription in processing state
+		transcription := &Transcription{
+			ID:        "trans-race-2",
+			VideoID:   "video-race-test",
+			Status:    "processing",
+			Message:   "Transcribing...",
+			Progress:  30,
+			CreatedAt: time.Now(),
+		}
+		if err := db.CreateTranscription(transcription); err != nil {
+			t.Fatalf("Failed to create transcription: %v", err)
+		}
+
+		// Fail the transcription
+		if err := db.FailTranscription("video-race-test", "Transcription failed"); err != nil {
+			t.Fatalf("Failed to fail transcription: %v", err)
+		}
+
+		// Simulate a late progress update (race condition scenario)
+		if err := db.UpdateTranscriptionStatus("video-race-test", "processing", "Late update", 60); err != nil {
+			t.Fatalf("UpdateTranscriptionStatus returned error: %v", err)
+		}
+
+		// Verify status is still 'error', not 'processing'
+		retrieved, err := db.GetTranscription("video-race-test")
+		if err != nil {
+			t.Fatalf("Failed to get transcription: %v", err)
+		}
+		if retrieved.Status != "error" {
+			t.Errorf("Status was overwritten by late progress update: expected 'error', got '%s'", retrieved.Status)
+		}
+		if retrieved.Message != "Transcription failed" {
+			t.Errorf("Message was overwritten: expected 'Transcription failed', got '%s'", retrieved.Message)
+		}
+
+		// Cleanup
+		db.conn.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, "video-race-test")
+	})
+
+	t.Run("progress update works when still processing", func(t *testing.T) {
+		// Create transcription in processing state
+		transcription := &Transcription{
+			ID:        "trans-race-3",
+			VideoID:   "video-race-test",
+			Status:    "processing",
+			Message:   "Transcribing...",
+			Progress:  30,
+			CreatedAt: time.Now(),
+		}
+		if err := db.CreateTranscription(transcription); err != nil {
+			t.Fatalf("Failed to create transcription: %v", err)
+		}
+
+		// Update progress while still processing (normal case)
+		if err := db.UpdateTranscriptionStatus("video-race-test", "processing", "Still transcribing...", 60); err != nil {
+			t.Fatalf("UpdateTranscriptionStatus returned error: %v", err)
+		}
+
+		// Verify progress was updated
+		retrieved, err := db.GetTranscription("video-race-test")
+		if err != nil {
+			t.Fatalf("Failed to get transcription: %v", err)
+		}
+		if retrieved.Status != "processing" {
+			t.Errorf("Expected status 'processing', got '%s'", retrieved.Status)
+		}
+		if retrieved.Progress != 60 {
+			t.Errorf("Expected progress 60, got %d", retrieved.Progress)
+		}
+		if retrieved.Message != "Still transcribing..." {
+			t.Errorf("Expected message 'Still transcribing...', got '%s'", retrieved.Message)
+		}
+	})
+}
+
+// TestBurnJobStatusRaceProtection verifies that burn job progress updates don't
+// overwrite completed/failed status (race condition fix)
+func TestBurnJobStatusRaceProtection(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a video first (foreign key)
+	video := &Video{
+		ID:          "video-burn-race",
+		Filename:    "test.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    "/uploads/video-burn-race.mp4",
+		CreatedAt:   time.Now(),
+	}
+	if err := db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create video: %v", err)
+	}
+
+	t.Run("progress update blocked after burn completion", func(t *testing.T) {
+		// Create burn job in processing state
+		burnJob := &BurnJob{
+			ID:        "burn-race-1",
+			VideoID:   "video-burn-race",
+			Status:    "processing",
+			Message:   "Burning...",
+			Progress:  50,
+			CreatedAt: time.Now(),
+		}
+		if err := db.CreateBurnJob(burnJob); err != nil {
+			t.Fatalf("Failed to create burn job: %v", err)
+		}
+
+		// Complete the burn job
+		if err := db.CompleteBurnJob("video-burn-race", "/output/burned.mp4"); err != nil {
+			t.Fatalf("Failed to complete burn job: %v", err)
+		}
+
+		// Simulate a late progress update
+		if err := db.UpdateBurnJobStatus("video-burn-race", "processing", "Late update", 75); err != nil {
+			t.Fatalf("UpdateBurnJobStatus returned error: %v", err)
+		}
+
+		// Verify status is still 'complete'
+		retrieved, err := db.GetBurnJob("video-burn-race")
+		if err != nil {
+			t.Fatalf("Failed to get burn job: %v", err)
+		}
+		if retrieved.Status != "complete" {
+			t.Errorf("Status was overwritten: expected 'complete', got '%s'", retrieved.Status)
+		}
+		if retrieved.Progress != 100 {
+			t.Errorf("Progress was overwritten: expected 100, got %d", retrieved.Progress)
+		}
+
+		// Cleanup
+		db.conn.Exec(`DELETE FROM burn_jobs WHERE video_id = ?`, "video-burn-race")
+	})
+
+	t.Run("progress update blocked after burn failure", func(t *testing.T) {
+		// Create burn job in processing state
+		burnJob := &BurnJob{
+			ID:        "burn-race-2",
+			VideoID:   "video-burn-race",
+			Status:    "processing",
+			Message:   "Burning...",
+			Progress:  30,
+			CreatedAt: time.Now(),
+		}
+		if err := db.CreateBurnJob(burnJob); err != nil {
+			t.Fatalf("Failed to create burn job: %v", err)
+		}
+
+		// Fail the burn job
+		if err := db.FailBurnJob("video-burn-race", "FFmpeg failed"); err != nil {
+			t.Fatalf("Failed to fail burn job: %v", err)
+		}
+
+		// Simulate a late progress update
+		if err := db.UpdateBurnJobStatus("video-burn-race", "processing", "Late update", 60); err != nil {
+			t.Fatalf("UpdateBurnJobStatus returned error: %v", err)
+		}
+
+		// Verify status is still 'error'
+		retrieved, err := db.GetBurnJob("video-burn-race")
+		if err != nil {
+			t.Fatalf("Failed to get burn job: %v", err)
+		}
+		if retrieved.Status != "error" {
+			t.Errorf("Status was overwritten: expected 'error', got '%s'", retrieved.Status)
+		}
+		if retrieved.Message != "FFmpeg failed" {
+			t.Errorf("Message was overwritten: expected 'FFmpeg failed', got '%s'", retrieved.Message)
+		}
+	})
+}

@@ -138,17 +138,23 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**183 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**184 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
-### Pending Tasks (181-187)
+### Pending Tasks (182-187)
 Deep inspection found these issues:
-- Task 181: Transcription status race condition fix
 - Task 182: Temp file cleanup in transcription goroutines
 - Task 183: Per-email rate limit for magic links (SECURITY)
 - Task 185: Script conversion error reporting
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 181: Add transaction locking for transcription status updates
+  - Modified `UpdateTranscriptionStatus()` to only update when status is 'pending' or 'processing'
+  - Modified `UpdateBurnJobStatus()` with same fix
+  - Prevents progress goroutine from overwriting 'complete' or 'error' status
+  - Added tests: TestTranscriptionStatusRaceProtection, TestBurnJobStatusRaceProtection
+  - Database-level solution is more robust than goroutine-level mutex
+
 - ✅ Task 180: Consolidate password validation between auth and validation packages
   - Updated `validation.ValidatePassword()` to check min (8) and max (72)
   - Changed MaxPasswordLength from 128 to 72 (bcrypt limit)

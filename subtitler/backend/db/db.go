@@ -399,10 +399,14 @@ func (db *DB) GetTranscription(videoID string) (*Transcription, error) {
 	return t, nil
 }
 
-// UpdateTranscriptionStatus updates the status and message of a transcription
+// UpdateTranscriptionStatus updates the status and message of a transcription.
+// Only updates if the current status is 'pending' or 'processing' to avoid race conditions
+// with completion/failure updates from the main goroutine. Once status becomes 'complete'
+// or 'error', progress updates are blocked.
 func (db *DB) UpdateTranscriptionStatus(videoID, status, message string, progress int) error {
 	_, err := db.conn.Exec(`
-		UPDATE transcriptions SET status = ?, message = ?, progress = ? WHERE video_id = ?
+		UPDATE transcriptions SET status = ?, message = ?, progress = ?
+		WHERE video_id = ? AND status IN ('pending', 'processing')
 	`, status, message, progress, videoID)
 	return err
 }
@@ -818,10 +822,14 @@ func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
 	return job, nil
 }
 
-// UpdateBurnJobStatus updates the status and message of a burn job
+// UpdateBurnJobStatus updates the status and message of a burn job.
+// Only updates if the current status is 'pending' or 'processing' to avoid race conditions
+// with completion/failure updates from the main goroutine. Once status becomes 'complete'
+// or 'error', progress updates are blocked.
 func (db *DB) UpdateBurnJobStatus(videoID, status, message string, progress int) error {
 	_, err := db.conn.Exec(`
-		UPDATE burn_jobs SET status = ?, message = ?, progress = ? WHERE video_id = ?
+		UPDATE burn_jobs SET status = ?, message = ?, progress = ?
+		WHERE video_id = ? AND status IN ('pending', 'processing')
 	`, status, message, progress, videoID)
 	return err
 }
