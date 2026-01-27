@@ -2594,6 +2594,15 @@ import '../styles/theme.css';
 				}
 			});
 
+			// Warn user before navigating away with unsaved changes
+			window.addEventListener('beforeunload', (e) => {
+				if (hasUnsavedChanges) {
+					// Modern browsers require both of these for the dialog to appear
+					e.preventDefault();
+					e.returnValue = ''; // Chrome requires returnValue to be set
+				}
+			});
+
 			addSegmentBtn.addEventListener('click', addNewSegment);
 
 			// Undo/redo button event listeners

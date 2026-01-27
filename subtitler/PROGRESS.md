@@ -138,9 +138,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**177 tasks completed.** Deep inspection created 12 new tasks (167-178).
+**178 tasks completed.** Deep inspection created 12 new tasks (167-178). All frontend tasks complete!
 
 ### Recently Completed
+- ✅ Task 174: Add unsaved changes warning before navigation
+  - Added beforeunload event listener on window
+  - Checks hasUnsavedChanges flag and prompts user before leaving page
+  - Uses e.preventDefault() and e.returnValue for browser compatibility
 - ✅ Task 173: Add keyboard support to modal segment navigation
   - Added `tabindex="0"` and `role="button"` to segment elements
   - Added `aria-label` with timestamp and truncated text for screen readers
