@@ -2587,3 +2587,66 @@ func TestCountRecentMagicLinkRequests(t *testing.T) {
 		}
 	})
 }
+
+
+func TestQueryTimeout(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	t.Run("default timeout is 30 seconds", func(t *testing.T) {
+		timeout := db.GetQueryTimeout()
+		if timeout != DefaultQueryTimeout {
+			t.Errorf("Expected default timeout %v, got %v", DefaultQueryTimeout, timeout)
+		}
+		if timeout != 30*time.Second {
+			t.Errorf("Expected 30s timeout, got %v", timeout)
+		}
+	})
+
+	t.Run("can set custom timeout", func(t *testing.T) {
+		db.SetQueryTimeout(10 * time.Second)
+		timeout := db.GetQueryTimeout()
+		if timeout != 10*time.Second {
+			t.Errorf("Expected 10s timeout, got %v", timeout)
+		}
+		// Reset to default
+		db.SetQueryTimeout(DefaultQueryTimeout)
+	})
+
+	t.Run("query works with context timeout", func(t *testing.T) {
+		// Create a video
+		video := &Video{
+			ID:          "timeout-test-video",
+			Filename:    "test.mp4",
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    "/uploads/test.mp4",
+			CreatedAt:   time.Now(),
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create video: %v", err)
+		}
+
+		// Retrieve it - this uses QueryRowContext internally
+		retrieved, err := db.GetVideo("timeout-test-video")
+		if err != nil {
+			t.Fatalf("Failed to get video: %v", err)
+		}
+		if retrieved == nil {
+			t.Fatal("Expected video to be found")
+		}
+		if retrieved.Filename != "test.mp4" {
+			t.Errorf("Expected filename 'test.mp4', got '%s'", retrieved.Filename)
+		}
+	})
+}

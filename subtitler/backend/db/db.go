@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
@@ -12,9 +13,33 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// DefaultQueryTimeout is the default timeout for database queries.
+// Can be overridden via DB_QUERY_TIMEOUT environment variable.
+const DefaultQueryTimeout = 30 * time.Second
+
 // DB wraps the SQLite database connection
 type DB struct {
-	conn *sql.DB
+	conn         *sql.DB
+	queryTimeout time.Duration
+}
+
+// SetQueryTimeout sets the timeout for database queries.
+// If set to 0, no timeout is applied (uses DefaultQueryTimeout).
+func (db *DB) SetQueryTimeout(timeout time.Duration) {
+	db.queryTimeout = timeout
+}
+
+// GetQueryTimeout returns the configured query timeout.
+func (db *DB) GetQueryTimeout() time.Duration {
+	if db.queryTimeout == 0 {
+		return DefaultQueryTimeout
+	}
+	return db.queryTimeout
+}
+
+// queryContext returns a context with the configured query timeout.
+func (db *DB) queryContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), db.GetQueryTimeout())
 }
 
 // Video represents an uploaded video
@@ -196,7 +221,10 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	db := &DB{conn: conn}
+	db := &DB{
+		conn:         conn,
+		queryTimeout: DefaultQueryTimeout,
+	}
 
 	// Run migrations
 	if err := db.migrate(); err != nil {
@@ -320,12 +348,15 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 
 // CreateVideo creates a new video record
 func (db *DB) CreateVideo(video *Video) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Default key_version to 1 if not set
 	keyVersion := video.KeyVersion
 	if keyVersion == 0 {
 		keyVersion = 1
 	}
-	_, err := db.conn.Exec(`
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO videos (id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.ThumbnailPath, keyVersion, video.CreatedAt, video.UserID, video.SessionID)
@@ -334,8 +365,11 @@ func (db *DB) CreateVideo(video *Video) error {
 
 // GetVideo retrieves a video by ID
 func (db *DB) GetVideo(id string) (*Video, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	video := &Video{}
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos WHERE id = ?
 	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.ThumbnailPath, &video.KeyVersion, &video.CreatedAt, &video.UserID, &video.SessionID)
@@ -362,13 +396,16 @@ func (db *DB) CreateTranscription(t *Transcription) error {
 
 // GetTranscription retrieves a transcription by video ID
 func (db *DB) GetTranscription(videoID string) (*Transcription, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	t := &Transcription{}
 	var segmentsJSON sql.NullString
 	var language, fullText, message sql.NullString
 	var duration sql.NullFloat64
 	var completedAt sql.NullTime
 
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, video_id, status, message, progress, language, duration, full_text, segments_json, created_at, completed_at
 		FROM transcriptions WHERE video_id = ?
 	`, videoID).Scan(&t.ID, &t.VideoID, &t.Status, &message, &t.Progress, &language, &duration, &fullText, &segmentsJSON, &t.CreatedAt, &completedAt)
@@ -589,10 +626,13 @@ func (db *DB) GetUserByID(id string) (*User, error) {
 
 // GetUserByEmail retrieves a user by email
 func (db *DB) GetUserByEmail(email string) (*User, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	user := &User{}
 	var totpSecret sql.NullString
 	var verifiedAt sql.NullTime
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, role, created_at
 		FROM users WHERE email = ?
 	`, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.EmailVerified, &verifiedAt, &user.Role, &user.CreatedAt)
@@ -625,9 +665,12 @@ func (db *DB) CreateSession(session *Session) error {
 
 // GetSessionByToken retrieves a session by token
 func (db *DB) GetSessionByToken(token string) (*Session, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	session := &Session{}
 	var ipAddress, userAgent sql.NullString
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, user_id, token, ip_address, user_agent, expires_at, created_at
 		FROM sessions WHERE token = ?
 	`, token).Scan(&session.ID, &session.UserID, &session.Token, &ipAddress, &userAgent, &session.ExpiresAt, &session.CreatedAt)

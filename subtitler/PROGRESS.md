@@ -138,15 +138,20 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**198 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
+**199 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
 
-### Pending Tasks (199-201)
-- Task 198: Add aria-label to delete confirmation buttons (accessibility)
-- Task 199: Add database query context timeouts
+### Pending Tasks (200-201)
 - Task 200: Validate zero-size file uploads
 - Task 201: Create ERROR_CODES.md with all API error codes
 
 ### Recently Completed (2026-01-27)
+- ✅ Task 199: Add database query context timeouts
+  - Added `DefaultQueryTimeout = 30 seconds` constant
+  - Added `SetQueryTimeout()`, `GetQueryTimeout()`, `queryContext()` methods to DB
+  - Updated critical queries: GetVideo, CreateVideo, GetTranscription,
+    GetUserByEmail, GetSessionByToken to use context.WithTimeout
+  - Added TestQueryTimeout with 3 subtests
+
 - ✅ Task 198: Add aria-label to delete confirmation buttons
   - Added `aria-label="Delete segment ${n}"` to segment delete buttons in upload.astro
   - videos.astro already had proper aria-label for video delete buttons
