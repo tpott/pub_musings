@@ -283,6 +283,90 @@ func TestListVideos(t *testing.T) {
 	}
 }
 
+func TestListVideosPaginated(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create 10 videos for a user
+	userID := "user-pagination"
+	for i := 0; i < 10; i++ {
+		video := &Video{
+			ID:          fmt.Sprintf("video-page-%02d", i),
+			Filename:    fmt.Sprintf("test-%d.mp4", i),
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    "/uploads/video.mp4",
+			CreatedAt:   time.Now().Add(time.Duration(-i) * time.Minute), // Stagger creation times
+			UserID:      &userID,
+		}
+		db.CreateVideo(video)
+	}
+
+	// Test default (no pagination)
+	result, err := db.ListVideosPaginated(&userID, nil, 0, 0)
+	if err != nil {
+		t.Fatalf("Failed to list videos: %v", err)
+	}
+	if result.TotalCount != 10 {
+		t.Errorf("Expected total_count 10, got %d", result.TotalCount)
+	}
+	if len(result.Videos) != 10 {
+		t.Errorf("Expected 10 videos, got %d", len(result.Videos))
+	}
+
+	// Test first page (limit 3)
+	result, err = db.ListVideosPaginated(&userID, nil, 3, 0)
+	if err != nil {
+		t.Fatalf("Failed to list videos: %v", err)
+	}
+	if result.TotalCount != 10 {
+		t.Errorf("Expected total_count 10, got %d", result.TotalCount)
+	}
+	if len(result.Videos) != 3 {
+		t.Errorf("Expected 3 videos, got %d", len(result.Videos))
+	}
+
+	// Test second page (limit 3, offset 3)
+	result, err = db.ListVideosPaginated(&userID, nil, 3, 3)
+	if err != nil {
+		t.Fatalf("Failed to list videos: %v", err)
+	}
+	if len(result.Videos) != 3 {
+		t.Errorf("Expected 3 videos on second page, got %d", len(result.Videos))
+	}
+
+	// Test last partial page (limit 3, offset 9)
+	result, err = db.ListVideosPaginated(&userID, nil, 3, 9)
+	if err != nil {
+		t.Fatalf("Failed to list videos: %v", err)
+	}
+	if len(result.Videos) != 1 {
+		t.Errorf("Expected 1 video on last page, got %d", len(result.Videos))
+	}
+
+	// Test offset beyond total
+	result, err = db.ListVideosPaginated(&userID, nil, 3, 15)
+	if err != nil {
+		t.Fatalf("Failed to list videos: %v", err)
+	}
+	if len(result.Videos) != 0 {
+		t.Errorf("Expected 0 videos beyond total, got %d", len(result.Videos))
+	}
+	if result.TotalCount != 10 {
+		t.Errorf("Expected total_count 10 even beyond offset, got %d", result.TotalCount)
+	}
+}
+
 func TestCountVideosBySession(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.db")
 	if err != nil {

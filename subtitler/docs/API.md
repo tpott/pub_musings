@@ -758,14 +758,16 @@ curl -X POST "http://localhost:8080/api/upload?session_id=my-session-123" \
 
 ### GET /api/videos
 
-List uploaded videos.
+List uploaded videos with pagination support.
 
 **Authentication**: Optional (filters by user if authenticated)
 
 **Query Parameters**:
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `session_id` | string | Filter by anonymous session ID |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `session_id` | string | - | Filter by anonymous session ID (required if not authenticated) |
+| `limit` | integer | 50 | Maximum videos to return (1-100) |
+| `offset` | integer | 0 | Number of videos to skip for pagination |
 
 **Response** `200 OK`:
 ```json
@@ -780,12 +782,17 @@ List uploaded videos.
       "transcription_status": "complete",
       "expires_at": "2026-04-22T10:00:00Z"
     }
-  ]
+  ],
+  "total_count": 42,
+  "has_more": true
 }
 ```
 
 | Field | Description |
 |-------|-------------|
+| `videos` | Array of video objects for current page |
+| `total_count` | Total number of videos matching filter |
+| `has_more` | Boolean indicating if more videos exist beyond current page |
 | `expires_at` | When the video will be deleted (48h for anonymous, 90d for registered users) |
 
 | `transcription_status` | Description |
@@ -798,12 +805,16 @@ List uploaded videos.
 
 **Example**:
 ```bash
-# List videos for authenticated user
+# List first page of videos for authenticated user
 curl http://localhost:8080/api/videos \
   -H "Authorization: Bearer your_token_here"
 
-# List videos for anonymous session
-curl "http://localhost:8080/api/videos?session_id=my-session-123"
+# List videos for anonymous session with pagination
+curl "http://localhost:8080/api/videos?session_id=my-session-123&limit=10&offset=0"
+
+# Get second page (videos 11-20)
+curl "http://localhost:8080/api/videos?limit=10&offset=10" \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---

@@ -13,6 +13,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -991,7 +992,24 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
-		videos, err := ts.db.ListVideos(userPtr, sessionPtr)
+		// Parse pagination parameters
+		limit := 50 // default
+		offset := 0
+		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+				limit = l
+				if limit > 100 {
+					limit = 100 // max limit
+				}
+			}
+		}
+		if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+			if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+				offset = o
+			}
+		}
+
+		result, err := ts.db.ListVideosPaginated(userPtr, sessionPtr, limit, offset)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to list videos"})
@@ -1004,11 +1022,11 @@ func (ts *testServer) registerHandlers() {
 			ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 		}
 
-		result := make([]VideoWithStatus, len(videos))
-		for i, v := range videos {
-			result[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
+		videos := make([]VideoWithStatus, len(result.Videos))
+		for i, v := range result.Videos {
+			videos[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
 			if t, err := ts.db.GetTranscription(v.ID); err == nil && t != nil {
-				result[i].TranscriptionStatus = t.Status
+				videos[i].TranscriptionStatus = t.Status
 			}
 
 			// Calculate expiration time based on user type
@@ -1018,11 +1036,14 @@ func (ts *testServer) registerHandlers() {
 			} else {
 				expiresAt = v.CreatedAt.Add(90 * 24 * time.Hour)
 			}
-			result[i].ExpiresAt = &expiresAt
+			videos[i].ExpiresAt = &expiresAt
 		}
 
+		hasMore := offset+len(result.Videos) < result.TotalCount
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"videos": result,
+			"videos":      videos,
+			"total_count": result.TotalCount,
+			"has_more":    hasMore,
 		})
 	})
 
@@ -2944,6 +2965,98 @@ func TestListVideosExpiresAt(t *testing.T) {
 	daysUntilExpiry := time.Until(expiresAt).Hours() / 24
 	if daysUntilExpiry < 89 || daysUntilExpiry > 91 {
 		t.Errorf("Expected ~90 days until expiry, got %.1f", daysUntilExpiry)
+	}
+}
+
+func TestListVideosPagination(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user with multiple videos
+	userID, token := ts.createTestUserWithID(t, "pagination@example.com", "Password123!")
+
+	// Create 10 videos
+	for i := 0; i < 10; i++ {
+		ts.createTestVideo(t, &userID, nil)
+	}
+
+	type paginatedResult struct {
+		Videos     []struct{ ID string } `json:"videos"`
+		TotalCount int                   `json:"total_count"`
+		HasMore    bool                  `json:"has_more"`
+	}
+
+	// Test 1: Default pagination (should return all 10 with metadata)
+	resp := ts.doRequest("GET", "/api/videos", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.Code)
+	}
+
+	var result1 paginatedResult
+	json.NewDecoder(resp.Body).Decode(&result1)
+
+	if result1.TotalCount != 10 {
+		t.Errorf("Expected total_count 10, got %d", result1.TotalCount)
+	}
+	if len(result1.Videos) != 10 {
+		t.Errorf("Expected 10 videos, got %d", len(result1.Videos))
+	}
+	if result1.HasMore {
+		t.Error("Expected has_more false when all videos returned")
+	}
+
+	// Test 2: First page with limit
+	resp = ts.doRequest("GET", "/api/videos?limit=3", nil, token)
+	var result2 paginatedResult
+	json.NewDecoder(resp.Body).Decode(&result2)
+
+	if result2.TotalCount != 10 {
+		t.Errorf("Expected total_count 10, got %d", result2.TotalCount)
+	}
+	if len(result2.Videos) != 3 {
+		t.Errorf("Expected 3 videos, got %d", len(result2.Videos))
+	}
+	if !result2.HasMore {
+		t.Error("Expected has_more true when more videos exist")
+	}
+
+	// Test 3: Second page
+	resp = ts.doRequest("GET", "/api/videos?limit=3&offset=3", nil, token)
+	var result3 paginatedResult
+	json.NewDecoder(resp.Body).Decode(&result3)
+
+	if len(result3.Videos) != 3 {
+		t.Errorf("Expected 3 videos on second page, got %d", len(result3.Videos))
+	}
+	if !result3.HasMore {
+		t.Error("Expected has_more true on second page")
+	}
+
+	// Test 4: Last page (partial)
+	resp = ts.doRequest("GET", "/api/videos?limit=3&offset=9", nil, token)
+	var result4 paginatedResult
+	json.NewDecoder(resp.Body).Decode(&result4)
+
+	if len(result4.Videos) != 1 {
+		t.Errorf("Expected 1 video on last page, got %d", len(result4.Videos))
+	}
+	if result4.HasMore {
+		t.Error("Expected has_more false on last page")
+	}
+
+	// Test 5: Max limit enforcement (>100 should be capped to 100)
+	resp = ts.doRequest("GET", "/api/videos?limit=200", nil, token)
+	var result5 paginatedResult
+	json.NewDecoder(resp.Body).Decode(&result5)
+
+	if len(result5.Videos) != 10 { // Only 10 videos exist
+		t.Errorf("Expected all 10 videos (capped by data size), got %d", len(result5.Videos))
+	}
+
+	// Test 6: Invalid limit/offset should be ignored (defaults used)
+	resp = ts.doRequest("GET", "/api/videos?limit=invalid&offset=invalid", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200 with invalid params, got %d", resp.Code)
 	}
 }
 

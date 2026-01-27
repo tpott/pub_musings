@@ -4148,7 +4148,24 @@ func main() {
 			return
 		}
 
-		videos, err := database.ListVideos(userPtr, sessionPtr)
+		// Parse pagination parameters
+		limit := 50 // default
+		offset := 0
+		if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+				limit = l
+				if limit > 100 {
+					limit = 100 // max limit
+				}
+			}
+		}
+		if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+			if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+				offset = o
+			}
+		}
+
+		result, err := database.ListVideosPaginated(userPtr, sessionPtr, limit, offset)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error listing videos", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -4165,11 +4182,11 @@ func main() {
 			ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 		}
 
-		result := make([]VideoWithStatus, len(videos))
-		for i, v := range videos {
-			result[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
+		videos := make([]VideoWithStatus, len(result.Videos))
+		for i, v := range result.Videos {
+			videos[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
 			if t, err := database.GetTranscription(v.ID); err == nil && t != nil {
-				result[i].TranscriptionStatus = t.Status
+				videos[i].TranscriptionStatus = t.Status
 			}
 
 			// Calculate expiration time based on user type
@@ -4180,11 +4197,14 @@ func main() {
 			} else {
 				expiresAt = v.CreatedAt.Add(90 * 24 * time.Hour)
 			}
-			result[i].ExpiresAt = &expiresAt
+			videos[i].ExpiresAt = &expiresAt
 		}
 
+		hasMore := offset+len(result.Videos) < result.TotalCount
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"videos": result,
+			"videos":      videos,
+			"total_count": result.TotalCount,
+			"has_more":    hasMore,
 		})
 	})
 

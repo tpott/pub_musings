@@ -432,28 +432,54 @@ func (t *Transcription) GetSegments() ([]Segment, error) {
 	return segments, nil
 }
 
+// VideoListResult contains paginated video results
+type VideoListResult struct {
+	Videos     []Video
+	TotalCount int
+}
+
 // ListVideos returns all videos, optionally filtered by user or session
 func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
-	var rows *sql.Rows
-	var err error
+	result, err := db.ListVideosPaginated(userID, sessionID, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	return result.Videos, nil
+}
+
+// ListVideosPaginated returns videos with pagination support
+// limit=0 means no limit, offset=0 starts from the beginning
+func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) (*VideoListResult, error) {
+	var whereClause string
+	var args []interface{}
 
 	if userID != nil {
-		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
-			FROM videos WHERE user_id = ? ORDER BY created_at DESC
-		`, *userID)
+		whereClause = "WHERE user_id = ?"
+		args = append(args, *userID)
 	} else if sessionID != nil {
-		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
-			FROM videos WHERE session_id = ? ORDER BY created_at DESC
-		`, *sessionID)
-	} else {
-		rows, err = db.conn.Query(`
-			SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
-			FROM videos ORDER BY created_at DESC
-		`)
+		whereClause = "WHERE session_id = ?"
+		args = append(args, *sessionID)
 	}
 
+	// Get total count
+	countQuery := "SELECT COUNT(*) FROM videos " + whereClause
+	var totalCount int
+	if err := db.conn.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+
+	// Build paginated query
+	query := `SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
+		FROM videos ` + whereClause + ` ORDER BY created_at DESC`
+
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+		if offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", offset)
+		}
+	}
+
+	rows, err := db.conn.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +494,14 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 		videos = append(videos, v)
 	}
 
-	return videos, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &VideoListResult{
+		Videos:     videos,
+		TotalCount: totalCount,
+	}, nil
 }
 
 // CountVideosBySession returns the number of videos uploaded by a session

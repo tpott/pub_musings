@@ -286,6 +286,40 @@ import '../styles/theme.css';
 			.nav-logout:hover {
 				background-color: var(--border-color);
 			}
+			/* Pagination styles */
+			.pagination {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				gap: 0.5rem;
+				margin-top: 1.5rem;
+				padding: 1rem;
+			}
+			.pagination-btn {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.5rem 1rem;
+				border: 1px solid var(--border-color);
+				background: var(--card-bg);
+				color: var(--text-color);
+				border-radius: 4px;
+				font-size: 0.875rem;
+				cursor: pointer;
+				transition: background-color 0.2s, border-color 0.2s;
+			}
+			.pagination-btn:hover:not(:disabled) {
+				background-color: var(--border-color);
+			}
+			.pagination-btn:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+			.pagination-info {
+				color: var(--text-secondary);
+				font-size: 0.875rem;
+				padding: 0 1rem;
+			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
 				.nav {
@@ -606,6 +640,11 @@ import '../styles/theme.css';
 				<a href="/upload" class="upload-btn">Upload Video</a>
 			</div>
 			<div id="videoList" class="video-list" style="display: none;"></div>
+			<div id="pagination" class="pagination" style="display: none;">
+				<button class="pagination-btn" id="prevPage" disabled>← Previous</button>
+				<span class="pagination-info" id="pageInfo">Page 1</span>
+				<button class="pagination-btn" id="nextPage" disabled>Next →</button>
+			</div>
 		</div>
 
 		<!-- Video player modal -->
@@ -1070,14 +1109,44 @@ import '../styles/theme.css';
 			// Track if user is authenticated (set by checkAuth)
 			let isAuthenticated = false;
 
-			async function loadVideos() {
+			// Pagination state
+			const VIDEOS_PER_PAGE = 20;
+			let currentPage = 0;
+			let totalVideos = 0;
+			let hasMore = false;
+
+			// Pagination elements
+			const pagination = document.getElementById('pagination') as HTMLElement;
+			const prevPageBtn = document.getElementById('prevPage') as HTMLButtonElement;
+			const nextPageBtn = document.getElementById('nextPage') as HTMLButtonElement;
+			const pageInfo = document.getElementById('pageInfo') as HTMLElement;
+
+			function updatePaginationUI() {
+				if (totalVideos <= VIDEOS_PER_PAGE) {
+					pagination.style.display = 'none';
+					return;
+				}
+
+				pagination.style.display = 'flex';
+				prevPageBtn.disabled = currentPage === 0;
+				nextPageBtn.disabled = !hasMore;
+
+				const startItem = currentPage * VIDEOS_PER_PAGE + 1;
+				const endItem = Math.min(startItem + VIDEOS_PER_PAGE - 1, totalVideos);
+				pageInfo.textContent = `${startItem}-${endItem} of ${totalVideos}`;
+			}
+
+			async function loadVideos(page: number = 0) {
 				try {
+					currentPage = page;
+					const offset = page * VIDEOS_PER_PAGE;
+
 					// For anonymous users, include session_id in request
 					// Authenticated users are filtered by user_id on backend
-					let url = '/api/videos';
+					let url = `/api/videos?limit=${VIDEOS_PER_PAGE}&offset=${offset}`;
 					if (!isAuthenticated) {
 						const sessionId = getOrCreateSessionId();
-						url = `/api/videos?session_id=${encodeURIComponent(sessionId)}`;
+						url += `&session_id=${encodeURIComponent(sessionId)}`;
 					}
 
 					const response = await fetch(url);
@@ -1089,8 +1158,15 @@ import '../styles/theme.css';
 
 					loading.style.display = 'none';
 
+					// Store pagination metadata
+					totalVideos = data.total_count || 0;
+					hasMore = data.has_more || false;
+
 					if (!data.videos || data.videos.length === 0) {
-						empty.style.display = 'block';
+						if (page === 0) {
+							empty.style.display = 'block';
+							pagination.style.display = 'none';
+						}
 						return;
 					}
 
@@ -1099,6 +1175,7 @@ import '../styles/theme.css';
 					attachRetryHandlers();
 					attachViewHandlers();
 					attachDeleteHandlers();
+					updatePaginationUI();
 
 				} catch (err) {
 					loading.style.display = 'none';
@@ -1106,6 +1183,23 @@ import '../styles/theme.css';
 					error.style.display = 'block';
 				}
 			}
+
+			// Pagination event handlers
+			prevPageBtn.addEventListener('click', () => {
+				if (currentPage > 0) {
+					loading.style.display = 'block';
+					videoList.style.display = 'none';
+					loadVideos(currentPage - 1);
+				}
+			});
+
+			nextPageBtn.addEventListener('click', () => {
+				if (hasMore) {
+					loading.style.display = 'block';
+					videoList.style.display = 'none';
+					loadVideos(currentPage + 1);
+				}
+			});
 
 			// Don't load videos immediately - wait for auth check
 
