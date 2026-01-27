@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**219 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**220 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**219 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**220 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 214: Research - Alternative speech-to-text providers
+  - Compared AssemblyAI, Deepgram, Google Cloud Speech-to-Text, AWS Transcribe
+  - Evaluated: word timestamps, diarization, phoneme support, sentiment analysis, pricing
+  - Conclusion: Whisper remains best default (self-hosted, no API costs, good accuracy)
+  - AssemblyAI recommended for premium tier with audio intelligence
+  - Deepgram recommended for real-time streaming use cases
+  - No mainstream providers offer phoneme-level timestamps (need Speechace/SpeechSuper)
+  - See: `specs/stt-providers.md`
+
 - Task 224: Feature - Implement Bionic Reading mode for subtitles
   - Created `frontend/src/utils/bionic.ts` with bionic reading utility functions
   - `toBionicSegments()`: Converts text to array of {text, bold} segments
