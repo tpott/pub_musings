@@ -138,17 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**135 tasks completed!**
+**136 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 131: HSTS and security headers - Added `Strict-Transport-Security` header (enabled when HTTPS_ONLY=true) and `Permissions-Policy` header to disable unused browser features (geolocation, camera, microphone, etc.). Updated specs/auth.md with full documentation. Tests verify both headers are present.
 - ✅ Task 130: Path validation utility - Created `pathvalidator` package to prevent path traversal attacks. Validates that file paths stay within allowed directories (uploads/, data/). Functions: `New()`, `ValidatePath()`, `SafeJoin()`, `ValidateAndResolve()`. Comprehensive tests verify protection against `../` traversal, null bytes, and symlink-based attacks.
 - ✅ Task 129: Production error messages - Created `errmsg` package with user-friendly error messages that don't leak internal details. Added `LOG_VERBOSE` env var (default false) to enable detailed errors in development. Updated endpoints to use the new error handling. Documented in ENV.md and API.md with security warnings. Tests verify that production errors don't leak paths, IPs, or SQL queries.
 - ✅ Task 128: Input length validation - Created `validation` package with comprehensive input validation functions. Validates: segment text (10KB max), email (254 chars), password (128 chars), TOTP codes (10 chars), recovery codes (32 chars), align text (100KB), language codes (10 chars), filenames (255 chars), MIME types (100 chars). Also validates burn mode and align mode parameters. Tests added and documented in API.md.
 - ✅ Task 127: Download rate limiting - Added rate limiting (30/min per IP) to GET /api/videos/{id}/video, /thumbnail, /burned endpoints. Prevents bandwidth abuse and CPU exhaustion from repeated decryption. Configurable via DOWNLOAD_RATE_LIMIT env var.
-- ✅ Task 132: Soft subtitles option - Added `mode=embed` parameter to burn endpoint for fast soft subtitle embedding. Uses `-c:s mov_text` which copies streams instead of re-encoding. Much faster than burn mode.
 
-### Pending Tasks
-Task 131 for future work (see TASKS.jsonl).
+### All Tasks Complete!
+All 136 tasks in TASKS.jsonl are now complete.
 
 See `TASKS.jsonl` for details.
 

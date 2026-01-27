@@ -379,6 +379,21 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		// X-XSS-Protection: Enable browser XSS filter (legacy browsers)
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 
+		// Strict-Transport-Security (HSTS): Force HTTPS in production
+		// Only set when HTTPS_ONLY is enabled to avoid issues in development
+		// max-age=31536000 (1 year) tells browsers to only use HTTPS
+		// includeSubDomains applies to all subdomains
+		if auth.IsHTTPSOnly() {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+
+		// Permissions-Policy: Disable unnecessary browser features
+		// - geolocation, microphone, camera: Not needed by this app
+		// - payment, usb: Potential attack vectors
+		// - interest-cohort: Opt out of FLoC tracking
+		permPolicy := "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()"
+		w.Header().Set("Permissions-Policy", permPolicy)
+
 		next.ServeHTTP(w, r)
 	})
 }

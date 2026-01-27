@@ -475,6 +475,23 @@ form-action 'self'
 - `X-Frame-Options: DENY` - Prevent clickjacking (legacy)
 - `Referrer-Policy: strict-origin-when-cross-origin` - Limit referrer leakage
 - `X-XSS-Protection: 1; mode=block` - Browser XSS filter (legacy)
+- `Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()` - Disable unused browser features
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` - Force HTTPS (only when HTTPS_ONLY=true)
+
+**HSTS (HTTP Strict Transport Security):**
+- Only set when `HTTPS_ONLY=true` environment variable is enabled
+- `max-age=31536000` (1 year) tells browsers to only use HTTPS for this domain
+- `includeSubDomains` applies to all subdomains
+- Not set in development to avoid HTTPS redirect issues with localhost
+
+**Permissions-Policy:**
+Disables browser features not used by this application:
+- `geolocation=()` - Location access
+- `microphone=()` - Audio recording
+- `camera=()` - Video recording
+- `payment=()` - Payment API
+- `usb=()` - USB device access
+- `interest-cohort=()` - Opt out of FLoC/Topics tracking
 
 **Notes:**
 - `unsafe-inline` is required for Astro's inline scripts/styles
@@ -488,8 +505,6 @@ form-action 'self'
 
 The following security features are planned but not yet implemented:
 
-- **CAPTCHA integration** - Bot protection for registration and login forms
-- **Password complexity requirements** - Beyond length, require mixed case/numbers/symbols
 - **IP-based blocking** - Block IPs with suspicious activity patterns
 
 ## Frontend Validation

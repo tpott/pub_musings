@@ -605,4 +605,56 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rec.Code)
 	}
+
+	// Verify Permissions-Policy header (always set)
+	permPolicy := rec.Header().Get("Permissions-Policy")
+	if permPolicy == "" {
+		t.Error("Permissions-Policy header not set")
+	}
+	if !strings.Contains(permPolicy, "geolocation=()") {
+		t.Error("Permissions-Policy should disable geolocation")
+	}
+	if !strings.Contains(permPolicy, "microphone=()") {
+		t.Error("Permissions-Policy should disable microphone")
+	}
+	if !strings.Contains(permPolicy, "camera=()") {
+		t.Error("Permissions-Policy should disable camera")
+	}
+
+	// HSTS should NOT be set when HTTPS_ONLY is not enabled
+	hsts := rec.Header().Get("Strict-Transport-Security")
+	if hsts != "" {
+		t.Error("HSTS should not be set when HTTPS_ONLY is not enabled")
+	}
+}
+
+func TestSecurityHeadersMiddlewareWithHTTPS(t *testing.T) {
+	// Save and restore HTTPS_ONLY env var
+	original := os.Getenv("HTTPS_ONLY")
+	defer os.Setenv("HTTPS_ONLY", original)
+
+	// Enable HTTPS_ONLY
+	os.Setenv("HTTPS_ONLY", "true")
+
+	// Create a simple handler
+	innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := securityHeadersMiddleware(innerHandler)
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	// Verify HSTS is set when HTTPS_ONLY is enabled
+	hsts := rec.Header().Get("Strict-Transport-Security")
+	if hsts == "" {
+		t.Error("Strict-Transport-Security header should be set when HTTPS_ONLY is enabled")
+	}
+	if !strings.Contains(hsts, "max-age=31536000") {
+		t.Error("HSTS should have max-age of 31536000 (1 year)")
+	}
+	if !strings.Contains(hsts, "includeSubDomains") {
+		t.Error("HSTS should include includeSubDomains")
+	}
 }

@@ -583,3 +583,35 @@ cleanPath := filepath.Clean(path)
 2. Check for malicious patterns BEFORE normalization
 3. `..` as a complete path segment (separated by `/`) is different from `..` as a substring in a filename
 4. Always verify the final path is within allowed directories as a defense-in-depth measure
+
+---
+
+### 2026-01-26: Security headers - conditional HSTS
+
+**Problem:** Need to add HSTS (Strict-Transport-Security) and Permissions-Policy headers, but HSTS should only be enabled in production (when HTTPS is actually used).
+
+**Solution:** Use the existing `HTTPS_ONLY` environment variable to conditionally add HSTS:
+```go
+if auth.IsHTTPSOnly() {
+    w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+}
+```
+
+**Key design decisions:**
+1. HSTS conditional on HTTPS_ONLY - avoids breaking development with localhost
+2. Permissions-Policy always set - disables unused features regardless of environment
+3. 1-year max-age with includeSubDomains - standard production HSTS configuration
+4. Test both scenarios: HTTPS_ONLY=false (no HSTS) and HTTPS_ONLY=true (HSTS present)
+
+**Features disabled by Permissions-Policy:**
+- `geolocation=()` - No location tracking needed
+- `microphone=()`, `camera=()` - No audio/video recording
+- `payment=()` - No payment processing
+- `usb=()` - No USB device access
+- `interest-cohort=()` - Opt out of Google's FLoC/Topics tracking
+
+**Lesson:**
+1. Not all security headers should be enabled unconditionally
+2. HSTS + localhost = browser will refuse HTTP connections, breaking development
+3. Permissions-Policy is defense-in-depth - even if XSS succeeds, malicious scripts can't access disabled features
+4. Test environment variable conditions to ensure headers appear/disappear correctly
