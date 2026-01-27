@@ -18,11 +18,11 @@ npm install -D @playwright/test
 npx playwright install
 ```
 
-This installs Playwright and downloads browser binaries for Chromium, Firefox, and WebKit.
+This installs Playwright and downloads browser binaries.
 
 ### Configuration
 
-Create `playwright.config.ts` in the frontend directory:
+The project uses `playwright.config.ts` in the frontend directory. Currently only Chromium is configured for testing (to reduce test execution time and CI complexity):
 
 ```typescript
 // frontend/playwright.config.ts
@@ -47,14 +47,9 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // Firefox and WebKit can be enabled by adding:
+    // { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    // { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
 
   // Start dev server before running tests
@@ -74,6 +69,8 @@ export default defineConfig({
   ],
 });
 ```
+
+**Note:** To enable cross-browser testing, add Firefox and/or WebKit projects to the `projects` array and run `npx playwright install` to download additional browser binaries.
 
 ### Add Scripts
 
@@ -230,8 +227,9 @@ npm run test:e2e:ui
 ### Run on Specific Browser
 ```bash
 npx playwright test --project=chromium
-npx playwright test --project=firefox
-npx playwright test --project=webkit
+# Firefox and WebKit require enabling in playwright.config.ts first:
+# npx playwright test --project=firefox
+# npx playwright test --project=webkit
 ```
 
 ## Test Fixtures

@@ -138,9 +138,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**165 tasks completed.** Working on deep inspection tasks.
+**166 tasks completed.** Working on deep inspection tasks.
 
 ### Recently Completed
+- ✅ Task 165: Update BROWSER_TESTING.md to match Playwright config
+  - Updated config example to show only Chromium (matches actual config)
+  - Added note explaining Firefox/WebKit are optional
+  - Updated multi-browser commands to show they require config changes
 - ✅ Task 164: Update TESTING.md with accurate test file counts
   - Updated from "86 tests in 7 files" to "442 tests in 24 files" for backend
   - Updated from "64 tests in 3 files" to "197 tests in 9 files" for frontend
