@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/trevor/subtitler/backend/align"
 	"github.com/trevor/subtitler/backend/auth"
 	"github.com/trevor/subtitler/backend/captcha"
 	"github.com/trevor/subtitler/backend/crypto"
@@ -2430,6 +2431,169 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(map[string]string{
 			"csrf_token": csrfToken,
 		})
+	})
+
+	// Align transcript with user-provided text
+	ts.mux.HandleFunc("POST /api/transcribe/{id}/align", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" || len(uploadID) != 32 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid upload ID format"})
+			return
+		}
+
+		// Check if transcription exists and is complete
+		transcription, err := ts.db.GetTranscription(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get transcription"})
+			return
+		}
+		if transcription == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No transcription found for this upload"})
+			return
+		}
+		if transcription.Status != "complete" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":  "Cannot align - transcription not complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Text            string `json:"text"`
+			Mode            string `json:"mode"`
+			ConvertToScript string `json:"convert_to_script"`
+			Language        string `json:"language"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate align text length
+		if err := validation.ValidateAlignText(req.Text); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Validate align mode
+		if _, err := validation.ValidateAlignMode(req.Mode); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Script conversion validation if requested
+		scriptConverted := false
+		var targetScript script.Script
+		if req.ConvertToScript != "" {
+			targetScript = script.Script(req.ConvertToScript)
+			if !script.IsScriptSupported(targetScript) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":             "Unsupported target script",
+					"supported_scripts": script.SupportedScripts(),
+				})
+				return
+			}
+			if !script.IsLanguageSupported(req.Language) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":               "Language required for script conversion",
+					"supported_languages": script.SupportedLanguages(),
+				})
+				return
+			}
+		}
+
+		// Get existing segments
+		existingSegments, err := transcription.GetSegments()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get existing segments"})
+			return
+		}
+
+		// Convert db.Segment to align.Segment
+		alignSegments := make([]align.Segment, len(existingSegments))
+		for i, s := range existingSegments {
+			alignSegments[i] = align.Segment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
+		// Perform alignment
+		var result align.AlignmentResult
+		if req.Mode == "lyrics" {
+			result = align.AlignLyrics(req.Text, alignSegments)
+		} else {
+			result = align.AlignTranscript(req.Text, alignSegments)
+		}
+
+		// Convert back to db.Segment
+		newSegments := make([]db.Segment, len(result.Segments))
+		for i, s := range result.Segments {
+			newSegments[i] = db.Segment{
+				ID:    s.ID,
+				Start: s.Start,
+				End:   s.End,
+				Text:  s.Text,
+			}
+		}
+
+		// Apply script conversion if requested
+		var failedConversionIndices []int
+		if req.ConvertToScript != "" {
+			converter := script.NewConverter()
+			for i := range newSegments {
+				converted, err := converter.Convert(newSegments[i].Text, req.Language, targetScript)
+				if err == nil {
+					newSegments[i].Text = converted
+				} else {
+					failedConversionIndices = append(failedConversionIndices, i)
+				}
+			}
+			scriptConverted = true
+		}
+
+		// Update segments in database
+		if err := ts.db.UpdateSegments(uploadID, newSegments); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save aligned segments"})
+			return
+		}
+
+		mode := "standard"
+		if req.Mode == "lyrics" {
+			mode = "lyrics"
+		}
+
+		response := map[string]interface{}{
+			"status":   "success",
+			"segments": len(newSegments),
+			"stats":    result.Stats,
+			"mode":     mode,
+		}
+		if scriptConverted {
+			response["script_converted"] = true
+			response["target_script"] = string(targetScript)
+			if len(failedConversionIndices) > 0 {
+				response["conversion_failed_indices"] = failedConversionIndices
+			}
+		}
+		json.NewEncoder(w).Encode(response)
 	})
 }
 
@@ -7855,5 +8019,287 @@ func TestCaptchaConfigNoAuth(t *testing.T) {
 	resp := ts.doRequest("GET", "/api/captcha/config", nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+// Tests for transcript align endpoint
+
+// TestAlignTranscriptStandard tests standard transcript alignment
+func TestAlignTranscriptStandard(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Align with standard mode (default)
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+		"text": "Hello world\nThis is a test",
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result["status"] != "success" {
+		t.Errorf("Expected status 'success', got %v", result["status"])
+	}
+	if result["mode"] != "standard" {
+		t.Errorf("Expected mode 'standard', got %v", result["mode"])
+	}
+	if result["segments"] == nil {
+		t.Error("Expected segments count in response")
+	}
+	if result["stats"] == nil {
+		t.Error("Expected stats in response")
+	}
+}
+
+// TestAlignTranscriptLyricsMode tests lyrics mode alignment
+func TestAlignTranscriptLyricsMode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video and transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Align with lyrics mode
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+		"text": "Hello world\nThis is a test",
+		"mode": "lyrics",
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result["mode"] != "lyrics" {
+		t.Errorf("Expected mode 'lyrics', got %v", result["mode"])
+	}
+}
+
+// TestAlignTranscriptNoTranscription tests alignment with no transcription
+func TestAlignTranscriptNoTranscription(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video without transcription
+	video := ts.createTestVideo(t, nil, nil)
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+		"text": "Hello world",
+	}, "")
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "No transcription found for this upload" {
+		t.Errorf("Expected 'No transcription found' error, got: %s", result["error"])
+	}
+}
+
+// TestAlignTranscriptIncomplete tests alignment with incomplete transcription
+func TestAlignTranscriptIncomplete(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video with pending transcription (not complete)
+	video := ts.createTestVideo(t, nil, nil)
+
+	// Create a pending (incomplete) transcription
+	transcription := &db.Transcription{
+		ID:        testGenerateID(),
+		VideoID:   video.ID,
+		Status:    "processing", // Not complete
+		Message:   "Test",
+		Progress:  50,
+		CreatedAt: time.Now(),
+	}
+	if err := ts.db.CreateTranscription(transcription); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+		"text": "Hello world",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Cannot align - transcription not complete" {
+		t.Errorf("Expected 'transcription not complete' error, got: %v", result["error"])
+	}
+	if result["status"] != "processing" {
+		t.Errorf("Expected status 'processing' in error response, got: %v", result["status"])
+	}
+}
+
+// TestAlignTranscriptInvalidID tests alignment with invalid video ID
+func TestAlignTranscriptInvalidID(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try with invalid ID format
+	resp := ts.doRequest("POST", "/api/transcribe/invalid-id/align", map[string]string{
+		"text": "Hello world",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+// TestAlignTranscriptEmptyText tests alignment with empty text
+func TestAlignTranscriptEmptyText(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+		"text": "",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+// TestAlignTranscriptInvalidMode tests alignment with invalid mode
+func TestAlignTranscriptInvalidMode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+		"text": "Hello world",
+		"mode": "invalid_mode",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+// TestAlignTranscriptWithScriptConversion tests alignment with script conversion
+func TestAlignTranscriptWithScriptConversion(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+		"text":              "namaste dost",
+		"convert_to_script": "Devanagari",
+		"language":          "hi",
+	}, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result["script_converted"] != true {
+		t.Errorf("Expected script_converted=true, got %v", result["script_converted"])
+	}
+	if result["target_script"] != "Devanagari" {
+		t.Errorf("Expected target_script='Devanagari', got %v", result["target_script"])
+	}
+}
+
+// TestAlignTranscriptUnsupportedScript tests alignment with unsupported script
+func TestAlignTranscriptUnsupportedScript(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+		"text":              "Hello world",
+		"convert_to_script": "UnsupportedScript",
+		"language":          "en",
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Unsupported target script" {
+		t.Errorf("Expected 'Unsupported target script' error, got: %v", result["error"])
+	}
+	if result["supported_scripts"] == nil {
+		t.Error("Expected supported_scripts in error response")
+	}
+}
+
+// TestAlignTranscriptMissingLanguage tests alignment with script conversion but missing language
+func TestAlignTranscriptMissingLanguage(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+		"text":              "Hello world",
+		"convert_to_script": "Devanagari",
+		// No language specified
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Language required for script conversion" {
+		t.Errorf("Expected 'Language required' error, got: %v", result["error"])
+	}
+}
+
+// TestAlignTranscriptInvalidBody tests alignment with invalid request body
+func TestAlignTranscriptInvalidBody(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	req := httptest.NewRequest("POST", "/api/transcribe/"+video.ID+"/align", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	ts.mux.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
 	}
 }

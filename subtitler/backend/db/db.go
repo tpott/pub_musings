@@ -343,7 +343,7 @@ func (db *DB) GetVideo(id string) (*Video, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get video %s: %w", id, err)
 	}
 	return video, nil
 }
@@ -354,7 +354,10 @@ func (db *DB) CreateTranscription(t *Transcription) error {
 		INSERT INTO transcriptions (id, video_id, status, message, progress, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, t.ID, t.VideoID, t.Status, t.Message, t.Progress, t.CreatedAt)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create transcription for video %s: %w", t.VideoID, err)
+	}
+	return nil
 }
 
 // GetTranscription retrieves a transcription by video ID
@@ -374,7 +377,7 @@ func (db *DB) GetTranscription(videoID string) (*Transcription, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get transcription for video %s: %w", videoID, err)
 	}
 
 	if message.Valid {
@@ -408,7 +411,10 @@ func (db *DB) UpdateTranscriptionStatus(videoID, status, message string, progres
 		UPDATE transcriptions SET status = ?, message = ?, progress = ?
 		WHERE video_id = ? AND status IN ('pending', 'processing')
 	`, status, message, progress, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update transcription status for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // CompleteTranscription marks a transcription as complete with results
@@ -425,7 +431,10 @@ func (db *DB) CompleteTranscription(videoID string, language string, duration fl
 		    language = ?, duration = ?, full_text = ?, segments_json = ?, completed_at = ?
 		WHERE video_id = ?
 	`, language, duration, fullText, string(segmentsJSON), now, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to complete transcription for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // FailTranscription marks a transcription as failed with an error message
@@ -433,7 +442,10 @@ func (db *DB) FailTranscription(videoID, errorMessage string) error {
 	_, err := db.conn.Exec(`
 		UPDATE transcriptions SET status = 'error', message = ? WHERE video_id = ?
 	`, errorMessage, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to mark transcription as failed for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // GetSegments parses and returns the segments from a transcription
@@ -443,7 +455,7 @@ func (t *Transcription) GetSegments() ([]Segment, error) {
 	}
 	var segments []Segment
 	if err := json.Unmarshal([]byte(t.SegmentsJSON), &segments); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse segments JSON: %w", err)
 	}
 	return segments, nil
 }
@@ -529,7 +541,7 @@ func (db *DB) CountVideosBySession(sessionID string) (int, error) {
 		SELECT COUNT(*) FROM videos WHERE session_id = ?
 	`, sessionID).Scan(&count)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to count videos for session: %w", err)
 	}
 	return count, nil
 }
@@ -545,7 +557,10 @@ func (db *DB) CreateUser(user *User) error {
 		INSERT INTO users (id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, role, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, user.ID, user.Email, user.PasswordHash, user.TOTPSecret, user.TOTPEnabled, user.EmailVerified, user.VerifiedAt, role, user.CreatedAt)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+	return nil
 }
 
 // GetUserByID retrieves a user by ID
@@ -561,7 +576,7 @@ func (db *DB) GetUserByID(id string) (*User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by ID %s: %w", id, err)
 	}
 	if totpSecret.Valid {
 		user.TOTPSecret = &totpSecret.String
@@ -585,7 +600,7 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 	if totpSecret.Valid {
 		user.TOTPSecret = &totpSecret.String
@@ -602,7 +617,10 @@ func (db *DB) CreateSession(session *Session) error {
 		INSERT INTO sessions (id, user_id, token, ip_address, user_agent, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, session.ID, session.UserID, session.Token, session.IPAddress, session.UserAgent, session.ExpiresAt, session.CreatedAt)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+	return nil
 }
 
 // GetSessionByToken retrieves a session by token
@@ -617,7 +635,7 @@ func (db *DB) GetSessionByToken(token string) (*Session, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get session by token: %w", err)
 	}
 	if ipAddress.Valid {
 		session.IPAddress = ipAddress.String
@@ -637,7 +655,7 @@ func (db *DB) GetSessionsByUserID(userID string) ([]Session, error) {
 		ORDER BY created_at DESC
 	`, userID, time.Now())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query sessions for user: %w", err)
 	}
 	defer rows.Close()
 
@@ -646,7 +664,7 @@ func (db *DB) GetSessionsByUserID(userID string) ([]Session, error) {
 		var session Session
 		var ipAddress, userAgent sql.NullString
 		if err := rows.Scan(&session.ID, &session.UserID, &session.Token, &ipAddress, &userAgent, &session.ExpiresAt, &session.CreatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan session row: %w", err)
 		}
 		if ipAddress.Valid {
 			session.IPAddress = ipAddress.String
@@ -656,7 +674,10 @@ func (db *DB) GetSessionsByUserID(userID string) ([]Session, error) {
 		}
 		sessions = append(sessions, session)
 	}
-	return sessions, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate sessions: %w", err)
+	}
+	return sessions, nil
 }
 
 // DeleteSessionByID deletes a session by its ID (for session management)
@@ -664,11 +685,11 @@ func (db *DB) DeleteSessionByID(sessionID, userID string) error {
 	// Require userID to ensure users can only delete their own sessions
 	result, err := db.conn.Exec(`DELETE FROM sessions WHERE id = ? AND user_id = ?`, sessionID, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete session: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rows == 0 {
 		return fmt.Errorf("session not found or not owned by user")
@@ -679,22 +700,32 @@ func (db *DB) DeleteSessionByID(sessionID, userID string) error {
 // DeleteSession deletes a session by token
 func (db *DB) DeleteSession(token string) error {
 	_, err := db.conn.Exec(`DELETE FROM sessions WHERE token = ?`, token)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to delete session by token: %w", err)
+	}
+	return nil
 }
 
 // DeleteExpiredSessions deletes all expired sessions
 func (db *DB) DeleteExpiredSessions() (int64, error) {
 	result, err := db.conn.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now())
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to delete expired sessions: %w", err)
 	}
-	return result.RowsAffected()
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get affected rows: %w", err)
+	}
+	return count, nil
 }
 
 // DeleteUserSessions deletes all sessions for a user
 func (db *DB) DeleteUserSessions(userID string) error {
 	_, err := db.conn.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to delete user sessions: %w", err)
+	}
+	return nil
 }
 
 // SetTOTPSecret sets the TOTP secret for a user (during 2FA setup)
@@ -702,7 +733,10 @@ func (db *DB) SetTOTPSecret(userID, secret string) error {
 	_, err := db.conn.Exec(`
 		UPDATE users SET totp_secret = ? WHERE id = ?
 	`, secret, userID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to set TOTP secret: %w", err)
+	}
+	return nil
 }
 
 // EnableTOTP enables 2FA for a user (after verification)
@@ -710,7 +744,10 @@ func (db *DB) EnableTOTP(userID string) error {
 	_, err := db.conn.Exec(`
 		UPDATE users SET totp_enabled = 1 WHERE id = ?
 	`, userID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to enable TOTP: %w", err)
+	}
+	return nil
 }
 
 // DisableTOTP disables 2FA and clears the secret for a user
@@ -718,7 +755,10 @@ func (db *DB) DisableTOTP(userID string) error {
 	_, err := db.conn.Exec(`
 		UPDATE users SET totp_enabled = 0, totp_secret = NULL WHERE id = ?
 	`, userID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to disable TOTP: %w", err)
+	}
+	return nil
 }
 
 // GetExpiredVideos returns videos that have exceeded their retention period.
@@ -774,7 +814,10 @@ func (db *DB) UpdateSegments(videoID string, segments []Segment) error {
 		SET segments_json = ?, full_text = ?
 		WHERE video_id = ?
 	`, string(segmentsJSON), fullText, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update segments for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // CreateBurnJob creates a new burn job record
@@ -783,7 +826,10 @@ func (db *DB) CreateBurnJob(job *BurnJob) error {
 		INSERT INTO burn_jobs (id, video_id, status, message, progress, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, job.ID, job.VideoID, job.Status, job.Message, job.Progress, job.CreatedAt)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create burn job for video %s: %w", job.VideoID, err)
+	}
+	return nil
 }
 
 // GetBurnJob retrieves a burn job by video ID
@@ -802,7 +848,7 @@ func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get burn job for video %s: %w", videoID, err)
 	}
 
 	if message.Valid {
@@ -831,7 +877,10 @@ func (db *DB) UpdateBurnJobStatus(videoID, status, message string, progress int)
 		UPDATE burn_jobs SET status = ?, message = ?, progress = ?
 		WHERE video_id = ? AND status IN ('pending', 'processing')
 	`, status, message, progress, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update burn job status for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // CompleteBurnJob marks a burn job as complete with the output file path
@@ -848,7 +897,10 @@ func (db *DB) CompleteBurnJobWithKeyVersion(videoID, outputPath string, keyVersi
 		    output_path = ?, output_key_version = ?, completed_at = ?
 		WHERE video_id = ?
 	`, outputPath, keyVersion, now, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to complete burn job for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // FailBurnJob marks a burn job as failed with an error message
@@ -856,7 +908,10 @@ func (db *DB) FailBurnJob(videoID, errorMessage string) error {
 	_, err := db.conn.Exec(`
 		UPDATE burn_jobs SET status = 'error', message = ? WHERE video_id = ?
 	`, errorMessage, videoID)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to mark burn job as failed for video %s: %w", videoID, err)
+	}
+	return nil
 }
 
 // DeletedVideoFiles contains paths to files that should be deleted after a video is removed

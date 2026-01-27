@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**130 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**194 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,16 +138,36 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**188 tasks completed.** Third deep inspection (2026-01-27) identified 7 test coverage gaps and code quality improvements.
+**194 tasks completed.** All tasks from third deep inspection completed.
 
-### Pending Tasks (190-194)
-- Task 190: Add tests for transcript align endpoint (HIGH PRIORITY)
-- Task 191: Add tests for generateID and helper functions
-- Task 192: Add defensive XSS escaping to parseUserAgent
-- Task 193: E2E test for chunked upload flow (from specs/chunked-upload.md Phase 3)
-- Task 194: Improve error wrapping consistency in db.go
+### Recently Completed (2026-01-27)
+- ✅ Task 194: Improve error wrapping consistency in db.go
+  - Added fmt.Errorf wrapping to 25+ database functions
+  - Errors now include context like "failed to get video %s: %w"
+  - Improves debugging by showing which operation failed
 
-### Recently Completed
+- ✅ Task 193: E2E test for chunked upload flow
+  - Added frontend/e2e/chunked-upload.spec.ts with 5 tests
+  - Tests: init request format, chunk progress, failure handling, localStorage session, API validation
+  - Uses Playwright route mocking for large files (no actual 50MB files needed)
+
+- ✅ Task 192: Add defensive XSS escaping to parseUserAgent
+  - Wrapped parseUserAgent() output with escapeHtml() in security.astro
+  - Defense-in-depth even though current output is hardcoded strings
+
+- ✅ Task 191: Add tests for generateID and helper functions
+  - Added TestGenerateID, TestFindVideoFile, TestGetVideoForDecryption to main_test.go
+  - Added TestGenerateETag, TestHandleConditionalRequest, TestSetCacheHeaders, TestValidatePathID
+  - Tests cover success paths and error handling
+
+- ✅ Task 190: Add tests for transcript align endpoint (HIGH PRIORITY)
+  - Added 11 tests for POST /api/transcribe/{id}/align endpoint
+  - Tests cover: standard alignment, lyrics mode, no transcription, incomplete transcription,
+    invalid ID, empty text, invalid mode, script conversion, unsupported script, missing language, invalid body
+  - Added align endpoint to test server's registerHandlers
+  - Added align package import to api_test.go
+  - All 11 tests passing
+
 - ✅ Task 189: Add tests for CSRF token and CAPTCHA config endpoints
   - Added 4 tests for GET /api/auth/csrf (authenticated success, unauthenticated, invalid session, expired session)
   - Added 3 tests for GET /api/captcha/config (disabled state, enabled state, no auth required)

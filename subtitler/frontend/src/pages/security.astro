@@ -1243,7 +1243,7 @@ ${recoveryCodes.join('\n')}
 						<div class="session-item ${session.is_current ? 'current' : ''}" data-id="${session.id}">
 							<div class="session-info">
 								<div class="session-device">
-									${parseUserAgent(session.user_agent)}
+									${escapeHtml(parseUserAgent(session.user_agent))}
 									${session.is_current ? '<span class="session-current-badge">Current</span>' : ''}
 								</div>
 								<div class="session-meta">
