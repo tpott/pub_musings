@@ -646,3 +646,30 @@ http.ServeFile(w, r, videoPath)
 2. Defense-in-depth means assuming any layer could be compromised - validate even "trusted" database data
 3. Error messages should not leak security-sensitive information like paths - log for operators, return generic message to users
 4. Test path traversal attempts explicitly - don't assume they can't happen
+
+---
+
+### 2026-01-26: pathvalidator must handle relative paths from database
+
+**Problem:** After adding path validation to file-serving endpoints, all video and thumbnail downloads returned 403 "Access denied". The pathvalidator rejected paths stored in the database because they were RELATIVE (e.g., `uploads/abc.mp4.age`) while the validator was initialized with an ABSOLUTE base directory (e.g., `/home/user/.../uploads`).
+
+**Root cause:** When files are uploaded with a relative `UPLOAD_DIR` (like `uploads`), the encrypted file path stored in the database is also relative. The `ValidateAbsolutePath` function compared this relative path against the absolute base directory, and they never matched because `/home/.../uploads/abc.mp4.age` doesn't start with `uploads/abc.mp4.age`.
+
+**Solution:** Updated `ValidateAbsolutePath` to convert relative paths to absolute using `filepath.Abs()` BEFORE comparing against the base directory:
+```go
+func (v *Validator) ValidateAbsolutePath(path string) error {
+    if containsTraversalPatterns(path) {
+        return ErrPathTraversal  // Check BEFORE Abs()
+    }
+    absPath, err := filepath.Abs(path)
+    cleanPath := filepath.Clean(absPath)
+    return v.validateAbsolutePath(cleanPath)
+}
+```
+
+**Lesson:**
+1. Path validation must handle both relative and absolute paths consistently
+2. Use `filepath.Abs()` to convert relative paths before comparison
+3. Check for traversal patterns BEFORE converting to absolute (to catch `../etc/passwd`)
+4. Test with both relative and absolute paths in different environments
+5. Database paths may be stored differently depending on how UPLOAD_DIR is configured

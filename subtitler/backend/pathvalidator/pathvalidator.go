@@ -77,13 +77,25 @@ func (v *Validator) ValidatePath(path string) error {
 	return nil
 }
 
-// ValidateAbsolutePath validates that an absolute path is within allowed directories.
+// ValidateAbsolutePath validates that a path is within allowed directories.
+// If the path is relative, it is converted to absolute using the current working directory.
 func (v *Validator) ValidateAbsolutePath(path string) error {
 	if path == "" {
 		return ErrEmptyPath
 	}
 
-	cleanPath := filepath.Clean(path)
+	// Check for traversal patterns before cleaning
+	if containsTraversalPatterns(path) {
+		return ErrPathTraversal
+	}
+
+	// Convert to absolute path if relative
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+
+	cleanPath := filepath.Clean(absPath)
 	return v.validateAbsolutePath(cleanPath)
 }
 
