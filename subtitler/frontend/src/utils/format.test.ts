@@ -5,7 +5,6 @@ import {
   formatTimeForInput,
   parseTimeInput,
   formatDate,
-  escapeHtml,
   getStatusInfo
 } from './format';
 
@@ -125,34 +124,6 @@ describe('formatDate', () => {
     expect(formatDate('')).toBe('Invalid date');
     expect(formatDate('not a date')).toBe('Invalid date');
     expect(formatDate('2024-99-99')).toBe('Invalid date');
-  });
-});
-
-describe('escapeHtml', () => {
-  it('should return empty string for falsy input', () => {
-    expect(escapeHtml('')).toBe('');
-    expect(escapeHtml(null as unknown as string)).toBe('');
-    expect(escapeHtml(undefined as unknown as string)).toBe('');
-  });
-
-  it('should escape HTML special characters', () => {
-    expect(escapeHtml('<')).toBe('&lt;');
-    expect(escapeHtml('>')).toBe('&gt;');
-    expect(escapeHtml('&')).toBe('&amp;');
-    expect(escapeHtml('"')).toBe('&quot;');
-    expect(escapeHtml("'")).toBe('&#039;');
-  });
-
-  it('should escape multiple characters', () => {
-    expect(escapeHtml('<script>alert("xss")</script>')).toBe(
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
-    );
-  });
-
-  it('should leave safe characters unchanged', () => {
-    expect(escapeHtml('Hello World')).toBe('Hello World');
-    expect(escapeHtml('123')).toBe('123');
-    expect(escapeHtml('abc.def@example.com')).toBe('abc.def@example.com');
   });
 });
 

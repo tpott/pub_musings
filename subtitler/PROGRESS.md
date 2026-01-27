@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**209 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**210 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 208: Frontend - Consolidate duplicate escapeHtml functions
+  - Removed escapeHtml from format.ts (kept in html.ts)
+  - Removed duplicate tests from format.test.ts (covered by html.test.ts)
+  - All pages already import from html.ts
+
 - Task 207: Backend - Add transaction timeout context
   - Modified WithTransaction() to use BeginTx with context timeout
   - Uses existing queryContext() with 30s default timeout

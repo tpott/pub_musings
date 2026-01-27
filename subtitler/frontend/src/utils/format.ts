@@ -128,25 +128,6 @@ export function formatDate(dateStr: string): string {
 }
 
 /**
- * Escape HTML special characters to prevent XSS
- * @param text - Text to escape
- * @returns Escaped HTML string
- */
-export function escapeHtml(text: string): string {
-  if (!text) return '';
-
-  const escapeMap: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-
-  return text.replace(/[&<>"']/g, char => escapeMap[char] || char);
-}
-
-/**
  * Get status badge HTML for transcription status
  * @param status - Status string (none, pending, processing, complete, error)
  * @returns Object with class and label
