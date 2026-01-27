@@ -138,19 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**137 tasks completed!**
+**138 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 135: Persist CSRF secret across restarts - Modified csrf package to persist generated secrets to `data/csrf.key` file. Priority order: 1) CSRF_SECRET env var, 2) existing file, 3) generate new and save. Added CSRF_SECRET_PATH env var for custom file location. File created with 0600 permissions. Tests verify persistence, env var priority, and directory creation. Documented in ENV.md.
 - ✅ Task 134: Apply pathvalidator to file-serving endpoints - Integrated the pathvalidator package into video download, thumbnail, and burned video endpoints. Each endpoint now validates file paths from the database stay within the uploads directory before serving. Returns 403 Forbidden if path validation fails (e.g., if database is compromised and contains path traversal). Added comprehensive test `TestVideoDownloadPathValidation` with subtests for valid paths, video path traversal, and thumbnail path traversal.
 - ✅ Task 131: HSTS and security headers - Added `Strict-Transport-Security` header (enabled when HTTPS_ONLY=true) and `Permissions-Policy` header to disable unused browser features (geolocation, camera, microphone, etc.). Updated specs/auth.md with full documentation. Tests verify both headers are present.
 - ✅ Task 130: Path validation utility - Created `pathvalidator` package to prevent path traversal attacks. Validates that file paths stay within allowed directories (uploads/, data/). Functions: `New()`, `ValidatePath()`, `SafeJoin()`, `ValidateAndResolve()`. Comprehensive tests verify protection against `../` traversal, null bytes, and symlink-based attacks.
 - ✅ Task 129: Production error messages - Created `errmsg` package with user-friendly error messages that don't leak internal details. Added `LOG_VERBOSE` env var (default false) to enable detailed errors in development. Updated endpoints to use the new error handling. Documented in ENV.md and API.md with security warnings. Tests verify that production errors don't leak paths, IPs, or SQL queries.
-- ✅ Task 128: Input length validation - Created `validation` package with comprehensive input validation functions. Validates: segment text (10KB max), email (254 chars), password (128 chars), TOTP codes (10 chars), recovery codes (32 chars), align text (100KB), language codes (10 chars), filenames (255 chars), MIME types (100 chars). Also validates burn mode and align mode parameters. Tests added and documented in API.md.
 
 ### New Tasks Created (134-142)
 Created 9 new tasks from code review:
 - Task 134 (done): Apply pathvalidator to file-serving endpoints
-- Task 135: Persist CSRF secret across restarts
+- Task 135 (done): Persist CSRF secret across restarts
 - Task 136: Consolidate duplicate escapeHtml functions
 - Task 137: Add focus management to video modal
 - Task 138: Add upload timeout mechanism

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -20,6 +21,9 @@ const (
 
 	// TokenLength is the length of the random server secret in bytes
 	secretLength = 32
+
+	// defaultSecretPath is the default path for persisting the CSRF secret
+	defaultSecretPath = "data/csrf.key"
 )
 
 var (
@@ -29,26 +33,75 @@ var (
 	secretErr    error
 )
 
-// getSecret returns the server secret, generating it if needed.
-// The secret is either from CSRF_SECRET env var or randomly generated.
-// Returns an error if the secret could not be generated.
+// resetSecretForTesting resets the secret state. Only for testing.
+func resetSecretForTesting() {
+	serverSecret = nil
+	secretErr = nil
+	secretOnce = sync.Once{}
+}
+
+// getSecret returns the server secret, loading or generating it if needed.
+// Priority:
+// 1. CSRF_SECRET environment variable
+// 2. Existing file at data/csrf.key (or CSRF_SECRET_PATH)
+// 3. Generate new secret, save to file, and use it
+// Returns an error if the secret could not be loaded or generated.
 func getSecret() ([]byte, error) {
 	secretOnce.Do(func() {
-		// Try to get from environment
+		// Priority 1: Try to get from environment
 		envSecret := os.Getenv("CSRF_SECRET")
 		if envSecret != "" {
 			serverSecret = []byte(envSecret)
 			return
 		}
 
-		// Generate a random secret (will change on restart)
+		// Determine secret file path
+		secretPath := os.Getenv("CSRF_SECRET_PATH")
+		if secretPath == "" {
+			secretPath = defaultSecretPath
+		}
+
+		// Priority 2: Try to load from file
+		data, err := os.ReadFile(secretPath)
+		if err == nil && len(data) >= secretLength {
+			// File exists and has enough bytes
+			serverSecret = data[:secretLength]
+			return
+		}
+
+		// Priority 3: Generate new secret and save to file
 		serverSecret = make([]byte, secretLength)
 		if _, err := rand.Read(serverSecret); err != nil {
 			secretErr = fmt.Errorf("failed to generate CSRF secret: %w", err)
 			serverSecret = nil
+			return
+		}
+
+		// Attempt to save the secret for future restarts
+		// Errors here are not fatal - we still have a working secret
+		if err := saveSecret(secretPath, serverSecret); err != nil {
+			// Log but don't fail - the secret works, just won't persist
+			fmt.Fprintf(os.Stderr, "warning: could not persist CSRF secret to %s: %v\n", secretPath, err)
 		}
 	})
 	return serverSecret, secretErr
+}
+
+// saveSecret writes the secret to the specified file path.
+// Creates the parent directory if it doesn't exist.
+func saveSecret(path string, secret []byte) error {
+	// Ensure parent directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	// Write secret with restrictive permissions (owner read/write only)
+	if err := os.WriteFile(path, secret, 0600); err != nil {
+		return fmt.Errorf("failed to write secret file: %w", err)
+	}
+
+	return nil
 }
 
 // GenerateToken creates a CSRF token for the given session token.

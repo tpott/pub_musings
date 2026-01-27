@@ -3,6 +3,8 @@ package csrf
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -380,5 +382,163 @@ func TestProtectFuncPUT(t *testing.T) {
 
 	if !called {
 		t.Error("PUT should be allowed with valid CSRF token")
+	}
+}
+
+func TestSecretPersistence(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "csrf-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	secretPath := filepath.Join(tempDir, "csrf.key")
+
+	// Clear any existing env vars and reset state
+	os.Unsetenv("CSRF_SECRET")
+	originalPath := os.Getenv("CSRF_SECRET_PATH")
+	os.Setenv("CSRF_SECRET_PATH", secretPath)
+	defer func() {
+		if originalPath != "" {
+			os.Setenv("CSRF_SECRET_PATH", originalPath)
+		} else {
+			os.Unsetenv("CSRF_SECRET_PATH")
+		}
+	}()
+
+	// Reset secret state
+	resetSecretForTesting()
+
+	// First call should generate and save secret
+	secret1, err := getSecret()
+	if err != nil {
+		t.Fatalf("getSecret failed: %v", err)
+	}
+	if len(secret1) != secretLength {
+		t.Errorf("Expected secret length %d, got %d", secretLength, len(secret1))
+	}
+
+	// Verify file was created
+	data, err := os.ReadFile(secretPath)
+	if err != nil {
+		t.Fatalf("Secret file was not created: %v", err)
+	}
+	if len(data) != secretLength {
+		t.Errorf("Secret file should have %d bytes, got %d", secretLength, len(data))
+	}
+
+	// Reset and reload - should get same secret
+	resetSecretForTesting()
+	secret2, err := getSecret()
+	if err != nil {
+		t.Fatalf("getSecret (second call) failed: %v", err)
+	}
+	if string(secret1) != string(secret2) {
+		t.Error("Secret should be the same after reload from file")
+	}
+}
+
+func TestSecretFromEnvVar(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "csrf-test-env")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	secretPath := filepath.Join(tempDir, "csrf.key")
+
+	// Set env var and reset state
+	testSecret := "test-secret-from-env-32bytes!!"
+	os.Setenv("CSRF_SECRET", testSecret)
+	os.Setenv("CSRF_SECRET_PATH", secretPath)
+	defer func() {
+		os.Unsetenv("CSRF_SECRET")
+		os.Unsetenv("CSRF_SECRET_PATH")
+	}()
+
+	resetSecretForTesting()
+
+	secret, err := getSecret()
+	if err != nil {
+		t.Fatalf("getSecret failed: %v", err)
+	}
+
+	if string(secret) != testSecret {
+		t.Errorf("Secret should match env var, got %s", string(secret))
+	}
+
+	// File should NOT be created when env var is used
+	if _, err := os.Stat(secretPath); !os.IsNotExist(err) {
+		t.Error("Secret file should not be created when CSRF_SECRET env var is set")
+	}
+}
+
+func TestSecretFilePermissions(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "csrf-test-perms")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	secretPath := filepath.Join(tempDir, "csrf.key")
+
+	// Clear env var and set path
+	os.Unsetenv("CSRF_SECRET")
+	os.Setenv("CSRF_SECRET_PATH", secretPath)
+	defer os.Unsetenv("CSRF_SECRET_PATH")
+
+	resetSecretForTesting()
+
+	// Generate secret
+	_, err = getSecret()
+	if err != nil {
+		t.Fatalf("getSecret failed: %v", err)
+	}
+
+	// Check file permissions
+	info, err := os.Stat(secretPath)
+	if err != nil {
+		t.Fatalf("Failed to stat secret file: %v", err)
+	}
+
+	// Should be 0600 (owner read/write only)
+	perm := info.Mode().Perm()
+	if perm != 0600 {
+		t.Errorf("Expected file permissions 0600, got %04o", perm)
+	}
+}
+
+func TestSaveSecretCreatesDirectory(t *testing.T) {
+	// Create a temporary base directory
+	tempDir, err := os.MkdirTemp("", "csrf-test-dir")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Path with nested subdirectory that doesn't exist
+	secretPath := filepath.Join(tempDir, "nested", "subdir", "csrf.key")
+
+	err = saveSecret(secretPath, []byte("test-secret-32-bytes-long-here!!"))
+	if err != nil {
+		t.Fatalf("saveSecret failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(secretPath); os.IsNotExist(err) {
+		t.Error("Secret file was not created")
+	}
+
+	// Verify parent directory was created
+	parentDir := filepath.Dir(secretPath)
+	info, err := os.Stat(parentDir)
+	if err != nil {
+		t.Fatalf("Parent directory was not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("Parent path should be a directory")
 	}
 }

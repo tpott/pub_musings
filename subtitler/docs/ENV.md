@@ -10,7 +10,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `MAX_UPLOAD_SIZE` |
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
-| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
+| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
@@ -217,11 +217,26 @@ Controls whether detailed error messages are returned to clients.
 
 | Property | Value |
 |----------|-------|
-| Default | *(random on startup)* |
+| Default | *(auto-generated and persisted to `data/csrf.key`)* |
 | Required | No |
 | Example | `CSRF_SECRET=your-32-byte-secret-here` |
 
-HMAC key for generating CSRF tokens. If not set, a random secret is generated on startup. Setting this ensures CSRF tokens remain valid across server restarts.
+HMAC key for generating CSRF tokens. Secret is determined in this priority order:
+1. **Environment variable:** If `CSRF_SECRET` is set, use it directly
+2. **Persisted file:** If `data/csrf.key` exists, load secret from it
+3. **Generate new:** Create a random 32-byte secret and save to `data/csrf.key`
+
+This ensures CSRF tokens remain valid across server restarts without requiring manual configuration.
+
+### CSRF_SECRET_PATH
+
+| Property | Value |
+|----------|-------|
+| Default | `data/csrf.key` |
+| Required | No |
+| Example | `CSRF_SECRET_PATH=/opt/subtitler/data/csrf.key` |
+
+Path to the CSRF secret file. Only used when `CSRF_SECRET` env var is not set. The file is created automatically with restrictive permissions (0600) if it doesn't exist.
 
 ### CAPTCHA_SITE_KEY
 
