@@ -3830,6 +3830,9 @@ func main() {
 		videoPath := video.FilePath
 		keyVersion := video.KeyVersion
 
+		// Check for force parameter (used when re-transcribing with different language)
+		force := r.URL.Query().Get("force") == "true"
+
 		// Check if already processing from database
 		existingTranscription, err := database.GetTranscription(uploadID)
 		if err != nil {
@@ -3844,8 +3847,20 @@ func main() {
 				return
 			}
 			if existingTranscription.Status == "complete" {
-				json.NewEncoder(w).Encode(dbTranscriptionToStatus(existingTranscription))
-				return
+				// Check if the requested language is different from the existing one
+				// or if force is explicitly requested
+				languageChanged := language != "auto" && existingTranscription.Language != language
+				if !force && !languageChanged {
+					// Same language, return existing result
+					json.NewEncoder(w).Encode(dbTranscriptionToStatus(existingTranscription))
+					return
+				}
+				// Language changed or force requested - proceed with re-transcription
+				logging.Info("Re-transcribing video",
+					"upload_id", uploadID,
+					"old_language", existingTranscription.Language,
+					"new_language", language,
+					"force", force)
 			}
 		}
 

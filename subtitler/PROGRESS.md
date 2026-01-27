@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**203 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**204 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**203 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**204 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 217: BUG - Fix Re-transcribe button not working for language changes
+  - Root cause: Backend POST /api/transcribe/{id} returned existing result if status was "complete"
+    even when user wanted to re-transcribe with a different language
+  - Solution: Added `force=true` query parameter to allow re-transcription
+  - Backend now checks if language changed or force is requested before allowing re-transcription
+  - Frontend now passes `force=true` when retranscribe button is clicked
+  - Added E2E tests verifying force parameter is sent and confirmation dialog for auto language
+
 - Task 211: CRITICAL - Implement client-side SRT/VTT/JSON generation for downloads
   - Created `frontend/src/utils/subtitles.ts` with generateSRT(), generateVTT(), generateJSON()
   - Download buttons now generate files client-side using Blob + URL.createObjectURL()

@@ -453,3 +453,156 @@ test.describe('Video Visibility During Playback', () => {
     await previewVideo.evaluate((v: HTMLVideoElement) => v.pause());
   });
 });
+
+// Test re-transcribe functionality with language change
+test.describe('Re-transcribe with Language Change', () => {
+  test('should re-transcribe when language is changed and button clicked', async ({ page }) => {
+    // Track API requests to verify force parameter is sent
+    let transcribeRequests: { url: string; method: string }[] = [];
+
+    page.on('request', (request) => {
+      const url = request.url();
+      if (url.includes('/api/transcribe/') && request.method() === 'POST') {
+        transcribeRequests.push({ url, method: request.method() });
+      }
+    });
+
+    // Mock a video with existing transcription
+    const videoId = 'test-retranscribe-' + Date.now();
+
+    // First, mock the initial GET to return completed transcription
+    await page.route(`**/api/transcribe/${videoId}`, async (route, request) => {
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'complete',
+            result: {
+              language: 'en',
+              duration: 5,
+              text: 'Original English text',
+              segments: [
+                { id: 0, start: 0, end: 2.5, text: 'Original' },
+                { id: 1, start: 2.5, end: 5, text: 'English text' },
+              ],
+            },
+          }),
+        });
+      } else if (request.method() === 'POST') {
+        // Verify force parameter is included
+        const url = request.url();
+        const hasForce = url.includes('force=true');
+
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'processing',
+            message: 'Re-transcription started with force=' + hasForce,
+          }),
+        });
+      }
+    });
+
+    // Mock video endpoint
+    await page.route(`**/api/videos/${videoId}/video`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'video/mp4',
+        body: Buffer.from([0, 0, 0, 0]),
+      });
+    });
+
+    // Navigate to upload page with existing video ID
+    await page.goto(`/upload?id=${videoId}`);
+
+    // Wait for existing transcription to load
+    await page.waitForSelector('#segments .segment', { state: 'visible' });
+
+    // Verify re-transcribe button is visible
+    const retranscribeBtn = page.locator('#retranscribeBtn');
+    await expect(retranscribeBtn).toBeVisible();
+
+    // Change language selection
+    const languageSelect = page.locator('#transcriptionLanguageSelect');
+    await languageSelect.selectOption('hi'); // Hindi
+
+    // Clear previous requests
+    transcribeRequests = [];
+
+    // Click re-transcribe button
+    await retranscribeBtn.click();
+
+    // Wait for the POST request to be made
+    await page.waitForTimeout(500);
+
+    // Verify that a POST request was made with force=true
+    expect(transcribeRequests.length).toBeGreaterThan(0);
+    const postRequest = transcribeRequests.find((r) => r.method === 'POST');
+    expect(postRequest).toBeDefined();
+    expect(postRequest!.url).toContain('force=true');
+    expect(postRequest!.url).toContain('language=hi');
+  });
+
+  test('should show confirmation when re-transcribing with auto language', async ({ page }) => {
+    const videoId = 'test-retranscribe-auto-' + Date.now();
+
+    // Mock endpoints
+    await page.route(`**/api/transcribe/${videoId}`, async (route, request) => {
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'complete',
+            result: {
+              language: 'en',
+              duration: 3,
+              text: 'Test',
+              segments: [{ id: 0, start: 0, end: 3, text: 'Test' }],
+            },
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ status: 'processing' }),
+        });
+      }
+    });
+
+    await page.route(`**/api/videos/${videoId}/video`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'video/mp4',
+        body: Buffer.from([0]),
+      });
+    });
+
+    await page.goto(`/upload?id=${videoId}`);
+    await page.waitForSelector('#segments .segment', { state: 'visible' });
+
+    // Keep language as "auto"
+    const languageSelect = page.locator('#transcriptionLanguageSelect');
+    await languageSelect.selectOption('auto');
+
+    // Set up dialog handler to track confirmation
+    let dialogHandled = false;
+    page.on('dialog', async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      expect(dialog.message()).toContain('Auto-detect will likely produce the same result');
+      dialogHandled = true;
+      await dialog.dismiss(); // Cancel the re-transcription
+    });
+
+    // Click re-transcribe
+    const retranscribeBtn = page.locator('#retranscribeBtn');
+    await retranscribeBtn.click();
+
+    // Verify confirmation was shown
+    await page.waitForTimeout(500);
+    expect(dialogHandled).toBe(true);
+  });
+});

@@ -2026,7 +2026,7 @@ import '../styles/theme.css';
 				return baseUrl;
 			}
 
-			async function startTranscription(uploadId: string, language?: string) {
+			async function startTranscription(uploadId: string, language?: string, force?: boolean) {
 				transcription.classList.add('visible');
 				transcriptionStatus.textContent = 'Starting transcription...';
 				segments.innerHTML = '';
@@ -2046,8 +2046,15 @@ import '../styles/theme.css';
 				try {
 					// Start transcription with language parameter
 					let transcribeUrl = `/api/transcribe/${uploadId}`;
+					const params: string[] = [];
 					if (selectedLanguage && selectedLanguage !== 'auto') {
-						transcribeUrl += `?language=${encodeURIComponent(selectedLanguage)}`;
+						params.push(`language=${encodeURIComponent(selectedLanguage)}`);
+					}
+					if (force) {
+						params.push('force=true');
+					}
+					if (params.length > 0) {
+						transcribeUrl += '?' + params.join('&');
 					}
 
 					const response = await csrfFetch(transcribeUrl, {
@@ -3065,8 +3072,8 @@ import '../styles/theme.css';
 				detectedLanguage.style.display = 'none';
 
 				try {
-					// Start new transcription with selected language
-					await startTranscription(currentUploadId, selectedLanguage);
+					// Start new transcription with selected language and force=true
+					await startTranscription(currentUploadId, selectedLanguage, true);
 				} finally {
 					retranscribeBtn.disabled = false;
 					retranscribeBtn.textContent = 'Re-transcribe';
