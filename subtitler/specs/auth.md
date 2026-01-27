@@ -392,7 +392,10 @@ The `Secure` flag is controlled by the `HTTPS_ONLY` environment variable:
 - **Algorithm:** bcrypt with cost factor 12
 - **Generic errors:** Login failures don't reveal if email exists
 - **Length limits:** 8-72 characters (72 is bcrypt max)
-- **Validation:** Both frontend and backend enforce limits
+- **Complexity requirements:** uppercase, lowercase, number, special character
+- **Validation packages:**
+  - `auth.ValidatePassword()` - Full validation with complexity (used in endpoints)
+  - `validation.ValidatePassword()` - Length-only check (8-72)
 
 ## Video Upload Limits
 

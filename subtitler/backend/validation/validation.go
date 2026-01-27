@@ -14,9 +14,11 @@ const (
 	// MaxEmailLength is the maximum length for email addresses (RFC 5321)
 	MaxEmailLength = 254
 
-	// MaxPasswordLength is the maximum length for passwords (bcrypt limit is 72 for hashing,
-	// but we allow slightly longer input before we hash it)
-	MaxPasswordLength = 128
+	// MinPasswordLength is the minimum length for passwords
+	MinPasswordLength = 8
+
+	// MaxPasswordLength is the maximum length for passwords (bcrypt limit)
+	MaxPasswordLength = 72
 
 	// MaxTOTPCodeLength is the maximum length for TOTP codes
 	MaxTOTPCodeLength = 10
@@ -58,11 +60,15 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidatePassword validates password length.
-// Note: For full password validation including complexity, use auth.ValidatePassword()
+// ValidatePassword validates password length (8-72 characters).
+// Note: For full password validation including complexity requirements
+// (uppercase, lowercase, number, special character), use auth.ValidatePassword()
 func ValidatePassword(password string) error {
 	if password == "" {
 		return fmt.Errorf("password is required")
+	}
+	if len(password) < MinPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
 	}
 	if len(password) > MaxPasswordLength {
 		return fmt.Errorf("password is too long (max %d characters)", MaxPasswordLength)

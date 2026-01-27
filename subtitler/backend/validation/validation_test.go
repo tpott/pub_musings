@@ -58,8 +58,10 @@ func TestValidatePassword(t *testing.T) {
 		wantErr  bool
 	}{
 		{"empty string", "", true},
-		{"short password", "abc123!", false},
-		{"max length", strings.Repeat("a", MaxPasswordLength), false},
+		{"too short (7 chars)", "abc1234", true},
+		{"minimum length (8 chars)", "abcd1234", false},
+		{"valid password", "securepassword123", false},
+		{"max length (72 chars)", strings.Repeat("a", MaxPasswordLength), false},
 		{"over max length", strings.Repeat("a", MaxPasswordLength+1), true},
 	}
 

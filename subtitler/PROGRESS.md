@@ -138,11 +138,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**182 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**183 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
-### Pending Tasks (180-187)
+### Pending Tasks (181-187)
 Deep inspection found these issues:
-- Task 180: Password validation consolidation
 - Task 181: Transcription status race condition fix
 - Task 182: Temp file cleanup in transcription goroutines
 - Task 183: Per-email rate limit for magic links (SECURITY)
@@ -150,6 +149,13 @@ Deep inspection found these issues:
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 180: Consolidate password validation between auth and validation packages
+  - Updated `validation.ValidatePassword()` to check min (8) and max (72)
+  - Changed MaxPasswordLength from 128 to 72 (bcrypt limit)
+  - Added MinPasswordLength = 8 constant
+  - Documented: auth.ValidatePassword() for full complexity, validation.ValidatePassword() for length-only
+  - Updated specs/auth.md with validation package details
+
 - ✅ Task 186: Clean up email verification tokens after successful verification
   - Modified `UseEmailVerificationToken` in db.go to delete all tokens for user after verification
   - Added within transaction: `DELETE FROM email_verification_tokens WHERE user_id = ?`
