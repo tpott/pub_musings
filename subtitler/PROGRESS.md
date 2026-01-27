@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**213 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**214 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**213 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**214 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 216: Frontend - Add Auto mode to theme toggle
+  - Theme toggle now cycles through: Light → Dark → Auto
+  - Auto mode follows system's prefers-color-scheme setting
+  - Added computer/monitor icon for Auto mode
+  - Preference persisted in localStorage as 'light', 'dark', or 'auto'
+  - Listens for system preference changes when in auto mode
+
 - Task 212: Frontend - Add subtitle alignment feedback buttons
   - Added feedback buttons (good 👍, misaligned ⏱️, missing ❓) to each segment
   - Feedback stored per-segment in localStorage keyed by video ID

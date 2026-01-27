@@ -269,20 +269,30 @@ input.input-error:focus {
 	height: 20px;
 }
 
-/* Hide the sun icon in light mode, show moon */
-:root:not(.dark) .theme-toggle .icon-sun {
+/* Theme toggle icons - show icon for current mode */
+/* Hide all icons by default */
+.theme-toggle .icon-sun,
+.theme-toggle .icon-moon,
+.theme-toggle .icon-auto {
 	display: none;
 }
 
-:root:not(.dark) .theme-toggle .icon-moon {
+/* Light mode: show sun icon */
+:root[data-theme-mode="light"] .theme-toggle .icon-sun {
 	display: block;
 }
 
-/* Hide the moon icon in dark mode, show sun */
-:root.dark .theme-toggle .icon-sun {
+/* Dark mode: show moon icon */
+:root[data-theme-mode="dark"] .theme-toggle .icon-moon {
 	display: block;
 }
 
-:root.dark .theme-toggle .icon-moon {
-	display: none;
+/* Auto mode: show auto/computer icon */
+:root[data-theme-mode="auto"] .theme-toggle .icon-auto {
+	display: block;
+}
+
+/* Fallback for when data-theme-mode is not set yet (initial load) */
+:root:not([data-theme-mode]) .theme-toggle .icon-auto {
+	display: block;
 }

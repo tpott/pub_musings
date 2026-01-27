@@ -1,13 +1,14 @@
 ---
-// ThemeToggle component - renders a button to toggle between light and dark themes
+// ThemeToggle component - renders a button to cycle between light, dark, and auto themes
+// Auto mode follows the system's prefers-color-scheme setting
 ---
 
-<button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
-	<!-- Moon icon (shown in light mode) -->
+<button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme" title="Toggle theme (Light/Dark/Auto)">
+	<!-- Moon icon (for dark mode) -->
 	<svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 		<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
 	</svg>
-	<!-- Sun icon (shown in dark mode) -->
+	<!-- Sun icon (for light mode) -->
 	<svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 		<circle cx="12" cy="12" r="5"></circle>
 		<line x1="12" y1="1" x2="12" y2="3"></line>
@@ -19,27 +20,70 @@
 		<line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
 		<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
 	</svg>
+	<!-- Auto icon (computer/system) -->
+	<svg class="icon-auto" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+		<line x1="8" y1="21" x2="16" y2="21"></line>
+		<line x1="12" y1="17" x2="12" y2="21"></line>
+	</svg>
 </button>
 
 <script>
 	const THEME_KEY = 'subtitler:theme';
+	type ThemeMode = 'light' | 'dark' | 'auto';
 
-	// Initialize theme from localStorage or system preference
-	function initTheme() {
-		const savedTheme = localStorage.getItem(THEME_KEY);
-		const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+	// Get current theme mode from localStorage
+	function getThemeMode(): ThemeMode {
+		const saved = localStorage.getItem(THEME_KEY);
+		if (saved === 'light' || saved === 'dark' || saved === 'auto') {
+			return saved;
+		}
+		return 'auto'; // Default to auto
+	}
 
-		if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+	// Check if system prefers dark mode
+	function systemPrefersDark(): boolean {
+		return window.matchMedia('(prefers-color-scheme: dark)').matches;
+	}
+
+	// Apply the theme based on mode
+	function applyTheme(mode: ThemeMode) {
+		const isDark = mode === 'dark' || (mode === 'auto' && systemPrefersDark());
+
+		if (isDark) {
 			document.documentElement.classList.add('dark');
 		} else {
 			document.documentElement.classList.remove('dark');
 		}
+
+		// Update button attributes for styling
+		document.documentElement.setAttribute('data-theme-mode', mode);
+
+		// Update aria-label and title
+		const toggle = document.getElementById('themeToggle');
+		if (toggle) {
+			const labels: Record<ThemeMode, string> = {
+				light: 'Theme: Light (click for Dark)',
+				dark: 'Theme: Dark (click for Auto)',
+				auto: 'Theme: Auto (click for Light)'
+			};
+			toggle.setAttribute('aria-label', labels[mode]);
+			toggle.setAttribute('title', labels[mode]);
+		}
 	}
 
-	// Toggle theme and save preference
-	function toggleTheme() {
-		const isDark = document.documentElement.classList.toggle('dark');
-		localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+	// Initialize theme from localStorage
+	function initTheme() {
+		const mode = getThemeMode();
+		applyTheme(mode);
+	}
+
+	// Cycle through themes: light → dark → auto → light
+	function cycleTheme() {
+		const current = getThemeMode();
+		const next: ThemeMode = current === 'light' ? 'dark' : current === 'dark' ? 'auto' : 'light';
+		localStorage.setItem(THEME_KEY, next);
+		applyTheme(next);
 	}
 
 	// Initialize on load
@@ -48,18 +92,14 @@
 	// Set up click handler
 	const toggle = document.getElementById('themeToggle');
 	if (toggle) {
-		toggle.addEventListener('click', toggleTheme);
+		toggle.addEventListener('click', cycleTheme);
 	}
 
 	// Listen for system preference changes
-	window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-		// Only apply system preference if user hasn't set a preference
-		if (!localStorage.getItem(THEME_KEY)) {
-			if (e.matches) {
-				document.documentElement.classList.add('dark');
-			} else {
-				document.documentElement.classList.remove('dark');
-			}
+	window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+		// Only apply change if in auto mode
+		if (getThemeMode() === 'auto') {
+			applyTheme('auto');
 		}
 	});
 </script>
