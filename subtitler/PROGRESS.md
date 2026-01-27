@@ -138,12 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**150 tasks completed.** All tasks from deep code inspection complete.
+**150 tasks completed.** 5 new tasks filed from deep inspection.
 
 ### Recently Completed
 - ✅ Task 148: Implement evaluation framework - Created `evaluation/` directory with: `generate.sh` (Piper TTS audio generation), `evaluate.py` (WER calculation via jiwer), `seeds/english-basic.yaml` (11 test sentences). Calculates WER, CER, and RTF metrics. Results saved to `evaluation/results/`. Comprehensive README with setup instructions.
 - ✅ Task 149: Estimated time remaining for transcription - Created `frontend/src/utils/processing-speed.ts` utility with 25 tests.
 - ✅ Task 150: Document magic link auth in API.md - Added comprehensive API documentation.
+
+### Pending Tasks (from deep inspection 2026-01-26)
+- Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
+- Task 152: Add security event audit logging
+- Task 153: Add video file magic byte validation
+- Task 154: Rate limit /metrics endpoint
+- Task 155: Create production security hardening checklist (docs)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:
