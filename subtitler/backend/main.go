@@ -63,6 +63,8 @@ const (
 	defaultDownloadRateWindow     = time.Minute
 	defaultUserRateLimit          = 60
 	defaultUserRateWindow         = time.Minute
+	defaultMetricsRateLimit       = 10
+	defaultMetricsRateWindow      = time.Minute
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
@@ -98,6 +100,8 @@ var (
 	downloadRateWindow     time.Duration
 	userRateLimit          int
 	userRateWindow         time.Duration
+	metricsRateLimit       int
+	metricsRateWindow      time.Duration
 
 	// Chunked upload configuration
 	chunkSize     int64
@@ -236,6 +240,7 @@ func initConfig() {
 	chunkRateLimit, chunkRateWindow = getEnvRateLimitOrDefault("CHUNK_RATE_LIMIT", defaultChunkRateLimit, defaultChunkRateWindow)
 	downloadRateLimit, downloadRateWindow = getEnvRateLimitOrDefault("DOWNLOAD_RATE_LIMIT", defaultDownloadRateLimit, defaultDownloadRateWindow)
 	userRateLimit, userRateWindow = getEnvRateLimitOrDefault("USER_RATE_LIMIT", defaultUserRateLimit, defaultUserRateWindow)
+	metricsRateLimit, metricsRateWindow = getEnvRateLimitOrDefault("METRICS_RATE_LIMIT", defaultMetricsRateLimit, defaultMetricsRateWindow)
 
 	// Chunked upload configuration
 	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)
@@ -300,6 +305,7 @@ var burnLimiter *ratelimit.Limiter
 var scriptLimiter *ratelimit.Limiter
 var chunkLimiter *ratelimit.Limiter
 var downloadLimiter *ratelimit.Limiter
+var metricsLimiter *ratelimit.Limiter
 var userLimiter *ratelimit.UserLimiter
 
 // initRateLimiters creates rate limiters based on configuration
@@ -313,6 +319,7 @@ func initRateLimiters() {
 	scriptLimiter = ratelimit.New(scriptRateLimit, scriptRateWindow)
 	chunkLimiter = ratelimit.New(chunkRateLimit, chunkRateWindow)
 	downloadLimiter = ratelimit.New(downloadRateLimit, downloadRateWindow)
+	metricsLimiter = ratelimit.New(metricsRateLimit, metricsRateWindow)
 	userLimiter = ratelimit.NewUserLimiter(userRateLimit, userRateWindow)
 }
 
@@ -1044,7 +1051,8 @@ func main() {
 
 	// Prometheus metrics endpoint
 	// Protected by API key (via METRICS_API_KEY env var) or admin authentication
-	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+	// Rate limited to prevent reconnaissance attacks
+	mux.HandleFunc("GET /metrics", metricsLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		// Check API key first
 		apiKey := r.Header.Get("X-Metrics-API-Key")
 		if apiKey == "" {
@@ -1081,7 +1089,7 @@ func main() {
 		// For now, any authenticated user can view metrics
 		// TODO: Add admin role check when role system is implemented
 		metrics.Handler().ServeHTTP(w, r)
-	})
+	}))
 
 	// Frontend log forwarding endpoint (for dev mode debugging)
 	mux.HandleFunc("POST /api/log", func(w http.ResponseWriter, r *http.Request) {

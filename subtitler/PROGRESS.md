@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**154 tasks completed.** 4 tasks pending from deep inspection.
+**155 tasks completed.** 3 tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 154: Rate limit /metrics endpoint
+  - Added metricsLimiter (10 req/min) to prevent reconnaissance attacks
+  - Applied rate limit wrapper to GET /metrics endpoint
+  - Updated docs/RATE_LIMITS.md and docs/ENV.md with METRICS_RATE_LIMIT
+  - Added test TestRateLimitingMetrics
 - ✅ Task 157: Make transcript paste and full text sections collapsible
   - Addressed user feedback about elements cluttering the UI
   - Added collapsible accordion UI with localStorage persistence
@@ -155,12 +160,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
   - **Root cause:** `scrollIntoView()` scrolls ALL ancestor containers including the page
   - **Fix:** Replaced with container-only scrolling in upload.astro
   - **Prevention:** Added E2E regression tests, LEARNINGS.md entry, and `specs/video-scroll-fix.md`
-- ✅ Task 148-150: Evaluation framework, ETA for transcription, Magic link docs
 
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
 - Task 152: Add security event audit logging
-- Task 154: Rate limit /metrics endpoint
 - Task 155: Create production security hardening checklist (docs)
 
 ### Previously Completed (Tasks 134-142)

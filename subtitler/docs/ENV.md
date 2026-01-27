@@ -11,7 +11,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
-| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `USER_RATE_LIMIT` |
+| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
 
@@ -339,6 +339,16 @@ Rate limit for file downloads (video, thumbnail, burned video). Prevents bandwid
 | Example | `SCRIPT_RATE_LIMIT=20/min` |
 
 Rate limit for script detection and conversion endpoints.
+
+### METRICS_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `10/min` |
+| Required | No |
+| Example | `METRICS_RATE_LIMIT=30/min` |
+
+Rate limit for the `/metrics` endpoint (Prometheus format). Prevents reconnaissance attacks from unauthenticated sources probing the metrics endpoint.
 
 ### USER_RATE_LIMIT
 

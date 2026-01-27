@@ -19,6 +19,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | **Burn** | 2 requests | 1 minute | Burn subtitles into video |
 | **Download** | 30 requests | 1 minute | Video, thumbnail, burned video downloads |
 | **Script Conversion** | 10 requests | 1 minute | Script detection, Text conversion |
+| **Metrics** | 10 requests | 1 minute | Prometheus metrics endpoint |
 
 ## Endpoints by Category
 
@@ -80,6 +81,14 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 |----------|-------------|
 | `POST /api/text/detect-script` | Detect writing system of text |
 | `POST /api/text/convert` | Convert text between scripts |
+
+### Metrics (10 req/min)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /metrics` | Prometheus metrics endpoint |
+
+**Note**: This endpoint is rate limited to prevent reconnaissance attacks. Requires authentication via API key (`X-Metrics-API-Key` header or `api_key` query param) or valid user session.
 
 ## Error Response
 
@@ -185,6 +194,7 @@ var uploadLimiter = ratelimit.New(10, time.Minute)          // Upload: 10/min
 var transcribeLimiter = ratelimit.New(5, time.Minute)       // Transcribe: 5/min
 var burnLimiter = ratelimit.New(2, time.Minute)             // Burn: 2/min
 var scriptLimiter = ratelimit.New(10, time.Minute)          // Script: 10/min
+var metricsLimiter = ratelimit.New(10, time.Minute)         // Metrics: 10/min
 ```
 
 These values can be adjusted based on server capacity and usage patterns.

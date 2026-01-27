@@ -5348,6 +5348,40 @@ func TestRateLimitingDetectScript(t *testing.T) {
 	}
 }
 
+// TestRateLimitingMetrics tests that /metrics endpoint is rate limited
+func TestRateLimitingMetrics(t *testing.T) {
+	strictLimiter := ratelimit.New(10, time.Minute)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /metrics", strictLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("# metrics\n"))
+	}))
+
+	// First 10 requests should succeed
+	for i := 0; i < 10; i++ {
+		req := httptest.NewRequest("GET", "/metrics", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Request %d: expected 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 11th request should be rate limited
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429 Too Many Requests, got %d", w.Code)
+	}
+}
+
 // ========== Reprocess Tests ==========
 
 func TestReprocessVideoSuccess(t *testing.T) {
