@@ -1553,8 +1553,8 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
-		security.LoginSuccess(r.Context(), clientIP, user.ID, user.Email)
-		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID)
+		security.LoginSuccess(r.Context(), clientIP, user.ID, user.Email, userAgent)
+		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID, userAgent)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"user": map[string]interface{}{
 				"id":           user.ID,
@@ -1778,6 +1778,7 @@ func main() {
 	// 2FA: Start TOTP setup - generates a new secret (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/setup", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		clientIP := ratelimit.GetClientIP(r)
 
 		// Require authentication
 		token := auth.GetTokenFromRequest(r)
@@ -1835,7 +1836,7 @@ func main() {
 			return
 		}
 
-		logging.InfoContext(r.Context(), "TOTP setup initiated", "email", user.Email)
+		security.TwoFASetupInitiated(r.Context(), clientIP, user.ID, user.Email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"secret":         secret,
 			"secret_display": totp.FormatSecretForDisplay(secret),
@@ -2193,7 +2194,7 @@ func main() {
 
 		security.RecoveryCodeUsed(r.Context(), clientIP, user.ID, user.Email)
 		security.TwoFADisabled(r.Context(), clientIP, user.ID, user.Email, true)
-		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID)
+		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID, userAgent)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"message":      "2FA has been disabled. Please set up 2FA again if you want to re-enable it.",
 			"token":        session.Token,

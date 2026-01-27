@@ -138,13 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**187 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**188 tasks completed.** Second deep inspection created 9 new tasks (179-187). All 9 tasks now complete.
 
-### Pending Tasks (187)
-Deep inspection found these issues:
-- Task 187: Audit logging for auth events (SECURITY)
+### Pending Tasks
+None - second deep inspection tasks complete.
 
 ### Recently Completed
+- ✅ Task 187: Add comprehensive audit logging for auth events (SECURITY)
+  - Added User-Agent parameter to `LoginSuccess()` and `SessionCreated()` security events
+  - Added `TwoFASetupInitiated` security event call in TOTP setup endpoint
+  - Security events now log IP, User-Agent, timestamp, and outcome
+  - Updated tests for new function signatures
+
 - ✅ Task 185: Return partial conversion errors in script conversion
   - Script conversion now tracks failed segment indices
   - Response includes `conversion_failed_indices` array when conversion fails for some segments

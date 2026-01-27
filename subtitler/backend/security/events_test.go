@@ -23,7 +23,7 @@ func TestLoginSuccess(t *testing.T) {
 	buf := setupTestLogger()
 	ctx := context.Background()
 
-	LoginSuccess(ctx, "192.168.1.1", "user123", "test@example.com")
+	LoginSuccess(ctx, "192.168.1.1", "user123", "test@example.com", "Mozilla/5.0 Test")
 
 	output := buf.String()
 	if !contains(output, EventLoginSuccess) {
@@ -37,6 +37,9 @@ func TestLoginSuccess(t *testing.T) {
 	}
 	if !contains(output, "test@example.com") {
 		t.Errorf("expected email in output: %s", output)
+	}
+	if !contains(output, "Mozilla/5.0 Test") {
+		t.Errorf("expected user_agent in output: %s", output)
 	}
 }
 
@@ -218,7 +221,7 @@ func TestSessionEvents(t *testing.T) {
 	buf := setupTestLogger()
 	ctx := context.Background()
 
-	SessionCreated(ctx, "1.1.1.1", "userA", "sess123")
+	SessionCreated(ctx, "1.1.1.1", "userA", "sess123", "Mozilla/5.0 Session Test")
 	SessionRevoked(ctx, "1.1.1.1", "userA", "sess123", true)
 
 	output := buf.String()
@@ -230,6 +233,9 @@ func TestSessionEvents(t *testing.T) {
 	}
 	if !contains(output, "self_revoke=true") {
 		t.Errorf("expected self_revoke in output: %s", output)
+	}
+	if !contains(output, "Mozilla/5.0 Session Test") {
+		t.Errorf("expected user_agent in output: %s", output)
 	}
 }
 

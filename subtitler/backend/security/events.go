@@ -91,8 +91,8 @@ func LogSecurityWarning(ctx context.Context, event string, ip string, extra ...a
 // --- Convenience functions for common events ---
 
 // LoginSuccess logs a successful login event.
-func LoginSuccess(ctx context.Context, ip, userID, email string) {
-	LogSecurityEvent(ctx, EventLoginSuccess, ip, "user_id", userID, "email", email)
+func LoginSuccess(ctx context.Context, ip, userID, email, userAgent string) {
+	LogSecurityEvent(ctx, EventLoginSuccess, ip, "user_id", userID, "email", email, "user_agent", userAgent)
 }
 
 // LoginFailedPassword logs a failed login due to wrong password.
@@ -215,8 +215,8 @@ func AccountLocked(ctx context.Context, ip, email string, failedAttempts int) {
 }
 
 // SessionCreated logs when a new session is created.
-func SessionCreated(ctx context.Context, ip, userID, sessionID string) {
-	LogSecurityEvent(ctx, EventSessionCreated, ip, "user_id", userID, "session_id", sessionID)
+func SessionCreated(ctx context.Context, ip, userID, sessionID, userAgent string) {
+	LogSecurityEvent(ctx, EventSessionCreated, ip, "user_id", userID, "session_id", sessionID, "user_agent", userAgent)
 }
 
 // SessionRevoked logs when a session is explicitly revoked.
