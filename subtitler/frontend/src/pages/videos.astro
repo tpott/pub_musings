@@ -904,6 +904,7 @@ import '../styles/theme.css';
 						const videoId = button.dataset.videoId;
 						const filename = button.dataset.filename;
 						if (videoId) {
+							modalTriggerElement = button;
 							openVideoModal(videoId, filename || 'Video');
 						}
 					});
@@ -918,6 +919,7 @@ import '../styles/theme.css';
 						const videoId = el.dataset.videoId;
 						const filename = el.dataset.filename;
 						if (videoId) {
+							modalTriggerElement = el;
 							openVideoModal(videoId, filename || 'Video');
 						}
 					};
@@ -956,6 +958,7 @@ import '../styles/theme.css';
 			let currentModalVideoId: string | null = null;
 			let modalSubtitleSegments: TranscriptionSegment[] = [];
 			let modalSubtitleSyncActive = false;
+			let modalTriggerElement: HTMLElement | null = null;
 
 			function formatTime(seconds: number): string {
 				const hrs = Math.floor(seconds / 3600);
@@ -984,6 +987,9 @@ import '../styles/theme.css';
 				// Show modal
 				videoModal.classList.add('visible');
 				document.body.style.overflow = 'hidden';
+
+				// Move focus to close button for keyboard navigation
+				modalClose.focus();
 
 				// Set download links
 				modalDownloadSrt.href = `/api/videos/${videoId}/subtitles.srt`;
@@ -1113,6 +1119,12 @@ import '../styles/theme.css';
 
 				currentModalVideoId = null;
 				modalSubtitleSegments = [];
+
+				// Restore focus to the trigger element
+				if (modalTriggerElement) {
+					modalTriggerElement.focus();
+					modalTriggerElement = null;
+				}
 			}
 
 			// Modal close handlers
@@ -1125,10 +1137,48 @@ import '../styles/theme.css';
 				}
 			});
 
-			// Close on Escape key
+			// Close on Escape key and trap focus inside modal
 			document.addEventListener('keydown', (e) => {
-				if (e.key === 'Escape' && videoModal.classList.contains('visible')) {
+				if (!videoModal.classList.contains('visible')) {
+					return;
+				}
+
+				if (e.key === 'Escape') {
 					closeVideoModal();
+					return;
+				}
+
+				// Trap focus inside modal when Tab is pressed
+				if (e.key === 'Tab') {
+					const focusableElements = videoModal.querySelectorAll<HTMLElement>(
+						'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+					);
+					const focusableArray = Array.from(focusableElements).filter(
+						el => el.offsetParent !== null // Only visible elements
+					);
+
+					if (focusableArray.length === 0) {
+						e.preventDefault();
+						return;
+					}
+
+					const firstFocusable = focusableArray[0];
+					const lastFocusable = focusableArray[focusableArray.length - 1];
+					const activeElement = document.activeElement as HTMLElement;
+
+					if (e.shiftKey) {
+						// Shift+Tab: if at first element, wrap to last
+						if (activeElement === firstFocusable || !focusableArray.includes(activeElement)) {
+							e.preventDefault();
+							lastFocusable.focus();
+						}
+					} else {
+						// Tab: if at last element, wrap to first
+						if (activeElement === lastFocusable || !focusableArray.includes(activeElement)) {
+							e.preventDefault();
+							firstFocusable.focus();
+						}
+					}
 				}
 			});
 

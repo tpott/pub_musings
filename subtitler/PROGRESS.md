@@ -138,9 +138,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**139 tasks completed!**
+**140 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 137: Add focus management to video modal - When video modal opens, focus moves to close button. Tab/Shift+Tab keys are trapped inside the modal (cycles between focusable elements). Focus is restored to the trigger element (View button or thumbnail) when the modal closes. Improves keyboard accessibility.
 - ✅ Task 136: Consolidate duplicate escapeHtml functions - Removed duplicate escapeHtml implementations from upload.astro, videos.astro, and security.astro. Each file now imports from utils/html.ts instead. The format.ts version remains separate as it has different behavior (handles null/undefined, escapes quotes) for test compatibility.
 - ✅ Task 135: Persist CSRF secret across restarts - Modified csrf package to persist generated secrets to `data/csrf.key` file. Priority order: 1) CSRF_SECRET env var, 2) existing file, 3) generate new and save. Added CSRF_SECRET_PATH env var for custom file location. File created with 0600 permissions. Tests verify persistence, env var priority, and directory creation. Documented in ENV.md.
 - ✅ Task 134: Apply pathvalidator to file-serving endpoints - Integrated the pathvalidator package into video download, thumbnail, and burned video endpoints. Each endpoint now validates file paths from the database stay within the uploads directory before serving. Returns 403 Forbidden if path validation fails (e.g., if database is compromised and contains path traversal). Added comprehensive test `TestVideoDownloadPathValidation` with subtests for valid paths, video path traversal, and thumbnail path traversal.
@@ -153,7 +154,7 @@ Created 9 new tasks from code review:
 - Task 134 (done): Apply pathvalidator to file-serving endpoints
 - Task 135 (done): Persist CSRF secret across restarts
 - Task 136 (done): Consolidate duplicate escapeHtml functions
-- Task 137: Add focus management to video modal
+- Task 137 (done): Add focus management to video modal
 - Task 138: Add upload timeout mechanism
 - Task 139: Add aria-labels to download buttons
 - Task 140: Add file access audit logging
