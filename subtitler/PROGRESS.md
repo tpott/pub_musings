@@ -138,14 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**186 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**187 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
-### Pending Tasks (185, 187)
+### Pending Tasks (187)
 Deep inspection found these issues:
-- Task 185: Script conversion error reporting
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 185: Return partial conversion errors in script conversion
+  - Script conversion now tracks failed segment indices
+  - Response includes `conversion_failed_indices` array when conversion fails for some segments
+  - Added warning logs for failed conversions
+  - Frontend can display which segments need manual review
+
 - ✅ Task 183: Add per-email rate limiting for magic link requests (SECURITY)
   - Added `CountRecentMagicLinkRequests()` to count recent magic link requests per user
   - Magic link endpoint now checks for max 3 requests per 15 minutes per email

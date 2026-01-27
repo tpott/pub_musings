@@ -4214,16 +4214,25 @@ func main() {
 		}
 
 		// Apply script conversion if requested
+		var failedConversionIndices []int
 		if req.ConvertToScript != "" {
 			converter := script.NewConverter()
 			for i := range newSegments {
 				converted, err := converter.Convert(newSegments[i].Text, req.Language, targetScript)
 				if err == nil {
 					newSegments[i].Text = converted
+				} else {
+					// Track which segments failed conversion
+					failedConversionIndices = append(failedConversionIndices, i)
+					logging.WarnContext(r.Context(), "Script conversion failed for segment", "segment_index", i, "error", err)
 				}
 			}
 			scriptConverted = true
-			logging.InfoContext(r.Context(), "Applied script conversion", "target_script", targetScript, "upload_id", uploadID)
+			if len(failedConversionIndices) > 0 {
+				logging.WarnContext(r.Context(), "Script conversion had failures", "target_script", targetScript, "upload_id", uploadID, "failed_count", len(failedConversionIndices))
+			} else {
+				logging.InfoContext(r.Context(), "Applied script conversion", "target_script", targetScript, "upload_id", uploadID)
+			}
 		}
 
 		// Update segments in database
@@ -4251,6 +4260,10 @@ func main() {
 		if scriptConverted {
 			response["script_converted"] = true
 			response["target_script"] = string(targetScript)
+			// Include failed segment indices so frontend can display which need manual review
+			if len(failedConversionIndices) > 0 {
+				response["conversion_failed_indices"] = failedConversionIndices
+			}
 		}
 		json.NewEncoder(w).Encode(response)
 	})
