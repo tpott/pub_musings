@@ -83,12 +83,33 @@ in production.
 
 The backend should be written in Go. The backend should either use a remote whisper-server
 or it should run whisper-server itself. Tests should use a smaller, faster model.
-Production should use a larger, more accurate model. Cost vs speed tradeoff is still TBD.
-Default to using the fastest whisper model you can. Allow for overriding the whisper model
-via an env var. Allow for overriding the whisper server so we can run whisper server on
-a baremetal Mac Mini. See [deployment.md](deployment.md) for whisper-server passthrough.
-If running the whisper server process, then pipe all whisper-server logs to the backend logs
-so its easier for debugging. Make sure to document all useful env vars in `backend/README.md`
+
+### Whisper Model Selection
+
+**Recommended: large-v3-turbo** for production use.
+
+| Model | WER | Real-Time Factor | Processing Time (1hr audio) |
+|-------|-----|------------------|----------------------------|
+| large-v3 | ~7.9% | 0.3-0.5 | 18-30 minutes |
+| **large-v3-turbo** | **~7.8%** | **0.05-0.1** | **3-6 minutes** |
+| medium | ~10-12% | 0.02-0.05 | 1-3 minutes |
+
+**Rationale:**
+- large-v3-turbo is 6x faster than large-v3 AND achieves slightly better accuracy (~7.8% vs ~7.9% WER)
+- The "turbo" variant is a distilled version that removes redundant layers while preserving quality
+- For user experience, 3-6 minute wait for a 1-hour video is acceptable; 30 minutes is not
+- Medium model is 30% worse accuracy, not acceptable for production
+
+**Configuration:**
+- `WHISPER_MODEL` env var controls which model whisper-server uses
+- Default: `large-v3-turbo`
+- For tests: use `tiny` or `base` for speed (not accuracy)
+
+Allow for overriding the whisper model via env var. Allow for overriding the whisper server
+so we can run whisper-server on a baremetal Mac Mini. See [deployment.md](deployment.md)
+for whisper-server passthrough. If running the whisper server process, then pipe all
+whisper-server logs to the backend logs so its easier for debugging. Make sure to document
+all useful env vars in `backend/README.md`
 
 Whisper cpp's source code is available in https://github.com/ggml-org/whisper.cpp . I
 probably checked it out locally at ~/Github/whisper.cpp/. You may want to pull the latest
@@ -218,7 +239,7 @@ Word Error Rate (WER) comparison (lower is better):
 
 ### Areas to Improve
 
-1. Speed: Whisper Large is slow (~10-30min/hour). Consider Turbo or Distil.
+1. ~~Speed: Whisper Large is slow (~10-30min/hour). Consider Turbo or Distil.~~ **Resolved:** Using large-v3-turbo (6x faster, same accuracy)
 2. Accuracy: Consider supporting newer models (Canary, Granite) as alternatives.
 3. Multi-speaker diarization: Not currently supported.
 
