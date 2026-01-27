@@ -615,3 +615,34 @@ if auth.IsHTTPSOnly() {
 2. HSTS + localhost = browser will refuse HTTP connections, breaking development
 3. Permissions-Policy is defense-in-depth - even if XSS succeeds, malicious scripts can't access disabled features
 4. Test environment variable conditions to ensure headers appear/disappear correctly
+
+---
+
+### 2026-01-26: Defense-in-depth: validate file paths from database before serving
+
+**Problem:** File paths stored in the database are used directly by file-serving endpoints (`http.ServeFile`). If the database is compromised or an attacker finds a way to inject malicious paths (e.g., `/etc/passwd`), the server could serve arbitrary files.
+
+**Solution:** Applied the `pathvalidator` package to all file-serving endpoints (video download, thumbnail, burned video). Each endpoint now validates that the file path from the database is within the allowed upload directory BEFORE calling `http.ServeFile()`.
+
+```go
+// Before serving, validate path is within allowed directories
+if err := pathValidator.ValidateAbsolutePath(video.FilePath); err != nil {
+    logging.ErrorContext(r.Context(), "Path validation failed", "error", err, "path", video.FilePath)
+    w.WriteHeader(http.StatusForbidden)
+    json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+    return
+}
+http.ServeFile(w, r, videoPath)
+```
+
+**Implementation details:**
+1. Created global `pathValidator` initialized with `uploadDir` at server startup
+2. Added validation to three endpoints: `/api/videos/{id}/video`, `/api/videos/{id}/thumbnail`, `/api/videos/{id}/burned`
+3. Returns 403 Forbidden with generic "Access denied" message (doesn't leak path details)
+4. Logs the actual path and error for debugging
+
+**Lesson:**
+1. Having a security utility package is only half the battle - it must actually be USED at all vulnerable points
+2. Defense-in-depth means assuming any layer could be compromised - validate even "trusted" database data
+3. Error messages should not leak security-sensitive information like paths - log for operators, return generic message to users
+4. Test path traversal attempts explicitly - don't assume they can't happen

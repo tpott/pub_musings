@@ -29,6 +29,7 @@ import (
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/errmsg"
 	"github.com/trevor/subtitler/backend/logging"
+	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
@@ -309,6 +310,9 @@ var captchaVerifier captcha.Verifier
 
 // Global audio extractor for video processing
 var audioExtractor audio.Extractor
+
+// Global path validator for file serving security
+var pathValidator *pathvalidator.Validator
 
 // generateRequestID creates a unique request ID for tracing
 func generateRequestID() string {
@@ -856,8 +860,16 @@ func main() {
 		logging.Fatal("Failed to create upload directory", "error", err)
 	}
 
-	// Initialize database
+	// Initialize path validator for secure file serving
+	// Validates that file paths stay within the upload directory
 	var err error
+	pathValidator, err = pathvalidator.New(uploadDir)
+	if err != nil {
+		logging.Fatal("Failed to initialize path validator", "error", err)
+	}
+	logging.Info("Path validator initialized", "allowed_dirs", uploadDir)
+
+	// Initialize database
 	database, err = db.Open(dbPath)
 	if err != nil {
 		logging.Fatal("Failed to open database", "error", err)
@@ -4614,6 +4626,18 @@ func main() {
 
 		videoPath := video.FilePath
 
+		// Validate that the file path is within the allowed upload directory
+		// This prevents path traversal attacks if the database is compromised
+		if err := pathValidator.ValidateAbsolutePath(videoPath); err != nil {
+			logging.ErrorContext(r.Context(), "Path validation failed for video download", "error", err, "path", videoPath)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Access denied",
+			})
+			return
+		}
+
 		// If file is encrypted, decrypt to temp file for serving
 		// (http.ServeFile needs seekable file for range requests)
 		if strings.HasSuffix(videoPath, ".age") {
@@ -4685,6 +4709,18 @@ func main() {
 		}
 
 		thumbPath := *video.ThumbnailPath
+
+		// Validate that the thumbnail path is within the allowed upload directory
+		// This prevents path traversal attacks if the database is compromised
+		if err := pathValidator.ValidateAbsolutePath(thumbPath); err != nil {
+			logging.ErrorContext(r.Context(), "Path validation failed for thumbnail download", "error", err, "path", thumbPath)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Access denied",
+			})
+			return
+		}
 
 		// Check if file exists on disk
 		if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
@@ -5131,6 +5167,18 @@ func main() {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Burned video file not found",
+			})
+			return
+		}
+
+		// Validate that the burned output path is within the allowed upload directory
+		// This prevents path traversal attacks if the database is compromised
+		if err := pathValidator.ValidateAbsolutePath(job.OutputPath); err != nil {
+			logging.ErrorContext(r.Context(), "Path validation failed for burned video download", "error", err, "path", job.OutputPath)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Access denied",
 			})
 			return
 		}

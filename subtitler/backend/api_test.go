@@ -22,6 +22,7 @@ import (
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
+	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
@@ -48,6 +49,7 @@ type testServer struct {
 	passwordResetLimiter *ratelimit.Limiter
 	downloadLimiter      *ratelimit.Limiter
 	emailService         *email.MockService
+	pathValidator        *pathvalidator.Validator
 	cleanup              func()
 }
 
@@ -85,6 +87,14 @@ func setupTestServer(t *testing.T) *testServer {
 		t.Fatalf("Failed to create upload dir: %v", err)
 	}
 
+	// Create path validator for secure file serving
+	pv, err := pathvalidator.New(uploadDir)
+	if err != nil {
+		testDB.Close()
+		os.RemoveAll(tempDir)
+		t.Fatalf("Failed to create path validator: %v", err)
+	}
+
 	ts := &testServer{
 		mux:                  http.NewServeMux(),
 		db:                   testDB,
@@ -94,6 +104,7 @@ func setupTestServer(t *testing.T) *testServer {
 		passwordResetLimiter: ratelimit.New(3, 15*time.Minute),
 		downloadLimiter:      ratelimit.New(30, time.Minute),
 		emailService:         email.NewMockService(),
+		pathValidator:        pv,
 		cleanup: func() {
 			testDB.Close()
 			os.RemoveAll(tempDir)
@@ -1173,6 +1184,14 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Validate that the file path is within the allowed upload directory
+		if err := ts.pathValidator.ValidateAbsolutePath(video.FilePath); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+			return
+		}
+
 		// http.ServeFile handles Range headers automatically for seekable files
 		http.ServeFile(w, r, video.FilePath)
 	}))
@@ -1210,6 +1229,14 @@ func (ts *testServer) registerHandlers() {
 		}
 
 		thumbPath := *video.ThumbnailPath
+
+		// Validate that the thumbnail path is within the allowed upload directory
+		if err := ts.pathValidator.ValidateAbsolutePath(thumbPath); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+			return
+		}
 
 		// Check if file exists on disk
 		if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
@@ -6575,4 +6602,112 @@ func TestDownloadRateLimiting(t *testing.T) {
 		t.Error("Expected Retry-After header in rate limited response")
 	}
 	lastResp.Body.Close()
+}
+
+func TestVideoDownloadPathValidation(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user and get token
+	userID, token := ts.createTestUserWithID(t, "path-validation@example.com", "Password123!")
+
+	// Test 1: Valid path within uploads directory - create actual file first
+	t.Run("valid path download succeeds", func(t *testing.T) {
+		// Create an actual test video file
+		testFilePath := filepath.Join(ts.uploadDir, "valid_test_video.mp4")
+		testContent := []byte("fake video content for testing")
+		if err := os.WriteFile(testFilePath, testContent, 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// Create a video record pointing to the valid file
+		video := &db.Video{
+			ID:          testGenerateID(),
+			Filename:    "valid_test_video.mp4",
+			FilePath:    testFilePath,
+			Size:        int64(len(testContent)),
+			ContentType: "video/mp4",
+			UserID:      &userID,
+			CreatedAt:   time.Now(),
+		}
+		if err := ts.db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create test video: %v", err)
+		}
+
+		req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/video", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected 200 for valid video path, got %d: %s", rr.Code, rr.Body.String())
+		}
+	})
+
+	// Test 2: Manually craft a video with a path traversal attempt
+	// This simulates a database compromise where an attacker modified the file path
+	t.Run("path traversal blocked", func(t *testing.T) {
+		// Create a video with a malicious path pointing outside uploads directory
+		maliciousVideo := &db.Video{
+			ID:          testGenerateID(),
+			Filename:    "../../etc/passwd",
+			FilePath:    "/etc/passwd", // Absolute path outside uploads
+			Size:        100,
+			ContentType: "video/mp4",
+			UserID:      &userID,
+			CreatedAt:   time.Now(),
+		}
+		if err := ts.db.CreateVideo(maliciousVideo); err != nil {
+			t.Fatalf("Failed to create malicious test video: %v", err)
+		}
+
+		req, _ := http.NewRequest("GET", "/api/videos/"+maliciousVideo.ID+"/video", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		// Should get 403 Forbidden due to path validation
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("Expected 403 for path traversal attempt, got %d: %s", rr.Code, rr.Body.String())
+		}
+
+		// Verify error message
+		var response map[string]string
+		json.Unmarshal(rr.Body.Bytes(), &response)
+		if response["error"] != "Access denied" {
+			t.Errorf("Expected 'Access denied' error, got: %s", response["error"])
+		}
+	})
+
+	// Test 3: Path traversal in thumbnail blocked
+	t.Run("thumbnail path traversal blocked", func(t *testing.T) {
+		// Create a video with a malicious thumbnail path
+		maliciousPath := "/etc/shadow"
+		maliciousVideo := &db.Video{
+			ID:            testGenerateID(),
+			Filename:      "test.mp4",
+			FilePath:      filepath.Join(ts.uploadDir, "test_video.mp4"), // Valid video path
+			ThumbnailPath: &maliciousPath,                                // Malicious thumbnail path
+			Size:          100,
+			ContentType:   "video/mp4",
+			UserID:        &userID,
+			CreatedAt:     time.Now(),
+		}
+		if err := ts.db.CreateVideo(maliciousVideo); err != nil {
+			t.Fatalf("Failed to create malicious test video: %v", err)
+		}
+
+		req, _ := http.NewRequest("GET", "/api/videos/"+maliciousVideo.ID+"/thumbnail", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		rr := httptest.NewRecorder()
+		ts.mux.ServeHTTP(rr, req)
+
+		// Should get 403 Forbidden due to path validation
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("Expected 403 for thumbnail path traversal attempt, got %d: %s", rr.Code, rr.Body.String())
+		}
+	})
 }
