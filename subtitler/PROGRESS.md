@@ -138,9 +138,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**141 tasks completed!**
+**142 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 141: Max limit validation for pagination - Already implemented! GET /api/videos caps limit at 100 when client requests more. Verified with existing test at api_test.go:3085.
 - ✅ Task 139: Add aria-labels to download buttons - Added descriptive aria-labels to all SRT/VTT/JSON download buttons in videos.astro and upload.astro. Labels like "Download subtitles in VTT format" help screen reader users understand what each button does.
 - ✅ Task 137: Add focus management to video modal - When video modal opens, focus moves to close button. Tab/Shift+Tab keys are trapped inside the modal (cycles between focusable elements). Focus is restored to the trigger element (View button or thumbnail) when the modal closes. Improves keyboard accessibility.
 - ✅ Task 136: Consolidate duplicate escapeHtml functions - Removed duplicate escapeHtml implementations from upload.astro, videos.astro, and security.astro. Each file now imports from utils/html.ts instead. The format.ts version remains separate as it has different behavior (handles null/undefined, escapes quotes) for test compatibility.
@@ -159,7 +160,7 @@ Created 9 new tasks from code review:
 - Task 138: Add upload timeout mechanism
 - Task 139 (done): Add aria-labels to download buttons
 - Task 140: Add file access audit logging
-- Task 141: Add max limit validation for pagination
+- Task 141 (done): Max limit validation for pagination (already implemented)
 - Task 142: Add database indices for frequent queries
 
 See `TASKS.jsonl` for details.
