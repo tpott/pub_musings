@@ -19,7 +19,9 @@ import (
 	"time"
 
 	"github.com/trevor/subtitler/backend/auth"
+	"github.com/trevor/subtitler/backend/captcha"
 	"github.com/trevor/subtitler/backend/crypto"
+	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/metrics"
@@ -54,6 +56,7 @@ type testServer struct {
 	metricsAPIKey        string
 	emailService         *email.MockService
 	pathValidator        *pathvalidator.Validator
+	captchaVerifier      *captcha.MockVerifier
 	cleanup              func()
 }
 
@@ -111,6 +114,7 @@ func setupTestServer(t *testing.T) *testServer {
 		metricsAPIKey:        os.Getenv("METRICS_API_KEY"),
 		emailService:         email.NewMockService(),
 		pathValidator:        pv,
+		captchaVerifier:      captcha.NewMockVerifier(false), // CAPTCHA disabled by default in tests
 		cleanup: func() {
 			testDB.Close()
 			os.RemoveAll(tempDir)
@@ -2379,6 +2383,54 @@ func (ts *testServer) registerHandlers() {
 
 		metrics.Handler().ServeHTTP(w, r)
 	}))
+
+	// CAPTCHA config endpoint (returns site key if CAPTCHA is enabled)
+	ts.mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"enabled":  ts.captchaVerifier.IsEnabled(),
+			"site_key": "", // No site key in tests
+		})
+	})
+
+	// Auth: Get CSRF token for current session
+	ts.mux.HandleFunc("GET /api/auth/csrf", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		sessionToken := auth.GetTokenFromRequest(r)
+		if sessionToken == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Not authenticated",
+			})
+			return
+		}
+
+		// Validate the session exists
+		user, _, err := auth.ValidateSession(ts.db, sessionToken)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to validate session",
+			})
+			return
+		}
+
+		if user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Not authenticated",
+			})
+			return
+		}
+
+		// Generate CSRF token from session token
+		csrfToken := csrf.GenerateToken(sessionToken)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"csrf_token": csrfToken,
+		})
+	})
 }
 
 // request helpers
@@ -7662,5 +7714,146 @@ func TestResendVerificationEmailInvalidBody(t *testing.T) {
 
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+// Tests for CSRF token endpoint
+
+// TestCSRFTokenAuthenticated tests getting CSRF token with valid authentication
+func TestCSRFTokenAuthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create and login user
+	token := ts.createTestUser(t, "csrf@example.com", "ValidPassword123!")
+
+	// Get CSRF token
+	resp := ts.doRequest("GET", "/api/auth/csrf", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result["csrf_token"] == "" {
+		t.Error("Expected non-empty csrf_token")
+	}
+
+	// Verify CSRF token format (should be hex-encoded HMAC)
+	if len(result["csrf_token"]) != 64 { // SHA256 produces 32 bytes = 64 hex chars
+		t.Errorf("Expected 64-char csrf_token, got %d chars", len(result["csrf_token"]))
+	}
+}
+
+// TestCSRFTokenUnauthenticated tests getting CSRF token without authentication
+func TestCSRFTokenUnauthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to get CSRF token without auth
+	resp := ts.doRequest("GET", "/api/auth/csrf", nil, "")
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.Code)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Not authenticated" {
+		t.Errorf("Expected 'Not authenticated' error, got: %s", result["error"])
+	}
+}
+
+// TestCSRFTokenInvalidSession tests getting CSRF token with invalid session
+func TestCSRFTokenInvalidSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to get CSRF token with invalid token
+	resp := ts.doRequest("GET", "/api/auth/csrf", nil, "invalid-session-token")
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.Code)
+	}
+}
+
+// TestCSRFTokenExpiredSession tests getting CSRF token with expired session
+func TestCSRFTokenExpiredSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create user and login
+	token := ts.createTestUser(t, "csrfexpired@example.com", "ValidPassword123!")
+
+	// Logout to invalidate session
+	resp := ts.doRequest("POST", "/api/auth/logout", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Logout failed: %s", resp.Body.String())
+	}
+
+	// Try to get CSRF token with expired/invalid session
+	resp = ts.doRequest("GET", "/api/auth/csrf", nil, token)
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401, got %d", resp.Code)
+	}
+}
+
+// Tests for CAPTCHA config endpoint
+
+// TestCaptchaConfigDisabled tests CAPTCHA config when CAPTCHA is disabled
+func TestCaptchaConfigDisabled(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// By default, captchaVerifier is disabled in tests
+	resp := ts.doRequest("GET", "/api/captcha/config", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result["enabled"] != false {
+		t.Errorf("Expected enabled=false, got %v", result["enabled"])
+	}
+}
+
+// TestCaptchaConfigEnabled tests CAPTCHA config when CAPTCHA is enabled
+func TestCaptchaConfigEnabled(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Enable CAPTCHA verifier for this test
+	ts.captchaVerifier.MockEnabled = true
+
+	resp := ts.doRequest("GET", "/api/captcha/config", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result["enabled"] != true {
+		t.Errorf("Expected enabled=true, got %v", result["enabled"])
+	}
+}
+
+// TestCaptchaConfigNoAuth tests CAPTCHA config endpoint requires no authentication
+func TestCaptchaConfigNoAuth(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// CAPTCHA config should be accessible without authentication
+	// (frontend needs it before user can register/login)
+	resp := ts.doRequest("GET", "/api/captcha/config", nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
 }
