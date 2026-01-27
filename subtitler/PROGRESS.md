@@ -138,17 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**132 tasks completed!**
+**133 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 128: Input length validation - Created `validation` package with comprehensive input validation functions. Validates: segment text (10KB max), email (254 chars), password (128 chars), TOTP codes (10 chars), recovery codes (32 chars), align text (100KB), language codes (10 chars), filenames (255 chars), MIME types (100 chars). Also validates burn mode and align mode parameters. Tests added and documented in API.md.
 - ✅ Task 127: Download rate limiting - Added rate limiting (30/min per IP) to GET /api/videos/{id}/video, /thumbnail, /burned endpoints. Prevents bandwidth abuse and CPU exhaustion from repeated decryption. Configurable via DOWNLOAD_RATE_LIMIT env var.
 - ✅ Task 126: Video listing pagination - GET /api/videos now accepts limit (default 50, max 100) and offset query params. Response includes total_count and has_more fields. Frontend My Videos page shows pagination controls (Previous/Next buttons with item range display). Tests verify pagination behavior.
-- ✅ Task 124: DELETE endpoint for videos - Users can now delete their own videos via DELETE /api/videos/{id}. Cascade deletion of transcriptions, burn jobs, and files (video, thumbnail, burned output). Authorization checks for user ownership or session_id match. Frontend My Videos page has Delete button with confirmation.
 - ✅ Task 132: Soft subtitles option - Added `mode=embed` parameter to burn endpoint for fast soft subtitle embedding. Uses `-c:s mov_text` which copies streams instead of re-encoding. Much faster than burn mode.
 - ✅ Task 133: Devanagari font rendering - Added `SUBTITLE_FONT` environment variable for configuring fonts in burned subtitles. Required for proper rendering of Hindi, Tamil, Telugu and other Indic scripts.
 
 ### Pending Tasks
-Tasks 128-131 for future work (see TASKS.jsonl).
+Tasks 129-131 for future work (see TASKS.jsonl).
 
 See `TASKS.jsonl` for details.
 

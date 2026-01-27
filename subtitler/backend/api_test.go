@@ -25,6 +25,7 @@ import (
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
+	"github.com/trevor/subtitler/backend/validation"
 )
 
 // testGenerateID generates a random ID for testing purposes.
@@ -1522,6 +1523,14 @@ func (ts *testServer) registerHandlers() {
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Segment start time cannot be greater than end time",
+				})
+				return
+			}
+			// Validate segment text length
+			if err := validation.ValidateSegmentText(seg.Text); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": fmt.Sprintf("Segment %d: %v", i, err),
 				})
 				return
 			}
@@ -3440,6 +3449,33 @@ func TestUpdateSegmentsNegativeTiming(t *testing.T) {
 
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400 for negative timing, got %d", resp.Code)
+	}
+}
+
+func TestUpdateSegmentsTextTooLong(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Create a text that exceeds the 10KB limit
+	longText := strings.Repeat("a", 11*1024) // 11KB
+
+	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments", map[string]interface{}{
+		"segments": []db.Segment{
+			{ID: 0, Start: 0.0, End: 2.0, Text: longText},
+		},
+	}, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for text too long, got %d", resp.Code)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if !strings.Contains(result["error"], "too long") {
+		t.Errorf("Expected error message about text too long, got: %s", result["error"])
 	}
 }
 

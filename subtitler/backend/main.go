@@ -31,6 +31,7 @@ import (
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
 	"github.com/trevor/subtitler/backend/totp"
+	"github.com/trevor/subtitler/backend/validation"
 )
 
 // Configuration defaults (can be overridden via environment variables)
@@ -1636,6 +1637,15 @@ func main() {
 			return
 		}
 
+		// Validate TOTP code length
+		if err := validation.ValidateTOTPCode(req.Code); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
 		// Validate the code
 		if !totp.Validate(*user.TOTPSecret, req.Code) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -1726,6 +1736,15 @@ func main() {
 			return
 		}
 
+		// Validate TOTP code length
+		if err := validation.ValidateTOTPCode(req.Code); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
 		// Verify password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -1790,6 +1809,24 @@ func main() {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Email, password, and recovery code are required",
+			})
+			return
+		}
+
+		// Validate email length
+		if err := validation.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Validate recovery code length
+		if err := validation.ValidateRecoveryCode(req.RecoveryCode); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
 			})
 			return
 		}
@@ -1937,6 +1974,15 @@ func main() {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid request body",
+			})
+			return
+		}
+
+		// Validate TOTP code length
+		if err := validation.ValidateTOTPCode(req.Code); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
 			})
 			return
 		}
@@ -3417,6 +3463,14 @@ func main() {
 		if language == "" {
 			language = "auto"
 		}
+		// Validate language code length
+		if err := validation.ValidateLanguageCode(language); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
+			})
+			return
+		}
 
 		// Find the video file and get key version for decryption
 		video, err := getVideoForDecryption(uploadID)
@@ -3663,6 +3717,14 @@ func main() {
 				})
 				return
 			}
+			// Validate segment text length
+			if err := validation.ValidateSegmentText(seg.Text); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": fmt.Sprintf("Segment %d: %v", i, err),
+				})
+				return
+			}
 		}
 
 		// Update segments in database
@@ -3736,10 +3798,20 @@ func main() {
 			return
 		}
 
-		if strings.TrimSpace(req.Text) == "" {
+		// Validate align text length
+		if err := validation.ValidateAlignText(req.Text); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Text is required",
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Validate align mode
+		if _, err := validation.ValidateAlignMode(req.Mode); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": err.Error(),
 			})
 			return
 		}
@@ -4656,16 +4728,14 @@ func main() {
 			return
 		}
 
-		// Parse burn mode: "burn" (hardcode into video) or "embed" (soft subtitle track)
+		// Parse and validate burn mode: "burn" (hardcode into video) or "embed" (soft subtitle track)
 		// Default is "burn" for backwards compatibility
-		burnMode := r.URL.Query().Get("mode")
-		if burnMode == "" {
-			burnMode = "burn"
-		}
-		if burnMode != "burn" && burnMode != "embed" {
+		burnModeParam := r.URL.Query().Get("mode")
+		burnMode, err := validation.ValidateBurnMode(burnModeParam)
+		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid mode - must be 'burn' or 'embed'",
+				"error": err.Error(),
 			})
 			return
 		}
@@ -4920,7 +4990,7 @@ func main() {
 
 			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion, "mode", mode)
 			database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion)
-		}(keyVersion, burnMode)
+		}(keyVersion, string(burnMode))
 
 		// Return immediately with processing status
 		json.NewEncoder(w).Encode(map[string]interface{}{

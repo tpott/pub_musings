@@ -27,6 +27,22 @@ All endpoints are rate limited per IP address. When exceeded, returns `429 Too M
 
 See [RATE_LIMITS.md](RATE_LIMITS.md) for complete documentation including retry strategies.
 
+### Input Length Limits
+
+All user input is validated for length to prevent abuse. Requests exceeding these limits return `400 Bad Request`.
+
+| Field | Max Length | Notes |
+|-------|------------|-------|
+| Email | 254 characters | RFC 5321 compliant |
+| Password | 128 characters | Bcrypt hashes first 72 |
+| Segment text | 10 KB | Per subtitle segment |
+| Align text | 100 KB | Full transcript for alignment |
+| TOTP code | 10 characters | 6-digit codes expected |
+| Recovery code | 32 characters | Format: XXXX-XXXX-XXXX |
+| Language code | 10 characters | ISO 639-1 codes (e.g., "en", "zh-CN") |
+| Filename | 255 characters | Upload filename |
+| MIME type | 100 characters | Content type |
+
 ### Request Tracing
 
 All API responses include an `X-Request-ID` header for request tracing. This ID can be used to correlate frontend errors with backend logs.
