@@ -19,3 +19,6 @@ design-analysis/
 # Playwright
 frontend/playwright-report/
 frontend/test-results/
+
+# Evaluation framework (generated audio files)
+evaluation/audio/

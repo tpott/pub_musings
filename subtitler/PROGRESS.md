@@ -138,14 +138,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**149 tasks completed.** 1 remaining from deep code inspection.
+**150 tasks completed.** All tasks from deep code inspection complete.
 
 ### Recently Completed
-- ✅ Task 149: Estimated time remaining for transcription - Created `frontend/src/utils/processing-speed.ts` utility that tracks historical processing speeds in localStorage. During transcription, shows estimated time remaining based on video duration and progress. Blends historical data with current rate for smooth estimates. Shows "Estimating..." when no historical data available. 25 new tests added.
-- ✅ Task 150: Document magic link auth in API.md - Added comprehensive documentation for POST /api/auth/magic-link and GET /api/auth/magic-link/verify endpoints.
-
-### Pending Tasks (from deep inspection 2026-01-26)
-- Task 148: Implement evaluation framework (validate accuracy claims)
+- ✅ Task 148: Implement evaluation framework - Created `evaluation/` directory with: `generate.sh` (Piper TTS audio generation), `evaluate.py` (WER calculation via jiwer), `seeds/english-basic.yaml` (11 test sentences). Calculates WER, CER, and RTF metrics. Results saved to `evaluation/results/`. Comprehensive README with setup instructions.
+- ✅ Task 149: Estimated time remaining for transcription - Created `frontend/src/utils/processing-speed.ts` utility with 25 tests.
+- ✅ Task 150: Document magic link auth in API.md - Added comprehensive API documentation.
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:
