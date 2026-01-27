@@ -382,3 +382,28 @@ func init() {
 2. Use Go's `init()` function for defensive initialization
 3. `slog.Default()` provides a reasonable default logger
 4. Tests often skip initialization that production code relies on - make packages self-initializing when possible
+
+---
+
+### 2026-01-26: XHR uploads need manual CSRF token headers
+
+**Problem:** Authenticated users got "Invalid or missing CSRF token" errors when uploading videos. The upload used XMLHttpRequest (XHR) for progress tracking, but XHR doesn't use the `csrfFetch` wrapper that automatically adds the CSRF header.
+
+**Root cause:** The CSRF middleware validates all POST requests for authenticated users. The `csrfFetch` wrapper handles this for regular fetch calls, but XHR uploads bypassed it.
+
+**Solution:** For XHR-based uploads, manually get and set the CSRF token:
+```typescript
+// Get token BEFORE entering Promise (can't await inside non-async callback)
+const csrfToken = isAuthenticated ? await getCsrfToken() : null;
+
+// Set header after xhr.open(), before xhr.send()
+if (csrfToken) {
+    xhr.setRequestHeader(CSRF_HEADER, csrfToken);
+}
+```
+
+**Lesson:**
+1. Any state-changing request using XHR instead of fetch needs manual CSRF handling
+2. Get async values (like CSRF tokens) BEFORE entering Promise callbacks
+3. The `csrfFetch` wrapper only helps with `fetch()` - XHR is on its own
+4. When adding CSRF protection, audit all POST/PUT/DELETE/PATCH endpoints for XHR usage
