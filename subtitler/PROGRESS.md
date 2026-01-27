@@ -154,8 +154,8 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - ✅ Task 130: Path validation utility - Created `pathvalidator` package to prevent path traversal attacks. Validates that file paths stay within allowed directories (uploads/, data/). Functions: `New()`, `ValidatePath()`, `SafeJoin()`, `ValidateAndResolve()`. Comprehensive tests verify protection against `../` traversal, null bytes, and symlink-based attacks.
 - ✅ Task 129: Production error messages - Created `errmsg` package with user-friendly error messages that don't leak internal details. Added `LOG_VERBOSE` env var (default false) to enable detailed errors in development. Updated endpoints to use the new error handling. Documented in ENV.md and API.md with security warnings. Tests verify that production errors don't leak paths, IPs, or SQL queries.
 
-### New Tasks Created (134-142)
-Created 9 new tasks from code review:
+### Tasks 134-142 (ALL COMPLETE)
+All 9 tasks from code review batch are complete:
 - Task 134 (done): Apply pathvalidator to file-serving endpoints
 - Task 135 (done): Persist CSRF secret across restarts
 - Task 136 (done): Consolidate duplicate escapeHtml functions
@@ -166,7 +166,7 @@ Created 9 new tasks from code review:
 - Task 141 (done): Max limit validation for pagination (already implemented)
 - Task 142 (done): Add database indices for frequent queries (already implemented)
 
-See `TASKS.jsonl` for details.
+**No remaining tasks in TASKS.jsonl. Project is feature-complete.**
 
 ## Key Files
 
