@@ -675,6 +675,7 @@ import '../styles/theme.css';
 		<script>
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
 			import { getOrCreateSessionId } from '../utils/session';
+			import { escapeHtml } from '../utils/html';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const error = document.getElementById('error') as HTMLElement;
@@ -784,12 +785,6 @@ import '../styles/theme.css';
 						</div>
 					</div>
 				`;
-			}
-
-			function escapeHtml(text: string): string {
-				const div = document.createElement('div');
-				div.textContent = text;
-				return div.innerHTML;
 			}
 
 			async function reprocessVideo(videoId: string, button: HTMLButtonElement) {
