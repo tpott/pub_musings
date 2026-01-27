@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**159 tasks completed.** 3 new tasks pending from deep inspection.
+**160 tasks completed.** 2 tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 159: Enhance SECURITY_EVENTS.md with monitoring examples
+  - Added 8 journalctl commands for filtering security events
+  - Added Prometheus alert rules for brute force, lockouts, rate limits, admin access
+  - Added Grafana Loki and ELK Stack query examples
+  - Added incident response playbooks for brute force and account compromise
+  - Document now actionable for production monitoring setup
 - ✅ Task 158: Implement metrics path normalization
   - Added regex patterns for 32-char hex IDs, UUIDs with dashes, and numeric IDs
   - `normalizePath()` reduces cardinality by replacing dynamic IDs with `{id}` placeholder

@@ -132,6 +132,10 @@ Configure alerts for these patterns:
    - Multiple failed recovery code attempts
    - Alert on any occurrences
 
+5. **Admin Access Denied** - `event=access.denied.not_admin`
+   - Non-admin attempting admin functions
+   - Alert on any occurrence, investigate immediately
+
 ### Dashboard Metrics
 
 Track these metrics on your monitoring dashboard:
@@ -142,7 +146,187 @@ Track these metrics on your monitoring dashboard:
 - Password reset frequency
 - Session revocations per user
 
-### Log Aggregation Queries
+## Real-World Monitoring Examples
+
+### Journalctl Commands
+
+Filter security events using systemd journal:
+
+**View all security events (live):**
+```bash
+journalctl -u subtitler -f | grep -E "Security (event|warning)"
+```
+
+**Failed logins in the last hour:**
+```bash
+journalctl -u subtitler --since "1 hour ago" | grep "auth.login.failed"
+```
+
+**Account lockouts today:**
+```bash
+journalctl -u subtitler --since today | grep "auth.account.locked"
+```
+
+**Rate limit violations by IP (count):**
+```bash
+journalctl -u subtitler --since "1 hour ago" | grep "ratelimit.exceeded" | \
+  grep -oE 'ip=[0-9.]+' | sort | uniq -c | sort -rn | head -10
+```
+
+**2FA events for specific user:**
+```bash
+journalctl -u subtitler | grep -E "auth.2fa.*user@example.com"
+```
+
+**All events from a specific IP:**
+```bash
+journalctl -u subtitler | grep "ip=192.168.1.100"
+```
+
+**Session events for investigation:**
+```bash
+journalctl -u subtitler | grep -E "session\.(created|revoked|expired)" | \
+  grep "user_id=abc123"
+```
+
+### Prometheus Alert Rules
+
+Save as `/etc/prometheus/rules/subtitler_security.yml`:
+
+```yaml
+groups:
+  - name: subtitler_security
+    interval: 1m
+    rules:
+      # Alert: Too many failed logins from same IP
+      - alert: BruteForceAttempt
+        expr: |
+          sum by (ip) (
+            count_over_time({job="subtitler"} |~ "auth.login.failed" [15m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Possible brute force attempt from {{ $labels.ip }}"
+          description: "{{ $value }} failed login attempts in 15 minutes"
+
+      # Alert: Account lockouts spike
+      - alert: AccountLockoutSpike
+        expr: |
+          sum(count_over_time({job="subtitler"} |~ "auth.account.locked" [1h])) > 5
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Multiple account lockouts detected"
+          description: "{{ $value }} accounts locked in the last hour"
+
+      # Alert: Rate limit abuse
+      - alert: RateLimitAbuse
+        expr: |
+          sum by (ip) (
+            count_over_time({job="subtitler"} |~ "ratelimit.exceeded" [1h])
+          ) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate limit abuse from {{ $labels.ip }}"
+          description: "{{ $value }} rate limit violations in 1 hour"
+
+      # Alert: Admin access denied (potential privilege escalation)
+      - alert: UnauthorizedAdminAccess
+        expr: |
+          count_over_time({job="subtitler"} |~ "access.denied.not_admin" [1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Unauthorized admin access attempt"
+          description: "Non-admin user attempted to access admin resource"
+
+      # Alert: 2FA bypass attempts
+      - alert: TwoFactorBypassAttempt
+        expr: |
+          count_over_time({job="subtitler"} |~ "auth.2fa.recovery_failed" [1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "2FA bypass attempt detected"
+          description: "Failed recovery code attempt - investigate immediately"
+```
+
+### Grafana Loki Queries
+
+If using Grafana Loki for log aggregation:
+
+**Failed logins over time:**
+```logql
+sum by (email) (count_over_time({job="subtitler"} |~ "auth.login.failed" [5m]))
+```
+
+**Rate limit violations by endpoint:**
+```logql
+{job="subtitler"} |~ "ratelimit.exceeded"
+| regexp `endpoint=(?P<endpoint>[^\s]+)`
+| sum by (endpoint) (count_over_time([1h]))
+```
+
+**Security events heatmap:**
+```logql
+{job="subtitler"} |~ "Security (event|warning)"
+| regexp `event=(?P<event>[^\s]+)`
+| sum by (event) (count_over_time([1h]))
+```
+
+### ELK Stack (Elasticsearch) Queries
+
+**Kibana Query - Failed logins last 24 hours:**
+```json
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "message": "auth.login.failed" } },
+        { "range": { "@timestamp": { "gte": "now-24h" } } }
+      ]
+    }
+  },
+  "aggs": {
+    "by_ip": {
+      "terms": { "field": "ip.keyword", "size": 20 }
+    }
+  }
+}
+```
+
+**Kibana Query - Account lockouts:**
+```json
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "message": "auth.account.locked" } }
+      ]
+    }
+  },
+  "aggs": {
+    "by_email": {
+      "terms": { "field": "email.keyword" }
+    },
+    "over_time": {
+      "date_histogram": {
+        "field": "@timestamp",
+        "fixed_interval": "1h"
+      }
+    }
+  }
+}
+```
+
+### Log Aggregation Queries (Generic)
 
 **Failed login attempts by IP (last hour):**
 ```
@@ -158,6 +342,49 @@ event="auth.account.locked" | timechart count by email
 ```
 event="ratelimit.exceeded" | count by endpoint
 ```
+
+## Incident Response Playbooks
+
+### Brute Force Attack Response
+
+1. **Detection:** Alert triggered for > 20 failed logins from single IP
+2. **Initial Response:**
+   ```bash
+   # Check IP reputation
+   curl "https://www.abuseipdb.com/check/${IP}/json"
+
+   # Count affected accounts
+   journalctl -u subtitler --since "1 hour ago" | grep "ip=${IP}" | \
+     grep -oE 'email=[^\s]+' | sort -u | wc -l
+   ```
+3. **Containment:**
+   ```bash
+   # Block IP at firewall (example with ufw)
+   sudo ufw deny from ${IP}
+
+   # Or add to fail2ban
+   sudo fail2ban-client set subtitler banip ${IP}
+   ```
+4. **Investigation:** Review logs for targeted accounts
+5. **Recovery:** Reset affected accounts if needed
+
+### Account Compromise Response
+
+1. **Detection:** Unusual activity pattern (multiple IP login, location change)
+2. **Initial Response:**
+   ```bash
+   # Get all sessions for user
+   journalctl -u subtitler | grep "user_id=${USER_ID}" | \
+     grep "session.created"
+   ```
+3. **Containment:**
+   ```bash
+   # Revoke all sessions via database
+   sqlite3 /opt/subtitler/data/subtitler.db \
+     "DELETE FROM sessions WHERE user_id='${USER_ID}'"
+   ```
+4. **Investigation:** Determine entry point (password, magic link, etc.)
+5. **Recovery:** Force password reset, recommend 2FA
 
 ## Security Considerations
 
