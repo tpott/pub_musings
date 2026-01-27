@@ -540,6 +540,7 @@ tail -f /var/log/caddy/subtitler-access.log | jq .
 
 ## See Also
 
+- [../docs/DISASTER_RECOVERY.md](../docs/DISASTER_RECOVERY.md) - Disaster recovery procedures
 - [../backend/README.md](../backend/README.md) - Backend environment variables
 - [../INSTALL.md](../INSTALL.md) - Development installation
 - [webhook-deployer integration](webhook-deployer.md) - Automated deployments

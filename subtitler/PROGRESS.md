@@ -138,13 +138,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**144 tasks completed.** 6 remaining from deep code inspection.
+**145 tasks completed.** 5 remaining from deep code inspection.
 
 ### Recently Completed
-- ✅ Task 144: Keyboard shortcuts for subtitle editor - Added comprehensive keyboard shortcuts: Space (play/pause), Left/Right arrows (±5s seek), J/K/L (rewind/pause/forward 10s), Tab/Shift+Tab (segment navigation). Added keyboard help modal with accessible focus trap. Shortcuts only work when not in text input. Added "Shortcuts" button with keyboard icon. Documentation added to README.md. All verification passes.
+- ✅ Task 145: Disaster recovery documentation - Created comprehensive docs/DISASTER_RECOVERY.md with: encryption key loss (unrecoverable), database corruption recovery, server failure procedures, whisper server recovery, backup verification checklist, and backup script example. Updated specs/deployment.md to reference the new doc.
 
 ### Pending Tasks (from deep inspection 2026-01-26)
-- Task 145: Disaster recovery documentation (operational readiness)
 - Task 146: Per-user rate limiting (security hardening)
 - Task 147: Prometheus metrics endpoint (monitoring/observability)
 - Task 148: Implement evaluation framework (validate accuracy claims)
