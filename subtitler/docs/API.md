@@ -56,6 +56,22 @@ Example response header:
 X-Request-ID: 894fe2cb7d305ce3
 ```
 
+### Error Responses
+
+All error responses return a JSON object with an `error` field:
+
+```json
+{
+  "error": "Description of what went wrong"
+}
+```
+
+**Production Error Messages**: By default, error messages are user-friendly and don't leak internal details like file paths, database queries, or server addresses. For example:
+- "Video not found." instead of "video not found for upload ID: abc123 at /opt/subtitler/uploads/abc123.mp4"
+- "Transcription failed. Please try again." instead of "whisper-server connection refused at 10.0.2.2:8765"
+
+**Verbose Mode**: Set `LOG_VERBOSE=true` to return detailed error messages. Only use in development.
+
 ---
 
 ## Table of Contents

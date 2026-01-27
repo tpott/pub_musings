@@ -524,3 +524,28 @@ if subtitleFont != "" {
 3. The problem only affects burned subtitles - SRT/VTT downloads contain correct text
 4. Make font configuration optional (don't break existing users)
 5. Document font requirements clearly - not everyone knows they need Indic fonts
+
+---
+
+### 2026-01-26: Production error messages - defense in depth
+
+**Problem:** Many backend error responses used `err.Error()` directly, which could leak internal details like file paths, database queries, IP addresses, and API keys to users.
+
+**Solution:** Created `backend/errmsg` package with:
+1. User-friendly constants for common error types (ErrVideoNotFound, ErrTranscribeFailed, etc.)
+2. `LOG_VERBOSE` env var to toggle between production (safe) and development (detailed) modes
+3. Helper functions like `ForVideoNotFound(err)` that log detailed errors and return safe messages
+4. Test suite that verifies production errors don't contain sensitive patterns
+
+**Key design decisions:**
+- Default to safe mode (LOG_VERBOSE=false) - you have to opt-in to dangerous behavior
+- Log the detailed error before returning the safe message - debugging is still possible via logs
+- User-facing validation errors (email format, password requirements) are fine to return as-is
+- Only wrap errors from internal operations (database, file system, external services)
+
+**Lesson:**
+1. Never return `err.Error()` directly for internal errors - always wrap with a safe message
+2. Log first, then return safe message - you need both debugging ability and security
+3. Validation errors are different from internal errors - user feedback is important
+4. The `SetVerbose()` function enables testing both modes without environment variable manipulation
+5. Test with real-world sensitive patterns (file paths, IPs, SQL, API keys) to catch leaks

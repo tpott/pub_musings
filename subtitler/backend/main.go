@@ -27,6 +27,7 @@ import (
 	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
+	"github.com/trevor/subtitler/backend/errmsg"
 	"github.com/trevor/subtitler/backend/logging"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
@@ -3475,9 +3476,10 @@ func main() {
 		// Find the video file and get key version for decryption
 		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
+			logging.ErrorContext(r.Context(), "Video not found for transcription", "error", err, "upload_id", uploadID)
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
+				"error": errmsg.ForVideoNotFound(err),
 			})
 			return
 		}
@@ -4577,10 +4579,11 @@ func main() {
 		// Get video metadata from database for ETag generation and decryption
 		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
+			logging.ErrorContext(r.Context(), "Video not found for download", "error", err, "upload_id", uploadID)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
+				"error": errmsg.ForVideoNotFound(err),
 			})
 			return
 		}
@@ -4793,9 +4796,10 @@ func main() {
 		// Find the video file and get key version
 		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
+			logging.ErrorContext(r.Context(), "Video not found for burn", "error", err, "upload_id", uploadID)
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
+				"error": errmsg.ForVideoNotFound(err),
 			})
 			return
 		}

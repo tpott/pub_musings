@@ -10,7 +10,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `MAX_UPLOAD_SIZE` |
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
-| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `CSRF_SECRET`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
+| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
@@ -192,6 +192,26 @@ Controls whether uploaded files are encrypted at rest using age encryption.
 - **Disabled:** Files stored unencrypted (development only)
 
 Note: Disabling only affects new files. Existing encrypted files (`.age` extension) can still be read.
+
+### LOG_VERBOSE
+
+| Property | Value |
+|----------|-------|
+| Default | `false` |
+| Required | No |
+| Values | `true`, `1`, `false`, `0` |
+| Example | `LOG_VERBOSE=true` |
+
+Controls whether detailed error messages are returned to clients.
+
+- **Disabled (default):** User-friendly error messages are returned without internal details. Safe for production.
+- **Enabled:** Detailed error messages including paths, server errors, and stack traces are returned. **Development only.**
+
+**Security Warning:** Never enable in production. Detailed errors can leak:
+- File system paths (`/opt/subtitler/uploads/...`)
+- Database error details
+- Internal server IPs and ports
+- API keys in error messages
 
 ### CSRF_SECRET
 
