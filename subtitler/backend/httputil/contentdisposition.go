@@ -1,0 +1,120 @@
+// Package httputil provides HTTP utility functions.
+package httputil
+
+import (
+	"net/url"
+	"strings"
+	"unicode"
+)
+
+// ContentDisposition generates a Content-Disposition header value for file downloads.
+// It follows RFC 5987 to properly encode non-ASCII filenames, ensuring compatibility
+// with modern browsers while providing fallback for older clients.
+//
+// The header includes both:
+// - filename="..." - ASCII-safe fallback (special chars replaced with underscores)
+// - filename*=UTF-8”... - RFC 5987 encoded version for Unicode support
+//
+// Example output for "日本語ファイル.mp4":
+//
+//	attachment; filename="____________.mp4"; filename*=UTF-8''%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB.mp4
+func ContentDisposition(filename string) string {
+	// Generate ASCII-safe fallback filename
+	asciiFallback := sanitizeToASCII(filename)
+
+	// Check if filename is already pure ASCII and safe
+	if isPureASCIISafe(filename) {
+		// Simple case: ASCII-only filename, just quote it
+		return `attachment; filename="` + escapeQuotes(filename) + `"`
+	}
+
+	// Need RFC 5987 encoding for non-ASCII characters
+	encodedFilename := encodeRFC5987(filename)
+
+	// Return both forms for maximum compatibility
+	return `attachment; filename="` + escapeQuotes(asciiFallback) + `"; filename*=UTF-8''` + encodedFilename
+}
+
+// sanitizeToASCII creates an ASCII-safe version of a filename.
+// Non-ASCII characters are replaced with underscores.
+// Control characters and problematic punctuation are also replaced.
+func sanitizeToASCII(filename string) string {
+	var result strings.Builder
+	result.Grow(len(filename))
+
+	for _, r := range filename {
+		if r >= 0x20 && r < 0x7F && r != '"' && r != '\\' && r != '/' && r != ':' && r != '*' && r != '?' && r != '<' && r != '>' && r != '|' {
+			result.WriteRune(r)
+		} else if r >= 0x80 {
+			// Non-ASCII character, replace with underscore
+			result.WriteRune('_')
+		} else if r == '"' || r == '\\' {
+			// Escape quotes and backslashes
+			result.WriteRune('_')
+		} else {
+			// Control characters or filesystem-unsafe chars
+			result.WriteRune('_')
+		}
+	}
+
+	return result.String()
+}
+
+// isPureASCIISafe checks if a filename contains only safe ASCII characters.
+func isPureASCIISafe(filename string) bool {
+	for _, r := range filename {
+		// Check for printable ASCII that doesn't need special handling
+		if r < 0x20 || r >= 0x7F || r == '"' || r == '\\' || r == '/' || r == ':' || r == '*' || r == '?' || r == '<' || r == '>' || r == '|' {
+			return false
+		}
+	}
+	return true
+}
+
+// escapeQuotes escapes double quotes and backslashes in a filename for the quoted-string format.
+func escapeQuotes(filename string) string {
+	var result strings.Builder
+	result.Grow(len(filename))
+
+	for _, r := range filename {
+		if r == '"' || r == '\\' {
+			result.WriteRune('\\')
+		}
+		result.WriteRune(r)
+	}
+
+	return result.String()
+}
+
+// encodeRFC5987 encodes a filename according to RFC 5987 (ext-value format).
+// Characters are percent-encoded except for attr-char:
+// ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
+func encodeRFC5987(filename string) string {
+	// RFC 5987 attr-char safe characters (no need to encode these)
+	isSafe := func(r rune) bool {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return r < 128 // Only ASCII letters/digits are safe
+		}
+		switch r {
+		case '!', '#', '$', '&', '+', '-', '.', '^', '_', '`', '|', '~':
+			return true
+		}
+		return false
+	}
+
+	var result strings.Builder
+	result.Grow(len(filename) * 3) // Worst case: every char becomes %XX
+
+	for _, r := range filename {
+		if isSafe(r) {
+			result.WriteRune(r)
+		} else {
+			// Percent-encode the UTF-8 bytes
+			encoded := url.PathEscape(string(r))
+			// url.PathEscape encodes spaces as %20, which is what we want
+			result.WriteString(encoded)
+		}
+	}
+
+	return result.String()
+}

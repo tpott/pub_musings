@@ -29,6 +29,7 @@ import (
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/errmsg"
+	"github.com/trevor/subtitler/backend/httputil"
 	"github.com/trevor/subtitler/backend/logging"
 	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
@@ -4357,7 +4358,7 @@ func main() {
 		// Use text/plain as it's universally supported by browsers for download
 		// application/x-subrip is the registered MIME type but has limited browser support
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.srt\"", uploadID))
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".srt"))
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(srtContent))
 	})
@@ -4447,7 +4448,7 @@ func main() {
 		// Set headers for file download
 		// text/vtt is the official MIME type for WebVTT
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.vtt\"", uploadID))
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".vtt"))
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(vttContent))
 	})
@@ -4526,7 +4527,7 @@ func main() {
 
 		// Set headers for file download
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.json\"", uploadID))
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".json"))
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
 	})
@@ -5568,7 +5569,8 @@ func main() {
 		)
 
 		// Set headers for download
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", downloadName))
+		// Use RFC 5987 encoding for proper handling of non-ASCII characters
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(downloadName))
 		http.ServeFile(w, r, servePath)
 	}))
 

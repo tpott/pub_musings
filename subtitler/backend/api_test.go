@@ -25,6 +25,7 @@ import (
 	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
+	"github.com/trevor/subtitler/backend/httputil"
 	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
@@ -1466,7 +1467,7 @@ func (ts *testServer) registerHandlers() {
 		setCacheHeaders(w, etag, 600)
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".srt\"")
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".srt"))
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(srtContent))
 	})
@@ -1547,7 +1548,7 @@ func (ts *testServer) registerHandlers() {
 		setCacheHeaders(w, etag, 600)
 
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".vtt\"")
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".vtt"))
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(vttContent))
 	})
@@ -1619,7 +1620,7 @@ func (ts *testServer) registerHandlers() {
 		setCacheHeaders(w, etag, 600)
 
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Content-Disposition", "attachment; filename=\""+uploadID+".json\"")
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".json"))
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
 	})
