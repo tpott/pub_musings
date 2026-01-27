@@ -13,6 +13,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Admin | `INITIAL_ADMIN_EMAIL` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT` |
+| Debugging | `LOG_SLOW_QUERIES`, `SLOW_QUERY_THRESHOLD_MS` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
 
@@ -418,6 +419,46 @@ Email address of the user to promote to admin role on server startup. If the use
   ```bash
   sqlite3 data/subtitler.db "UPDATE users SET role = 'admin' WHERE email = 'user@example.com'"
   ```
+
+## Debugging Configuration
+
+### LOG_SLOW_QUERIES
+
+| Property | Value |
+|----------|-------|
+| Default | `false` |
+| Required | No |
+| Values | `true`, `1`, `false`, `0` |
+| Example | `LOG_SLOW_QUERIES=true` |
+
+Enable database query performance logging. When enabled, queries exceeding the threshold are logged as warnings with timing information.
+
+**Logged information:**
+- Operation type (SELECT, INSERT, UPDATE, DELETE)
+- Table name
+- Execution time in milliseconds
+- Rows affected (for write operations)
+
+**Example log output:**
+```
+WARN Slow query detected operation=SELECT table=videos duration_ms=150 rows_affected=0
+```
+
+### SLOW_QUERY_THRESHOLD_MS
+
+| Property | Value |
+|----------|-------|
+| Default | `100` (100 milliseconds) |
+| Required | No |
+| Format | Integer (milliseconds) |
+| Example | `SLOW_QUERY_THRESHOLD_MS=50` |
+
+Threshold in milliseconds for logging slow queries. Only used when `LOG_SLOW_QUERIES=true`. Queries taking longer than this threshold are logged as warnings.
+
+**Use cases:**
+- Set to `50` for stricter monitoring
+- Set to `200` for less verbose logging
+- Set to `1` during debugging to log all queries
 
 ## Maintenance Configuration
 

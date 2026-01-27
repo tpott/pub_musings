@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**161 tasks completed.** 1 task pending from deep inspection.
+**162 tasks completed.** All tasks from deep inspection complete.
 
 ### Recently Completed
+- ✅ Task 161: Add database query performance logging
+  - Created `backend/db/profiler.go` with query timing wrapper
+  - Logs slow queries (>100ms by default) with operation, table, duration, rows
+  - Enable via `LOG_SLOW_QUERIES=true`, threshold via `SLOW_QUERY_THRESHOLD_MS`
+  - Added 12 unit tests covering all profiler functionality
+  - Updated docs/ENV.md with new debugging configuration section
 - ✅ Task 160: Create metrics dashboard documentation
   - Created comprehensive `docs/METRICS.md` documenting all 7 Prometheus metrics
   - Included 20+ PromQL queries for traffic, latency, transcription, uploads
