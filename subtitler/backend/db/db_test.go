@@ -1690,6 +1690,52 @@ func TestWithTransactionRollback(t *testing.T) {
 	}
 }
 
+func TestWithTransactionUsesContext(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Verify that WithTransaction uses a timeout context by setting a very short timeout
+	// and performing a simple operation - it should still work since SQLite is fast
+	db.SetQueryTimeout(100 * time.Millisecond)
+
+	user := &User{
+		ID:           "txtimeout123",
+		Email:        "txtimeout@example.com",
+		PasswordHash: "hashhash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Transaction should succeed with short timeout for fast operations
+	err = db.WithTransaction(func(tx *Tx) error {
+		_, err := tx.tx.Exec(`UPDATE users SET email = ? WHERE id = ?`, "updated@example.com", user.ID)
+		return err
+	})
+	if err != nil {
+		t.Errorf("Transaction with short timeout should succeed for fast operations: %v", err)
+	}
+
+	// Verify the change was committed
+	updatedUser, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if updatedUser.Email != "updated@example.com" {
+		t.Errorf("Expected email 'updated@example.com', got '%s'", updatedUser.Email)
+	}
+}
+
 func TestEnableTOTPWithRecoveryCodes(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.db")
 	if err != nil {

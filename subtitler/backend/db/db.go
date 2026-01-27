@@ -253,8 +253,12 @@ type Tx struct {
 // WithTransaction executes the given function within a database transaction.
 // If the function returns an error, the transaction is rolled back.
 // If the function succeeds, the transaction is committed.
+// The transaction uses a context with timeout (default 30s) to prevent indefinite hangs.
 func (db *DB) WithTransaction(fn func(*Tx) error) error {
-	tx, err := db.conn.Begin()
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	tx, err := db.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
