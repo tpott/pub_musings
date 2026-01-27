@@ -211,8 +211,8 @@ import '../styles/theme.css';
 				flex-wrap: wrap;
 				align-items: center;
 			}
-			.full-text {
-				margin-top: 1rem;
+			.full-text, .full-text-inner {
+				margin-top: 0;
 				padding: 1rem;
 				background-color: var(--bg-color);
 				border-radius: 4px;
@@ -455,22 +455,52 @@ import '../styles/theme.css';
 				display: inline;
 			}
 			/* Paste transcript section */
-			.paste-transcript {
-				margin-top: 1.5rem;
-				padding: 1rem;
+			/* Collapsible section styles */
+			.collapsible-section {
+				margin-top: 1rem;
 				background-color: var(--secondary-bg);
 				border: 1px solid var(--border-color);
 				border-radius: 8px;
-				display: none;
+				overflow: hidden;
 			}
-			.paste-transcript.visible {
-				display: block;
+			.collapsible-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				padding: 0.75rem 1rem;
+				cursor: pointer;
+				user-select: none;
+				background-color: var(--secondary-bg);
+				transition: background-color 0.2s;
 			}
-			.paste-transcript h3 {
-				font-size: 1rem;
-				margin-bottom: 0.75rem;
+			.collapsible-header:hover {
+				background-color: var(--hover-bg);
 			}
-			.paste-transcript textarea {
+			.collapsible-header h3 {
+				font-size: 0.95rem;
+				margin: 0;
+				font-weight: 500;
+			}
+			.collapsible-icon {
+				font-size: 0.75rem;
+				transition: transform 0.2s;
+				color: var(--text-secondary);
+			}
+			.collapsible-section.collapsed .collapsible-icon {
+				transform: rotate(-90deg);
+			}
+			.collapsible-content {
+				padding: 0 1rem 1rem;
+				transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+				overflow: hidden;
+			}
+			.collapsible-section.collapsed .collapsible-content {
+				max-height: 0;
+				padding-top: 0;
+				padding-bottom: 0;
+			}
+			/* Paste transcript collapsible section content */
+			#pasteTranscriptContent textarea {
 				width: 100%;
 				min-height: 120px;
 				padding: 0.75rem;
@@ -481,7 +511,7 @@ import '../styles/theme.css';
 				resize: vertical;
 				margin-bottom: 0.75rem;
 			}
-			.paste-transcript textarea:focus {
+			#pasteTranscriptContent textarea:focus {
 				outline: none;
 				border-color: var(--accent-color);
 			}
@@ -1001,7 +1031,7 @@ import '../styles/theme.css';
 					width: 100%;
 					min-height: 44px;
 				}
-				.paste-transcript textarea {
+				#pasteTranscriptContent textarea {
 					min-height: 100px;
 				}
 				.script-selectors {
@@ -1126,8 +1156,12 @@ import '../styles/theme.css';
 				</div>
 				<div class="segments" id="segments"></div>
 				<button class="add-segment-btn" id="addSegmentBtn">+ Add Segment</button>
-				<div class="paste-transcript" id="pasteTranscript">
-					<h3>Replace with your own transcript</h3>
+				<div class="collapsible-section" id="pasteTranscriptSection" style="display: none;">
+					<div class="collapsible-header" id="pasteTranscriptHeader" role="button" aria-expanded="true" aria-controls="pasteTranscriptContent" tabindex="0">
+						<h3>Replace with your own transcript</h3>
+						<span class="collapsible-icon">▼</span>
+					</div>
+					<div class="collapsible-content" id="pasteTranscriptContent">
 					<textarea id="pasteText" placeholder="Paste your transcript or lyrics here..."></textarea>
 					<div class="lyrics-mode-toggle">
 						<label class="toggle-switch">
@@ -1174,6 +1208,7 @@ import '../styles/theme.css';
 					</div>
 					<button class="align-btn" id="alignBtn">Align Transcript</button>
 					<div class="align-status" id="alignStatus"></div>
+					</div>
 				</div>
 				<div class="actions" id="actions" style="display: none;">
 					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
@@ -1196,7 +1231,15 @@ import '../styles/theme.css';
 					</div>
 					<a href="#" class="download-burned-btn" id="downloadBurnedBtn" style="display: none;">Download Video with Subtitles</a>
 				</div>
-				<div class="full-text" id="fullText"></div>
+				<div class="collapsible-section collapsed" id="fullTextSection" style="display: none;">
+					<div class="collapsible-header" id="fullTextHeader" role="button" aria-expanded="false" aria-controls="fullTextContent" tabindex="0">
+						<h3>Full Transcript Text</h3>
+						<span class="collapsible-icon">▼</span>
+					</div>
+					<div class="collapsible-content" id="fullTextContent">
+						<div class="full-text-inner" id="fullText"></div>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -1301,6 +1344,8 @@ import '../styles/theme.css';
 			const transcriptionStatus = document.getElementById('transcriptionStatus') as HTMLElement;
 			const segments = document.getElementById('segments') as HTMLElement;
 			const fullText = document.getElementById('fullText') as HTMLElement;
+			const fullTextSection = document.getElementById('fullTextSection') as HTMLElement;
+			const fullTextHeader = document.getElementById('fullTextHeader') as HTMLElement;
 			const currentSubtitle = document.getElementById('currentSubtitle') as HTMLElement;
 			const actions = document.getElementById('actions') as HTMLElement;
 			const downloadSrt = document.getElementById('downloadSrt') as HTMLAnchorElement;
@@ -1321,7 +1366,8 @@ import '../styles/theme.css';
 			const burnProgressBar = document.getElementById('burnProgressBar') as HTMLElement;
 			const burnProgressFill = document.getElementById('burnProgressFill') as HTMLElement;
 			const downloadBurnedBtn = document.getElementById('downloadBurnedBtn') as HTMLAnchorElement;
-			const pasteTranscript = document.getElementById('pasteTranscript') as HTMLElement;
+			const pasteTranscriptSection = document.getElementById('pasteTranscriptSection') as HTMLElement;
+			const pasteTranscriptHeader = document.getElementById('pasteTranscriptHeader') as HTMLElement;
 			const pasteText = document.getElementById('pasteText') as HTMLTextAreaElement;
 			const convertScript = document.getElementById('convertScript') as HTMLInputElement;
 			const scriptSelectors = document.getElementById('scriptSelectors') as HTMLElement;
@@ -1391,6 +1437,55 @@ import '../styles/theme.css';
 
 			// LocalStorage key for preferred language
 			const PREFERRED_LANGUAGE_KEY = 'subtitler:transcription_language';
+
+			// LocalStorage keys for collapsible section states
+			const PASTE_COLLAPSED_KEY = 'subtitler:paste_transcript_collapsed';
+			const FULLTEXT_COLLAPSED_KEY = 'subtitler:full_text_collapsed';
+
+			// Set up collapsible sections
+			function setupCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
+				// Load saved state from localStorage (default to collapsed for full text, expanded for paste)
+				const savedState = localStorage.getItem(storageKey);
+				const defaultCollapsed = storageKey === FULLTEXT_COLLAPSED_KEY; // Full text starts collapsed
+				const isCollapsed = savedState !== null ? savedState === 'true' : defaultCollapsed;
+
+				if (isCollapsed) {
+					section.classList.add('collapsed');
+					header.setAttribute('aria-expanded', 'false');
+				} else {
+					section.classList.remove('collapsed');
+					header.setAttribute('aria-expanded', 'true');
+				}
+
+				// Toggle on click
+				header.addEventListener('click', () => toggleCollapsible(section, header, storageKey));
+
+				// Toggle on Enter/Space key
+				header.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						toggleCollapsible(section, header, storageKey);
+					}
+				});
+			}
+
+			function toggleCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
+				const isCurrentlyCollapsed = section.classList.contains('collapsed');
+
+				if (isCurrentlyCollapsed) {
+					section.classList.remove('collapsed');
+					header.setAttribute('aria-expanded', 'true');
+					localStorage.setItem(storageKey, 'false');
+				} else {
+					section.classList.add('collapsed');
+					header.setAttribute('aria-expanded', 'false');
+					localStorage.setItem(storageKey, 'true');
+				}
+			}
+
+			// Initialize collapsible sections
+			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY);
+			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY);
 
 			// Clean up stale upload sessions on page load
 			cleanupStaleUploadSessions();
@@ -2086,7 +2181,9 @@ import '../styles/theme.css';
 					downloadVtt.href = `/api/videos/${currentUploadId}/subtitles.vtt`;
 					downloadJson.href = `/api/videos/${currentUploadId}/subtitles.json`;
 					actions.style.display = 'flex';
-					pasteTranscript.classList.add('visible');
+					// Show collapsible sections
+					pasteTranscriptSection.style.display = 'block';
+					fullTextSection.style.display = 'block';
 				}
 
 				// Load video from server for playback (replacing blob URL)
@@ -2915,7 +3012,8 @@ import '../styles/theme.css';
 				fullText.textContent = '';
 				currentSubtitle.textContent = '';
 				actions.style.display = 'none';
-				pasteTranscript.classList.remove('visible');
+				pasteTranscriptSection.style.display = 'none';
+				fullTextSection.style.display = 'none';
 				detectedLanguage.style.display = 'none';
 
 				try {

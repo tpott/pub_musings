@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**153 tasks completed.** 4 tasks pending from deep inspection.
+**154 tasks completed.** 4 tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 157: Make transcript paste and full text sections collapsible
+  - Addressed user feedback about elements cluttering the UI
+  - Added collapsible accordion UI with localStorage persistence
+  - Full text section starts collapsed, paste transcript expanded
+  - Reduces vertical space so video and subtitles are easier to read
 - ✅ Task 153: Add video file magic byte validation
   - Added `ValidateMagicBytes()` and `ValidateMagicBytesFromFile()` to audio package
   - Validates MP4/MOV/M4V (ftyp), WebM/MKV (EBML), AVI (RIFF+AVI), OGV (OggS), MPEG
@@ -150,16 +155,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
   - **Root cause:** `scrollIntoView()` scrolls ALL ancestor containers including the page
   - **Fix:** Replaced with container-only scrolling in upload.astro
   - **Prevention:** Added E2E regression tests, LEARNINGS.md entry, and `specs/video-scroll-fix.md`
-- ✅ Task 148: Implement evaluation framework - Created `evaluation/` directory
-- ✅ Task 149: Estimated time remaining for transcription
-- ✅ Task 150: Document magic link auth in API.md
+- ✅ Task 148-150: Evaluation framework, ETA for transcription, Magic link docs
 
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
 - Task 152: Add security event audit logging
 - Task 154: Rate limit /metrics endpoint
 - Task 155: Create production security hardening checklist (docs)
-- Task 157: Make transcript paste and full text sections collapsible (NEW)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:
