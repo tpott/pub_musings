@@ -65,7 +65,8 @@ const (
 	EventAccessDeniedAdmin = "access.denied.not_admin"
 
 	// Rate limit events
-	EventRateLimitExceeded = "ratelimit.exceeded"
+	EventRateLimitExceeded          = "ratelimit.exceeded"
+	EventMagicLinkRateLimitExceeded = "ratelimit.magiclink.exceeded"
 
 	// File access events
 	EventFileAccess       = "file.access"
@@ -269,4 +270,9 @@ func FileAccess(ctx context.Context, ip, userID, fileType, fileID string) {
 // FileAccessDenied logs when file access is denied (e.g., path traversal attempt).
 func FileAccessDenied(ctx context.Context, ip, fileType, fileID, reason string) {
 	LogSecurityWarning(ctx, EventFileAccessDenied, ip, "file_type", fileType, "file_id", fileID, "reason", reason)
+}
+
+// MagicLinkRateLimitExceeded logs when a user exceeds the per-email magic link rate limit.
+func MagicLinkRateLimitExceeded(userID, email string) {
+	logging.Warn("Security event", "event", EventMagicLinkRateLimitExceeded, "user_id", userID, "email", email)
 }

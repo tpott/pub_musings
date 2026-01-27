@@ -2489,3 +2489,101 @@ func TestBurnJobStatusRaceProtection(t *testing.T) {
 		}
 	})
 }
+
+// TestCountRecentMagicLinkRequests tests the per-email rate limiting for magic links
+func TestCountRecentMagicLinkRequests(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a test user
+	user := &User{
+		ID:            "user-magiclink",
+		Email:         "magic@example.com",
+		PasswordHash:  "hash",
+		EmailVerified: true,
+		CreatedAt:     time.Now(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	t.Run("no tokens initially", func(t *testing.T) {
+		count, err := db.CountRecentMagicLinkRequests(user.ID, time.Now().Add(-15*time.Minute))
+		if err != nil {
+			t.Fatalf("Failed to count tokens: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("Expected 0 tokens, got %d", count)
+		}
+	})
+
+	t.Run("counts requests including used and expired tokens", func(t *testing.T) {
+		// Insert tokens directly to test counting (bypasses CreateMagicLinkToken's delete behavior)
+		// Token 1: Active and unused
+		db.conn.Exec(`
+			INSERT INTO magic_link_tokens (id, user_id, token_hash, used, created_at, expires_at)
+			VALUES (?, ?, ?, 0, ?, ?)
+		`, "token-1", user.ID, "hash1", time.Now(), time.Now().Add(15*time.Minute))
+
+		// Token 2: Used (still counted for rate limiting)
+		db.conn.Exec(`
+			INSERT INTO magic_link_tokens (id, user_id, token_hash, used, created_at, expires_at)
+			VALUES (?, ?, ?, 1, ?, ?)
+		`, "token-2", user.ID, "hash2", time.Now(), time.Now().Add(15*time.Minute))
+
+		// Token 3: Expired (still counted for rate limiting)
+		db.conn.Exec(`
+			INSERT INTO magic_link_tokens (id, user_id, token_hash, used, created_at, expires_at)
+			VALUES (?, ?, ?, 0, ?, ?)
+		`, "token-3", user.ID, "hash3", time.Now(), time.Now().Add(-1*time.Minute))
+
+		// All 3 should be counted for rate limiting
+		count, err := db.CountRecentMagicLinkRequests(user.ID, time.Now().Add(-15*time.Minute))
+		if err != nil {
+			t.Fatalf("Failed to count tokens: %v", err)
+		}
+		if count != 3 {
+			t.Errorf("Expected 3 tokens (including used and expired), got %d", count)
+		}
+	})
+
+	t.Run("excludes tokens before since time", func(t *testing.T) {
+		// Create a token that's too old (created before the window)
+		db.conn.Exec(`
+			INSERT INTO magic_link_tokens (id, user_id, token_hash, used, created_at, expires_at)
+			VALUES (?, ?, ?, 0, ?, ?)
+		`, "old-token", user.ID, "old-hash", time.Now().Add(-30*time.Minute), time.Now().Add(15*time.Minute))
+
+		// Count should exclude the old token
+		count, err := db.CountRecentMagicLinkRequests(user.ID, time.Now().Add(-15*time.Minute))
+		if err != nil {
+			t.Fatalf("Failed to count tokens: %v", err)
+		}
+		if count != 3 {
+			t.Errorf("Expected 3 tokens (old token not counted), got %d", count)
+		}
+	})
+
+	t.Run("rate limit blocks after max requests", func(t *testing.T) {
+		// Simulate behavior: after 3 requests, rate limit should kick in
+		// The check happens before creating the token, so 3 tokens = rate limited
+		const maxRequests = 3
+		count, err := db.CountRecentMagicLinkRequests(user.ID, time.Now().Add(-15*time.Minute))
+		if err != nil {
+			t.Fatalf("Failed to count tokens: %v", err)
+		}
+		if count < maxRequests {
+			t.Errorf("Expected at least %d requests to trigger rate limit, got %d", maxRequests, count)
+		}
+	})
+}

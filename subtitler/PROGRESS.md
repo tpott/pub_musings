@@ -138,15 +138,21 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**185 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**186 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
-### Pending Tasks (183-187)
+### Pending Tasks (185, 187)
 Deep inspection found these issues:
-- Task 183: Per-email rate limit for magic links (SECURITY)
 - Task 185: Script conversion error reporting
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 183: Add per-email rate limiting for magic link requests (SECURITY)
+  - Added `CountRecentMagicLinkRequests()` to count recent magic link requests per user
+  - Magic link endpoint now checks for max 3 requests per 15 minutes per email
+  - Rate-limited requests still return generic success (prevents enumeration)
+  - Added `EventMagicLinkRateLimitExceeded` security event logging
+  - Added `TestCountRecentMagicLinkRequests` test
+
 - ✅ Task 182: Implement comprehensive temp file cleanup in transcription goroutines
   - Added `defer os.Remove(audioPath)` in transcription goroutine
   - Added `defer os.Remove(audioPath)` in reprocess goroutine

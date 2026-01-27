@@ -2533,6 +2533,21 @@ func main() {
 			return
 		}
 
+		// Per-email rate limit: max 3 magic link requests per 15 minutes
+		const maxMagicLinkRequests = 3
+		const magicLinkRateLimitWindow = 15 * time.Minute
+		recentCount, err := database.CountRecentMagicLinkRequests(user.ID, time.Now().Add(-magicLinkRateLimitWindow))
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error checking magic link rate limit", "error", err)
+			return
+		}
+		if recentCount >= maxMagicLinkRequests {
+			logging.WarnContext(r.Context(), "Magic link rate limit exceeded", "email", req.Email, "count", recentCount)
+			security.MagicLinkRateLimitExceeded(user.ID, req.Email)
+			// Still return generic success to prevent enumeration
+			return
+		}
+
 		// Generate magic link token (32 bytes = 256 bits entropy)
 		tokenBytes := make([]byte, 32)
 		if _, err := rand.Read(tokenBytes); err != nil {

@@ -1333,6 +1333,18 @@ func (db *DB) DeleteExpiredMagicLinkTokens() (int64, error) {
 	return result.RowsAffected()
 }
 
+// CountRecentMagicLinkRequests counts magic link tokens created for a user since the given time.
+// Used for per-email rate limiting to prevent abuse. Note: this counts all created tokens,
+// including used and expired ones, to track request frequency.
+func (db *DB) CountRecentMagicLinkRequests(userID string, since time.Time) (int, error) {
+	var count int
+	err := db.conn.QueryRow(`
+		SELECT COUNT(*) FROM magic_link_tokens
+		WHERE user_id = ? AND created_at > ?
+	`, userID, since).Scan(&count)
+	return count, err
+}
+
 // UpdateUserPassword updates a user's password hash
 func (db *DB) UpdateUserPassword(userID, passwordHash string) error {
 	_, err := db.conn.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
