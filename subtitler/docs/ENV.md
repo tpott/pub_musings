@@ -6,14 +6,15 @@ Complete reference for all environment variables used by the Subtitler applicati
 
 | Category | Variables |
 |----------|-----------|
-| Server | `PORT` |
-| Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `MAX_UPLOAD_SIZE` |
+| Server | `PORT`, `LOG_LEVEL` |
+| Storage | `UPLOAD_DIR`, `DB_PATH`, `KEY_PATH`, `KEYS_DIR`, `MAX_UPLOAD_SIZE` |
+| Chunked Uploads | `CHUNK_SIZE`, `UPLOAD_SESSION_EXPIRY` |
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL`, `WHISPER_THREADS`, `WHISPER_TEMPERATURE`, `WHISPER_TIMEOUT` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
 | Admin | `INITIAL_ADMIN_EMAIL` |
-| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT` |
-| Debugging | `LOG_SLOW_QUERIES`, `SLOW_QUERY_THRESHOLD_MS` |
+| Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `CHUNK_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT` |
+| Debugging | `LOG_LEVEL`, `LOG_SLOW_QUERIES`, `SLOW_QUERY_THRESHOLD_MS` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
 
@@ -28,6 +29,22 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Example | `PORT=8060` |
 
 HTTP port the backend server listens on. In production behind Caddy, use a non-standard port like `8060`.
+
+### LOG_LEVEL
+
+| Property | Value |
+|----------|-------|
+| Default | `info` |
+| Required | No |
+| Values | `debug`, `info`, `warn`, `error` |
+| Example | `LOG_LEVEL=debug` |
+
+Controls the minimum log level for structured logging output.
+
+- **debug:** Verbose logging including frontend log forwarding and query details
+- **info:** Standard logging including startup, requests, and significant events
+- **warn:** Warnings and errors only
+- **error:** Errors only
 
 ## Storage Configuration
 
@@ -61,6 +78,26 @@ Path to the SQLite database file. Parent directory is created automatically if i
 
 Path to the age encryption private key file. If the file doesn't exist, a new key is generated. **Critical:** Back up this file securely - without it, encrypted files are unrecoverable.
 
+### KEYS_DIR
+
+| Property | Value |
+|----------|-------|
+| Default | `data/keys` |
+| Required | No |
+| Example | `KEYS_DIR=/opt/subtitler/data/keys` |
+
+Directory for multi-key encryption support (key rotation). Contains versioned encryption keys (`key_v1.age`, `key_v2.age`, etc.) and a marker for the current version.
+
+**Key rotation workflow:**
+1. Keys are stored as `key_v{N}.age` files in this directory
+2. The `currentVersion` file indicates which key to use for new encryptions
+3. Videos track which key version encrypted them
+4. Old keys are retained to decrypt existing files
+
+If `KEYS_DIR` is not set, the default `data/keys` directory is used. A legacy single-key setup (using `KEY_PATH`) is automatically migrated on first run.
+
+See [../specs/key-rotation.md](../specs/key-rotation.md) for key rotation procedures.
+
 ### MAX_UPLOAD_SIZE
 
 | Property | Value |
@@ -71,6 +108,43 @@ Path to the age encryption private key file. If the file doesn't exist, a new ke
 | Example | `MAX_UPLOAD_SIZE=1G` |
 
 Maximum allowed file size for video uploads. Note: Cloudflare's free tier limits uploads to 100MB through tunnels.
+
+## Chunked Upload Configuration
+
+For large files (>50MB), the frontend uses chunked uploads to work around Cloudflare's 100MB request limit and enable resumability.
+
+### CHUNK_SIZE
+
+| Property | Value |
+|----------|-------|
+| Default | `50M` (50 MB) |
+| Required | No |
+| Format | Number with optional suffix: `K` (KB), `M` (MB), `G` (GB) |
+| Example | `CHUNK_SIZE=25M` |
+
+Maximum size of each upload chunk. Files larger than this are split into multiple requests.
+
+**Considerations:**
+- Must be less than Cloudflare's 100MB limit when using tunnels
+- Smaller chunks = more requests but better resumability
+- Larger chunks = fewer requests but more data to re-upload on failure
+
+### UPLOAD_SESSION_EXPIRY
+
+| Property | Value |
+|----------|-------|
+| Default | `24h` |
+| Required | No |
+| Format | Go duration (e.g., `12h`, `2h30m`, `48h`) |
+| Example | `UPLOAD_SESSION_EXPIRY=48h` |
+
+How long a chunked upload session remains valid. Sessions expire if no chunks are uploaded within this period.
+
+**Behavior:**
+- Sessions are created when calling `POST /api/upload/init`
+- Each chunk upload refreshes the session activity (but not the expiry time)
+- Expired sessions and their chunks are automatically cleaned up by the maintenance scheduler
+- Users must restart the upload from the beginning if their session expires
 
 ## Whisper Configuration
 
@@ -372,6 +446,16 @@ Rate limit for file downloads (video, thumbnail, burned video). Prevents bandwid
 | Example | `SCRIPT_RATE_LIMIT=20/min` |
 
 Rate limit for script detection and conversion endpoints.
+
+### CHUNK_RATE_LIMIT
+
+| Property | Value |
+|----------|-------|
+| Default | `60/min` |
+| Required | No |
+| Example | `CHUNK_RATE_LIMIT=120/min` |
+
+Rate limit for chunked upload endpoints (`POST /api/upload/chunk`). Higher than other rate limits since chunked uploads require many sequential requests. A 500MB file with 50MB chunks requires 10 chunk uploads.
 
 ### METRICS_RATE_LIMIT
 

@@ -138,9 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**205 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**206 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 204: Add missing environment variables to ENV.md
+  - Added `CHUNK_SIZE` for configuring chunked upload size (default 50MB)
+  - Added `UPLOAD_SESSION_EXPIRY` for chunked upload session timeout (default 24h)
+  - Added `KEYS_DIR` for multi-key encryption directory (default data/keys)
+  - Added `CHUNK_RATE_LIMIT` for chunked upload rate limiting (default 60/min)
+  - Added `LOG_LEVEL` for structured logging configuration (debug/info/warn/error)
+  - Added new "Chunked Upload Configuration" section
+  - Updated Quick Reference table with all new variables
+
 - Task 203: Add missing endpoints to API.md
   - Added GET /metrics endpoint documentation with API key and admin auth details
   - Added GET /api/captcha/config endpoint documentation
