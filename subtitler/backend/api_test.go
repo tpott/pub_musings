@@ -22,9 +22,11 @@ import (
 	"github.com/trevor/subtitler/backend/crypto"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
+	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
 	"github.com/trevor/subtitler/backend/script"
+	"github.com/trevor/subtitler/backend/security"
 	"github.com/trevor/subtitler/backend/totp"
 	"github.com/trevor/subtitler/backend/validation"
 )
@@ -48,6 +50,8 @@ type testServer struct {
 	authLimiter          *ratelimit.Limiter
 	passwordResetLimiter *ratelimit.Limiter
 	downloadLimiter      *ratelimit.Limiter
+	metricsLimiter       *ratelimit.Limiter
+	metricsAPIKey        string
 	emailService         *email.MockService
 	pathValidator        *pathvalidator.Validator
 	cleanup              func()
@@ -103,6 +107,8 @@ func setupTestServer(t *testing.T) *testServer {
 		authLimiter:          ratelimit.New(5, time.Minute),
 		passwordResetLimiter: ratelimit.New(3, 15*time.Minute),
 		downloadLimiter:      ratelimit.New(30, time.Minute),
+		metricsLimiter:       ratelimit.New(10, time.Minute),
+		metricsAPIKey:        os.Getenv("METRICS_API_KEY"),
 		emailService:         email.NewMockService(),
 		pathValidator:        pv,
 		cleanup: func() {
@@ -2208,6 +2214,56 @@ func (ts *testServer) registerHandlers() {
 			"expires_at":        session.ExpiresAt.Format(time.RFC3339),
 		})
 	})
+
+	// Prometheus metrics endpoint
+	// Protected by API key or admin authentication
+	ts.mux.HandleFunc("GET /metrics", ts.metricsLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		// Check API key first
+		apiKey := r.Header.Get("X-Metrics-API-Key")
+		if apiKey == "" {
+			apiKey = r.URL.Query().Get("api_key")
+		}
+
+		if ts.metricsAPIKey != "" && apiKey == ts.metricsAPIKey {
+			// Valid API key, serve metrics
+			metrics.Handler().ServeHTTP(w, r)
+			return
+		}
+
+		// Fall back to checking for admin user
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(ts.db, token)
+		if err != nil || user == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid session",
+			})
+			return
+		}
+
+		// Check if user has admin role
+		if !user.IsAdmin() {
+			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/metrics")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Admin access required",
+			})
+			return
+		}
+
+		metrics.Handler().ServeHTTP(w, r)
+	}))
 }
 
 // request helpers
@@ -2270,6 +2326,21 @@ func (ts *testServer) createTestUser(t *testing.T, email, password string) strin
 	}
 	json.NewDecoder(loginResp.Body).Decode(&loginResult)
 	return loginResult.Token
+}
+
+// createTestAdminUser creates an admin user, verifies their email, logs them in, and returns both the user ID and auth token
+func (ts *testServer) createTestAdminUser(t *testing.T, email, password string) (userID string, token string) {
+	t.Helper()
+
+	// First create a regular user
+	userID, token = ts.createTestUserWithID(t, email, password)
+
+	// Then promote them to admin
+	if err := ts.db.UpdateUserRole(userID, db.RoleAdmin); err != nil {
+		t.Fatalf("Failed to promote user to admin: %v", err)
+	}
+
+	return userID, token
 }
 
 // createTestUserWithID creates a user, verifies their email, logs them in, and returns both the user ID and auth token
@@ -6742,6 +6813,204 @@ func TestVideoDownloadPathValidation(t *testing.T) {
 		// Should get 403 Forbidden due to path validation
 		if rr.Code != http.StatusForbidden {
 			t.Errorf("Expected 403 for thumbnail path traversal attempt, got %d: %s", rr.Code, rr.Body.String())
+		}
+	})
+}
+
+// ========== Admin Role Tests ==========
+
+func TestMetricsEndpointAdminOnly(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	t.Run("unauthenticated user gets 401", func(t *testing.T) {
+		resp := ts.doRequest("GET", "/metrics", nil, "")
+
+		if resp.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401 for unauthenticated user, got %d: %s", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("regular user gets 403", func(t *testing.T) {
+		// Create a regular (non-admin) user
+		_, token := ts.createTestUserWithID(t, "regularuser@example.com", "Password123!")
+
+		resp := ts.doRequest("GET", "/metrics", nil, token)
+
+		if resp.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403 for non-admin user, got %d: %s", resp.Code, resp.Body.String())
+		}
+
+		var result map[string]string
+		json.NewDecoder(resp.Body).Decode(&result)
+		if result["error"] != "Admin access required" {
+			t.Errorf("Expected error 'Admin access required', got '%s'", result["error"])
+		}
+	})
+
+	t.Run("admin user gets 200", func(t *testing.T) {
+		// Create an admin user
+		_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+		resp := ts.doRequest("GET", "/metrics", nil, token)
+
+		if resp.Code != http.StatusOK {
+			t.Errorf("Expected status 200 for admin user, got %d: %s", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("api key bypasses admin check", func(t *testing.T) {
+		// Test that API key authentication bypasses admin role check
+		// Note: This requires setting METRICS_API_KEY env var in the test server
+		// For now, we just verify the endpoint works with API key via header
+		os.Setenv("METRICS_API_KEY", "test-api-key-123")
+		defer os.Unsetenv("METRICS_API_KEY")
+
+		// Create a new test server with the API key set
+		ts2 := setupTestServer(t)
+		defer ts2.cleanup()
+
+		req := httptest.NewRequest("GET", "/metrics", nil)
+		req.Header.Set("X-Metrics-API-Key", "test-api-key-123")
+
+		rr := httptest.NewRecorder()
+		ts2.mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200 with valid API key, got %d: %s", rr.Code, rr.Body.String())
+		}
+	})
+}
+
+func TestUserRoleManagement(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	t.Run("new users have user role by default", func(t *testing.T) {
+		userID, _ := ts.createTestUserWithID(t, "newuser@example.com", "Password123!")
+
+		user, err := ts.db.GetUserByID(userID)
+		if err != nil {
+			t.Fatalf("Failed to get user: %v", err)
+		}
+
+		if user.Role != db.RoleUser {
+			t.Errorf("Expected new user to have role '%s', got '%s'", db.RoleUser, user.Role)
+		}
+	})
+
+	t.Run("UpdateUserRole changes role", func(t *testing.T) {
+		userID, _ := ts.createTestUserWithID(t, "promote@example.com", "Password123!")
+
+		// Promote to admin
+		if err := ts.db.UpdateUserRole(userID, db.RoleAdmin); err != nil {
+			t.Fatalf("Failed to update user role: %v", err)
+		}
+
+		user, err := ts.db.GetUserByID(userID)
+		if err != nil {
+			t.Fatalf("Failed to get user: %v", err)
+		}
+
+		if user.Role != db.RoleAdmin {
+			t.Errorf("Expected user role to be '%s', got '%s'", db.RoleAdmin, user.Role)
+		}
+
+		// Demote back to user
+		if err := ts.db.UpdateUserRole(userID, db.RoleUser); err != nil {
+			t.Fatalf("Failed to demote user: %v", err)
+		}
+
+		user, _ = ts.db.GetUserByID(userID)
+		if user.Role != db.RoleUser {
+			t.Errorf("Expected user role to be '%s' after demotion, got '%s'", db.RoleUser, user.Role)
+		}
+	})
+
+	t.Run("UpdateUserRole rejects invalid role", func(t *testing.T) {
+		// Create a user directly in the database to avoid rate limiting
+		testUser := &db.User{
+			ID:            testGenerateID(),
+			Email:         "invalidrole@example.com",
+			PasswordHash:  "$2a$10$testhashinvalidrole",
+			TOTPEnabled:   false,
+			EmailVerified: true,
+			Role:          db.RoleUser,
+			CreatedAt:     time.Now(),
+		}
+		if err := ts.db.CreateUser(testUser); err != nil {
+			t.Fatalf("Failed to create test user: %v", err)
+		}
+
+		err := ts.db.UpdateUserRole(testUser.ID, "superadmin")
+		if err == nil {
+			t.Error("Expected error for invalid role, got nil")
+		}
+	})
+
+	t.Run("PromoteToAdmin by email", func(t *testing.T) {
+		// Create a user directly in the database to avoid rate limiting
+		testUser := &db.User{
+			ID:            testGenerateID(),
+			Email:         "promotebyemail@example.com",
+			PasswordHash:  "$2a$10$testhashpromote",
+			TOTPEnabled:   false,
+			EmailVerified: true,
+			Role:          db.RoleUser,
+			CreatedAt:     time.Now(),
+		}
+		if err := ts.db.CreateUser(testUser); err != nil {
+			t.Fatalf("Failed to create test user: %v", err)
+		}
+
+		if err := ts.db.PromoteToAdmin(testUser.Email); err != nil {
+			t.Fatalf("Failed to promote user by email: %v", err)
+		}
+
+		user, err := ts.db.GetUserByID(testUser.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user: %v", err)
+		}
+
+		if user.Role != db.RoleAdmin {
+			t.Errorf("Expected user role to be '%s' after promotion by email, got '%s'", db.RoleAdmin, user.Role)
+		}
+	})
+
+	t.Run("PromoteToAdmin returns error for nonexistent user", func(t *testing.T) {
+		err := ts.db.PromoteToAdmin("nonexistent@example.com")
+		if err == nil {
+			t.Error("Expected error for nonexistent user, got nil")
+		}
+	})
+
+	t.Run("IsAdmin returns correct value", func(t *testing.T) {
+		// Create a user directly in the database to avoid rate limiting
+		testUser := &db.User{
+			ID:            testGenerateID(),
+			Email:         "isadmincheck@example.com",
+			PasswordHash:  "$2a$10$testhashisadmin",
+			TOTPEnabled:   false,
+			EmailVerified: true,
+			Role:          db.RoleUser,
+			CreatedAt:     time.Now(),
+		}
+		if err := ts.db.CreateUser(testUser); err != nil {
+			t.Fatalf("Failed to create test user: %v", err)
+		}
+
+		user, _ := ts.db.GetUserByID(testUser.ID)
+
+		if user.IsAdmin() {
+			t.Error("Expected IsAdmin() to return false for regular user")
+		}
+
+		// Admin user
+		ts.db.UpdateUserRole(testUser.ID, db.RoleAdmin)
+		user, _ = ts.db.GetUserByID(testUser.ID)
+
+		if !user.IsAdmin() {
+			t.Error("Expected IsAdmin() to return true for admin user")
 		}
 	})
 }

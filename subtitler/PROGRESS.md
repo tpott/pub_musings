@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**157 tasks completed.** 1 task pending from deep inspection.
+**158 tasks completed.** All tasks from deep inspection complete.
 
 ### Recently Completed
+- ✅ Task 151: Implement admin role system for metrics endpoint
+  - Created migration 005 to add `role` column to users table (default: "user")
+  - Added `Role` field to User struct and `IsAdmin()` method
+  - Updated `/metrics` endpoint to require admin role (or API key)
+  - Added `INITIAL_ADMIN_EMAIL` env var for bootstrapping first admin
+  - Added `AccessDeniedNotAdmin()` security event helper
+  - Tests: `TestMetricsEndpointAdminOnly`, `TestUserRoleManagement`
+  - Updated docs/ENV.md with admin configuration section
 - ✅ Task 152: Add security event audit logging
   - Created `backend/security/events.go` package for consistent audit logging
   - 30+ event types covering: auth, 2FA, sessions, access control, rate limits
@@ -172,9 +180,6 @@ This file tracks high-level progress on the subtitler project. For detailed spec
   - **Root cause:** `scrollIntoView()` scrolls ALL ancestor containers including the page
   - **Fix:** Replaced with container-only scrolling in upload.astro
   - **Prevention:** Added E2E regression tests, LEARNINGS.md entry, and `specs/video-scroll-fix.md`
-
-### Pending Tasks (from deep inspection 2026-01-26)
-- Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:

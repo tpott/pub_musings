@@ -962,6 +962,18 @@ func main() {
 	defer database.Close()
 	logging.Info("Database initialized", "path", dbPath)
 
+	// Check for initial admin email configuration
+	// If set, promotes the user with this email to admin role
+	initialAdminEmail := os.Getenv("INITIAL_ADMIN_EMAIL")
+	if initialAdminEmail != "" {
+		if err := database.PromoteToAdmin(initialAdminEmail); err != nil {
+			// Log as info since user might not exist yet
+			logging.Info("Could not promote initial admin (user may not exist yet)", "email", initialAdminEmail, "error", err)
+		} else {
+			logging.Info("Promoted user to admin", "email", initialAdminEmail)
+		}
+	}
+
 	// Initialize multi-key encryptor for file encryption at rest with key rotation support
 	// Check if KEYS_DIR is set (new multi-key mode), otherwise use legacy keyPath
 	keysDir := os.Getenv("KEYS_DIR")
@@ -1102,8 +1114,17 @@ func main() {
 			return
 		}
 
-		// For now, any authenticated user can view metrics
-		// TODO: Add admin role check when role system is implemented
+		// Check if user has admin role
+		if !user.IsAdmin() {
+			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/metrics")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Admin access required",
+			})
+			return
+		}
+
 		metrics.Handler().ServeHTTP(w, r)
 	}))
 

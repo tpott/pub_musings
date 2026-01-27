@@ -178,6 +178,24 @@ func TestAccessDeniedNotOwner(t *testing.T) {
 	}
 }
 
+func TestAccessDeniedNotAdmin(t *testing.T) {
+	buf := setupTestLogger()
+	ctx := context.Background()
+
+	AccessDeniedNotAdmin(ctx, "10.0.0.6", "user456", "/metrics")
+
+	output := buf.String()
+	if !contains(output, EventAccessDeniedAdmin) {
+		t.Errorf("expected event %s in output: %s", EventAccessDeniedAdmin, output)
+	}
+	if !contains(output, "user_id=user456") {
+		t.Errorf("expected user_id in output: %s", output)
+	}
+	if !contains(output, "resource=/metrics") {
+		t.Errorf("expected resource in output: %s", output)
+	}
+}
+
 func TestRateLimitExceeded(t *testing.T) {
 	buf := setupTestLogger()
 	ctx := context.Background()

@@ -247,6 +247,11 @@ func AccessDeniedNotAuthenticated(ctx context.Context, ip, resource string) {
 	LogSecurityWarning(ctx, EventAccessDeniedAuth, ip, "resource", resource)
 }
 
+// AccessDeniedNotAdmin logs when a non-admin user tries to access an admin-only resource.
+func AccessDeniedNotAdmin(ctx context.Context, ip, userID, resource string) {
+	LogSecurityWarning(ctx, EventAccessDeniedAdmin, ip, "user_id", userID, "resource", resource)
+}
+
 // RateLimitExceeded logs when a rate limit is exceeded.
 func RateLimitExceeded(ctx context.Context, ip, endpoint string, limitName string) {
 	LogSecurityWarning(ctx, EventRateLimitExceeded, ip, "endpoint", endpoint, "limit_name", limitName)

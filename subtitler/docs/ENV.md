@@ -11,6 +11,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
 | Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
+| Admin | `INITIAL_ADMIN_EMAIL` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT` |
 | Maintenance | `DB_MAINTENANCE_INTERVAL` |
 | Subtitles | `SUBTITLE_FONT` |
@@ -366,12 +367,16 @@ Per-user rate limit for authenticated requests across all endpoints. Applied in 
 
 | Property | Value |
 |----------|-------|
-| Default | (empty - requires authentication) |
+| Default | (empty - requires admin authentication) |
 | Required | No |
 | Format | String (any secure random value) |
 | Example | `METRICS_API_KEY=your-secure-api-key-here` |
 
-API key for accessing the `/metrics` endpoint (Prometheus format). If set, requests with this key in the `X-Metrics-API-Key` header or `api_key` query parameter are allowed. If not set, authentication via user session is required.
+API key for accessing the `/metrics` endpoint (Prometheus format). If set, requests with this key in the `X-Metrics-API-Key` header or `api_key` query parameter are allowed. If not set, session-based authentication with **admin role** is required.
+
+**Access control:**
+1. **API Key (recommended for monitoring systems):** If `METRICS_API_KEY` is set and the request includes a matching key, access is granted immediately
+2. **Admin Session:** If no API key is configured or provided, the user must be authenticated with an admin role (see `INITIAL_ADMIN_EMAIL`)
 
 **Example usage:**
 ```bash
@@ -390,6 +395,29 @@ curl "https://example.com/metrics?api_key=your-key"
 - `active_sessions_total` - Current active user sessions
 - `uploads_bytes_total` - Total bytes uploaded
 - `uploads_total` - Upload count by status (success/failed)
+
+## Admin Configuration
+
+### INITIAL_ADMIN_EMAIL
+
+| Property | Value |
+|----------|-------|
+| Default | (empty) |
+| Required | No |
+| Format | Valid email address |
+| Example | `INITIAL_ADMIN_EMAIL=admin@example.com` |
+
+Email address of the user to promote to admin role on server startup. If the user exists, their role is set to `admin`. If the user doesn't exist yet, no action is taken (no error).
+
+**Use case:** Bootstrapping the first admin user for a new deployment. Set this to your email, register an account, and you'll automatically become an admin.
+
+**Notes:**
+- The promotion happens on every server start, so you can leave this configured
+- If the user doesn't exist, a log message is written but no error occurs
+- To promote additional admins, use database operations directly:
+  ```bash
+  sqlite3 data/subtitler.db "UPDATE users SET role = 'admin' WHERE email = 'user@example.com'"
+  ```
 
 ## Maintenance Configuration
 
