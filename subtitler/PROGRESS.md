@@ -138,7 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**179 tasks completed.** Deep inspection created 12 new tasks (167-178). **All deep inspection tasks complete!**
+**179 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+
+### Pending Tasks (179-187)
+Deep inspection found these issues:
+- Task 179: Magic link email verification check (SECURITY)
+- Task 180: Password validation consolidation
+- Task 181: Transcription status race condition fix
+- Task 182: Temp file cleanup in transcription goroutines
+- Task 183: Per-email rate limit for magic links (SECURITY)
+- Task 184: Expired session handling fix
+- Task 185: Script conversion error reporting
+- Task 186: Email token cleanup after verification
+- Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
 - ✅ Task 178: Add ID format validation before database queries
