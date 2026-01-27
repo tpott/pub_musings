@@ -475,3 +475,87 @@ func TestValidateMagicBytesFromFile_NonexistentFile(t *testing.T) {
 		t.Error("Expected file open error, not ErrInvalidMagicBytes")
 	}
 }
+
+// Subtitle Track Detection Tests
+
+func TestGetSubtitleTracks_FfprobeNotAvailable(t *testing.T) {
+	// Save original PATH
+	origPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", origPath)
+
+	// Set PATH to empty to simulate missing ffprobe
+	os.Setenv("PATH", "/nonexistent-path-for-testing")
+
+	// When ffprobe is not available, should return empty list without error
+	tracks, err := GetSubtitleTracks("/any/path.mp4")
+	if err != nil {
+		t.Errorf("Expected no error when ffprobe not available, got: %v", err)
+	}
+	if len(tracks) != 0 {
+		t.Errorf("Expected empty tracks slice, got %d tracks", len(tracks))
+	}
+}
+
+func TestGetSubtitleTracks_NonexistentFile(t *testing.T) {
+	// Skip if ffprobe is not available
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not available, skipping test")
+	}
+
+	_, err := GetSubtitleTracks("/nonexistent/path/video.mp4")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "ffprobe failed") {
+		t.Errorf("Expected 'ffprobe failed' error, got: %v", err)
+	}
+}
+
+func TestTextBasedCodecs(t *testing.T) {
+	// Test that text-based codecs are correctly identified
+	textBased := []string{"subrip", "ass", "ssa", "mov_text", "webvtt", "text"}
+	for _, codec := range textBased {
+		if !textBasedCodecs[codec] {
+			t.Errorf("Codec %s should be text-based", codec)
+		}
+	}
+
+	// Test that image-based codecs are correctly identified
+	imageBased := []string{"hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle"}
+	for _, codec := range imageBased {
+		if textBasedCodecs[codec] {
+			t.Errorf("Codec %s should NOT be text-based", codec)
+		}
+	}
+}
+
+func TestSubtitleTrackStruct(t *testing.T) {
+	track := SubtitleTrack{
+		Index:     2,
+		Language:  "eng",
+		Title:     "English",
+		Codec:     "subrip",
+		Default:   true,
+		Forced:    false,
+		TextBased: true,
+	}
+
+	if track.Index != 2 {
+		t.Errorf("Expected Index=2, got %d", track.Index)
+	}
+	if track.Language != "eng" {
+		t.Errorf("Expected Language='eng', got '%s'", track.Language)
+	}
+	if track.Codec != "subrip" {
+		t.Errorf("Expected Codec='subrip', got '%s'", track.Codec)
+	}
+	if !track.Default {
+		t.Error("Expected Default=true")
+	}
+	if track.Forced {
+		t.Error("Expected Forced=false")
+	}
+	if !track.TextBased {
+		t.Error("Expected TextBased=true")
+	}
+}

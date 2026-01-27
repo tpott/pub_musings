@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**220 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**221 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**220 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**221 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 219: Feature - Detect embedded subtitles
+  - Added `GetSubtitleTracks()` to `backend/audio/audio.go` using ffprobe
+  - Created `SubtitleTrack` struct with index, language, title, codec, default, forced, text_based
+  - Identifies text-based vs image-based subtitle codecs
+  - Database migration 006 adds `embedded_subtitles_json` column
+  - Detection runs during both simple and chunked uploads (before encryption)
+  - API returns parsed embedded_subtitles array in video list response
+  - Frontend shows badge with languages on My Videos page
+  - See: `specs/embedded-subtitles.md`
+
 - Task 214: Research - Alternative speech-to-text providers
   - Compared AssemblyAI, Deepgram, Google Cloud Speech-to-Text, AWS Transcribe
   - Evaluated: word timestamps, diarization, phoneme support, sentiment analysis, pricing

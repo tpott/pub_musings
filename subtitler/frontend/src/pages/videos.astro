@@ -251,6 +251,20 @@ import '../styles/theme.css';
 				background-color: var(--retention-expired-bg);
 				color: var(--retention-expired-text);
 			}
+			.embedded-subtitles-badge {
+				display: inline-block;
+				padding: 0.125rem 0.5rem;
+				border-radius: 4px;
+				font-size: 0.75rem;
+				font-weight: 500;
+				background-color: var(--badge-info-bg, #e3f2fd);
+				color: var(--badge-info-text, #1565c0);
+				cursor: help;
+			}
+			:global(.dark) .embedded-subtitles-badge {
+				background-color: var(--badge-info-bg-dark, #1e3a5f);
+				color: var(--badge-info-text-dark, #90caf9);
+			}
 			.nav {
 				display: flex;
 				justify-content: flex-end;
@@ -687,6 +701,16 @@ import '../styles/theme.css';
 			const empty = document.getElementById('empty') as HTMLElement;
 			const videoList = document.getElementById('videoList') as HTMLElement;
 
+			interface SubtitleTrack {
+				index: number;
+				language: string;
+				title: string;
+				codec: string;
+				default: boolean;
+				forced: boolean;
+				text_based: boolean;
+			}
+
 			interface Video {
 				id: string;
 				filename: string;
@@ -697,6 +721,7 @@ import '../styles/theme.css';
 				user_id?: string;
 				expires_at?: string;
 				thumbnail_path?: string;
+				embedded_subtitles?: SubtitleTrack[];
 			}
 
 			function formatBytes(bytes: number): string {
@@ -758,6 +783,25 @@ import '../styles/theme.css';
 				return `<span class="status-badge status-${status}">${label}</span>`;
 			}
 
+			function getEmbeddedSubtitlesBadge(video: Video): string {
+				if (!video.embedded_subtitles || video.embedded_subtitles.length === 0) {
+					return '';
+				}
+
+				// Extract unique languages
+				const languages = video.embedded_subtitles
+					.map(s => s.language || s.title || 'Unknown')
+					.filter(lang => lang && lang.trim())
+					.map(lang => lang.toUpperCase())
+					.filter((v, i, a) => a.indexOf(v) === i); // unique
+
+				const count = video.embedded_subtitles.length;
+				const langStr = languages.length > 0 ? languages.join(', ') : `${count} track${count > 1 ? 's' : ''}`;
+				const tooltip = `Video has embedded subtitles: ${langStr}`;
+
+				return `<span class="embedded-subtitles-badge" title="${escapeHtml(tooltip)}">📝 ${escapeHtml(langStr)}</span>`;
+			}
+
 			function renderVideo(video: Video): string {
 				const showViewBtn = video.transcription_status === 'complete';
 				const showDownloadBtn = video.transcription_status === 'complete';
@@ -776,6 +820,7 @@ import '../styles/theme.css';
 								<span>${formatBytes(video.size)}</span>
 								<span>${formatDate(video.created_at)}</span>
 								${getStatusBadge(video.transcription_status)}
+								${getEmbeddedSubtitlesBadge(video)}
 								${formatRetention(video)}
 							</div>
 						</div>

@@ -2981,6 +2981,24 @@ func main() {
 			}
 		}
 
+		// Detect embedded subtitle tracks before encryption
+		var embeddedSubtitlesJSON *string
+		subtitleTracks, err := audio.GetSubtitleTracks(destPath)
+		if err != nil {
+			logging.WarnContext(r.Context(), "Failed to detect embedded subtitles", "error", err)
+			// Non-fatal: continue without subtitle detection
+		} else if len(subtitleTracks) > 0 {
+			// Serialize subtitle tracks to JSON
+			subtitlesData, err := json.Marshal(subtitleTracks)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Failed to serialize subtitle tracks", "error", err)
+			} else {
+				jsonStr := string(subtitlesData)
+				embeddedSubtitlesJSON = &jsonStr
+				logging.InfoContext(r.Context(), "Detected embedded subtitle tracks", "count", len(subtitleTracks))
+			}
+		}
+
 		// Encrypt the file at rest with current key version
 		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
@@ -2999,14 +3017,15 @@ func main() {
 
 		// Save video to database with encrypted file path and key version
 		video := &db.Video{
-			ID:            uploadID,
-			Filename:      header.Filename,
-			Size:          written,
-			ContentType:   contentType,
-			FilePath:      encPath,
-			ThumbnailPath: encThumbPath,
-			KeyVersion:    keyVersion,
-			CreatedAt:     time.Now(),
+			ID:                    uploadID,
+			Filename:              header.Filename,
+			Size:                  written,
+			ContentType:           contentType,
+			FilePath:              encPath,
+			ThumbnailPath:         encThumbPath,
+			KeyVersion:            keyVersion,
+			EmbeddedSubtitlesJSON: embeddedSubtitlesJSON,
+			CreatedAt:             time.Now(),
 		}
 		// Set user_id if authenticated
 		if user != nil {
@@ -3596,6 +3615,22 @@ func main() {
 			}
 		}
 
+		// Detect embedded subtitle tracks before encryption
+		var embeddedSubtitlesJSON *string
+		subtitleTracks, err := audio.GetSubtitleTracks(destPath)
+		if err != nil {
+			logging.WarnContext(r.Context(), "Failed to detect embedded subtitles", "error", err)
+		} else if len(subtitleTracks) > 0 {
+			subtitlesData, err := json.Marshal(subtitleTracks)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Failed to serialize subtitle tracks", "error", err)
+			} else {
+				jsonStr := string(subtitlesData)
+				embeddedSubtitlesJSON = &jsonStr
+				logging.InfoContext(r.Context(), "Detected embedded subtitle tracks", "count", len(subtitleTracks))
+			}
+		}
+
 		// Encrypt the file with current key version
 		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
@@ -3609,16 +3644,17 @@ func main() {
 
 		// Save video to database with key version
 		video := &db.Video{
-			ID:            uploadID,
-			Filename:      session.Filename,
-			Size:          totalWritten,
-			ContentType:   session.ContentType,
-			FilePath:      encPath,
-			ThumbnailPath: encThumbPath,
-			KeyVersion:    keyVersion,
-			CreatedAt:     time.Now(),
-			UserID:        session.UserID,
-			SessionID:     session.SessionID,
+			ID:                    uploadID,
+			Filename:              session.Filename,
+			Size:                  totalWritten,
+			ContentType:           session.ContentType,
+			FilePath:              encPath,
+			ThumbnailPath:         encThumbPath,
+			KeyVersion:            keyVersion,
+			EmbeddedSubtitlesJSON: embeddedSubtitlesJSON,
+			CreatedAt:             time.Now(),
+			UserID:                session.UserID,
+			SessionID:             session.SessionID,
 		}
 		if err := database.CreateVideo(video); err != nil {
 			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
@@ -4566,8 +4602,9 @@ func main() {
 		// Get transcription status and calculate expiry for each video
 		type VideoWithStatus struct {
 			db.Video
-			TranscriptionStatus string     `json:"transcription_status"`
-			ExpiresAt           *time.Time `json:"expires_at,omitempty"`
+			TranscriptionStatus string                `json:"transcription_status"`
+			ExpiresAt           *time.Time            `json:"expires_at,omitempty"`
+			EmbeddedSubtitles   []audio.SubtitleTrack `json:"embedded_subtitles,omitempty"`
 		}
 
 		videos := make([]VideoWithStatus, len(result.Videos))
@@ -4575,6 +4612,14 @@ func main() {
 			videos[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
 			if t, err := database.GetTranscription(v.ID); err == nil && t != nil {
 				videos[i].TranscriptionStatus = t.Status
+			}
+
+			// Parse embedded subtitles JSON if present
+			if v.EmbeddedSubtitlesJSON != nil {
+				var tracks []audio.SubtitleTrack
+				if err := json.Unmarshal([]byte(*v.EmbeddedSubtitlesJSON), &tracks); err == nil {
+					videos[i].EmbeddedSubtitles = tracks
+				}
 			}
 
 			// Calculate expiration time based on user type

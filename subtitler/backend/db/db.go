@@ -44,16 +44,17 @@ func (db *DB) queryContext() (context.Context, context.CancelFunc) {
 
 // Video represents an uploaded video
 type Video struct {
-	ID            string    `json:"id"`
-	Filename      string    `json:"filename"`
-	Size          int64     `json:"size"`
-	ContentType   string    `json:"content_type"`
-	FilePath      string    `json:"file_path"`
-	ThumbnailPath *string   `json:"thumbnail_path,omitempty"` // path to encrypted thumbnail image
-	KeyVersion    int       `json:"key_version"`              // encryption key version (for key rotation)
-	CreatedAt     time.Time `json:"created_at"`
-	UserID        *string   `json:"user_id,omitempty"` // null for anonymous uploads
-	SessionID     *string   `json:"session_id,omitempty"`
+	ID                    string    `json:"id"`
+	Filename              string    `json:"filename"`
+	Size                  int64     `json:"size"`
+	ContentType           string    `json:"content_type"`
+	FilePath              string    `json:"file_path"`
+	ThumbnailPath         *string   `json:"thumbnail_path,omitempty"`          // path to encrypted thumbnail image
+	KeyVersion            int       `json:"key_version"`                       // encryption key version (for key rotation)
+	EmbeddedSubtitlesJSON *string   `json:"embedded_subtitles_json,omitempty"` // JSON-encoded embedded subtitle tracks
+	CreatedAt             time.Time `json:"created_at"`
+	UserID                *string   `json:"user_id,omitempty"` // null for anonymous uploads
+	SessionID             *string   `json:"session_id,omitempty"`
 }
 
 // Transcription represents a transcription job and its result
@@ -361,9 +362,9 @@ func (db *DB) CreateVideo(video *Video) error {
 		keyVersion = 1
 	}
 	_, err := db.conn.ExecContext(ctx, `
-		INSERT INTO videos (id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.ThumbnailPath, keyVersion, video.CreatedAt, video.UserID, video.SessionID)
+		INSERT INTO videos (id, filename, size, content_type, file_path, thumbnail_path, key_version, embedded_subtitles_json, created_at, user_id, session_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, video.ID, video.Filename, video.Size, video.ContentType, video.FilePath, video.ThumbnailPath, keyVersion, video.EmbeddedSubtitlesJSON, video.CreatedAt, video.UserID, video.SessionID)
 	return err
 }
 
@@ -374,9 +375,9 @@ func (db *DB) GetVideo(id string) (*Video, error) {
 
 	video := &Video{}
 	err := db.conn.QueryRowContext(ctx, `
-		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
+		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, embedded_subtitles_json, created_at, user_id, session_id
 		FROM videos WHERE id = ?
-	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.ThumbnailPath, &video.KeyVersion, &video.CreatedAt, &video.UserID, &video.SessionID)
+	`, id).Scan(&video.ID, &video.Filename, &video.Size, &video.ContentType, &video.FilePath, &video.ThumbnailPath, &video.KeyVersion, &video.EmbeddedSubtitlesJSON, &video.CreatedAt, &video.UserID, &video.SessionID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -538,7 +539,7 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 	}
 
 	// Build paginated query with parameterized LIMIT/OFFSET
-	query := `SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
+	query := `SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, embedded_subtitles_json, created_at, user_id, session_id
 		FROM videos ` + whereClause + ` ORDER BY created_at DESC`
 
 	if limit > 0 {
@@ -559,7 +560,7 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 	var videos []Video
 	for rows.Next() {
 		var v Video
-		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
+		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.EmbeddedSubtitlesJSON, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
 			return nil, err
 		}
 		videos = append(videos, v)
@@ -1018,6 +1019,12 @@ func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
 // UpdateVideoThumbnail updates the thumbnail path for a video
 func (db *DB) UpdateVideoThumbnail(videoID, thumbnailPath string) error {
 	_, err := db.conn.Exec(`UPDATE videos SET thumbnail_path = ? WHERE id = ?`, thumbnailPath, videoID)
+	return err
+}
+
+// UpdateVideoEmbeddedSubtitles updates the embedded subtitles JSON for a video
+func (db *DB) UpdateVideoEmbeddedSubtitles(videoID string, subtitlesJSON *string) error {
+	_, err := db.conn.Exec(`UPDATE videos SET embedded_subtitles_json = ? WHERE id = ?`, subtitlesJSON, videoID)
 	return err
 }
 

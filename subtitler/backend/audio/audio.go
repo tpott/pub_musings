@@ -3,11 +3,13 @@ package audio
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Extractor defines the interface for extracting audio from video files.
@@ -275,6 +277,112 @@ func GenerateThumbnail(videoPath, thumbnailPath string) error {
 	}
 
 	return nil
+}
+
+// SubtitleTrack represents an embedded subtitle track in a video file.
+type SubtitleTrack struct {
+	Index     int    `json:"index"`      // Stream index in the container
+	Language  string `json:"language"`   // ISO 639-1/2 code (e.g., "eng", "en")
+	Title     string `json:"title"`      // Optional track title
+	Codec     string `json:"codec"`      // Codec name (e.g., "subrip", "ass", "mov_text")
+	Default   bool   `json:"default"`    // Is this the default track?
+	Forced    bool   `json:"forced"`     // Is this a forced subtitle track?
+	TextBased bool   `json:"text_based"` // Can this be extracted as text (vs image-based)?
+}
+
+// textBasedCodecs lists subtitle codecs that can be extracted as text.
+// Image-based codecs (PGS, VOBSUB, DVB) require OCR and are not text-based.
+var textBasedCodecs = map[string]bool{
+	"subrip":            true,  // SRT
+	"ass":               true,  // Advanced SubStation Alpha
+	"ssa":               true,  // SubStation Alpha
+	"mov_text":          true,  // MP4/MOV text track
+	"webvtt":            true,  // WebVTT
+	"text":              true,  // Plain text
+	"sami":              true,  // SAMI
+	"microdvd":          true,  // MicroDVD
+	"mpl2":              true,  // MPL2
+	"pjs":               true,  // Phoenix Subtitle
+	"realtext":          true,  // RealText
+	"stl":               true,  // Spruce STL
+	"subviewer":         true,  // SubViewer
+	"subviewer1":        true,  // SubViewer v1
+	"vplayer":           true,  // VPlayer
+	"hdmv_pgs_subtitle": false, // Blu-ray PGS (image-based)
+	"dvd_subtitle":      false, // DVD VOBSUB (image-based)
+	"dvb_subtitle":      false, // DVB (image-based)
+}
+
+// ffprobeSubtitleOutput represents the JSON output from ffprobe for subtitle streams.
+type ffprobeSubtitleOutput struct {
+	Streams []struct {
+		Index       int    `json:"index"`
+		CodecName   string `json:"codec_name"`
+		Disposition struct {
+			Default int `json:"default"`
+			Forced  int `json:"forced"`
+		} `json:"disposition"`
+		Tags struct {
+			Language string `json:"language"`
+			Title    string `json:"title"`
+		} `json:"tags"`
+	} `json:"streams"`
+}
+
+// GetSubtitleTracks uses ffprobe to detect embedded subtitle tracks in a video file.
+// Returns an empty slice if no subtitle tracks are found or if ffprobe is not available.
+func GetSubtitleTracks(filePath string) ([]SubtitleTrack, error) {
+	probePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		// ffprobe not available - return empty list
+		return []SubtitleTrack{}, nil
+	}
+
+	// Use ffprobe to get subtitle stream information in JSON format
+	// -v error: only show errors
+	// -select_streams s: select subtitle streams only
+	// -show_entries: show stream index, codec, disposition, and tags
+	// -of json: output as JSON
+	cmd := exec.Command(probePath,
+		"-v", "error",
+		"-select_streams", "s",
+		"-show_entries", "stream=index,codec_name:stream_disposition=default,forced:stream_tags=language,title",
+		"-of", "json",
+		filePath,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffprobe failed to read subtitle streams: %w", err)
+	}
+
+	// Parse JSON output
+	var probeOutput ffprobeSubtitleOutput
+	if err := json.Unmarshal(output, &probeOutput); err != nil {
+		return nil, fmt.Errorf("failed to parse ffprobe output: %w", err)
+	}
+
+	// Convert to SubtitleTrack slice
+	tracks := make([]SubtitleTrack, 0, len(probeOutput.Streams))
+	for _, stream := range probeOutput.Streams {
+		codec := strings.ToLower(stream.CodecName)
+		textBased := true
+		if known, ok := textBasedCodecs[codec]; ok {
+			textBased = known
+		}
+
+		track := SubtitleTrack{
+			Index:     stream.Index,
+			Language:  stream.Tags.Language,
+			Title:     stream.Tags.Title,
+			Codec:     stream.CodecName,
+			Default:   stream.Disposition.Default == 1,
+			Forced:    stream.Disposition.Forced == 1,
+			TextBased: textBased,
+		}
+		tracks = append(tracks, track)
+	}
+
+	return tracks, nil
 }
 
 // MockExtractor is a test implementation of Extractor.
