@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**164 tasks completed.** Working on deep inspection tasks.
+**165 tasks completed.** Working on deep inspection tasks.
 
 ### Recently Completed
+- ✅ Task 164: Update TESTING.md with accurate test file counts
+  - Updated from "86 tests in 7 files" to "442 tests in 24 files" for backend
+  - Updated from "64 tests in 3 files" to "197 tests in 9 files" for frontend
+  - Total: 639 tests (was documented as 150)
+  - Added all test file descriptions to the tables
 - ✅ Task 163: Make whisper parameters configurable
   - Added `WHISPER_THREADS` (default 4) for whisper-cli thread count
   - Added `WHISPER_TEMPERATURE` (default 0.0) for whisper-server temperature

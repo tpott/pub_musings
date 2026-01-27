@@ -6,9 +6,9 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 86 tests across 7 test files
-- **Frontend (TypeScript)**: 64 tests across 3 test files
-- **Total**: 150 tests
+- **Backend (Go)**: 442 tests across 24 test files
+- **Frontend (TypeScript)**: 197 tests across 9 test files
+- **Total**: 639 tests
 
 ## Backend Tests
 
@@ -40,11 +40,28 @@ go test -run TestAuthLogin -v
 |------|---------|-------------|
 | `api_test.go` | main | API integration tests (endpoints, auth, sessions) |
 | `main_test.go` | main | Unit tests (SRT formatting, video upload form) |
-| `auth/auth_test.go` | auth | Password hashing, token generation, validation, sessions |
-| `db/db_test.go` | db | Database CRUD, migrations, video/transcription/burn job lifecycle |
-| `crypto/crypto_test.go` | crypto | File encryption/decryption with age library |
 | `align/align_test.go` | align | Transcript alignment algorithm |
+| `align/lyrics_test.go` | align | Lyrics mode alignment tests |
+| `audio/audio_test.go` | audio | Audio extraction and magic byte validation |
+| `auth/auth_test.go` | auth | Password hashing, token generation, validation, sessions |
+| `captcha/captcha_test.go` | captcha | hCaptcha verification tests |
+| `crypto/crypto_test.go` | crypto | File encryption/decryption with age library |
+| `crypto/multi_test.go` | crypto | Multi-key encryption for key rotation |
+| `csrf/csrf_test.go` | csrf | CSRF token generation and validation |
+| `db/db_test.go` | db | Database CRUD, video/transcription/burn job lifecycle |
+| `db/migrate_test.go` | db | Database migration tests |
+| `db/profiler_test.go` | db | Query performance profiler tests |
+| `email/email_test.go` | email | Email service and Resend API tests |
+| `errmsg/errmsg_test.go` | errmsg | User-friendly error message tests |
+| `logging/logging_test.go` | logging | Structured logging tests |
+| `metrics/metrics_test.go` | metrics | Prometheus metrics and path normalization |
+| `pathvalidator/pathvalidator_test.go` | pathvalidator | Path traversal prevention tests |
+| `ratelimit/ratelimit_test.go` | ratelimit | Rate limiter tests |
+| `script/script_test.go` | script | Script detection and conversion tests |
+| `security/events_test.go` | security | Security event audit logging tests |
 | `totp/totp_test.go` | totp | TOTP code generation and validation |
+| `totp/recovery_test.go` | totp | Recovery code generation and validation |
+| `validation/validation_test.go` | validation | Input validation tests |
 
 ### Test Categories
 
@@ -96,9 +113,15 @@ npm test:watch
 
 | File | Description |
 |------|-------------|
-| `src/utils/format.test.ts` | 23 tests for formatting utilities |
-| `src/utils/validation.test.ts` | 21 tests for validation utilities |
-| `src/utils/console-forwarder.test.ts` | 20 tests for dev mode console forwarding |
+| `src/utils/format.test.ts` | Formatting utilities (bytes, time, dates) |
+| `src/utils/validation.test.ts` | Input validation (email, password, TOTP, files) |
+| `src/utils/console-forwarder.test.ts` | Dev mode console forwarding |
+| `src/utils/captcha.test.ts` | hCaptcha integration |
+| `src/utils/csrf.test.ts` | CSRF token handling |
+| `src/utils/history.test.ts` | Undo/redo history management |
+| `src/utils/html.test.ts` | HTML escaping for XSS prevention |
+| `src/utils/processing-speed.test.ts` | Transcription time estimation |
+| `src/utils/session.test.ts` | Session and upload session management |
 
 ### Test Categories
 
