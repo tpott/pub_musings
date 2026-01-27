@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**178 tasks completed.** Deep inspection created 12 new tasks (167-178). All frontend tasks complete!
+**179 tasks completed.** Deep inspection created 12 new tasks (167-178). **All deep inspection tasks complete!**
 
 ### Recently Completed
+- ✅ Task 178: Add ID format validation before database queries
+  - Created `ValidateHexID()` in validation package (32-char hex check)
+  - Created `validatePathID()` helper in main.go for endpoint use
+  - Applied validation to all 14 endpoints using PathValue("id")
+  - Returns 400 Bad Request for invalid ID format before DB query
+  - Added comprehensive tests for ValidateHexID
 - ✅ Task 174: Add unsaved changes warning before navigation
   - Added beforeunload event listener on window
   - Checks hasUnsavedChanges flag and prompts user before leaving page

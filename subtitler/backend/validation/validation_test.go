@@ -263,3 +263,33 @@ func TestValidateAlignMode(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateHexID(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{"valid 32-char lowercase hex", "abcdef0123456789abcdef0123456789", false},
+		{"valid 32-char uppercase hex", "ABCDEF0123456789ABCDEF0123456789", false},
+		{"valid 32-char mixed case hex", "AbCdEf0123456789abcdef0123456789", false},
+		{"too short", "abc123", true},
+		{"too long", "abcdef0123456789abcdef0123456789extra", true},
+		{"empty string", "", true},
+		{"contains non-hex char g", "abcdefg123456789abcdef0123456789", true},
+		{"contains non-hex char z", "abcdef0123456z89abcdef0123456789", true},
+		{"contains space", "abcdef0123456789 bcdef0123456789", true},
+		{"contains dash", "abcdef01-3456789abcdef0123456789", true},
+		{"31 chars (one short)", "abcdef0123456789abcdef012345678", true},
+		{"33 chars (one long)", "abcdef0123456789abcdef01234567890", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateHexID(tt.id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateHexID(%q) error = %v, wantErr %v", tt.id, err, tt.wantErr)
+			}
+		})
+	}
+}

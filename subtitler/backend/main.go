@@ -525,6 +525,26 @@ func generateID() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+// validatePathID validates an ID from URL path, returning an error response if invalid.
+// Returns the ID and true if valid, or empty string and false if invalid (response already written).
+func validatePathID(w http.ResponseWriter, id string, fieldName string) (string, bool) {
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": fieldName + " required",
+		})
+		return "", false
+	}
+	if err := validation.ValidateHexID(id); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Invalid " + fieldName + " format",
+		})
+		return "", false
+	}
+	return id, true
+}
+
 // getWhisperModel returns the whisper model path from env or default
 func getWhisperModel() string {
 	model := os.Getenv("WHISPER_MODEL")
@@ -1722,12 +1742,8 @@ func main() {
 			return
 		}
 
-		sessionID := r.PathValue("id")
-		if sessionID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Session ID required",
-			})
+		sessionID, valid := validatePathID(w, r.PathValue("id"), "Session ID")
+		if !valid {
 			return
 		}
 
@@ -3748,12 +3764,8 @@ func main() {
 	mux.HandleFunc("POST /api/transcribe/{id}", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -3939,12 +3951,8 @@ func main() {
 	mux.HandleFunc("GET /api/transcribe/{id}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -3973,12 +3981,8 @@ func main() {
 	mux.HandleFunc("PUT /api/transcribe/{id}/segments", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -4067,12 +4071,8 @@ func main() {
 	mux.HandleFunc("POST /api/transcribe/{id}/align", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -4243,13 +4243,9 @@ func main() {
 
 	// Download SRT file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -4340,13 +4336,9 @@ func main() {
 
 	// Download VTT file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.vtt", func(w http.ResponseWriter, r *http.Request) {
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -4434,13 +4426,9 @@ func main() {
 
 	// Download JSON file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.json", func(w http.ResponseWriter, r *http.Request) {
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -4610,12 +4598,8 @@ func main() {
 	mux.HandleFunc("DELETE /api/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		videoID := r.PathValue("id")
-		if videoID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Video ID required",
-			})
+		videoID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
+		if !valid {
 			return
 		}
 
@@ -4710,12 +4694,8 @@ func main() {
 	mux.HandleFunc("POST /api/videos/{id}/reprocess", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Video ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
+		if !valid {
 			return
 		}
 
@@ -4897,13 +4877,9 @@ func main() {
 
 	// Serve uploaded video files for playback
 	mux.HandleFunc("GET /api/videos/{id}/video", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -4988,13 +4964,9 @@ func main() {
 
 	// Serve video thumbnail
 	mux.HandleFunc("GET /api/videos/{id}/thumbnail", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -5109,12 +5081,8 @@ func main() {
 	mux.HandleFunc("POST /api/videos/{id}/burn", burnLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -5405,12 +5373,8 @@ func main() {
 	mux.HandleFunc("GET /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
@@ -5466,13 +5430,9 @@ func main() {
 
 	// Download burned video (rate limited: 30/min per IP)
 	mux.HandleFunc("GET /api/videos/{id}/burned", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		uploadID := r.PathValue("id")
-		if uploadID == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Upload ID required",
-			})
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
 			return
 		}
 
