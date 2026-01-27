@@ -138,12 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**200 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201).
-
-### Pending Tasks (201)
-- Task 201: Create ERROR_CODES.md with all API error codes
+**201 tasks completed.** Fourth deep inspection (2026-01-27) identified 7 new improvement tasks (195-201), all now complete.
 
 ### Recently Completed (2026-01-27)
+- ✅ Task 201: Create ERROR_CODES.md with all API error codes
+  - Created docs/ERROR_CODES.md (189 lines) with comprehensive documentation
+  - Covers HTTP status codes, error response format, all error categories
+  - Includes client handling recommendations (retry logic, user-friendly messages)
+
 - ✅ Task 200: Validate zero-size file uploads
   - Added explicit zero-size check to POST /api/upload with clear error message
   - Updated POST /api/upload/init to validate size > 0 separately from other required fields
