@@ -1182,6 +1182,12 @@ func (db *DB) UseEmailVerificationToken(tokenHash string) (bool, error) {
 			return fmt.Errorf("failed to verify user email: %w", err)
 		}
 
+		// Delete all verification tokens for this user (cleanup - prevents accumulation)
+		_, err = tx.tx.Exec(`DELETE FROM email_verification_tokens WHERE user_id = ?`, token.UserID)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup verification tokens: %w", err)
+		}
+
 		return nil
 	})
 	if err != nil {

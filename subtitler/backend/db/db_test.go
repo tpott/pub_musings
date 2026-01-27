@@ -1,6 +1,8 @@
 package db
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"testing"
@@ -2077,5 +2079,159 @@ func TestUploadSessionExists(t *testing.T) {
 	}
 	if exists {
 		t.Error("Expected session to not exist after deletion")
+	}
+}
+
+// hashToken creates a SHA-256 hash of a token (same as email.HashToken)
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
+func TestEmailVerificationTokenCleanupAfterVerification(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a test user
+	user := &User{
+		ID:            "test-user-cleanup",
+		Email:         "cleanup@example.com",
+		PasswordHash:  "testhash",
+		EmailVerified: false,
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create a verification token
+	expiresAt := time.Now().Add(24 * time.Hour)
+	tokenHash := hashToken("verification-token")
+	_, err = db.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
+	if err != nil {
+		t.Fatalf("Failed to create verification token: %v", err)
+	}
+
+	// Verify we have 1 token for this user
+	var count int
+	err = db.conn.QueryRow(`SELECT COUNT(*) FROM email_verification_tokens WHERE user_id = ?`, user.ID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to count tokens: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 token before verification, got %d", count)
+	}
+
+	// Use the token to verify email
+	verified, err := db.UseEmailVerificationToken(tokenHash)
+	if err != nil {
+		t.Fatalf("Failed to use verification token: %v", err)
+	}
+	if !verified {
+		t.Error("Expected token verification to succeed")
+	}
+
+	// Verify user is now verified
+	verifiedUser, err := db.GetUserByEmail("cleanup@example.com")
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if !verifiedUser.EmailVerified {
+		t.Error("Expected user email to be verified")
+	}
+
+	// Verify the token has been deleted (cleanup)
+	err = db.conn.QueryRow(`SELECT COUNT(*) FROM email_verification_tokens WHERE user_id = ?`, user.ID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to count tokens after verification: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 tokens after verification (cleanup), got %d", count)
+	}
+}
+
+func TestEmailVerificationTokenCleanupWithMultipleTokens(t *testing.T) {
+	// Test that cleanup works when there are "used" tokens in the database
+	// (Note: CreateEmailVerificationToken only keeps 1 unused token per user,
+	//  but used tokens can accumulate. This test verifies we clean those up too.)
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a test user
+	user := &User{
+		ID:            "test-user-multi",
+		Email:         "multi@example.com",
+		PasswordHash:  "testhash",
+		EmailVerified: false,
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Manually insert some "used" tokens to simulate historical accumulation
+	for i := 0; i < 3; i++ {
+		id, _ := generateID()
+		_, err := db.conn.Exec(`
+			INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, used, created_at)
+			VALUES (?, ?, ?, ?, 1, ?)
+		`, id, user.ID, hashToken(fmt.Sprintf("old-token-%d", i)), time.Now().Add(-1*time.Hour), time.Now().Add(-2*time.Hour))
+		if err != nil {
+			t.Fatalf("Failed to insert old token: %v", err)
+		}
+	}
+
+	// Create a fresh verification token
+	expiresAt := time.Now().Add(24 * time.Hour)
+	tokenHash := hashToken("fresh-token")
+	_, err = db.CreateEmailVerificationToken(user.ID, tokenHash, expiresAt)
+	if err != nil {
+		t.Fatalf("Failed to create verification token: %v", err)
+	}
+
+	// Verify we have 4 tokens total (3 used + 1 unused)
+	var count int
+	err = db.conn.QueryRow(`SELECT COUNT(*) FROM email_verification_tokens WHERE user_id = ?`, user.ID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to count tokens: %v", err)
+	}
+	if count != 4 {
+		t.Errorf("Expected 4 tokens before verification, got %d", count)
+	}
+
+	// Use the fresh token to verify email
+	verified, err := db.UseEmailVerificationToken(tokenHash)
+	if err != nil {
+		t.Fatalf("Failed to use verification token: %v", err)
+	}
+	if !verified {
+		t.Error("Expected token verification to succeed")
+	}
+
+	// Verify ALL tokens for this user have been deleted (including used ones)
+	err = db.conn.QueryRow(`SELECT COUNT(*) FROM email_verification_tokens WHERE user_id = ?`, user.ID).Scan(&count)
+	if err != nil {
+		t.Fatalf("Failed to count tokens after verification: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 tokens after verification (cleanup of all tokens), got %d", count)
 	}
 }

@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**181 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**182 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
 ### Pending Tasks (180-187)
 Deep inspection found these issues:
@@ -147,10 +147,15 @@ Deep inspection found these issues:
 - Task 182: Temp file cleanup in transcription goroutines
 - Task 183: Per-email rate limit for magic links (SECURITY)
 - Task 185: Script conversion error reporting
-- Task 186: Email token cleanup after verification
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 186: Clean up email verification tokens after successful verification
+  - Modified `UseEmailVerificationToken` in db.go to delete all tokens for user after verification
+  - Added within transaction: `DELETE FROM email_verification_tokens WHERE user_id = ?`
+  - Added 2 tests: basic cleanup, cleanup with historical "used" tokens
+  - Prevents token table accumulation
+
 - ✅ Task 179: Magic link email verification check
   - Code was already correct (checks `!user.EmailVerified` and returns early)
   - Returns generic success to prevent email enumeration (per spec)
