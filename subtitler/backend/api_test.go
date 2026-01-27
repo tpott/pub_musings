@@ -1026,6 +1026,78 @@ func (ts *testServer) registerHandlers() {
 		})
 	})
 
+	// Delete a video
+	ts.mux.HandleFunc("DELETE /api/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		videoID := r.PathValue("id")
+		if videoID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video ID required"})
+			return
+		}
+
+		// Get the video to check ownership
+		video, err := ts.db.GetVideo(videoID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get video"})
+			return
+		}
+		if video == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video not found"})
+			return
+		}
+
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			// Authenticated user owns the video
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			// Anonymous user with matching session
+			hasAccess = true
+		}
+
+		if !hasAccess {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to delete this video"})
+			return
+		}
+
+		// Delete from database and get file paths
+		deletedFiles, err := ts.db.DeleteVideo(videoID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete video"})
+			return
+		}
+
+		// Delete the video file from disk
+		if deletedFiles != nil && deletedFiles.FilePath != "" {
+			os.Remove(deletedFiles.FilePath)
+		}
+
+		// Delete the thumbnail file from disk
+		if deletedFiles != nil && deletedFiles.ThumbnailPath != nil && *deletedFiles.ThumbnailPath != "" {
+			os.Remove(*deletedFiles.ThumbnailPath)
+		}
+
+		// Delete the burn output file from disk
+		if deletedFiles != nil && deletedFiles.BurnOutputPath != nil && *deletedFiles.BurnOutputPath != "" {
+			os.Remove(*deletedFiles.BurnOutputPath)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Video deleted successfully"})
+	})
+
 	// Get transcription status
 	ts.mux.HandleFunc("GET /api/transcribe/{id}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -2872,6 +2944,126 @@ func TestListVideosExpiresAt(t *testing.T) {
 	daysUntilExpiry := time.Until(expiresAt).Hours() / 24
 	if daysUntilExpiry < 89 || daysUntilExpiry > 91 {
 		t.Errorf("Expected ~90 days until expiry, got %.1f", daysUntilExpiry)
+	}
+}
+
+func TestDeleteVideoAuthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user and video
+	userID, token := ts.createTestUserWithID(t, "delete@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Create a transcription for the video
+	ts.createTestTranscription(t, video.ID)
+
+	// Delete should succeed
+	resp := ts.doRequest("DELETE", "/api/videos/"+video.ID, nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["message"] != "Video deleted successfully" {
+		t.Errorf("Expected message 'Video deleted successfully', got '%s'", result["message"])
+	}
+
+	// Verify video is gone
+	getResp := ts.doRequest("GET", "/api/videos?user_id="+userID, nil, token)
+	var listResult struct {
+		Videos []struct {
+			ID string `json:"id"`
+		} `json:"videos"`
+	}
+	json.NewDecoder(getResp.Body).Decode(&listResult)
+
+	for _, v := range listResult.Videos {
+		if v.ID == video.ID {
+			t.Error("Video should have been deleted but still appears in list")
+		}
+	}
+}
+
+func TestDeleteVideoAnonymous(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create anonymous video with session
+	sessionID := "test-delete-session-123"
+	video := ts.createTestVideo(t, nil, &sessionID)
+
+	// Delete with matching session should succeed
+	resp := ts.doRequest("DELETE", "/api/videos/"+video.ID+"?session_id="+sessionID, nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestDeleteVideoNotOwner(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video owned by user1
+	user1ID := testGenerateID()
+	video := ts.createTestVideo(t, &user1ID, nil)
+
+	// Create another user and try to delete
+	_, token := ts.createTestUserWithID(t, "other@example.com", "Password123!")
+
+	resp := ts.doRequest("DELETE", "/api/videos/"+video.ID, nil, token)
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d", resp.Code)
+	}
+}
+
+func TestDeleteVideoAnonymousWrongSession(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create anonymous video with session
+	sessionID := "original-session"
+	video := ts.createTestVideo(t, nil, &sessionID)
+
+	// Try to delete with different session
+	resp := ts.doRequest("DELETE", "/api/videos/"+video.ID+"?session_id=wrong-session", nil, "")
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d", resp.Code)
+	}
+}
+
+func TestDeleteVideoNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	_, token := ts.createTestUserWithID(t, "test@example.com", "Password123!")
+
+	resp := ts.doRequest("DELETE", "/api/videos/nonexistent", nil, token)
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", resp.Code)
+	}
+}
+
+func TestDeleteVideoNoAuth(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video owned by a user
+	userID := testGenerateID()
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Try to delete without auth or session_id
+	resp := ts.doRequest("DELETE", "/api/videos/"+video.ID, nil, "")
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d", resp.Code)
 	}
 }
 

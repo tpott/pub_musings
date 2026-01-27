@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**126 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**130 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,17 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**129 tasks completed!**
+**130 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 124: DELETE endpoint for videos - Users can now delete their own videos via DELETE /api/videos/{id}. Cascade deletion of transcriptions, burn jobs, and files (video, thumbnail, burned output). Authorization checks for user ownership or session_id match. Frontend My Videos page has Delete button with confirmation.
 - ✅ Task 132: Soft subtitles option - Added `mode=embed` parameter to burn endpoint for fast soft subtitle embedding. Uses `-c:s mov_text` which copies streams instead of re-encoding. Much faster than burn mode.
 - ✅ Task 133: Devanagari font rendering - Added `SUBTITLE_FONT` environment variable for configuring fonts in burned subtitles. Required for proper rendering of Hindi, Tamil, Telugu and other Indic scripts.
 - ✅ Task 125: XSS protection - Added escapeHtml utility function and tests. Verified all innerHTML usages properly escape user content (filenames, segment text, IP addresses).
 - ✅ Task 120: Encryption key rotation support - MultiKeyEncryptor supports versioned keys, videos track their key version, CLI tool for rotation and re-encryption.
-- ✅ Task 118: CAPTCHA protection for registration and login - hCaptcha integration with optional enable via environment variables.
 
 ### Pending Tasks
-Tasks 124, 126-131 for future work (see TASKS.jsonl).
+Tasks 126-131 for future work (see TASKS.jsonl).
 
 See `TASKS.jsonl` for details.
 

@@ -808,6 +808,49 @@ curl "http://localhost:8080/api/videos?session_id=my-session-123"
 
 ---
 
+### DELETE /api/videos/{id}
+
+Delete a video and all associated data (transcriptions, burn jobs, files).
+
+**Authentication**: Required (user must own the video) or session_id must match for anonymous uploads
+
+**Query Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `session_id` | string | Required for anonymous videos to verify ownership |
+
+**Response** `200 OK`:
+```json
+{
+  "message": "Video deleted successfully"
+}
+```
+
+**Errors**:
+- `400 Bad Request`: Video ID not provided
+- `403 Forbidden`: User does not have permission to delete this video
+- `404 Not Found`: Video not found
+
+**What Gets Deleted**:
+- Video file (encrypted)
+- Thumbnail file (if exists)
+- Transcription records
+- Burn job records and output files
+
+**Example**:
+```bash
+# Delete video as authenticated user
+curl -X DELETE http://localhost:8080/api/videos/abc123 \
+  -H "Authorization: Bearer your_token_here" \
+  -H "X-CSRF-Token: your_csrf_token"
+
+# Delete anonymous video with session
+curl -X DELETE "http://localhost:8080/api/videos/abc123?session_id=my-session-123" \
+  -H "X-CSRF-Token: your_csrf_token"
+```
+
+---
+
 ### GET /api/videos/{id}/video
 
 Stream or download the original video file. Supports HTTP Range requests for efficient video seeking.

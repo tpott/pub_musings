@@ -801,8 +801,9 @@ func (db *DB) FailBurnJob(videoID, errorMessage string) error {
 
 // DeletedVideoFiles contains paths to files that should be deleted after a video is removed
 type DeletedVideoFiles struct {
-	FilePath      string  // path to the video file
-	ThumbnailPath *string // path to the thumbnail file (may be nil)
+	FilePath       string  // path to the video file
+	ThumbnailPath  *string // path to the thumbnail file (may be nil)
+	BurnOutputPath *string // path to the burned video file (may be nil)
 }
 
 // DeleteVideo deletes a video and its associated transcription from the database.
@@ -815,6 +816,16 @@ func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
 	}
 	if video == nil {
 		return nil, nil
+	}
+
+	// Get burn job output path before deleting
+	var burnOutputPath *string
+	burnJob, err := db.GetBurnJob(videoID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get burn job: %w", err)
+	}
+	if burnJob != nil && burnJob.OutputPath != "" {
+		burnOutputPath = &burnJob.OutputPath
 	}
 
 	// Delete transcription first (foreign key constraint)
@@ -836,8 +847,9 @@ func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
 	}
 
 	return &DeletedVideoFiles{
-		FilePath:      video.FilePath,
-		ThumbnailPath: video.ThumbnailPath,
+		FilePath:       video.FilePath,
+		ThumbnailPath:  video.ThumbnailPath,
+		BurnOutputPath: burnOutputPath,
 	}, nil
 }
 

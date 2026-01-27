@@ -190,6 +190,20 @@ import '../styles/theme.css';
 				color: var(--text-secondary);
 				cursor: not-allowed;
 			}
+			.btn-delete {
+				background-color: var(--btn-danger-color);
+				color: white;
+				border: none;
+				cursor: pointer;
+			}
+			.btn-delete:hover {
+				background-color: var(--btn-danger-hover);
+			}
+			.btn-delete:disabled {
+				background-color: var(--badge-pending-bg);
+				color: var(--text-secondary);
+				cursor: not-allowed;
+			}
 			.status-badge {
 				display: inline-block;
 				padding: 0.125rem 0.5rem;
@@ -727,6 +741,7 @@ import '../styles/theme.css';
 							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary">JSON</a>` : ''}
 							${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
 							${showRetryBtn ? `<button class="btn btn-retry" data-video-id="${video.id}">Retry</button>` : ''}
+							<button class="btn btn-delete" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Delete ${escapeHtml(video.filename)}">Delete</button>
 						</div>
 					</div>
 				`;
@@ -767,6 +782,71 @@ import '../styles/theme.css';
 					button.disabled = false;
 					button.textContent = 'Retry';
 				}
+			}
+
+			async function deleteVideo(videoId: string, filename: string, button: HTMLButtonElement) {
+				// Confirm deletion
+				if (!confirm(`Are you sure you want to delete "${filename}"? This cannot be undone.`)) {
+					return;
+				}
+
+				button.disabled = true;
+				button.textContent = 'Deleting...';
+
+				try {
+					// For anonymous users, include session_id
+					let url = `/api/videos/${videoId}`;
+					if (!isAuthenticated) {
+						const sessionId = getOrCreateSessionId();
+						url = `/api/videos/${videoId}?session_id=${encodeURIComponent(sessionId)}`;
+					}
+
+					const response = await csrfFetch(url, { method: 'DELETE' });
+					const data = await response.json();
+
+					if (!response.ok) {
+						alert(`Failed to delete: ${data.error || 'Unknown error'}`);
+						button.disabled = false;
+						button.textContent = 'Delete';
+						return;
+					}
+
+					// Remove the video card from the DOM
+					const videoCard = button.closest('.video-card');
+					if (videoCard) {
+						videoCard.remove();
+					}
+
+					// Check if there are any videos left, show empty state if not
+					const remainingVideos = videoList.querySelectorAll('.video-card');
+					if (remainingVideos.length === 0) {
+						videoList.innerHTML = `
+							<div class="empty-state">
+								<div class="empty-icon">📹</div>
+								<p class="empty-text">No videos found</p>
+								<a href="/upload" class="upload-btn">Upload Your First Video</a>
+							</div>
+						`;
+					}
+				} catch (err) {
+					alert(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
+					button.disabled = false;
+					button.textContent = 'Delete';
+				}
+			}
+
+			function attachDeleteHandlers() {
+				const deleteButtons = videoList.querySelectorAll('.btn-delete');
+				deleteButtons.forEach((btn) => {
+					btn.addEventListener('click', (e) => {
+						const button = e.target as HTMLButtonElement;
+						const videoId = button.dataset.videoId;
+						const filename = button.dataset.filename;
+						if (videoId) {
+							deleteVideo(videoId, filename || 'this video', button);
+						}
+					});
+				});
 			}
 
 			function attachRetryHandlers() {
@@ -1018,6 +1098,7 @@ import '../styles/theme.css';
 					videoList.style.display = 'flex';
 					attachRetryHandlers();
 					attachViewHandlers();
+					attachDeleteHandlers();
 
 				} catch (err) {
 					loading.style.display = 'none';

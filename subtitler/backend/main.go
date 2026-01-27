@@ -4188,6 +4188,106 @@ func main() {
 		})
 	})
 
+	// Delete a video
+	mux.HandleFunc("DELETE /api/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		videoID := r.PathValue("id")
+		if videoID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Video ID required",
+			})
+			return
+		}
+
+		// Get the video to check ownership
+		video, err := database.GetVideo(videoID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to get video",
+			})
+			return
+		}
+		if video == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Video not found",
+			})
+			return
+		}
+
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			// Authenticated user owns the video
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			// Anonymous user with matching session
+			hasAccess = true
+		}
+
+		if !hasAccess {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "You do not have permission to delete this video",
+			})
+			return
+		}
+
+		// Delete from database and get file paths
+		deletedFiles, err := database.DeleteVideo(videoID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error deleting video from database", "video_id", videoID, "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to delete video",
+			})
+			return
+		}
+
+		// Delete the video file from disk
+		if deletedFiles != nil && deletedFiles.FilePath != "" {
+			if err := os.Remove(deletedFiles.FilePath); err != nil {
+				if !os.IsNotExist(err) {
+					logging.ErrorContext(r.Context(), "Error deleting video file", "path", deletedFiles.FilePath, "error", err)
+				}
+			}
+		}
+
+		// Delete the thumbnail file from disk
+		if deletedFiles != nil && deletedFiles.ThumbnailPath != nil && *deletedFiles.ThumbnailPath != "" {
+			if err := os.Remove(*deletedFiles.ThumbnailPath); err != nil {
+				if !os.IsNotExist(err) {
+					logging.ErrorContext(r.Context(), "Error deleting thumbnail file", "path", *deletedFiles.ThumbnailPath, "error", err)
+				}
+			}
+		}
+
+		// Delete the burn output file from disk
+		if deletedFiles != nil && deletedFiles.BurnOutputPath != nil && *deletedFiles.BurnOutputPath != "" {
+			if err := os.Remove(*deletedFiles.BurnOutputPath); err != nil {
+				if !os.IsNotExist(err) {
+					logging.ErrorContext(r.Context(), "Error deleting burn output file", "path", *deletedFiles.BurnOutputPath, "error", err)
+				}
+			}
+		}
+
+		logging.InfoContext(r.Context(), "Video deleted", "video_id", videoID)
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": "Video deleted successfully",
+		})
+	})
+
 	// Reprocess a failed transcription
 	mux.HandleFunc("POST /api/videos/{id}/reprocess", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -5139,6 +5239,17 @@ func runCleanup() {
 				}
 			} else {
 				logging.Debug("Deleted thumbnail file", "path", *deletedFiles.ThumbnailPath)
+			}
+		}
+
+		// Delete the burn output file from disk
+		if deletedFiles != nil && deletedFiles.BurnOutputPath != nil && *deletedFiles.BurnOutputPath != "" {
+			if err := os.Remove(*deletedFiles.BurnOutputPath); err != nil {
+				if !os.IsNotExist(err) {
+					logging.Error("Error deleting burn output file", "path", *deletedFiles.BurnOutputPath, "error", err)
+				}
+			} else {
+				logging.Debug("Deleted burn output file", "path", *deletedFiles.BurnOutputPath)
 			}
 		}
 
