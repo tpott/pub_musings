@@ -138,10 +138,21 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**188 tasks completed.** Second deep inspection created 9 new tasks (179-187). All 9 tasks now complete.
+**187 tasks completed.** Third deep inspection (2026-01-27) identified 7 test coverage gaps and code quality improvements.
 
-### Pending Tasks
-None - second deep inspection tasks complete.
+### Pending Tasks (189-194)
+- Task 189: Add tests for CSRF token and CAPTCHA config endpoints
+- Task 190: Add tests for transcript align endpoint (HIGH PRIORITY)
+- Task 191: Add tests for generateID and helper functions
+- Task 192: Add defensive XSS escaping to parseUserAgent
+- Task 193: E2E test for chunked upload flow (from specs/chunked-upload.md Phase 3)
+- Task 194: Improve error wrapping consistency in db.go
+
+### Recently Completed
+- ✅ Task 188: Add tests for email verification endpoints
+  - Added 5 tests for GET /api/auth/verify (missing token, invalid token, success, expired, already used)
+  - Added 6 tests for POST /api/auth/resend-verification (invalid format, empty, nonexistent, verified, unverified, invalid body)
+  - 11 new tests total, all passing
 
 ### Recently Completed
 - ✅ Task 187: Add comprehensive audit logging for auth events (SECURITY)

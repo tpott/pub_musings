@@ -7385,3 +7385,282 @@ func TestUserRoleManagement(t *testing.T) {
 		}
 	})
 }
+
+// TestEmailVerificationMissingToken tests the GET /api/auth/verify endpoint with no token
+func TestEmailVerificationMissingToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("GET", "/api/auth/verify", nil, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Verification token is required" {
+		t.Errorf("Unexpected error message: %s", result["error"])
+	}
+}
+
+// TestEmailVerificationInvalidToken tests the GET /api/auth/verify endpoint with invalid token
+func TestEmailVerificationInvalidToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("GET", "/api/auth/verify?token=invalidtoken123", nil, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Invalid or expired verification token" {
+		t.Errorf("Unexpected error message: %s", result["error"])
+	}
+}
+
+// TestEmailVerificationSuccess tests successful email verification
+func TestEmailVerificationSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Register a user (creates unverified account)
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    "verify@example.com",
+		"password": "ValidPassword123!",
+	}, "")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Failed to register user: %s", resp.Body.String())
+	}
+
+	var regResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Create a new token for testing since we don't have the original
+	testToken := "test-verification-token-12345678901234567890"
+	tokenHash := email.HashToken(testToken)
+	expiresAt := time.Now().Add(24 * time.Hour)
+	ts.db.CreateEmailVerificationToken(regResult.User.ID, tokenHash, expiresAt)
+
+	// Verify the email
+	resp = ts.doRequest("GET", "/api/auth/verify?token="+testToken, nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["message"] != "Email verified successfully. You can now log in." {
+		t.Errorf("Unexpected message: %s", result["message"])
+	}
+
+	// Verify user is now verified in the database
+	user, _ := ts.db.GetUserByID(regResult.User.ID)
+	if !user.EmailVerified {
+		t.Error("User email should be verified after successful verification")
+	}
+}
+
+// TestEmailVerificationExpiredToken tests verification with an expired token
+func TestEmailVerificationExpiredToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create user
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    "expired@example.com",
+		"password": "ValidPassword123!",
+	}, "")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Failed to register user: %s", resp.Body.String())
+	}
+
+	var regResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Create an expired token
+	expiredToken := "expired-verification-token-12345678901234567"
+	tokenHash := email.HashToken(expiredToken)
+	expiresAt := time.Now().Add(-1 * time.Hour) // Already expired
+	ts.db.CreateEmailVerificationToken(regResult.User.ID, tokenHash, expiresAt)
+
+	// Try to verify with expired token
+	resp = ts.doRequest("GET", "/api/auth/verify?token="+expiredToken, nil, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Invalid or expired verification token" {
+		t.Errorf("Unexpected error message: %s", result["error"])
+	}
+}
+
+// TestEmailVerificationAlreadyUsedToken tests reusing a verification token
+func TestEmailVerificationAlreadyUsedToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create user
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    "alreadyused@example.com",
+		"password": "ValidPassword123!",
+	}, "")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Failed to register user: %s", resp.Body.String())
+	}
+
+	var regResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Create a token and use it
+	usedToken := "alreadyused-verification-token-1234567890123"
+	tokenHash := email.HashToken(usedToken)
+	expiresAt := time.Now().Add(24 * time.Hour)
+	ts.db.CreateEmailVerificationToken(regResult.User.ID, tokenHash, expiresAt)
+
+	// Use the token first time
+	resp = ts.doRequest("GET", "/api/auth/verify?token="+usedToken, nil, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("First verification should succeed: %s", resp.Body.String())
+	}
+
+	// Try to use the same token again
+	resp = ts.doRequest("GET", "/api/auth/verify?token="+usedToken, nil, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for reused token, got %d", resp.Code)
+	}
+}
+
+// TestResendVerificationEmailInvalidFormat tests resend verification with invalid email format
+func TestResendVerificationEmailInvalidFormat(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("POST", "/api/auth/resend-verification", map[string]string{
+		"email": "notanemail",
+	}, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+// TestResendVerificationEmailEmpty tests resend verification with empty email
+func TestResendVerificationEmailEmpty(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("POST", "/api/auth/resend-verification", map[string]string{
+		"email": "",
+	}, "")
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+// TestResendVerificationEmailNonexistent tests resend verification with nonexistent email
+func TestResendVerificationEmailNonexistent(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Should return success to prevent email enumeration
+	resp := ts.doRequest("POST", "/api/auth/resend-verification", map[string]string{
+		"email": "nonexistent@example.com",
+	}, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["message"] != "If an unverified account exists with that email, a verification link has been sent." {
+		t.Errorf("Unexpected message: %s", result["message"])
+	}
+}
+
+// TestResendVerificationEmailAlreadyVerified tests resend verification for already verified email
+func TestResendVerificationEmailAlreadyVerified(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create and verify a user
+	token := ts.createTestUser(t, "verified@example.com", "ValidPassword123!")
+	_ = token // Discard token, we just need the verified user
+
+	// Resend verification - should succeed silently
+	resp := ts.doRequest("POST", "/api/auth/resend-verification", map[string]string{
+		"email": "verified@example.com",
+	}, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.Code)
+	}
+}
+
+// TestResendVerificationEmailUnverified tests resend verification for unverified email
+func TestResendVerificationEmailUnverified(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Register a user (creates unverified account)
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    "unverified@example.com",
+		"password": "ValidPassword123!",
+	}, "")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Failed to register user: %s", resp.Body.String())
+	}
+
+	var regResult struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	json.NewDecoder(resp.Body).Decode(&regResult)
+
+	// Verify user is not yet verified
+	user, _ := ts.db.GetUserByID(regResult.User.ID)
+	if user.EmailVerified {
+		t.Fatal("User should not be verified yet")
+	}
+
+	// Resend verification
+	resp = ts.doRequest("POST", "/api/auth/resend-verification", map[string]string{
+		"email": "unverified@example.com",
+	}, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Check that a new token was created (we can't check the actual email without mock)
+	// The success message confirms the handler ran correctly
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["message"] == "" {
+		t.Error("Expected success message")
+	}
+}
+
+// TestResendVerificationEmailInvalidBody tests resend verification with invalid request body
+func TestResendVerificationEmailInvalidBody(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	req := httptest.NewRequest("POST", "/api/auth/resend-verification", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	ts.mux.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
