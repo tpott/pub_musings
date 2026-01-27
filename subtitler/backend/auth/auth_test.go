@@ -261,6 +261,69 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 }
 
+func TestValidateSessionExpired(t *testing.T) {
+	// Create temp database
+	tmpDir, err := os.MkdirTemp("", "auth_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	database, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	// Create a user
+	userID, _ := GenerateID()
+	hash, _ := HashPassword("testpassword")
+	user := &db.User{
+		ID:           userID,
+		Email:        "expired@example.com",
+		PasswordHash: hash,
+		CreatedAt:    time.Now(),
+	}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create a session that's already expired
+	token, _ := GenerateToken()
+	sessionID, _ := GenerateID()
+	expiredSession := &db.Session{
+		ID:        sessionID,
+		UserID:    userID,
+		Token:     token,
+		IPAddress: "192.168.1.1",
+		UserAgent: "Test Agent",
+		CreatedAt: time.Now().Add(-48 * time.Hour),
+		ExpiresAt: time.Now().Add(-24 * time.Hour), // Expired 24 hours ago
+	}
+	if err := database.CreateSession(expiredSession); err != nil {
+		t.Fatalf("Failed to create expired session: %v", err)
+	}
+
+	// Validate expired session should return nil and clean it up
+	validatedUser, validatedSession, err := ValidateSession(database, token)
+	if err != nil {
+		t.Fatalf("ValidateSession with expired token failed: %v", err)
+	}
+	if validatedUser != nil || validatedSession != nil {
+		t.Error("ValidateSession with expired session should return nil user and session")
+	}
+
+	// Session should have been deleted from database
+	dbSession, err := database.GetSessionByToken(token)
+	if err != nil {
+		t.Fatalf("GetSessionByToken failed: %v", err)
+	}
+	if dbSession != nil {
+		t.Error("Expired session should have been deleted from database")
+	}
+}
+
 func TestUserLifecycle(t *testing.T) {
 	// Create temp database
 	tmpDir, err := os.MkdirTemp("", "auth_test")
