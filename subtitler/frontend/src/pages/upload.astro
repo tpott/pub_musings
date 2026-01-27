@@ -1324,6 +1324,11 @@ import '../styles/theme.css';
 				formatTimeRemaining,
 				hasHistoricalData
 			} from '../utils/processing-speed';
+			import {
+				downloadSRT,
+				downloadVTT,
+				downloadJSON
+			} from '../utils/subtitles';
 			import type {
 				TranscriptionSegment,
 				TranscriptionResult,
@@ -2177,9 +2182,8 @@ import '../styles/theme.css';
 
 				// Show download buttons and paste transcript section
 				if (currentUploadId) {
-					downloadSrt.href = `/api/videos/${currentUploadId}/subtitles.srt`;
-					downloadVtt.href = `/api/videos/${currentUploadId}/subtitles.vtt`;
-					downloadJson.href = `/api/videos/${currentUploadId}/subtitles.json`;
+					// Download buttons use client-side generation - no server request needed
+					// The segments are already loaded, so we generate files in the browser
 					actions.style.display = 'flex';
 					// Show collapsible sections
 					pasteTranscriptSection.style.display = 'block';
@@ -2951,6 +2955,41 @@ import '../styles/theme.css';
 			}
 
 			burnBtn.addEventListener('click', startBurn);
+
+			// Download buttons - generate files client-side from loaded segments
+			// No server request needed since we have the data in memory
+			downloadSrt.addEventListener('click', (e) => {
+				e.preventDefault();
+				const segsToDownload = isEditMode ? editedSegments : transcriptionSegments;
+				if (segsToDownload.length === 0) {
+					showStatus('No subtitles to download', 'error');
+					return;
+				}
+				const filename = currentUploadId || 'subtitles';
+				downloadSRT(segsToDownload, filename);
+			});
+
+			downloadVtt.addEventListener('click', (e) => {
+				e.preventDefault();
+				const segsToDownload = isEditMode ? editedSegments : transcriptionSegments;
+				if (segsToDownload.length === 0) {
+					showStatus('No subtitles to download', 'error');
+					return;
+				}
+				const filename = currentUploadId || 'subtitles';
+				downloadVTT(segsToDownload, filename);
+			});
+
+			downloadJson.addEventListener('click', (e) => {
+				e.preventDefault();
+				const segsToDownload = isEditMode ? editedSegments : transcriptionSegments;
+				if (segsToDownload.length === 0) {
+					showStatus('No subtitles to download', 'error');
+					return;
+				}
+				const filename = currentUploadId || 'subtitles';
+				downloadJSON(segsToDownload, filename);
+			});
 
 			// Auth handling
 			const nav = document.getElementById('nav') as HTMLElement;

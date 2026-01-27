@@ -676,6 +676,8 @@ import '../styles/theme.css';
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
 			import { getOrCreateSessionId } from '../utils/session';
 			import { escapeHtml } from '../utils/html';
+			import { downloadSRT, downloadVTT, downloadJSON } from '../utils/subtitles';
+			import type { TranscriptionSegment } from '../types/transcription';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const error = document.getElementById('error') as HTMLElement;
@@ -776,9 +778,9 @@ import '../styles/theme.css';
 						</div>
 						<div class="video-actions">
 							${showViewBtn ? `<button class="btn btn-primary btn-view" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}">View</button>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.srt" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Download subtitles in SRT format">SRT</a>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.vtt" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Download subtitles in VTT format">VTT</a>` : ''}
-							${showDownloadBtn ? `<a href="/api/videos/${video.id}/subtitles.json" class="btn btn-secondary" target="_blank" rel="noopener" aria-label="Download subtitles in JSON format">JSON</a>` : ''}
+							${showDownloadBtn ? `<button class="btn btn-secondary btn-download-srt" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in SRT format">SRT</button>` : ''}
+							${showDownloadBtn ? `<button class="btn btn-secondary btn-download-vtt" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in VTT format">VTT</button>` : ''}
+							${showDownloadBtn ? `<button class="btn btn-secondary btn-download-json" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in JSON format">JSON</button>` : ''}
 							${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
 							${showRetryBtn ? `<button class="btn btn-retry" data-video-id="${video.id}">Retry</button>` : ''}
 							<button class="btn btn-delete" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Delete ${escapeHtml(video.filename)}">Delete</button>
@@ -933,6 +935,86 @@ import '../styles/theme.css';
 				});
 			}
 
+			// Cache for loaded transcription data to avoid refetching
+			const transcriptionCache: Map<string, TranscriptionSegment[]> = new Map();
+
+			// Helper to get segments from cache or fetch from server
+			async function getSubtitleSegments(videoId: string): Promise<TranscriptionSegment[]> {
+				// Check cache first
+				if (transcriptionCache.has(videoId)) {
+					return transcriptionCache.get(videoId)!;
+				}
+
+				// Fetch from server
+				const response = await fetch(`/api/transcribe/${videoId}`);
+				const data = await response.json();
+
+				if (!response.ok) {
+					throw new Error(data.error || 'Failed to load transcription');
+				}
+
+				if (data.status !== 'complete' || !data.result) {
+					throw new Error('Transcription not available');
+				}
+
+				const segments = data.result.segments || [];
+				transcriptionCache.set(videoId, segments);
+				return segments;
+			}
+
+			// Attach download button handlers (for inline video card buttons)
+			function attachDownloadHandlers() {
+				const handleDownload = async (
+					button: HTMLButtonElement,
+					format: 'srt' | 'vtt' | 'json'
+				) => {
+					const videoId = button.dataset.videoId;
+					const filename = button.dataset.filename || videoId || 'subtitles';
+
+					if (!videoId) return;
+
+					button.disabled = true;
+					const originalText = button.textContent;
+					button.textContent = '...';
+
+					try {
+						const segments = await getSubtitleSegments(videoId);
+						if (segments.length === 0) {
+							alert('No subtitles available');
+							return;
+						}
+
+						if (format === 'srt') {
+							downloadSRT(segments, filename);
+						} else if (format === 'vtt') {
+							downloadVTT(segments, filename);
+						} else {
+							downloadJSON(segments, filename);
+						}
+					} catch (err) {
+						alert(`Error: ${err instanceof Error ? err.message : 'Failed to download'}`);
+					} finally {
+						button.disabled = false;
+						button.textContent = originalText;
+					}
+				};
+
+				// SRT buttons
+				videoList.querySelectorAll('.btn-download-srt').forEach((btn) => {
+					btn.addEventListener('click', () => handleDownload(btn as HTMLButtonElement, 'srt'));
+				});
+
+				// VTT buttons
+				videoList.querySelectorAll('.btn-download-vtt').forEach((btn) => {
+					btn.addEventListener('click', () => handleDownload(btn as HTMLButtonElement, 'vtt'));
+				});
+
+				// JSON buttons
+				videoList.querySelectorAll('.btn-download-json').forEach((btn) => {
+					btn.addEventListener('click', () => handleDownload(btn as HTMLButtonElement, 'json'));
+				});
+			}
+
 			// Modal elements
 			const videoModal = document.getElementById('videoModal') as HTMLElement;
 			const modalClose = document.getElementById('modalClose') as HTMLButtonElement;
@@ -947,13 +1029,6 @@ import '../styles/theme.css';
 			const modalDownloadVtt = document.getElementById('modalDownloadVtt') as HTMLAnchorElement;
 			const modalDownloadJson = document.getElementById('modalDownloadJson') as HTMLAnchorElement;
 			const modalEditLink = document.getElementById('modalEditLink') as HTMLAnchorElement;
-
-			interface TranscriptionSegment {
-				id: number;
-				start: number;
-				end: number;
-				text: string;
-			}
 
 			let currentModalVideoId: string | null = null;
 			let modalSubtitleSegments: TranscriptionSegment[] = [];
@@ -1076,11 +1151,11 @@ import '../styles/theme.css';
 				// Move focus to close button for keyboard navigation
 				modalClose.focus();
 
-				// Set download links
-				modalDownloadSrt.href = `/api/videos/${videoId}/subtitles.srt`;
-				modalDownloadVtt.href = `/api/videos/${videoId}/subtitles.vtt`;
-				modalDownloadJson.href = `/api/videos/${videoId}/subtitles.json`;
+				// Download links will be handled by click handlers using loaded segment data
 				modalEditLink.href = `/upload?id=${videoId}`;
+
+				// Store videoId for downloads
+				currentModalVideoId = videoId;
 
 				try {
 					// Load video
@@ -1213,6 +1288,38 @@ import '../styles/theme.css';
 				}
 			}
 
+			// Modal download handlers - generate files client-side from loaded segments
+			// No server request needed since segments are already in memory
+			modalDownloadSrt.addEventListener('click', (e) => {
+				e.preventDefault();
+				if (modalSubtitleSegments.length === 0) {
+					alert('No subtitles available to download');
+					return;
+				}
+				const filename = currentModalVideoId || 'subtitles';
+				downloadSRT(modalSubtitleSegments, filename);
+			});
+
+			modalDownloadVtt.addEventListener('click', (e) => {
+				e.preventDefault();
+				if (modalSubtitleSegments.length === 0) {
+					alert('No subtitles available to download');
+					return;
+				}
+				const filename = currentModalVideoId || 'subtitles';
+				downloadVTT(modalSubtitleSegments, filename);
+			});
+
+			modalDownloadJson.addEventListener('click', (e) => {
+				e.preventDefault();
+				if (modalSubtitleSegments.length === 0) {
+					alert('No subtitles available to download');
+					return;
+				}
+				const filename = currentModalVideoId || 'subtitles';
+				downloadJSON(modalSubtitleSegments, filename);
+			});
+
 			// Modal close handlers
 			modalClose.addEventListener('click', closeVideoModal);
 
@@ -1296,6 +1403,7 @@ import '../styles/theme.css';
 					attachRetryHandlers();
 					attachViewHandlers();
 					attachThumbnailHandlers();
+					attachDownloadHandlers();
 					attachDeleteHandlers();
 					updatePaginationUI();
 

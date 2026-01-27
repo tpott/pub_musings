@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**194 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**203 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,22 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**202 tasks completed.** Fifth deep inspection (2026-01-27) identified 9 new improvement tasks (202-210).
+**203 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 211: CRITICAL - Implement client-side SRT/VTT/JSON generation for downloads
+  - Created `frontend/src/utils/subtitles.ts` with generateSRT(), generateVTT(), generateJSON()
+  - Download buttons now generate files client-side using Blob + URL.createObjectURL()
+  - No server request made - instant downloads from already-loaded data
+  - Upload page: uses transcriptionSegments or editedSegments (includes unsaved edits)
+  - Videos page modal: uses loaded modalSubtitleSegments
+  - Videos page inline buttons: fetch transcription once, then generate client-side
+  - Added transcription cache to avoid refetching
+  - Created 30 unit tests in subtitles.test.ts
+  - Created E2E tests in e2e/subtitle-download.spec.ts verifying no network requests
+  - Added LEARNINGS.md entry documenting the issue and solution
+
+### Previously Completed (2026-01-27)
 - ✅ Task 202: Add chunked upload endpoints to API.md
   - Added full documentation for POST /api/upload/init, POST /api/upload/chunk,
     POST /api/upload/complete, GET /api/upload/status/{session_id}

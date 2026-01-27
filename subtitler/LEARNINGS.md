@@ -676,6 +676,39 @@ func (v *Validator) ValidateAbsolutePath(path string) error {
 
 ---
 
+### 2026-01-27: Download buttons should use client-side generation, not server requests
+
+**Problem:** SRT/VTT/JSON download buttons make a new HTTP request each time they're clicked. User feedback indicates this was supposed to be fixed previously but the issue persists.
+
+**Root cause investigation:** Commit `c66a935` (2026-01-26) changed the download links to use `target="_blank"` which opens in a new tab. The commit message said "SRT/VTT/JSON links now open content in new tabs instead of downloading." This may have been a misunderstanding of the user's original intent.
+
+The current implementation:
+1. Download buttons are `<a>` tags with `href="/api/videos/{id}/subtitles.{format}"`
+2. Backend sets `Content-Disposition: attachment` which triggers download
+3. Each click makes a new HTTP request to the server
+4. Frontend already has subtitle data loaded in `transcriptionSegments` or `editedSegments`
+
+**Problem types:**
+1. Wastes bandwidth/server resources on redundant requests
+2. Downloaded data may differ from what user sees (if they made unsaved edits)
+3. Poor UX - small delay while fetching data that's already in browser
+
+**Solution:** Generate SRT/VTT/JSON files client-side from the already-loaded subtitle data:
+1. Create utility functions `generateSRT()`, `generateVTT()`, `generateJSON()` in frontend
+2. Use `Blob` + `URL.createObjectURL()` to create downloadable data URLs
+3. Use `download` attribute on anchors with the generated URL
+4. No server request needed - instant downloads
+5. Always downloads what user sees (including unsaved edits if desired)
+
+**Lesson:**
+1. When debugging a "recurring" bug, check git history to understand previous "fix" attempts
+2. Client-side generation is better when data is already in browser
+3. Commit messages should clearly state what changed and why (the c66a935 message didn't explain the _reason_ for the change)
+4. User expectations: "download" means save file instantly, not "open in new tab then download"
+5. Write E2E tests that verify expected download behavior to prevent regressions
+
+---
+
 ### 2026-01-27: NEVER use scrollIntoView() for elements in scrollable containers
 
 **Problem:** Video scrolled out of view during playback. **THIS WAS REPORTED THREE TIMES.**
