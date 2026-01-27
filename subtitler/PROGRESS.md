@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**204 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**205 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 203: Add missing endpoints to API.md
+  - Added GET /metrics endpoint documentation with API key and admin auth details
+  - Added GET /api/captcha/config endpoint documentation
+  - Added GET /api/auth/verify and POST /api/auth/resend-verification email verification endpoints
+  - Added GET /api/videos/{id}/thumbnail endpoint documentation
+  - Updated table of contents with new sections (Metrics, CAPTCHA, Email Verification, Thumbnails)
+
 - Task 217: BUG - Fix Re-transcribe button not working for language changes
   - Root cause: Backend POST /api/transcribe/{id} returned existing result if status was "complete"
     even when user wanted to re-transcribe with a different language

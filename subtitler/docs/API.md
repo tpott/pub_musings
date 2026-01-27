@@ -77,13 +77,17 @@ All error responses return a JSON object with an `error` field:
 ## Table of Contents
 
 - [Health](#health)
+- [Metrics](#metrics)
 - [Debug](#debug)
+- [CAPTCHA](#captcha)
 - [Authentication](#authentication-endpoints)
+- [Email Verification](#email-verification)
 - [Magic Link (Passwordless)](#magic-link-passwordless-authentication)
 - [Two-Factor Authentication (2FA)](#two-factor-authentication-2fa)
 - [Password Reset](#password-reset)
 - [Session Management](#session-management)
 - [Videos](#videos)
+- [Thumbnails](#thumbnails)
 - [Chunked Upload](#chunked-upload)
 - [Transcription](#transcription)
 - [Subtitles](#subtitles)
@@ -164,6 +168,78 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/api/health
 
 ---
 
+## Metrics
+
+### GET /metrics
+
+Prometheus-compatible metrics endpoint for monitoring. Returns metrics in Prometheus text format.
+
+**Authentication**: Required - Admin user or API key
+
+**Rate Limited**: Yes (10/min per IP)
+
+#### Authentication Methods
+
+1. **API Key** (via header):
+   ```bash
+   curl -H "X-Metrics-API-Key: your_api_key" http://localhost:8080/metrics
+   ```
+
+2. **API Key** (via query parameter):
+   ```bash
+   curl "http://localhost:8080/metrics?api_key=your_api_key"
+   ```
+
+3. **Admin Session** (via cookie or Bearer token):
+   ```bash
+   curl -H "Authorization: Bearer admin_token" http://localhost:8080/metrics
+   ```
+
+**Response** `200 OK`:
+```
+# HELP http_requests_total Total number of HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/api/health",status="200"} 42
+http_requests_total{method="POST",path="/api/upload",status="200"} 15
+...
+
+# HELP http_request_duration_seconds HTTP request duration in seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",path="/api/health",le="0.1"} 40
+...
+
+# HELP transcription_total Total number of transcription requests
+# TYPE transcription_total counter
+transcription_total{status="complete"} 100
+transcription_total{status="error"} 5
+...
+```
+
+**Available Metrics**:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total` | counter | Total HTTP requests by method, path, status |
+| `http_request_duration_seconds` | histogram | Request latency distribution |
+| `transcription_total` | counter | Transcription requests by status |
+| `transcription_duration_seconds` | histogram | Transcription processing time |
+| `active_sessions_total` | gauge | Current active user sessions |
+| `uploads_bytes_total` | counter | Total bytes uploaded |
+| `uploads_total` | counter | Total upload requests |
+
+**Errors**:
+- `401 Unauthorized`: No API key or session provided
+- `403 Forbidden`: User is not an admin
+- `429 Too Many Requests`: Rate limit exceeded
+
+**Configuration**:
+- `METRICS_API_KEY`: Set to enable API key authentication
+- `INITIAL_ADMIN_EMAIL`: Bootstrap first admin user for session-based access
+
+See [METRICS.md](METRICS.md) for detailed metrics documentation and Prometheus/Grafana setup.
+
+---
+
 ## Debug
 
 ### POST /api/log
@@ -196,6 +272,47 @@ Frontend console log forwarding (development mode only).
 {
   "status": "ok"
 }
+```
+
+---
+
+## CAPTCHA
+
+### GET /api/captcha/config
+
+Get CAPTCHA configuration for the frontend. Returns whether CAPTCHA is enabled and the site key.
+
+**Authentication**: Not required
+
+**Response** `200 OK` (CAPTCHA enabled):
+```json
+{
+  "enabled": true,
+  "site_key": "10000000-ffff-ffff-ffff-000000000001"
+}
+```
+
+**Response** `200 OK` (CAPTCHA disabled):
+```json
+{
+  "enabled": false,
+  "site_key": ""
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | boolean | Whether CAPTCHA verification is required |
+| `site_key` | string | hCaptcha site key for frontend widget (empty if disabled) |
+
+**Configuration**:
+- CAPTCHA is enabled when both `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` environment variables are set
+- When enabled, registration and login forms must include CAPTCHA verification
+- Uses hCaptcha for privacy-focused bot protection
+
+**Example**:
+```bash
+curl http://localhost:8080/api/captcha/config
 ```
 
 ---
@@ -392,6 +509,91 @@ curl -X POST http://localhost:8080/api/auth/logout \
 - CSRF tokens are derived from session tokens using HMAC-SHA256
 - Tokens remain valid as long as the session is valid
 - Exempt endpoints (no CSRF required): login, register, forgot-password, reset-password
+
+---
+
+## Email Verification
+
+Email verification is required before a user can log in. A verification link is sent during registration.
+
+### GET /api/auth/verify
+
+Verify a user's email address using a token from the verification email.
+
+**Authentication**: Not required
+**Rate Limited**: Yes (5/min per IP)
+
+**Query Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Verification token from the email link |
+
+**Response** `200 OK`:
+```json
+{
+  "message": "Email verified successfully. You can now log in."
+}
+```
+
+**Errors**:
+- `400 Bad Request`: Token is missing, invalid, expired, or already used
+
+**Example**:
+```bash
+# Typically called when user clicks the verification link
+curl "http://localhost:8080/api/auth/verify?token=abc123def456..."
+```
+
+**Token Properties**:
+| Property | Value |
+|----------|-------|
+| Token length | 32 bytes (64 hex chars) |
+| Storage | SHA-256 hash (raw token never stored) |
+| Expiry | 24 hours |
+| Usage | Single-use |
+
+---
+
+### POST /api/auth/resend-verification
+
+Request a new verification email. Useful if the original email was lost or the token expired.
+
+**Authentication**: Not required
+**Rate Limited**: Yes (3 per 15 minutes per IP)
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `email` | string | Yes | Valid email format |
+
+**Response** `200 OK`:
+```json
+{
+  "message": "If an unverified account exists with that email, a verification link has been sent."
+}
+```
+
+**Notes**:
+- Always returns a success response regardless of account state (prevents email enumeration)
+- No email sent if: user doesn't exist, email already verified
+- Creates a new verification token (24-hour expiry)
+
+**Errors**:
+- `400 Bad Request`: Invalid email format
+- `429 Too Many Requests`: Rate limit exceeded
+
+**Example**:
+```bash
+curl -X POST http://localhost:8080/api/auth/resend-verification \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
 
 ---
 
@@ -1141,6 +1343,53 @@ curl -X POST http://localhost:8080/api/videos/abc123/reprocess \
 # Anonymous user with session
 curl -X POST "http://localhost:8080/api/videos/abc123/reprocess?session_id=your-session"
 ```
+
+---
+
+## Thumbnails
+
+### GET /api/videos/{id}/thumbnail
+
+Get the thumbnail image for a video. Thumbnails are generated automatically during upload (captured at 10% of video duration).
+
+**Authentication**: Not required
+**Rate Limited**: Yes (30/min per IP)
+
+**Response** `200 OK`:
+- Content-Type: `image/jpeg`
+- Returns the JPEG thumbnail image
+
+**Response Headers**:
+- `Content-Type: image/jpeg`
+- `ETag`: Stable hash for conditional requests
+- `Cache-Control: public, max-age=86400, must-revalidate` (24-hour cache)
+
+**Conditional Requests**:
+Use `If-None-Match` with the ETag to check if thumbnail changed:
+```bash
+curl -H "If-None-Match: \"abc123...\"" http://localhost:8080/api/videos/abc123/thumbnail
+# Returns 304 Not Modified if unchanged
+```
+
+**Errors**:
+- `400 Bad Request`: Invalid video ID format
+- `404 Not Found`: Video not found, or thumbnail not available
+- `403 Forbidden`: Access denied (path validation failed)
+- `500 Internal Server Error`: Failed to decrypt thumbnail
+
+**Example**:
+```bash
+# Download thumbnail
+curl -o thumbnail.jpg http://localhost:8080/api/videos/abc123/thumbnail
+
+# Use in HTML
+<img src="/api/videos/abc123/thumbnail" alt="Video thumbnail">
+```
+
+**Notes**:
+- Thumbnails are stored encrypted alongside video files (when encryption is enabled)
+- Thumbnails are generated using FFmpeg during upload
+- If thumbnail generation fails, the endpoint returns 404
 
 ---
 
