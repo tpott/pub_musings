@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**174 tasks completed.** Deep inspection created 12 new tasks (167-178).
+**175 tasks completed.** Deep inspection created 12 new tasks (167-178).
 
 ### Recently Completed
+- ✅ Task 171: Remove persistent keydown listener in videos.astro
+  - Moved keydown handler setup from page-load to modal-open
+  - Used AbortController to add/remove document keydown listener dynamically
+  - Listener removed in closeVideoModal() via controller.abort()
+  - No listener persists when modal is closed
 - ✅ Task 170: Fix memory leak in videos.astro modal segment handlers
   - Replaced per-element click handlers with event delegation on modalSegments container
   - Single listener handles all segment clicks using `closest('.modal-segment')`

@@ -959,6 +959,7 @@ import '../styles/theme.css';
 			let modalSubtitleSegments: TranscriptionSegment[] = [];
 			let modalSubtitleSyncActive = false;
 			let modalTriggerElement: HTMLElement | null = null;
+			let modalKeydownController: AbortController | null = null;
 
 			// Event delegation for modal segments - add a single listener to the container
 			// This prevents memory leaks from repeatedly adding/removing per-element handlers
@@ -985,6 +986,57 @@ import '../styles/theme.css';
 				return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 			}
 
+			function setupModalKeyboardHandlers() {
+				// Clean up any existing listeners
+				if (modalKeydownController) {
+					modalKeydownController.abort();
+				}
+				modalKeydownController = new AbortController();
+
+				// Add keydown listener with AbortController for cleanup
+				document.addEventListener('keydown', handleModalKeydown, { signal: modalKeydownController.signal });
+			}
+
+			function handleModalKeydown(e: KeyboardEvent) {
+				if (e.key === 'Escape') {
+					closeVideoModal();
+					return;
+				}
+
+				// Trap focus inside modal when Tab is pressed
+				if (e.key === 'Tab') {
+					const focusableElements = videoModal.querySelectorAll<HTMLElement>(
+						'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+					);
+					const focusableArray = Array.from(focusableElements).filter(
+						el => el.offsetParent !== null // Only visible elements
+					);
+
+					if (focusableArray.length === 0) {
+						e.preventDefault();
+						return;
+					}
+
+					const firstFocusable = focusableArray[0];
+					const lastFocusable = focusableArray[focusableArray.length - 1];
+					const activeElement = document.activeElement as HTMLElement;
+
+					if (e.shiftKey) {
+						// Shift+Tab: if at first element, wrap to last
+						if (activeElement === firstFocusable || !focusableArray.includes(activeElement)) {
+							e.preventDefault();
+							lastFocusable.focus();
+						}
+					} else {
+						// Tab: if at last element, wrap to first
+						if (activeElement === lastFocusable || !focusableArray.includes(activeElement)) {
+							e.preventDefault();
+							firstFocusable.focus();
+						}
+					}
+				}
+			}
+
 			async function openVideoModal(videoId: string, filename: string) {
 				currentModalVideoId = videoId;
 				modalSubtitleSegments = [];
@@ -1000,6 +1052,9 @@ import '../styles/theme.css';
 				// Show modal
 				videoModal.classList.add('visible');
 				document.body.style.overflow = 'hidden';
+
+				// Set up keyboard handlers (Escape to close, Tab trapping)
+				setupModalKeyboardHandlers();
 
 				// Move focus to close button for keyboard navigation
 				modalClose.focus();
@@ -1123,6 +1178,12 @@ import '../styles/theme.css';
 					modalSubtitleSyncActive = false;
 				}
 
+				// Clean up keyboard listeners
+				if (modalKeydownController) {
+					modalKeydownController.abort();
+					modalKeydownController = null;
+				}
+
 				currentModalVideoId = null;
 				modalSubtitleSegments = [];
 
@@ -1143,50 +1204,9 @@ import '../styles/theme.css';
 				}
 			});
 
-			// Close on Escape key and trap focus inside modal
-			document.addEventListener('keydown', (e) => {
-				if (!videoModal.classList.contains('visible')) {
-					return;
-				}
-
-				if (e.key === 'Escape') {
-					closeVideoModal();
-					return;
-				}
-
-				// Trap focus inside modal when Tab is pressed
-				if (e.key === 'Tab') {
-					const focusableElements = videoModal.querySelectorAll<HTMLElement>(
-						'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-					);
-					const focusableArray = Array.from(focusableElements).filter(
-						el => el.offsetParent !== null // Only visible elements
-					);
-
-					if (focusableArray.length === 0) {
-						e.preventDefault();
-						return;
-					}
-
-					const firstFocusable = focusableArray[0];
-					const lastFocusable = focusableArray[focusableArray.length - 1];
-					const activeElement = document.activeElement as HTMLElement;
-
-					if (e.shiftKey) {
-						// Shift+Tab: if at first element, wrap to last
-						if (activeElement === firstFocusable || !focusableArray.includes(activeElement)) {
-							e.preventDefault();
-							lastFocusable.focus();
-						}
-					} else {
-						// Tab: if at last element, wrap to first
-						if (activeElement === lastFocusable || !focusableArray.includes(activeElement)) {
-							e.preventDefault();
-							firstFocusable.focus();
-						}
-					}
-				}
-			});
+			// Note: Escape key and Tab trapping handlers are set up dynamically via
+			// setupModalKeyboardHandlers() when the modal opens, and cleaned up when it closes.
+			// This prevents the listener from persisting when the modal isn't visible.
 
 			// Track if user is authenticated (set by checkAuth)
 			let isAuthenticated = false;
