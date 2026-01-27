@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**155 tasks completed.** 3 tasks pending from deep inspection.
+**156 tasks completed.** 2 tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 155: Create production security hardening checklist (docs)
+  - Created comprehensive `docs/SECURITY_CHECKLIST.md` with 10 categories
+  - Covers: server hardening, env var security, database, encryption, network, rate limiting, monitoring, backup, access control, dependencies
+  - Includes verification commands and periodic review schedule
+  - Referenced from `specs/deployment.md`
 - ✅ Task 154: Rate limit /metrics endpoint
   - Added metricsLimiter (10 req/min) to prevent reconnaissance attacks
   - Applied rate limit wrapper to GET /metrics endpoint
@@ -164,7 +169,6 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
 - Task 152: Add security event audit logging
-- Task 155: Create production security hardening checklist (docs)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:
