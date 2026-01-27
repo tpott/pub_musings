@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**222 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**223 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,9 +138,21 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**222 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**223 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 213: Feature - Implement user feedback system
+  - Created `specs/feedback.md` with design document
+  - Database migration 007 adds `feedback` table
+  - Backend `POST /api/feedback` endpoint with rate limiting (5 req/min)
+  - Validates: text required, type (general/bug/feature), rating (1-5), max 10KB text
+  - Captures user context: page URL, video ID, session ID, browser info
+  - Created `FeedbackButton.astro` component with floating button and modal
+  - Added to all 10 pages in frontend
+  - 14 backend tests for feedback endpoint
+  - Star rating UI with hover effects
+  - Form validation with character count
+
 - Task 221: Feature - Variable playback speed for language learning
   - Added speed control dropdown to video player (upload.astro and videos.astro modal)
   - Speed options: 0.5x, 0.75x, 1x (default), 1.25x, 1.5x, 2x

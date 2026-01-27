@@ -69,6 +69,8 @@ const (
 	defaultUserRateWindow         = time.Minute
 	defaultMetricsRateLimit       = 10
 	defaultMetricsRateWindow      = time.Minute
+	defaultFeedbackRateLimit      = 5
+	defaultFeedbackRateWindow     = time.Minute
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
@@ -111,6 +113,8 @@ var (
 	userRateWindow         time.Duration
 	metricsRateLimit       int
 	metricsRateWindow      time.Duration
+	feedbackRateLimit      int
+	feedbackRateWindow     time.Duration
 
 	// Chunked upload configuration
 	chunkSize     int64
@@ -270,6 +274,7 @@ func initConfig() {
 	downloadRateLimit, downloadRateWindow = getEnvRateLimitOrDefault("DOWNLOAD_RATE_LIMIT", defaultDownloadRateLimit, defaultDownloadRateWindow)
 	userRateLimit, userRateWindow = getEnvRateLimitOrDefault("USER_RATE_LIMIT", defaultUserRateLimit, defaultUserRateWindow)
 	metricsRateLimit, metricsRateWindow = getEnvRateLimitOrDefault("METRICS_RATE_LIMIT", defaultMetricsRateLimit, defaultMetricsRateWindow)
+	feedbackRateLimit, feedbackRateWindow = getEnvRateLimitOrDefault("FEEDBACK_RATE_LIMIT", defaultFeedbackRateLimit, defaultFeedbackRateWindow)
 
 	// Chunked upload configuration
 	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)
@@ -340,6 +345,7 @@ var scriptLimiter *ratelimit.Limiter
 var chunkLimiter *ratelimit.Limiter
 var downloadLimiter *ratelimit.Limiter
 var metricsLimiter *ratelimit.Limiter
+var feedbackLimiter *ratelimit.Limiter
 var userLimiter *ratelimit.UserLimiter
 
 // initRateLimiters creates rate limiters based on configuration
@@ -354,6 +360,7 @@ func initRateLimiters() {
 	chunkLimiter = ratelimit.New(chunkRateLimit, chunkRateWindow)
 	downloadLimiter = ratelimit.New(downloadRateLimit, downloadRateWindow)
 	metricsLimiter = ratelimit.New(metricsRateLimit, metricsRateWindow)
+	feedbackLimiter = ratelimit.New(feedbackRateLimit, feedbackRateWindow)
 	userLimiter = ratelimit.NewUserLimiter(userRateLimit, userRateWindow)
 
 	// Set up rate limit security event logging
@@ -1249,6 +1256,108 @@ func main() {
 			"status": "ok",
 		})
 	})
+
+	// Feedback submission endpoint (rate limited)
+	mux.HandleFunc("POST /api/feedback", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Parse request body
+		var req struct {
+			Text        string  `json:"text"`
+			Type        string  `json:"type"`
+			Rating      *int    `json:"rating"`
+			PageURL     string  `json:"page_url"`
+			VideoID     *string `json:"video_id"`
+			SessionID   *string `json:"session_id"`
+			BrowserInfo string  `json:"browser_info"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Validate required fields
+		if req.Text == "" {
+			httputil.RespondError(w, http.StatusBadRequest, "Feedback text is required")
+			return
+		}
+
+		// Validate text length (max 10KB)
+		if len(req.Text) > 10240 {
+			httputil.RespondError(w, http.StatusBadRequest, "Feedback text is too long (max 10KB)")
+			return
+		}
+
+		// Validate type
+		validTypes := map[string]bool{
+			db.FeedbackTypeGeneral: true,
+			db.FeedbackTypeBug:     true,
+			db.FeedbackTypeFeature: true,
+		}
+		if req.Type == "" {
+			req.Type = db.FeedbackTypeGeneral
+		} else if !validTypes[req.Type] {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid feedback type")
+			return
+		}
+
+		// Validate rating if provided
+		if req.Rating != nil && (*req.Rating < 1 || *req.Rating > 5) {
+			httputil.RespondError(w, http.StatusBadRequest, "Rating must be between 1 and 5")
+			return
+		}
+
+		// Get user context if authenticated
+		var userID *string
+		token := auth.GetTokenFromRequest(r)
+		if token != "" {
+			user, _, _ := auth.ValidateSession(database, token)
+			if user != nil {
+				userID = &user.ID
+			}
+		}
+
+		// Generate feedback ID
+		feedbackID, err := generateID()
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Failed to generate feedback ID", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save feedback")
+			return
+		}
+
+		// Create feedback record
+		feedback := &db.Feedback{
+			ID:          feedbackID,
+			UserID:      userID,
+			SessionID:   req.SessionID,
+			VideoID:     req.VideoID,
+			PageURL:     req.PageURL,
+			Text:        req.Text,
+			Rating:      req.Rating,
+			Type:        req.Type,
+			BrowserInfo: req.BrowserInfo,
+			CreatedAt:   time.Now(),
+			Status:      db.FeedbackStatusNew,
+		}
+
+		if err := database.CreateFeedback(feedback); err != nil {
+			logging.ErrorContext(r.Context(), "Failed to save feedback", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save feedback")
+			return
+		}
+
+		logging.InfoContext(r.Context(), "Feedback submitted",
+			"feedback_id", feedbackID,
+			"type", req.Type,
+			"has_rating", req.Rating != nil,
+			"authenticated", userID != nil,
+		)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+			"id":     feedbackID,
+		})
+	}))
 
 	// CAPTCHA config endpoint (returns site key if CAPTCHA is enabled)
 	mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {

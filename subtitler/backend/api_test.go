@@ -215,6 +215,105 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Feedback endpoint
+	ts.mux.HandleFunc("POST /api/feedback", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Text        string  `json:"text"`
+			Type        string  `json:"type"`
+			Rating      *int    `json:"rating"`
+			PageURL     string  `json:"page_url"`
+			VideoID     *string `json:"video_id"`
+			SessionID   *string `json:"session_id"`
+			BrowserInfo string  `json:"browser_info"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate required fields
+		if req.Text == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Feedback text is required"})
+			return
+		}
+
+		// Validate text length (max 10KB)
+		if len(req.Text) > 10240 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Feedback text is too long (max 10KB)"})
+			return
+		}
+
+		// Validate type
+		validTypes := map[string]bool{
+			db.FeedbackTypeGeneral: true,
+			db.FeedbackTypeBug:     true,
+			db.FeedbackTypeFeature: true,
+		}
+		if req.Type == "" {
+			req.Type = db.FeedbackTypeGeneral
+		} else if !validTypes[req.Type] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid feedback type"})
+			return
+		}
+
+		// Validate rating if provided
+		if req.Rating != nil && (*req.Rating < 1 || *req.Rating > 5) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Rating must be between 1 and 5"})
+			return
+		}
+
+		// Get user context if authenticated
+		var userID *string
+		token := auth.GetTokenFromRequest(r)
+		if token != "" {
+			user, _, _ := auth.ValidateSession(ts.db, token)
+			if user != nil {
+				userID = &user.ID
+			}
+		}
+
+		// Generate feedback ID
+		feedbackID, err := auth.GenerateID()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save feedback"})
+			return
+		}
+
+		// Create feedback record
+		feedback := &db.Feedback{
+			ID:          feedbackID,
+			UserID:      userID,
+			SessionID:   req.SessionID,
+			VideoID:     req.VideoID,
+			PageURL:     req.PageURL,
+			Text:        req.Text,
+			Rating:      req.Rating,
+			Type:        req.Type,
+			BrowserInfo: req.BrowserInfo,
+			CreatedAt:   time.Now(),
+			Status:      db.FeedbackStatusNew,
+		}
+
+		if err := ts.db.CreateFeedback(feedback); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save feedback"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+			"id":     feedbackID,
+		})
+	})
+
 	// Auth: Register (rate limited)
 	ts.mux.HandleFunc("POST /api/auth/register", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -8738,5 +8837,324 @@ func TestAlignTranscriptInvalidBody(t *testing.T) {
 
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+// ============================================
+// Feedback endpoint tests
+// ============================================
+
+func TestFeedbackSubmitSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":         "This is great feedback!",
+		"type":         "general",
+		"page_url":     "http://localhost:4321/upload",
+		"browser_info": "Mozilla/5.0 Test Browser",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["status"] != "ok" {
+		t.Errorf("Expected status 'ok', got '%v'", result["status"])
+	}
+
+	if result["id"] == nil || result["id"] == "" {
+		t.Error("Expected feedback ID in response")
+	}
+}
+
+func TestFeedbackSubmitWithRating(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "Great app, 5 stars!",
+		"type":     "general",
+		"rating":   5,
+		"page_url": "http://localhost:4321/videos",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestFeedbackSubmitBugReport(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "Found a bug with video upload",
+		"type":     "bug",
+		"page_url": "http://localhost:4321/upload",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestFeedbackSubmitFeatureRequest(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "Please add dark mode",
+		"type":     "feature",
+		"page_url": "http://localhost:4321/settings",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestFeedbackSubmitMissingText(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"type":     "general",
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["error"] != "Feedback text is required" {
+		t.Errorf("Expected 'Feedback text is required' error, got '%v'", result["error"])
+	}
+}
+
+func TestFeedbackSubmitEmptyText(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "",
+		"type":     "general",
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+func TestFeedbackSubmitInvalidType(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "Test feedback",
+		"type":     "invalid_type",
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["error"] != "Invalid feedback type" {
+		t.Errorf("Expected 'Invalid feedback type' error, got '%v'", result["error"])
+	}
+}
+
+func TestFeedbackSubmitInvalidRating(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Rating too high
+	body := map[string]interface{}{
+		"text":     "Test feedback",
+		"type":     "general",
+		"rating":   10,
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["error"] != "Rating must be between 1 and 5" {
+		t.Errorf("Expected rating error, got '%v'", result["error"])
+	}
+}
+
+func TestFeedbackSubmitRatingTooLow(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "Test feedback",
+		"type":     "general",
+		"rating":   0,
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+}
+
+func TestFeedbackSubmitTextTooLong(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create text longer than 10KB
+	longText := strings.Repeat("a", 10241)
+
+	body := map[string]interface{}{
+		"text":     longText,
+		"type":     "general",
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.Code)
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["error"] != "Feedback text is too long (max 10KB)" {
+		t.Errorf("Expected text too long error, got '%v'", result["error"])
+	}
+}
+
+func TestFeedbackSubmitAuthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a user
+	token := ts.createTestUser(t, "feedback@example.com", "Testpass123!")
+
+	body := map[string]interface{}{
+		"text":     "Feedback from authenticated user",
+		"type":     "general",
+		"page_url": "http://localhost:4321/upload",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Verify user_id was captured
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	feedbackID := result["id"].(string)
+	feedback, err := ts.db.GetFeedback(feedbackID)
+	if err != nil {
+		t.Fatalf("Failed to get feedback: %v", err)
+	}
+
+	if feedback.UserID == nil {
+		t.Error("Expected user_id to be set for authenticated request")
+	}
+}
+
+func TestFeedbackSubmitWithVideoID(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video
+	video := ts.createTestVideo(t, nil, nil)
+
+	body := map[string]interface{}{
+		"text":     "Feedback about a specific video",
+		"type":     "bug",
+		"video_id": video.ID,
+		"page_url": "http://localhost:4321/upload?video=" + video.ID,
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Verify video_id was captured
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	feedbackID := result["id"].(string)
+	feedback, err := ts.db.GetFeedback(feedbackID)
+	if err != nil {
+		t.Fatalf("Failed to get feedback: %v", err)
+	}
+
+	if feedback.VideoID == nil || *feedback.VideoID != video.ID {
+		t.Error("Expected video_id to match the submitted video")
+	}
+}
+
+func TestFeedbackSubmitDefaultType(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	body := map[string]interface{}{
+		"text":     "Feedback without explicit type",
+		"page_url": "http://localhost:4321/",
+	}
+
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Verify default type is "general"
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	feedbackID := result["id"].(string)
+	feedback, err := ts.db.GetFeedback(feedbackID)
+	if err != nil {
+		t.Fatalf("Failed to get feedback: %v", err)
+	}
+
+	if feedback.Type != "general" {
+		t.Errorf("Expected default type 'general', got '%s'", feedback.Type)
 	}
 }

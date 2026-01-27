@@ -203,6 +203,35 @@ type UploadChunk struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+// Feedback status constants
+const (
+	FeedbackStatusNew      = "new"
+	FeedbackStatusRead     = "read"
+	FeedbackStatusResolved = "resolved"
+)
+
+// Feedback type constants
+const (
+	FeedbackTypeGeneral = "general"
+	FeedbackTypeBug     = "bug"
+	FeedbackTypeFeature = "feature"
+)
+
+// Feedback represents user feedback
+type Feedback struct {
+	ID          string    `json:"id"`
+	UserID      *string   `json:"user_id,omitempty"`    // NULL for anonymous users
+	SessionID   *string   `json:"session_id,omitempty"` // For anonymous tracking
+	VideoID     *string   `json:"video_id,omitempty"`   // Which video (optional)
+	PageURL     string    `json:"page_url"`             // Current page URL
+	Text        string    `json:"text"`                 // User's message
+	Rating      *int      `json:"rating,omitempty"`     // 1-5 or NULL
+	Type        string    `json:"type"`                 // "general", "bug", "feature"
+	BrowserInfo string    `json:"browser_info"`         // User agent, viewport, etc.
+	CreatedAt   time.Time `json:"created_at"`
+	Status      string    `json:"status"` // "new", "read", "resolved"
+}
+
 // Open opens or creates a SQLite database at the given path
 func Open(dbPath string) (*DB, error) {
 	// Ensure directory exists
@@ -1994,4 +2023,109 @@ func (db *DB) UpdateVideoThumbnailKeyVersion(videoID string, newThumbnailPath st
 		UPDATE videos SET thumbnail_path = ? WHERE id = ?
 	`, newThumbnailPath, videoID)
 	return err
+}
+
+// CreateFeedback creates a new feedback record
+func (db *DB) CreateFeedback(feedback *Feedback) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
+		INSERT INTO feedback (id, user_id, session_id, video_id, page_url, feedback_text, rating, feedback_type, browser_info, created_at, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, feedback.ID, feedback.UserID, feedback.SessionID, feedback.VideoID, feedback.PageURL, feedback.Text, feedback.Rating, feedback.Type, feedback.BrowserInfo, feedback.CreatedAt, feedback.Status)
+	if err != nil {
+		return fmt.Errorf("failed to create feedback: %w", err)
+	}
+	return nil
+}
+
+// GetFeedback retrieves feedback by ID
+func (db *DB) GetFeedback(id string) (*Feedback, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	feedback := &Feedback{}
+	err := db.conn.QueryRowContext(ctx, `
+		SELECT id, user_id, session_id, video_id, page_url, feedback_text, rating, feedback_type, browser_info, created_at, status
+		FROM feedback WHERE id = ?
+	`, id).Scan(&feedback.ID, &feedback.UserID, &feedback.SessionID, &feedback.VideoID, &feedback.PageURL, &feedback.Text, &feedback.Rating, &feedback.Type, &feedback.BrowserInfo, &feedback.CreatedAt, &feedback.Status)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get feedback %s: %w", id, err)
+	}
+	return feedback, nil
+}
+
+// ListFeedback retrieves feedback with optional filters
+func (db *DB) ListFeedback(status string, feedbackType string, limit, offset int) ([]*Feedback, int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	// Build query with filters
+	query := "SELECT id, user_id, session_id, video_id, page_url, feedback_text, rating, feedback_type, browser_info, created_at, status FROM feedback WHERE 1=1"
+	countQuery := "SELECT COUNT(*) FROM feedback WHERE 1=1"
+	args := []interface{}{}
+
+	if status != "" {
+		query += " AND status = ?"
+		countQuery += " AND status = ?"
+		args = append(args, status)
+	}
+	if feedbackType != "" {
+		query += " AND feedback_type = ?"
+		countQuery += " AND feedback_type = ?"
+		args = append(args, feedbackType)
+	}
+
+	// Get total count
+	var total int
+	if err := db.conn.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count feedback: %w", err)
+	}
+
+	// Add ordering and pagination
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := db.conn.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list feedback: %w", err)
+	}
+	defer rows.Close()
+
+	var feedbackList []*Feedback
+	for rows.Next() {
+		f := &Feedback{}
+		if err := rows.Scan(&f.ID, &f.UserID, &f.SessionID, &f.VideoID, &f.PageURL, &f.Text, &f.Rating, &f.Type, &f.BrowserInfo, &f.CreatedAt, &f.Status); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan feedback row: %w", err)
+		}
+		feedbackList = append(feedbackList, f)
+	}
+
+	return feedbackList, total, rows.Err()
+}
+
+// UpdateFeedbackStatus updates the status of a feedback record
+func (db *DB) UpdateFeedbackStatus(id, status string) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `
+		UPDATE feedback SET status = ? WHERE id = ?
+	`, status, id)
+	if err != nil {
+		return fmt.Errorf("failed to update feedback status: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("feedback not found: %s", id)
+	}
+	return nil
 }
