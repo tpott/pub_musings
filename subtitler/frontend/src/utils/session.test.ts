@@ -7,6 +7,9 @@ import {
 	hasCookieConsent,
 	hasCookieDeclined,
 	hasCookieChoice,
+	recordUploadSession,
+	removeUploadSessionRecord,
+	cleanupStaleUploadSessions,
 } from './session';
 
 // Mock localStorage
@@ -211,6 +214,194 @@ describe('session utilities', () => {
 				localStorageMock._getStore()[key] || null
 			);
 			expect(hasSessionId()).toBe(true);
+		});
+	});
+
+	describe('upload session cleanup', () => {
+		beforeEach(() => {
+			// Use real implementation for these tests
+			localStorageMock.getItem.mockImplementation((key: string) =>
+				localStorageMock._getStore()[key] || null
+			);
+			localStorageMock.setItem.mockImplementation((key: string, value: string) => {
+				const store = localStorageMock._getStore();
+				store[key] = value;
+				localStorageMock._setStore(store);
+			});
+			localStorageMock.removeItem.mockImplementation((key: string) => {
+				const store = localStorageMock._getStore();
+				delete store[key];
+				localStorageMock._setStore(store);
+			});
+		});
+
+		describe('recordUploadSession', () => {
+			it('should record session timestamp', () => {
+				const sessionKey = 'subtitler:upload_session:test.mp4:12345';
+				recordUploadSession(sessionKey);
+
+				const timestamps = JSON.parse(
+					localStorageMock._getStore()['subtitler:upload_session_timestamps'] || '{}'
+				);
+				expect(timestamps[sessionKey]).toBeDefined();
+				expect(typeof timestamps[sessionKey]).toBe('number');
+			});
+
+			it('should record multiple sessions', () => {
+				const session1 = 'subtitler:upload_session:file1.mp4:100';
+				const session2 = 'subtitler:upload_session:file2.mp4:200';
+
+				recordUploadSession(session1);
+				recordUploadSession(session2);
+
+				const timestamps = JSON.parse(
+					localStorageMock._getStore()['subtitler:upload_session_timestamps'] || '{}'
+				);
+				expect(timestamps[session1]).toBeDefined();
+				expect(timestamps[session2]).toBeDefined();
+			});
+		});
+
+		describe('removeUploadSessionRecord', () => {
+			it('should remove session timestamp', () => {
+				const sessionKey = 'subtitler:upload_session:test.mp4:12345';
+				recordUploadSession(sessionKey);
+				removeUploadSessionRecord(sessionKey);
+
+				const timestamps = JSON.parse(
+					localStorageMock._getStore()['subtitler:upload_session_timestamps'] || '{}'
+				);
+				expect(timestamps[sessionKey]).toBeUndefined();
+			});
+
+			it('should not affect other sessions', () => {
+				const session1 = 'subtitler:upload_session:file1.mp4:100';
+				const session2 = 'subtitler:upload_session:file2.mp4:200';
+
+				recordUploadSession(session1);
+				recordUploadSession(session2);
+				removeUploadSessionRecord(session1);
+
+				const timestamps = JSON.parse(
+					localStorageMock._getStore()['subtitler:upload_session_timestamps'] || '{}'
+				);
+				expect(timestamps[session1]).toBeUndefined();
+				expect(timestamps[session2]).toBeDefined();
+			});
+		});
+
+		describe('cleanupStaleUploadSessions', () => {
+			it('should remove sessions older than 48 hours', () => {
+				const sessionKey = 'subtitler:upload_session:old.mp4:12345';
+				const staleTimestamp = Date.now() - 49 * 60 * 60 * 1000; // 49 hours ago
+
+				// Set up stale session
+				const store = localStorageMock._getStore();
+				store[sessionKey] = 'some-session-id';
+				store['subtitler:upload_session_timestamps'] = JSON.stringify({
+					[sessionKey]: staleTimestamp,
+				});
+				localStorageMock._setStore(store);
+
+				cleanupStaleUploadSessions();
+
+				const finalStore = localStorageMock._getStore();
+				expect(finalStore[sessionKey]).toBeUndefined();
+			});
+
+			it('should keep sessions younger than 48 hours', () => {
+				const sessionKey = 'subtitler:upload_session:new.mp4:12345';
+				const freshTimestamp = Date.now() - 1 * 60 * 60 * 1000; // 1 hour ago
+
+				// Set up fresh session
+				const store = localStorageMock._getStore();
+				store[sessionKey] = 'some-session-id';
+				store['subtitler:upload_session_timestamps'] = JSON.stringify({
+					[sessionKey]: freshTimestamp,
+				});
+				localStorageMock._setStore(store);
+
+				cleanupStaleUploadSessions();
+
+				const finalStore = localStorageMock._getStore();
+				expect(finalStore[sessionKey]).toBe('some-session-id');
+			});
+
+			it('should remove untracked legacy sessions', () => {
+				const sessionKey = 'subtitler:upload_session:legacy.mp4:12345';
+
+				// Set up untracked session (no timestamp)
+				const store = localStorageMock._getStore();
+				store[sessionKey] = 'some-session-id';
+				store['subtitler:upload_session_timestamps'] = '{}';
+				localStorageMock._setStore(store);
+
+				// Mock localStorage.key and length for iteration
+				const keys = Object.keys(store);
+				Object.defineProperty(localStorageMock, 'length', {
+					get: () => keys.length,
+					configurable: true,
+				});
+				localStorageMock.key = vi.fn((index: number) => keys[index] || null);
+
+				cleanupStaleUploadSessions();
+
+				const finalStore = localStorageMock._getStore();
+				expect(finalStore[sessionKey]).toBeUndefined();
+			});
+
+			it('should handle both stale and fresh sessions correctly', () => {
+				const staleKey = 'subtitler:upload_session:old.mp4:100';
+				const freshKey = 'subtitler:upload_session:new.mp4:200';
+				const staleTimestamp = Date.now() - 50 * 60 * 60 * 1000; // 50 hours ago
+				const freshTimestamp = Date.now() - 1 * 60 * 60 * 1000; // 1 hour ago
+
+				// Set up both sessions
+				const store = localStorageMock._getStore();
+				store[staleKey] = 'stale-session-id';
+				store[freshKey] = 'fresh-session-id';
+				store['subtitler:upload_session_timestamps'] = JSON.stringify({
+					[staleKey]: staleTimestamp,
+					[freshKey]: freshTimestamp,
+				});
+				localStorageMock._setStore(store);
+
+				cleanupStaleUploadSessions();
+
+				const finalStore = localStorageMock._getStore();
+				expect(finalStore[staleKey]).toBeUndefined();
+				expect(finalStore[freshKey]).toBe('fresh-session-id');
+
+				// Verify timestamps updated
+				const timestamps = JSON.parse(finalStore['subtitler:upload_session_timestamps']);
+				expect(timestamps[staleKey]).toBeUndefined();
+				expect(timestamps[freshKey]).toBeDefined();
+			});
+
+			it('should handle invalid JSON in timestamps gracefully', () => {
+				const sessionKey = 'subtitler:upload_session:test.mp4:12345';
+
+				// Set up invalid JSON
+				const store = localStorageMock._getStore();
+				store[sessionKey] = 'some-session-id';
+				store['subtitler:upload_session_timestamps'] = 'invalid-json';
+				localStorageMock._setStore(store);
+
+				// Mock localStorage.key and length for iteration
+				const keys = Object.keys(store);
+				Object.defineProperty(localStorageMock, 'length', {
+					get: () => keys.length,
+					configurable: true,
+				});
+				localStorageMock.key = vi.fn((index: number) => keys[index] || null);
+
+				// Should not throw
+				expect(() => cleanupStaleUploadSessions()).not.toThrow();
+
+				// Untracked session should be removed
+				const finalStore = localStorageMock._getStore();
+				expect(finalStore[sessionKey]).toBeUndefined();
+			});
 		});
 	});
 });

@@ -1018,7 +1018,7 @@ import '../styles/theme.css';
 
 		<script>
 			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
-			import { getOrCreateSessionId } from '../utils/session';
+			import { getOrCreateSessionId, cleanupStaleUploadSessions, recordUploadSession, removeUploadSessionRecord } from '../utils/session';
 			import { parseTimeString } from '../utils/validation';
 			import type {
 				TranscriptionSegment,
@@ -1125,6 +1125,9 @@ import '../styles/theme.css';
 
 			// LocalStorage key for preferred language
 			const PREFERRED_LANGUAGE_KEY = 'subtitler:transcription_language';
+
+			// Clean up stale upload sessions on page load
+			cleanupStaleUploadSessions();
 
 			let isUploading = false;
 			let currentUploadId: string | null = null;
@@ -1410,16 +1413,19 @@ import '../styles/theme.css';
 							} else {
 								// Session expired or completed, start fresh
 								localStorage.removeItem(sessionKey);
+								removeUploadSessionRecord(sessionKey);
 								sessionId = null;
 								uploadSession = null;
 							}
 						} else {
 							// Session not found, start fresh
 							localStorage.removeItem(sessionKey);
+							removeUploadSessionRecord(sessionKey);
 							sessionId = null;
 						}
 					} catch {
 						localStorage.removeItem(sessionKey);
+						removeUploadSessionRecord(sessionKey);
 						sessionId = null;
 					}
 				}
@@ -1446,6 +1452,7 @@ import '../styles/theme.css';
 					uploadSession = await initRes.json();
 					sessionId = uploadSession.upload_session_id;
 					localStorage.setItem(sessionKey, sessionId);
+					recordUploadSession(sessionKey);
 					receivedChunks = [];
 				}
 
@@ -1524,6 +1531,7 @@ import '../styles/theme.css';
 
 				// Clean up localStorage
 				localStorage.removeItem(sessionKey);
+				removeUploadSessionRecord(sessionKey);
 
 				hideProgress();
 				showStatus(`Upload complete! Starting transcription...`, 'success');

@@ -91,3 +91,85 @@ export function hasSessionId(): boolean {
 	}
 	return localStorage.getItem(SESSION_ID_KEY) !== null;
 }
+
+/**
+ * Upload session tracking constants
+ */
+const UPLOAD_SESSION_PREFIX = 'subtitler:upload_session:';
+const UPLOAD_SESSION_TIMESTAMPS_KEY = 'subtitler:upload_session_timestamps';
+const STALE_SESSION_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
+
+/**
+ * Records the creation time for an upload session.
+ * Call this when storing a new upload session ID.
+ */
+export function recordUploadSession(sessionKey: string): void {
+	const timestamps = getUploadSessionTimestamps();
+	timestamps[sessionKey] = Date.now();
+	localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+}
+
+/**
+ * Removes the timestamp record for an upload session.
+ * Call this when an upload completes or is abandoned.
+ */
+export function removeUploadSessionRecord(sessionKey: string): void {
+	const timestamps = getUploadSessionTimestamps();
+	delete timestamps[sessionKey];
+	localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+}
+
+/**
+ * Gets all upload session timestamps.
+ */
+function getUploadSessionTimestamps(): Record<string, number> {
+	try {
+		const stored = localStorage.getItem(UPLOAD_SESSION_TIMESTAMPS_KEY);
+		if (stored) {
+			return JSON.parse(stored);
+		}
+	} catch {
+		// Invalid JSON, start fresh
+	}
+	return {};
+}
+
+/**
+ * Cleans up stale upload sessions from localStorage.
+ * Removes sessions older than 48 hours.
+ * Call this on app startup.
+ */
+export function cleanupStaleUploadSessions(): void {
+	const now = Date.now();
+	const timestamps = getUploadSessionTimestamps();
+	let hasChanges = false;
+
+	// Check each tracked session
+	for (const sessionKey of Object.keys(timestamps)) {
+		const createdAt = timestamps[sessionKey];
+		const ageMs = now - createdAt;
+
+		if (ageMs > STALE_SESSION_THRESHOLD_MS) {
+			// Session is stale, remove it
+			localStorage.removeItem(sessionKey);
+			delete timestamps[sessionKey];
+			hasChanges = true;
+		}
+	}
+
+	// Also scan for any upload session keys not in our timestamps tracking
+	// (handles sessions created before this feature was added)
+	for (let i = 0; i < localStorage.length; i++) {
+		const key = localStorage.key(i);
+		if (key && key.startsWith(UPLOAD_SESSION_PREFIX) && !(key in timestamps)) {
+			// Untracked session - remove it since we don't know when it was created
+			// This ensures cleanup of legacy sessions
+			localStorage.removeItem(key);
+			hasChanges = true;
+		}
+	}
+
+	if (hasChanges) {
+		localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+	}
+}

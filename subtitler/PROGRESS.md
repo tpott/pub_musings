@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**118 tasks completed** as of 2026-01-26. All core features implemented and tested.
+**122 tasks completed** as of 2026-01-26. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -131,20 +131,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**118 tasks completed!**
+**122 tasks completed!**
 
 ### Recently Completed
+- ✅ Task 122: localStorage cleanup for stale upload sessions - on page load, removes upload sessions older than 48 hours to prevent localStorage pollution from abandoned uploads
 - ✅ Task 121: Incomplete upload session cleanup - cleanup scheduler now removes orphan chunk directories that exist on disk but don't have database records (handles server crashes, manual DB cleanup)
 - ✅ Task 117: Fixed database error handling in chunked upload progress - properly handle errors from GetTotalReceivedBytes and CountUploadChunks with logging
 - ✅ Task 116: Chunked uploads - large files (>50MB) automatically split into 50MB chunks, resumable via localStorage, works through Cloudflare 100MB limit
 - ✅ Task 112: Burn progress indicators - ffmpeg burn process now updates progress from 20% to 85% during encoding, GET /api/videos/{id}/burn returns estimated_remaining_seconds, frontend shows ETA during burning
-- ✅ Task 111: Video thumbnail generation - thumbnails auto-generated during upload at 10% of video duration, displayed on My Videos page, encrypted at rest
 
-### Pending Tasks (Tasks 118-123)
+### Pending Tasks (Tasks 118-120, 123)
 - Task 118: Add CAPTCHA to registration and login
 - Task 119: Add password complexity requirements
 - Task 120: Add encryption key rotation support
-- Task 122: Add localStorage cleanup for stale upload sessions
 - Task 123: Document whisper model selection decision
 
 See `TASKS.jsonl` for details.
