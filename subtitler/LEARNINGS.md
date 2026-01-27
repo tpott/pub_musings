@@ -753,3 +753,28 @@ function scrollIntoContainerView(container: HTMLElement, element: HTMLElement) {
 - Added E2E regression tests in `frontend/e2e/upload-flow.spec.ts`
 
 **See also:** `specs/video-scroll-fix.md` for full analysis
+
+---
+
+### 2026-01-27: Whisper error messages leak internal details to clients
+
+**Problem:** When transcription fails, the raw error message from whisper-cli/server was stored in the database and returned to clients. These messages can contain:
+- Internal IP addresses (`10.0.2.2:8765`)
+- File system paths (`/opt/subtitler/uploads/abc123.mp4`)
+- Internal service names (`whisper-server`)
+- Technical error details (`connection refused`)
+
+This is an information disclosure vulnerability - production error messages should never reveal server internals.
+
+**Solution:**
+1. Modified `dbTranscriptionToStatus()` in `main.go` to sanitize error messages
+2. When status is "error" and verbose mode is OFF (production), return generic user-friendly message
+3. Raw error details only shown when `LOG_VERBOSE=true` (development)
+4. Uses existing `errmsg.ErrTranscribeFailed` constant for consistency
+5. Added tests `TestTranscriptionErrorMessageSanitization` and `TestTranscriptionErrorVerboseMode`
+
+**Lesson:**
+1. **Always audit what gets stored in database `message` fields** - these often get returned to clients
+2. **Raw error messages should NEVER be returned in production** - use user-friendly messages
+3. The existing `errmsg` package pattern should be applied consistently to all error paths
+4. When adding features that store errors, trace the entire path: creation → storage → retrieval → client response

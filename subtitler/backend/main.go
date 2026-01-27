@@ -938,9 +938,17 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 		return nil
 	}
 
+	// Sanitize error messages for client consumption
+	// The raw message may contain internal details (paths, IPs, server errors)
+	message := t.Message
+	if t.Status == "error" && t.Message != "" && !errmsg.IsVerbose() {
+		// Return user-friendly message instead of raw error
+		message = errmsg.ErrTranscribeFailed
+	}
+
 	status := &TranscriptionStatus{
 		Status:   t.Status,
-		Message:  t.Message,
+		Message:  message,
 		Progress: t.Progress,
 	}
 

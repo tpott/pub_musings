@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**206 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**207 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 205: SECURITY - Sanitize whisper error messages before sending to client
+  - Modified `dbTranscriptionToStatus()` to sanitize error messages
+  - When status is "error" and verbose mode is off, returns user-friendly message
+  - Raw error (containing paths, IPs, port numbers) is only shown in verbose mode
+  - Uses existing `errmsg` package for consistent sanitization
+  - Added `TestTranscriptionErrorMessageSanitization` and `TestTranscriptionErrorVerboseMode` tests
+  - Prevents leaking: IP addresses, paths, port numbers, internal service names
+
 - Task 204: Add missing environment variables to ENV.md
   - Added `CHUNK_SIZE` for configuring chunked upload size (default 50MB)
   - Added `UPLOAD_SESSION_EXPIRY` for chunked upload session timeout (default 24h)

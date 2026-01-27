@@ -25,6 +25,7 @@ import (
 	"github.com/trevor/subtitler/backend/csrf"
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/email"
+	"github.com/trevor/subtitler/backend/errmsg"
 	"github.com/trevor/subtitler/backend/httputil"
 	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
@@ -3677,6 +3678,116 @@ func TestGetTranscriptionNotFound(t *testing.T) {
 	resp := ts.doRequest("GET", "/api/transcribe/nonexistent", nil, "")
 	if resp.Code != http.StatusNotFound {
 		t.Errorf("Expected status 404, got %d", resp.Code)
+	}
+}
+
+// TestTranscriptionErrorMessageSanitization verifies that whisper error messages
+// are sanitized before being sent to clients (Task 205)
+func TestTranscriptionErrorMessageSanitization(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Ensure verbose mode is off (production behavior)
+	errmsg.SetVerbose(false)
+	defer errmsg.SetVerbose(false)
+
+	// Create video and failing transcription with sensitive error message
+	video := ts.createTestVideo(t, nil, nil)
+	sensitiveError := "whisper-server request failed after 3 attempts: connection refused at 10.0.2.2:8765 for file /opt/subtitler/uploads/abc123.mp4"
+
+	transcription := &db.Transcription{
+		VideoID:   video.ID,
+		Status:    "pending",
+		Message:   "",
+		Progress:  0,
+		CreatedAt: time.Now(),
+	}
+	if err := ts.db.CreateTranscription(transcription); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+	if err := ts.db.FailTranscription(video.ID, sensitiveError); err != nil {
+		t.Fatalf("Failed to fail transcription: %v", err)
+	}
+
+	// Get transcription status
+	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID, nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result.Status != "error" {
+		t.Errorf("Expected status 'error', got '%s'", result.Status)
+	}
+
+	// Verify the message does NOT contain sensitive information
+	sensitiveStrings := []string{
+		"10.0.2.2",           // IP address
+		"8765",               // Port
+		"/opt/subtitler",     // Server path
+		"abc123.mp4",         // Filename
+		"whisper-server",     // Internal service name
+		"connection refused", // Technical error detail
+	}
+	for _, s := range sensitiveStrings {
+		if strings.Contains(result.Message, s) {
+			t.Errorf("Response message contains sensitive string %q: %s", s, result.Message)
+		}
+	}
+
+	// Verify the message IS the sanitized user-friendly message
+	if result.Message != errmsg.ErrTranscribeFailed {
+		t.Errorf("Expected sanitized message %q, got %q", errmsg.ErrTranscribeFailed, result.Message)
+	}
+}
+
+// TestTranscriptionErrorVerboseMode verifies that verbose mode returns detailed errors
+func TestTranscriptionErrorVerboseMode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Enable verbose mode (development behavior)
+	errmsg.SetVerbose(true)
+	defer errmsg.SetVerbose(false)
+
+	// Create video and failing transcription with sensitive error message
+	video := ts.createTestVideo(t, nil, nil)
+	sensitiveError := "whisper-server request failed: connection refused at 10.0.2.2:8765"
+
+	transcription := &db.Transcription{
+		VideoID:   video.ID,
+		Status:    "pending",
+		Message:   "",
+		Progress:  0,
+		CreatedAt: time.Now(),
+	}
+	if err := ts.db.CreateTranscription(transcription); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+	if err := ts.db.FailTranscription(video.ID, sensitiveError); err != nil {
+		t.Fatalf("Failed to fail transcription: %v", err)
+	}
+
+	// Get transcription status
+	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID, nil, "")
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	// In verbose mode, should return the raw error message
+	if result.Message != sensitiveError {
+		t.Errorf("Expected raw error message in verbose mode, got %q", result.Message)
 	}
 }
 
