@@ -138,9 +138,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**173 tasks completed.** Deep inspection created 12 new tasks (167-178).
+**174 tasks completed.** Deep inspection created 12 new tasks (167-178).
 
 ### Recently Completed
+- ✅ Task 170: Fix memory leak in videos.astro modal segment handlers
+  - Replaced per-element click handlers with event delegation on modalSegments container
+  - Single listener handles all segment clicks using `closest('.modal-segment')`
+  - Prevents memory leaks from accumulating handlers on repeated modal open/close
 - ✅ Task 169: Add context cancellation to progress simulation goroutines
   - Replaced `chan struct{}` with `context.WithCancel()` in 3 locations
   - POST /api/transcribe/{id}, POST /api/videos/{id}/reprocess, POST /api/burn/{id}
