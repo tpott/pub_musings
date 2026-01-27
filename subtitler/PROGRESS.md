@@ -138,27 +138,33 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**180 tasks completed.** Second deep inspection created 9 new tasks (179-187).
+**181 tasks completed.** Second deep inspection created 9 new tasks (179-187).
 
-### Pending Tasks (179-187)
+### Pending Tasks (180-187)
 Deep inspection found these issues:
-- Task 179: Magic link email verification check (SECURITY)
 - Task 180: Password validation consolidation
 - Task 181: Transcription status race condition fix
 - Task 182: Temp file cleanup in transcription goroutines
 - Task 183: Per-email rate limit for magic links (SECURITY)
-- ~~Task 184: Expired session handling fix~~ - code was correct, added test
 - Task 185: Script conversion error reporting
 - Task 186: Email token cleanup after verification
 - Task 187: Audit logging for auth events (SECURITY)
 
 ### Recently Completed
+- ✅ Task 179: Magic link email verification check
+  - Code was already correct (checks `!user.EmailVerified` and returns early)
+  - Returns generic success to prevent email enumeration (per spec)
+  - Added SendMagicLink to MockService for testing
+  - Added magic link handlers to test server
+  - Added 9 tests: unverified/verified email, nonexistent, invalid, verify success/expired/invalid/missing, single-use
+  - Tests verify magic links are NOT sent for unverified emails
+
 - ✅ Task 184: Verified expired session handling in ValidateSession
   - Code was already correct (returns immediately after delete at line 230)
   - Added TestValidateSessionExpired test to verify behavior
   - Test confirms expired sessions return nil and are deleted from DB
 
-### Recently Completed
+### Previously Completed
 - ✅ Task 178: Add ID format validation before database queries
   - Created `ValidateHexID()` in validation package (32-char hex check)
   - Created `validatePathID()` helper in main.go for endpoint use

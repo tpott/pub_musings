@@ -74,6 +74,15 @@ func (m *MockService) SendEmailVerification(ctx context.Context, to, token strin
 	return m.SendEmail(ctx, to, subject, htmlBody, textBody)
 }
 
+// SendMagicLink sends a mock magic link login email
+func (m *MockService) SendMagicLink(ctx context.Context, to, token string) error {
+	subject := "Login to Subtitler"
+	loginURL := m.appURL + "/magic-link?token=" + token
+	htmlBody := MagicLinkHTML(loginURL)
+	textBody := MagicLinkText(loginURL)
+	return m.SendEmail(ctx, to, subject, htmlBody, textBody)
+}
+
 // GetEmails returns all sent emails and clears the list
 func (m *MockService) GetEmails() []SentEmail {
 	m.mu.Lock()

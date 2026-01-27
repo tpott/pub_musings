@@ -984,6 +984,121 @@ func (ts *testServer) registerHandlers() {
 		ts.emailService.SendEmailVerification(r.Context(), user.Email, token)
 	}))
 
+	// Auth: Request magic link - sends a login link via email
+	ts.mux.HandleFunc("POST /api/auth/magic-link", ts.passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		var req struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+		if err := auth.ValidateEmail(req.Email); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Always return success to prevent email enumeration
+		defer func() {
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "If an account exists with that email, a login link has been sent.",
+			})
+		}()
+
+		user, err := ts.db.GetUserByEmail(req.Email)
+		if err != nil || user == nil {
+			return
+		}
+
+		// Check if email is verified - magic links only work for verified users
+		if !user.EmailVerified {
+			return
+		}
+
+		// Generate magic link token
+		tokenBytes := make([]byte, 32)
+		if _, err := rand.Read(tokenBytes); err != nil {
+			return
+		}
+		token := hex.EncodeToString(tokenBytes)
+		tokenHash := email.HashToken(token)
+
+		expiresAt := time.Now().Add(15 * time.Minute)
+		_, err = ts.db.CreateMagicLinkToken(user.ID, tokenHash, expiresAt)
+		if err != nil {
+			return
+		}
+
+		ts.emailService.SendMagicLink(r.Context(), user.Email, token)
+	}))
+
+	// Auth: Verify magic link - logs user in with magic link token
+	ts.mux.HandleFunc("GET /api/auth/magic-link/verify", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Token is required"})
+			return
+		}
+
+		tokenHash := email.HashToken(token)
+		magicToken, err := ts.db.GetMagicLinkToken(tokenHash)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to verify token"})
+			return
+		}
+
+		if magicToken == nil || magicToken.Used || time.Now().After(magicToken.ExpiresAt) {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired token"})
+			return
+		}
+
+		// Mark token as used
+		used, err := ts.db.UseMagicLinkToken(tokenHash)
+		if err != nil || !used {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Token already used"})
+			return
+		}
+
+		// Get user and create session
+		user, err := ts.db.GetUserByID(magicToken.UserID)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+			return
+		}
+
+		session, err := auth.CreateSession(ts.db, user.ID, "", "")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create session"})
+			return
+		}
+
+		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "Login successful",
+			"token":   session.Token,
+			"user": map[string]interface{}{
+				"id":    user.ID,
+				"email": user.Email,
+			},
+		})
+	}))
+
 	// List videos
 	ts.mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -5313,6 +5428,256 @@ func TestResetPasswordTokenSingleUse(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected second reset to fail with 400, got %d", w.Code)
+	}
+}
+
+// ========== Magic Link Tests ==========
+
+func TestMagicLinkUnverifiedEmail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an UNVERIFIED user by registering but not verifying email
+	resp := ts.doRequest("POST", "/api/auth/register", map[string]string{
+		"email":    "unverified@example.com",
+		"password": "Password123!",
+	}, "")
+
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("Failed to create test user: %s", resp.Body.String())
+	}
+
+	// Clear the verification email from registration
+	ts.emailService.Clear()
+
+	// Request magic link for unverified email
+	w := ts.doRequest("POST", "/api/auth/magic-link", map[string]string{
+		"email": "unverified@example.com",
+	}, "")
+
+	// Should always return 200 to prevent email enumeration
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+	}
+
+	// BUT the magic link email should NOT have been sent
+	emailCount := ts.emailService.GetEmailCount()
+	if emailCount != 0 {
+		t.Errorf("Magic link should NOT be sent for unverified email, but %d emails were sent", emailCount)
+	}
+}
+
+func TestMagicLinkVerifiedEmail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a verified user (createTestUser verifies email automatically)
+	ts.createTestUser(t, "verified@example.com", "Password123!")
+
+	// Clear emails from user creation
+	ts.emailService.Clear()
+
+	// Request magic link for verified email
+	w := ts.doRequest("POST", "/api/auth/magic-link", map[string]string{
+		"email": "verified@example.com",
+	}, "")
+
+	// Should return 200
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", w.Code)
+	}
+
+	// Magic link email SHOULD have been sent
+	emailCount := ts.emailService.GetEmailCount()
+	if emailCount != 1 {
+		t.Errorf("Magic link should be sent for verified email, but %d emails were sent", emailCount)
+	}
+
+	// Verify email subject
+	email := ts.emailService.LastEmail()
+	if email != nil && !strings.Contains(email.Subject, "Login") {
+		t.Errorf("Expected magic link email, got: %s", email.Subject)
+	}
+}
+
+func TestMagicLinkNonexistentEmail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Request magic link for nonexistent email
+	w := ts.doRequest("POST", "/api/auth/magic-link", map[string]string{
+		"email": "nonexistent@example.com",
+	}, "")
+
+	// Should return 200 to prevent email enumeration
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200 (to prevent enumeration), got %d", w.Code)
+	}
+
+	// No email should be sent
+	emailCount := ts.emailService.GetEmailCount()
+	if emailCount != 0 {
+		t.Errorf("No email should be sent for nonexistent user, but %d emails were sent", emailCount)
+	}
+}
+
+func TestMagicLinkInvalidEmail(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Request magic link with invalid email format
+	w := ts.doRequest("POST", "/api/auth/magic-link", map[string]string{
+		"email": "not-an-email",
+	}, "")
+
+	// Should return 400 for invalid email format
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for invalid email, got %d", w.Code)
+	}
+}
+
+func TestMagicLinkVerifySuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a verified user
+	ts.createTestUser(t, "test@example.com", "Password123!")
+
+	// Clear emails from user creation
+	ts.emailService.Clear()
+
+	// Request magic link
+	ts.doRequest("POST", "/api/auth/magic-link", map[string]string{
+		"email": "test@example.com",
+	}, "")
+
+	// Extract token from email
+	emails := ts.emailService.GetEmails()
+	if len(emails) == 0 {
+		t.Fatal("No magic link email was sent")
+	}
+
+	emailBody := emails[0].TextBody
+	tokenStart := strings.Index(emailBody, "token=") + 6
+	if tokenStart < 6 {
+		t.Fatal("Token not found in email")
+	}
+	tokenEnd := tokenStart
+	for tokenEnd < len(emailBody) && (emailBody[tokenEnd] >= 'a' && emailBody[tokenEnd] <= 'z' ||
+		emailBody[tokenEnd] >= 'A' && emailBody[tokenEnd] <= 'Z' ||
+		emailBody[tokenEnd] >= '0' && emailBody[tokenEnd] <= '9') {
+		tokenEnd++
+	}
+	token := emailBody[tokenStart:tokenEnd]
+
+	// Verify magic link
+	w := ts.doRequest("GET", "/api/auth/magic-link/verify?token="+token, nil, "")
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&result)
+
+	if result["message"] != "Login successful" {
+		t.Errorf("Expected 'Login successful', got %v", result["message"])
+	}
+
+	if result["token"] == nil {
+		t.Error("Expected session token in response")
+	}
+}
+
+func TestMagicLinkVerifyExpired(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a verified user
+	ts.createTestUser(t, "test@example.com", "Password123!")
+
+	// Get user
+	user, _ := ts.db.GetUserByEmail("test@example.com")
+
+	// Create an expired magic link token directly
+	tokenBytes := make([]byte, 32)
+	rand.Read(tokenBytes)
+	token := hex.EncodeToString(tokenBytes)
+	tokenHash := email.HashToken(token)
+
+	// Expired 1 hour ago
+	expiresAt := time.Now().Add(-1 * time.Hour)
+	ts.db.CreateMagicLinkToken(user.ID, tokenHash, expiresAt)
+
+	// Try to verify expired token
+	w := ts.doRequest("GET", "/api/auth/magic-link/verify?token="+token, nil, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for expired token, got %d", w.Code)
+	}
+}
+
+func TestMagicLinkVerifyInvalidToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to verify with invalid token
+	w := ts.doRequest("GET", "/api/auth/magic-link/verify?token=invalidtoken123", nil, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for invalid token, got %d", w.Code)
+	}
+}
+
+func TestMagicLinkVerifyMissingToken(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Try to verify without token
+	w := ts.doRequest("GET", "/api/auth/magic-link/verify", nil, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for missing token, got %d", w.Code)
+	}
+}
+
+func TestMagicLinkTokenSingleUse(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a verified user
+	ts.createTestUser(t, "test@example.com", "Password123!")
+
+	// Clear emails from user creation
+	ts.emailService.Clear()
+
+	// Request magic link
+	ts.doRequest("POST", "/api/auth/magic-link", map[string]string{
+		"email": "test@example.com",
+	}, "")
+
+	// Extract token from email
+	emails := ts.emailService.GetEmails()
+	emailBody := emails[0].TextBody
+	tokenStart := strings.Index(emailBody, "token=") + 6
+	tokenEnd := tokenStart
+	for tokenEnd < len(emailBody) && (emailBody[tokenEnd] >= 'a' && emailBody[tokenEnd] <= 'z' ||
+		emailBody[tokenEnd] >= 'A' && emailBody[tokenEnd] <= 'Z' ||
+		emailBody[tokenEnd] >= '0' && emailBody[tokenEnd] <= '9') {
+		tokenEnd++
+	}
+	token := emailBody[tokenStart:tokenEnd]
+
+	// First verification should succeed
+	w := ts.doRequest("GET", "/api/auth/magic-link/verify?token="+token, nil, "")
+	if w.Code != http.StatusOK {
+		t.Errorf("First verification should succeed, got %d", w.Code)
+	}
+
+	// Second verification with same token should fail
+	w = ts.doRequest("GET", "/api/auth/magic-link/verify?token="+token, nil, "")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Second verification should fail with 400, got %d", w.Code)
 	}
 }
 
