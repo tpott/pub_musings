@@ -1275,6 +1275,12 @@ import '../styles/theme.css';
 			import { getOrCreateSessionId, cleanupStaleUploadSessions, recordUploadSession, removeUploadSessionRecord } from '../utils/session';
 			import { parseTimeString } from '../utils/validation';
 			import { escapeHtml } from '../utils/html';
+			import {
+				recordProcessingTime,
+				estimateTimeRemaining,
+				formatTimeRemaining,
+				hasHistoricalData
+			} from '../utils/processing-speed';
 			import type {
 				TranscriptionSegment,
 				TranscriptionResult,
@@ -1413,6 +1419,10 @@ import '../styles/theme.css';
 
 			// Track if subtitle sync is set up
 			let subtitleSyncActive = false;
+
+			// Track video duration and transcription timing for ETA calculation
+			let currentVideoDuration: number = 0;
+			let transcriptionStartTime: number | null = null;
 
 			// Cleanup function to abort pending fetches and clear timeouts
 			function cleanupPendingOperations() {
@@ -1553,6 +1563,13 @@ import '../styles/theme.css';
 				const url = URL.createObjectURL(file);
 				previewVideo.src = url;
 				videoPreview.classList.add('visible');
+
+				// Capture video duration for ETA calculation
+				previewVideo.addEventListener('loadedmetadata', () => {
+					if (previewVideo.duration && !isNaN(previewVideo.duration) && isFinite(previewVideo.duration)) {
+						currentVideoDuration = previewVideo.duration;
+					}
+				}, { once: true });
 
 				// Show language section and restore preferred language
 				languageSection.style.display = 'block';
@@ -1915,6 +1932,9 @@ import '../styles/theme.css';
 				segments.innerHTML = '';
 				fullText.textContent = '';
 
+				// Record start time for ETA calculation
+				transcriptionStartTime = Date.now();
+
 				// Use provided language or get from selector
 				const selectedLanguage = language || transcriptionLanguageSelect.value;
 
@@ -1959,14 +1979,37 @@ import '../styles/theme.css';
 						const result = await response.json();
 
 						if (result.status === 'processing') {
-							transcriptionStatus.textContent = result.message || 'Processing...';
+							let statusMsg = result.message || 'Processing...';
 							if (result.progress) {
-								transcriptionStatus.textContent += ` (${result.progress}%)`;
+								statusMsg += ` (${result.progress}%)`;
 							}
+
+							// Calculate and show estimated time remaining
+							if (currentVideoDuration > 0 && transcriptionStartTime !== null) {
+								const elapsedSeconds = (Date.now() - transcriptionStartTime) / 1000;
+								const progress = result.progress || 0;
+								const remaining = estimateTimeRemaining(currentVideoDuration, progress, elapsedSeconds);
+								const etaText = formatTimeRemaining(remaining);
+								statusMsg += ` - ${etaText}`;
+							} else if (!hasHistoricalData()) {
+								// No video duration and no history - just show estimating
+								statusMsg += ' - Estimating...';
+							}
+
+							transcriptionStatus.textContent = statusMsg;
 							// Continue polling with tracked timeout
 							transcriptionPollTimeout = setTimeout(poll, 2000);
 						} else if (result.status === 'complete') {
 							transcriptionPollTimeout = null;
+
+							// Record processing time for future estimates
+							if (currentVideoDuration > 0 && transcriptionStartTime !== null) {
+								const processingTime = (Date.now() - transcriptionStartTime) / 1000;
+								recordProcessingTime(currentVideoDuration, processingTime);
+							}
+							// Reset tracking variables
+							transcriptionStartTime = null;
+
 							transcriptionStatus.textContent = 'Transcription complete!';
 							displayTranscription(result.result);
 						} else if (result.status === 'error') {

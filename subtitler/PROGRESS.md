@@ -138,14 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**148 tasks completed.** 2 remaining from deep code inspection.
+**149 tasks completed.** 1 remaining from deep code inspection.
 
 ### Recently Completed
-- ✅ Task 150: Document magic link auth in API.md - Added comprehensive documentation for POST /api/auth/magic-link and GET /api/auth/magic-link/verify endpoints. Includes ASCII flow diagram, request/response schemas, error codes, rate limits, security properties table, and curl examples. Added section to Table of Contents.
+- ✅ Task 149: Estimated time remaining for transcription - Created `frontend/src/utils/processing-speed.ts` utility that tracks historical processing speeds in localStorage. During transcription, shows estimated time remaining based on video duration and progress. Blends historical data with current rate for smooth estimates. Shows "Estimating..." when no historical data available. 25 new tests added.
+- ✅ Task 150: Document magic link auth in API.md - Added comprehensive documentation for POST /api/auth/magic-link and GET /api/auth/magic-link/verify endpoints.
 
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 148: Implement evaluation framework (validate accuracy claims)
-- Task 149: Estimated time remaining for transcription (UX)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:
