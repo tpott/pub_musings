@@ -1017,7 +1017,7 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
-			import { csrfFetch, fetchCsrfToken, clearCsrfToken } from '../utils/csrf';
+			import { csrfFetch, fetchCsrfToken, clearCsrfToken, getCsrfToken, CSRF_HEADER } from '../utils/csrf';
 			import { getOrCreateSessionId, cleanupStaleUploadSessions, recordUploadSession, removeUploadSessionRecord } from '../utils/session';
 			import { parseTimeString } from '../utils/validation';
 			import type {
@@ -1381,6 +1381,15 @@ import '../styles/theme.css';
 					uploadUrl = `/api/upload?session_id=${encodeURIComponent(sessionId)}`;
 				}
 				xhr.open('POST', uploadUrl);
+
+				// Add CSRF token for authenticated users
+				if (isAuthenticated) {
+					const csrfToken = await getCsrfToken();
+					if (csrfToken) {
+						xhr.setRequestHeader(CSRF_HEADER, csrfToken);
+					}
+				}
+
 				xhr.send(formData);
 
 				const result = await uploadPromise;
@@ -1433,7 +1442,7 @@ import '../styles/theme.css';
 				// Initialize new upload session if needed
 				if (!sessionId) {
 					const initUrl = getSessionQueryUrl('/api/upload/init');
-					const initRes = await fetch(initUrl, {
+					const initRes = await csrfFetch(initUrl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({
@@ -1488,6 +1497,10 @@ import '../styles/theme.css';
 					});
 
 					const chunkUrl = getSessionQueryUrl('/api/upload/chunk');
+
+					// Get CSRF token before entering the Promise (for authenticated users)
+					const chunkCsrfToken = isAuthenticated ? await getCsrfToken() : null;
+
 					await new Promise<void>((resolve, reject) => {
 						xhr.onload = () => {
 							if (xhr.status >= 200 && xhr.status < 300) {
@@ -1504,6 +1517,12 @@ import '../styles/theme.css';
 						xhr.onerror = () => reject(new Error(`Network error uploading chunk ${i}`));
 
 						xhr.open('POST', chunkUrl);
+
+						// Add CSRF token for authenticated users
+						if (chunkCsrfToken) {
+							xhr.setRequestHeader(CSRF_HEADER, chunkCsrfToken);
+						}
+
 						xhr.send(formData);
 					});
 
@@ -1516,7 +1535,7 @@ import '../styles/theme.css';
 				// Complete the upload
 				showStatus('Finalizing upload...');
 				const completeUrl = getSessionQueryUrl('/api/upload/complete');
-				const completeRes = await fetch(completeUrl, {
+				const completeRes = await csrfFetch(completeUrl, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ upload_session_id: sessionId })
