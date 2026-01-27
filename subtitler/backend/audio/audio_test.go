@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -236,5 +237,241 @@ func TestGenerateThumbnail_FFmpegNotAvailable(t *testing.T) {
 	err := GenerateThumbnail("/any/video.mp4", "/tmp/thumb.jpg")
 	if err == nil {
 		t.Error("Expected error when ffmpeg is not available")
+	}
+}
+
+// Magic Bytes Validation Tests
+
+func TestValidateMagicBytes_MP4(t *testing.T) {
+	// MP4 files have "ftyp" at offset 4
+	// Typical MP4 header: 00 00 00 20 66 74 79 70 (size + "ftyp")
+	mp4Header := []byte{
+		0x00, 0x00, 0x00, 0x20, // size (32 bytes)
+		0x66, 0x74, 0x79, 0x70, // "ftyp"
+		0x69, 0x73, 0x6F, 0x6D, // "isom" (brand)
+	}
+	reader := bytes.NewReader(mp4Header)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid MP4 to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_MOV(t *testing.T) {
+	// MOV files also use ftyp box
+	movHeader := []byte{
+		0x00, 0x00, 0x00, 0x14, // size
+		0x66, 0x74, 0x79, 0x70, // "ftyp"
+		0x71, 0x74, 0x20, 0x20, // "qt  " (QuickTime brand)
+	}
+	reader := bytes.NewReader(movHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid MOV to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_WebM(t *testing.T) {
+	// WebM uses EBML header: 1A 45 DF A3
+	webmHeader := []byte{
+		0x1A, 0x45, 0xDF, 0xA3, // EBML header
+		0x01, 0x00, 0x00, 0x00, // some additional data
+		0x00, 0x00, 0x00, 0x00,
+	}
+	reader := bytes.NewReader(webmHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid WebM to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_MKV(t *testing.T) {
+	// MKV also uses EBML header (same as WebM)
+	mkvHeader := []byte{
+		0x1A, 0x45, 0xDF, 0xA3, // EBML header
+		0x93, 0x42, 0x82, 0x88, // some MKV specific data
+		0x6D, 0x61, 0x74, 0x72,
+	}
+	reader := bytes.NewReader(mkvHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid MKV to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_AVI(t *testing.T) {
+	// AVI: RIFF....AVI
+	aviHeader := []byte{
+		0x52, 0x49, 0x46, 0x46, // "RIFF"
+		0x00, 0x00, 0x00, 0x00, // file size (placeholder)
+		0x41, 0x56, 0x49, 0x20, // "AVI "
+	}
+	reader := bytes.NewReader(aviHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid AVI to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_OGV(t *testing.T) {
+	// OGV uses OggS header
+	ogvHeader := []byte{
+		0x4F, 0x67, 0x67, 0x53, // "OggS"
+		0x00, 0x02, 0x00, 0x00, // some additional Ogg data
+		0x00, 0x00, 0x00, 0x00,
+	}
+	reader := bytes.NewReader(ogvHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid OGV to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_MPEG_ProgramStream(t *testing.T) {
+	// MPEG Program Stream: 00 00 01 BA
+	mpegHeader := []byte{
+		0x00, 0x00, 0x01, 0xBA, // MPEG PS header
+		0x21, 0x00, 0x01, 0x00, // some MPEG data
+		0x00, 0x00, 0x00, 0x00,
+	}
+	reader := bytes.NewReader(mpegHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid MPEG PS to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_MPEG_SequenceHeader(t *testing.T) {
+	// MPEG video sequence header: 00 00 01 B3
+	mpegHeader := []byte{
+		0x00, 0x00, 0x01, 0xB3, // MPEG sequence header
+		0x00, 0x00, 0x00, 0x00, // additional data
+		0x00, 0x00, 0x00, 0x00,
+	}
+	reader := bytes.NewReader(mpegHeader)
+	err := ValidateMagicBytes(reader)
+	if err != nil {
+		t.Errorf("Expected valid MPEG to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_InvalidFile(t *testing.T) {
+	// Random bytes - not a valid video format
+	invalidHeader := []byte{
+		0x89, 0x50, 0x4E, 0x47, // PNG header (not video!)
+		0x0D, 0x0A, 0x1A, 0x0A,
+		0x00, 0x00, 0x00, 0x00,
+	}
+	reader := bytes.NewReader(invalidHeader)
+	err := ValidateMagicBytes(reader)
+	if err == nil {
+		t.Error("Expected error for invalid file format")
+	}
+	if !errors.Is(err, ErrInvalidMagicBytes) {
+		t.Errorf("Expected ErrInvalidMagicBytes, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_TextFile(t *testing.T) {
+	// Plain text content
+	textContent := []byte("This is just a text file pretending to be video.mp4")
+	reader := bytes.NewReader(textContent)
+	err := ValidateMagicBytes(reader)
+	if err == nil {
+		t.Error("Expected error for text file")
+	}
+	if !errors.Is(err, ErrInvalidMagicBytes) {
+		t.Errorf("Expected ErrInvalidMagicBytes, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytes_TooShort(t *testing.T) {
+	// File too short to contain valid magic bytes
+	shortData := []byte{0x00, 0x00, 0x00}
+	reader := bytes.NewReader(shortData)
+	err := ValidateMagicBytes(reader)
+	if err == nil {
+		t.Error("Expected error for file too short")
+	}
+}
+
+func TestValidateMagicBytes_EmptyFile(t *testing.T) {
+	reader := bytes.NewReader([]byte{})
+	err := ValidateMagicBytes(reader)
+	if err == nil {
+		t.Error("Expected error for empty file")
+	}
+}
+
+func TestValidateMagicBytes_AVI_Invalid_NotAVI(t *testing.T) {
+	// RIFF header but not AVI (could be WAV audio)
+	wavHeader := []byte{
+		0x52, 0x49, 0x46, 0x46, // "RIFF"
+		0x00, 0x00, 0x00, 0x00, // file size
+		0x57, 0x41, 0x56, 0x45, // "WAVE" (not "AVI ")
+	}
+	reader := bytes.NewReader(wavHeader)
+	err := ValidateMagicBytes(reader)
+	if err == nil {
+		t.Error("Expected error for RIFF/WAVE file (not AVI)")
+	}
+	if !errors.Is(err, ErrInvalidMagicBytes) {
+		t.Errorf("Expected ErrInvalidMagicBytes, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytesFromFile_ValidMP4(t *testing.T) {
+	// Create a temp file with MP4 magic bytes
+	tmpFile, err := os.CreateTemp("", "test-video-*.mp4")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	mp4Header := []byte{
+		0x00, 0x00, 0x00, 0x20,
+		0x66, 0x74, 0x79, 0x70,
+		0x69, 0x73, 0x6F, 0x6D,
+	}
+	if _, err := tmpFile.Write(mp4Header); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	err = ValidateMagicBytesFromFile(tmpFile.Name())
+	if err != nil {
+		t.Errorf("Expected valid MP4 file to pass, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytesFromFile_InvalidFile(t *testing.T) {
+	// Create a temp file with non-video content
+	tmpFile, err := os.CreateTemp("", "test-notavideo-*.mp4")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString("This is not a video file"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	err = ValidateMagicBytesFromFile(tmpFile.Name())
+	if err == nil {
+		t.Error("Expected error for non-video file")
+	}
+	if !errors.Is(err, ErrInvalidMagicBytes) {
+		t.Errorf("Expected ErrInvalidMagicBytes, got: %v", err)
+	}
+}
+
+func TestValidateMagicBytesFromFile_NonexistentFile(t *testing.T) {
+	err := ValidateMagicBytesFromFile("/nonexistent/path/to/video.mp4")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+	if errors.Is(err, ErrInvalidMagicBytes) {
+		t.Error("Expected file open error, not ErrInvalidMagicBytes")
 	}
 }

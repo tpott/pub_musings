@@ -2738,6 +2738,38 @@ func main() {
 			return
 		}
 
+		// Validate magic bytes (file signature) - defense against MIME spoofing
+		// Read first 12 bytes to check signature, then seek back to start
+		magicBytes := make([]byte, 12)
+		n, err := file.Read(magicBytes)
+		if err != nil || n < 8 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File is too small or could not be read",
+			})
+			return
+		}
+		// Seek back to beginning for copy later
+		if seeker, ok := file.(io.Seeker); ok {
+			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+				logging.ErrorContext(r.Context(), "Failed to seek file", "error", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to process file",
+				})
+				return
+			}
+		}
+		// Validate the magic bytes against known video formats
+		if err := audio.ValidateMagicBytes(bytes.NewReader(magicBytes[:n])); err != nil {
+			logging.WarnContext(r.Context(), "Invalid magic bytes", "mimetype", contentType, "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File content does not match a valid video format. The file may be corrupted or renamed.",
+			})
+			return
+		}
+
 		// Generate unique ID for this upload
 		uploadID, err := generateID()
 		if err != nil {
@@ -3395,7 +3427,18 @@ func main() {
 
 		logging.InfoContext(r.Context(), "Reassembled chunks", "upload_id", uploadID, "total_bytes", totalWritten)
 
-		// Validate the assembled file
+		// Validate magic bytes (file signature) - defense against MIME spoofing
+		if err := audio.ValidateMagicBytesFromFile(destPath); err != nil {
+			logging.WarnContext(r.Context(), "Invalid magic bytes for reassembled file", "path", destPath, "error", err)
+			os.Remove(destPath)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "File content does not match a valid video format. The file may be corrupted.",
+			})
+			return
+		}
+
+		// Validate the assembled file with ffprobe
 		if err := audio.ValidateVideoFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
 			os.Remove(destPath)

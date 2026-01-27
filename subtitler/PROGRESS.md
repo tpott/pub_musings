@@ -138,23 +138,28 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**151 tasks completed.** 5 tasks pending from deep inspection.
+**153 tasks completed.** 4 tasks pending from deep inspection.
 
 ### Recently Completed
+- ✅ Task 153: Add video file magic byte validation
+  - Added `ValidateMagicBytes()` and `ValidateMagicBytesFromFile()` to audio package
+  - Validates MP4/MOV/M4V (ftyp), WebM/MKV (EBML), AVI (RIFF+AVI), OGV (OggS), MPEG
+  - Integrated into both simple upload and chunked upload handlers
+  - 20 new tests covering all formats and edge cases
 - ✅ Task 156: Fix video scrolling out of view during playback (3rd report)
   - **Root cause:** `scrollIntoView()` scrolls ALL ancestor containers including the page
   - **Fix:** Replaced with container-only scrolling in upload.astro
   - **Prevention:** Added E2E regression tests, LEARNINGS.md entry, and `specs/video-scroll-fix.md`
-- ✅ Task 148: Implement evaluation framework - Created `evaluation/` directory with: `generate.sh` (Piper TTS audio generation), `evaluate.py` (WER calculation via jiwer), `seeds/english-basic.yaml` (11 test sentences). Calculates WER, CER, and RTF metrics. Results saved to `evaluation/results/`. Comprehensive README with setup instructions.
-- ✅ Task 149: Estimated time remaining for transcription - Created `frontend/src/utils/processing-speed.ts` utility with 25 tests.
-- ✅ Task 150: Document magic link auth in API.md - Added comprehensive API documentation.
+- ✅ Task 148: Implement evaluation framework - Created `evaluation/` directory
+- ✅ Task 149: Estimated time remaining for transcription
+- ✅ Task 150: Document magic link auth in API.md
 
 ### Pending Tasks (from deep inspection 2026-01-26)
 - Task 151: Implement admin role system for metrics endpoint (TODO in main.go)
 - Task 152: Add security event audit logging
-- Task 153: Add video file magic byte validation
 - Task 154: Rate limit /metrics endpoint
 - Task 155: Create production security hardening checklist (docs)
+- Task 157: Make transcript paste and full text sections collapsible (NEW)
 
 ### Previously Completed (Tasks 134-142)
 All 9 tasks from code review batch complete:

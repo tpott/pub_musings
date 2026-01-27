@@ -2,7 +2,11 @@
 package audio
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 )
 
@@ -99,6 +103,106 @@ func ValidateVideoFile(filePath string) error {
 	}
 
 	return nil
+}
+
+// ErrInvalidMagicBytes is returned when a file's magic bytes don't match any known video format.
+var ErrInvalidMagicBytes = errors.New("file does not match any known video format signature")
+
+// VideoFormat represents a recognized video container format.
+type VideoFormat struct {
+	Name   string
+	Offset int      // Byte offset where signature starts
+	Magic  [][]byte // Multiple possible signatures (any match is valid)
+}
+
+// knownVideoFormats defines the magic byte signatures for supported video formats.
+// Each format may have multiple valid signatures depending on the variant.
+var knownVideoFormats = []VideoFormat{
+	{
+		Name:   "MP4/MOV/M4V",
+		Offset: 4, // ftyp box starts at byte 4
+		Magic: [][]byte{
+			{0x66, 0x74, 0x79, 0x70}, // "ftyp"
+		},
+	},
+	{
+		Name:   "WebM/MKV",
+		Offset: 0,
+		Magic: [][]byte{
+			{0x1A, 0x45, 0xDF, 0xA3}, // EBML header
+		},
+	},
+	{
+		Name:   "AVI",
+		Offset: 0,
+		Magic: [][]byte{
+			{0x52, 0x49, 0x46, 0x46}, // "RIFF" (must also check for "AVI " at offset 8)
+		},
+	},
+	{
+		Name:   "OGV",
+		Offset: 0,
+		Magic: [][]byte{
+			{0x4F, 0x67, 0x67, 0x53}, // "OggS"
+		},
+	},
+	{
+		Name:   "MPEG",
+		Offset: 0,
+		Magic: [][]byte{
+			{0x00, 0x00, 0x01, 0xBA}, // MPEG Program Stream
+			{0x00, 0x00, 0x01, 0xB3}, // MPEG video sequence header
+		},
+	},
+}
+
+// ValidateMagicBytes checks if a reader contains a file with valid video magic bytes.
+// This provides defense-in-depth by validating the actual file content,
+// not just the MIME type which can be spoofed.
+// The reader must be at the beginning of the file.
+// Returns nil if valid, ErrInvalidMagicBytes if not recognized.
+func ValidateMagicBytes(r io.Reader) error {
+	// Read the first 12 bytes to check magic signatures
+	// We need 12 bytes to check MP4 ftyp (offset 4, 4 bytes) and AVI marker (offset 8, 4 bytes)
+	header := make([]byte, 12)
+	n, err := io.ReadFull(r, header)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return fmt.Errorf("failed to read file header: %w", err)
+	}
+	if n < 8 {
+		return ErrInvalidMagicBytes
+	}
+
+	// Check each known format
+	for _, format := range knownVideoFormats {
+		for _, magic := range format.Magic {
+			if format.Offset+len(magic) > n {
+				continue
+			}
+			if bytes.Equal(header[format.Offset:format.Offset+len(magic)], magic) {
+				// Special case for AVI: must also have "AVI " at offset 8
+				if format.Name == "AVI" && n >= 12 {
+					if !bytes.Equal(header[8:12], []byte{0x41, 0x56, 0x49, 0x20}) { // "AVI "
+						continue
+					}
+				}
+				return nil // Valid format found
+			}
+		}
+	}
+
+	return ErrInvalidMagicBytes
+}
+
+// ValidateMagicBytesFromFile checks if a file has valid video magic bytes.
+// This is a convenience function that opens the file and calls ValidateMagicBytes.
+func ValidateMagicBytesFromFile(filePath string) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer f.Close()
+	return ValidateMagicBytes(f)
 }
 
 // GetVideoDuration uses ffprobe to get the duration of a video in seconds.
