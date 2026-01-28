@@ -1202,6 +1202,11 @@ import '../styles/theme.css';
 			let modalTriggerElement: HTMLElement | null = null;
 			let modalKeydownController: AbortController | null = null;
 
+			// Cached modal segment DOM elements for performance optimization
+			// Avoids querySelectorAll on every timeupdate event (~30/sec)
+			let cachedModalSegmentElements: HTMLElement[] = [];
+			let lastActiveModalSegmentIndex = -1;
+
 			// Event delegation for modal segments - add single listeners to the container
 			// This prevents memory leaks from repeatedly adding/removing per-element handlers
 			function activateSegment(segmentEl: HTMLElement) {
@@ -1477,6 +1482,10 @@ import '../styles/theme.css';
 						<div class="modal-segment-text">${displayText}</div>
 					</div>
 				`}).join('');
+
+				// Cache segment elements for timeupdate performance
+				cachedModalSegmentElements = Array.from(modalSegments.querySelectorAll('.modal-segment')) as HTMLElement[];
+				lastActiveModalSegmentIndex = -1;
 			}
 
 			function setupModalSubtitleSync() {
@@ -1515,26 +1524,30 @@ import '../styles/theme.css';
 					modalCurrentSubtitle.textContent = '';
 				}
 
-				// Update active segment highlighting
-				modalSegments.querySelectorAll('.modal-segment').forEach((el, idx) => {
-					if (idx === currentIndex) {
-						el.classList.add('active');
+				// Update active segment highlighting only if changed
+				// Uses cached elements to avoid querySelectorAll on every timeupdate (~30/sec)
+				if (currentIndex !== lastActiveModalSegmentIndex) {
+					// Remove active from previous segment
+					if (lastActiveModalSegmentIndex >= 0 && lastActiveModalSegmentIndex < cachedModalSegmentElements.length) {
+						cachedModalSegmentElements[lastActiveModalSegmentIndex].classList.remove('active');
+					}
+					// Add active to current segment and scroll
+					if (currentIndex >= 0 && currentIndex < cachedModalSegmentElements.length) {
+						const segmentEl = cachedModalSegmentElements[currentIndex];
+						segmentEl.classList.add('active');
+
 						// Position active segment in lower portion of container
 						// This shows more "already played" context above, less "upcoming" below
-						const container = modalSegments;
-						const segmentEl = el as HTMLElement;
-
-						const containerHeight = container.clientHeight;
+						const containerHeight = modalSegments.clientHeight;
 						const segmentTop = segmentEl.offsetTop;
 						const segmentHeight = segmentEl.offsetHeight;
 
 						// Target: position segment 2/3 down the container (more past, less future)
 						const targetScrollTop = segmentTop - (containerHeight * 2 / 3) + (segmentHeight / 2);
-						container.scrollTop = Math.max(0, targetScrollTop);
-					} else {
-						el.classList.remove('active');
+						modalSegments.scrollTop = Math.max(0, targetScrollTop);
 					}
-				});
+					lastActiveModalSegmentIndex = currentIndex;
+				}
 			}
 
 			function closeVideoModal() {

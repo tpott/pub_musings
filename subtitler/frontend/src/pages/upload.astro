@@ -1811,6 +1811,11 @@ import '../styles/theme.css';
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
 
+			// Cached segment DOM elements for performance optimization
+			// Avoids querySelectorAll on every timeupdate event (~30/sec)
+			let cachedSegmentElements: HTMLElement[] = [];
+			let lastActiveSegmentIndex = -1;
+
 			// Embedded subtitles tracking
 			interface SubtitleTrack {
 				index: number;
@@ -2854,6 +2859,10 @@ import '../styles/theme.css';
 						</div>
 					`}).join('');
 
+					// Cache segment elements for timeupdate performance
+					cachedSegmentElements = Array.from(segments.querySelectorAll('.segment')) as HTMLElement[];
+					lastActiveSegmentIndex = -1;
+
 					// Add event handlers
 					if (isEditMode) {
 						setupEditHandlers();
@@ -3540,16 +3549,21 @@ import '../styles/theme.css';
 					currentSubtitle.textContent = '';
 				}
 
-				// Update active segment highlighting
-				segments.querySelectorAll('.segment').forEach((el, idx) => {
-					if (idx === currentIndex) {
-						el.classList.add('active');
-						// Scroll the segment into view within container only (not the whole page)
-						scrollIntoContainerView(segments, el as HTMLElement);
-					} else {
-						el.classList.remove('active');
+				// Update active segment highlighting only if changed
+				// Uses cached elements to avoid querySelectorAll on every timeupdate (~30/sec)
+				if (currentIndex !== lastActiveSegmentIndex) {
+					// Remove active from previous segment
+					if (lastActiveSegmentIndex >= 0 && lastActiveSegmentIndex < cachedSegmentElements.length) {
+						cachedSegmentElements[lastActiveSegmentIndex].classList.remove('active');
 					}
-				});
+					// Add active to current segment
+					if (currentIndex >= 0 && currentIndex < cachedSegmentElements.length) {
+						cachedSegmentElements[currentIndex].classList.add('active');
+						// Scroll the segment into view within container only (not the whole page)
+						scrollIntoContainerView(segments, cachedSegmentElements[currentIndex]);
+					}
+					lastActiveSegmentIndex = currentIndex;
+				}
 			}
 
 			// Burn subtitles handling

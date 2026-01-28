@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**253 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**254 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**253 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**254 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 254: Frontend DOM Query Optimization (2026-01-28)
+
+- ✅ Task 254: Optimized DOM queries in video timeupdate handlers
+  - Cached segment elements after render instead of querySelectorAll on every timeupdate
+  - Track lastActiveSegmentIndex to only update when segment changes
+  - Reduces DOM queries from ~30/sec to 0 during playback
+  - Applied to both upload.astro and videos.astro modal
 
 ### Tasks 250-253: Database Query Optimization (2026-01-28)
 
