@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**310 tasks completed.**
+**311 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 311: Add Time-Based Rate Limiting to CSRF Token Refresh (COMPLETE)**
+- Added rate limiting to fetchCsrfToken() with 5-second minimum interval
+- Returns cached token when rate limited (or null if no cached token)
+- Rate limiter resets on clearCsrfToken() so new sessions aren't blocked
+- Added helper functions for testing: getMinRefreshInterval, setMinRefreshInterval, resetRateLimiter
+- Added 5 new tests verifying rate limiting behavior
+- Updated existing circuit breaker tests to disable rate limiting via setMinRefreshInterval(0)
 
 **Task 310: Log os.Remove Errors in Crypto Package (COMPLETE)**
 - Updated crypto.go to import logging package

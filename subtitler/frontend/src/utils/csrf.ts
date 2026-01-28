@@ -7,6 +7,33 @@ let cachedToken: string | null = null;
 let consecutiveRefreshFailures = 0;
 const MAX_REFRESH_FAILURES = 2;
 
+// Rate limiting: minimum interval between refresh attempts (5 seconds)
+let lastRefreshAttempt = 0;
+let minRefreshIntervalMs = 5000;
+
+/**
+ * Get the minimum refresh interval in milliseconds.
+ * Useful for testing.
+ */
+export function getMinRefreshInterval(): number {
+	return minRefreshIntervalMs;
+}
+
+/**
+ * Set the minimum refresh interval in milliseconds.
+ * Useful for testing to avoid slow tests.
+ */
+export function setMinRefreshInterval(ms: number): void {
+	minRefreshIntervalMs = ms;
+}
+
+/**
+ * Reset the rate limiter for testing purposes.
+ */
+export function resetRateLimiter(): void {
+	lastRefreshAttempt = 0;
+}
+
 // Header name for CSRF token
 export const CSRF_HEADER = 'X-CSRF-Token';
 
@@ -14,8 +41,17 @@ export const CSRF_HEADER = 'X-CSRF-Token';
  * Fetch the CSRF token from the backend.
  * The token is cached for subsequent requests.
  * Resets the circuit breaker on successful fetch.
+ * Rate limited: minimum 5 seconds between attempts to prevent abuse.
  */
 export async function fetchCsrfToken(): Promise<string | null> {
+	// Rate limiting: prevent rapid refresh attempts
+	const now = Date.now();
+	if (now - lastRefreshAttempt < minRefreshIntervalMs) {
+		// Return cached token if available, null otherwise
+		return cachedToken;
+	}
+	lastRefreshAttempt = now;
+
 	try {
 		const response = await fetch('/api/auth/csrf');
 		if (!response.ok) {
@@ -62,11 +98,12 @@ export async function getCsrfToken(): Promise<string | null> {
 /**
  * Clear the cached CSRF token.
  * Call this on logout or when the session changes.
- * Also resets the circuit breaker.
+ * Also resets the circuit breaker and rate limiter.
  */
 export function clearCsrfToken(): void {
 	cachedToken = null;
 	consecutiveRefreshFailures = 0;
+	lastRefreshAttempt = 0;
 }
 
 /**

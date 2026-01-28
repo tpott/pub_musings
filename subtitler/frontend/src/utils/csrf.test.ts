@@ -7,6 +7,9 @@ import {
 	setCsrfToken,
 	createCsrfHeaders,
 	csrfFetch,
+	getMinRefreshInterval,
+	setMinRefreshInterval,
+	resetRateLimiter,
 } from './csrf';
 
 // Mock fetch
@@ -14,12 +17,19 @@ const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 describe('CSRF utility', () => {
+	let originalInterval: number;
+
 	beforeEach(() => {
 		clearCsrfToken();
+		resetRateLimiter();
 		mockFetch.mockReset();
+		// Save original interval
+		originalInterval = getMinRefreshInterval();
 	});
 
 	afterEach(() => {
+		// Restore original interval
+		setMinRefreshInterval(originalInterval);
 		vi.restoreAllMocks();
 	});
 
@@ -72,6 +82,101 @@ describe('CSRF utility', () => {
 
 			const token = await fetchCsrfToken();
 			expect(token).toBeNull();
+		});
+
+		it('should rate limit rapid refresh attempts', async () => {
+			// Set a short interval for testing
+			setMinRefreshInterval(100);
+
+			// First fetch should go through
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ csrf_token: 'token1' }),
+			});
+
+			const token1 = await fetchCsrfToken();
+			expect(token1).toBe('token1');
+			expect(mockFetch).toHaveBeenCalledTimes(1);
+
+			// Second fetch immediately after should be rate limited
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ csrf_token: 'token2' }),
+			});
+
+			const token2 = await fetchCsrfToken();
+			// Should return cached token without making new request
+			expect(token2).toBe('token1');
+			expect(mockFetch).toHaveBeenCalledTimes(1);
+		});
+
+		it('should allow refresh after rate limit interval passes', async () => {
+			// Set a very short interval for testing
+			setMinRefreshInterval(10);
+
+			// First fetch
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ csrf_token: 'token1' }),
+			});
+			await fetchCsrfToken();
+			expect(mockFetch).toHaveBeenCalledTimes(1);
+
+			// Wait for interval to pass
+			await new Promise((resolve) => setTimeout(resolve, 20));
+
+			// Second fetch should go through
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ csrf_token: 'token2' }),
+			});
+			const token = await fetchCsrfToken();
+			expect(token).toBe('token2');
+			expect(mockFetch).toHaveBeenCalledTimes(2);
+		});
+
+		it('should return null when rate limited and no cached token', async () => {
+			// Set a short interval for testing
+			setMinRefreshInterval(100);
+
+			// First fetch fails (no token cached)
+			mockFetch.mockResolvedValueOnce({
+				ok: false,
+				status: 401,
+			});
+
+			const token1 = await fetchCsrfToken();
+			expect(token1).toBeNull();
+
+			// Second fetch immediately - should be rate limited and return null
+			const token2 = await fetchCsrfToken();
+			expect(token2).toBeNull();
+			// Only one fetch should have been made
+			expect(mockFetch).toHaveBeenCalledTimes(1);
+		});
+
+		it('should reset rate limiter when clearing token', async () => {
+			// Set a long interval
+			setMinRefreshInterval(10000);
+
+			// First fetch
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ csrf_token: 'token1' }),
+			});
+			await fetchCsrfToken();
+
+			// Clear token - should reset rate limiter
+			clearCsrfToken();
+
+			// Second fetch should go through immediately
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({ csrf_token: 'token2' }),
+			});
+			const token = await fetchCsrfToken();
+			expect(token).toBe('token2');
+			expect(mockFetch).toHaveBeenCalledTimes(2);
 		});
 	});
 
@@ -246,6 +351,9 @@ describe('CSRF utility', () => {
 		});
 
 		it('should stop retrying after max consecutive failures (circuit breaker)', async () => {
+			// Disable rate limiting for this test
+			setMinRefreshInterval(0);
+
 			// First, get a valid token so we can make CSRF requests
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
@@ -295,6 +403,9 @@ describe('CSRF utility', () => {
 		});
 
 		it('should reset circuit breaker after successful token fetch', async () => {
+			// Disable rate limiting for this test
+			setMinRefreshInterval(0);
+
 			// Fail twice to trip circuit breaker
 			mockFetch.mockResolvedValueOnce({ ok: false, status: 401 }); // fail 1
 			await fetchCsrfToken();
