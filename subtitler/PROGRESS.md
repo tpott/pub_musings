@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**267 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**268 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**267 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**268 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 268: Wire SetActiveSessions metrics (2026-01-28)
+
+- ✅ Task 268: Wired up active sessions gauge in Prometheus metrics
+  - Added `CountActiveSessions()` method to db package
+  - Added `updateSessionMetrics()` helper function to main.go
+  - Called after: login, logout, session revocation, recovery code login, magic link login
+  - Also called after expired session cleanup scheduler runs
+  - Added 3 unit tests for CountActiveSessions
+  - Metrics now accurately reflect active session count
 
 ### Task 267: Add request body size limits (2026-01-28)
 

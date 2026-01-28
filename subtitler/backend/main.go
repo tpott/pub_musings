@@ -1034,6 +1034,20 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 	return status
 }
 
+// updateSessionMetrics updates the Prometheus active sessions gauge.
+// Called after session creation/deletion to keep metrics accurate.
+func updateSessionMetrics() {
+	if database == nil {
+		return // Database not yet initialized
+	}
+	count, err := database.CountActiveSessions()
+	if err != nil {
+		logging.Error("Failed to count active sessions for metrics", "error", err)
+		return
+	}
+	metrics.SetActiveSessions(count)
+}
+
 func main() {
 	// Initialize structured logging first
 	logging.Init(os.Getenv("LOG_LEVEL"))
@@ -1899,6 +1913,9 @@ func main() {
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
+		// Update metrics after session creation
+		updateSessionMetrics()
+
 		security.LoginSuccess(r.Context(), clientIP, user.ID, user.Email, userAgent)
 		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID, userAgent)
 		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
@@ -1926,6 +1943,9 @@ func main() {
 			}
 			if err := database.DeleteSession(token); err != nil {
 				logging.ErrorContext(r.Context(), "Error deleting session", "error", err)
+			} else {
+				// Update metrics after successful session deletion
+				updateSessionMetrics()
 			}
 		}
 
@@ -2103,6 +2123,9 @@ func main() {
 			})
 			return
 		}
+
+		// Update metrics after session deletion
+		updateSessionMetrics()
 
 		clientIP := ratelimit.GetClientIP(r)
 		security.SessionRevoked(r.Context(), clientIP, user.ID, sessionID, false)
@@ -2529,6 +2552,9 @@ func main() {
 
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		// Update metrics after session creation
+		updateSessionMetrics()
 
 		security.RecoveryCodeUsed(r.Context(), clientIP, user.ID, user.Email)
 		security.TwoFADisabled(r.Context(), clientIP, user.ID, user.Email, true)
@@ -2998,6 +3024,9 @@ func main() {
 
 		// Set session cookie
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
+
+		// Update metrics after session creation
+		updateSessionMetrics()
 
 		logging.InfoContext(r.Context(), "Magic link login successful", "user_id", user.ID)
 		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
@@ -6423,6 +6452,8 @@ func runCleanup() {
 		logging.Error("Error deleting expired sessions", "error", err)
 	} else if sessionCount > 0 {
 		logging.Info("Deleted expired sessions", "count", sessionCount)
+		// Update session metrics after cleanup
+		updateSessionMetrics()
 	}
 
 	// Clean up old login attempts (older than 1 hour to be safe)

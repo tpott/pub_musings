@@ -868,6 +868,17 @@ func (db *DB) DeleteUserSessions(userID string) error {
 	return nil
 }
 
+// CountActiveSessions returns the count of non-expired sessions.
+// Used for metrics reporting.
+func (db *DB) CountActiveSessions() (int, error) {
+	var count int
+	err := db.conn.QueryRow(`SELECT COUNT(*) FROM sessions WHERE expires_at > ?`, time.Now()).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active sessions: %w", err)
+	}
+	return count, nil
+}
+
 // SetTOTPSecret sets the TOTP secret for a user (during 2FA setup)
 func (db *DB) SetTOTPSecret(userID, secret string) error {
 	_, err := db.conn.Exec(`

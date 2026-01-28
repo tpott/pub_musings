@@ -2951,6 +2951,88 @@ func TestGetSessionsByUserIDWithLimit(t *testing.T) {
 	})
 }
 
+func TestCountActiveSessions(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-count-sessions-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "count-sessions-user",
+		Email:        "count@example.com",
+		PasswordHash: "hash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	t.Run("no sessions returns 0", func(t *testing.T) {
+		count, err := db.CountActiveSessions()
+		if err != nil {
+			t.Fatalf("CountActiveSessions failed: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("Expected 0 sessions, got %d", count)
+		}
+	})
+
+	t.Run("counts active sessions", func(t *testing.T) {
+		// Create 5 active sessions
+		for i := 0; i < 5; i++ {
+			session := &Session{
+				ID:        fmt.Sprintf("active-session-%d", i),
+				UserID:    user.ID,
+				Token:     fmt.Sprintf("active-token-%d", i),
+				ExpiresAt: time.Now().Add(24 * time.Hour), // Future = active
+			}
+			if err := db.CreateSession(session); err != nil {
+				t.Fatalf("Failed to create session %d: %v", i, err)
+			}
+		}
+
+		count, err := db.CountActiveSessions()
+		if err != nil {
+			t.Fatalf("CountActiveSessions failed: %v", err)
+		}
+		if count != 5 {
+			t.Errorf("Expected 5 sessions, got %d", count)
+		}
+	})
+
+	t.Run("excludes expired sessions", func(t *testing.T) {
+		// Create 3 expired sessions
+		for i := 0; i < 3; i++ {
+			session := &Session{
+				ID:        fmt.Sprintf("expired-session-%d", i),
+				UserID:    user.ID,
+				Token:     fmt.Sprintf("expired-token-%d", i),
+				ExpiresAt: time.Now().Add(-1 * time.Hour), // Past = expired
+			}
+			if err := db.CreateSession(session); err != nil {
+				t.Fatalf("Failed to create expired session %d: %v", i, err)
+			}
+		}
+
+		// Should still be 5 (only active sessions counted)
+		count, err := db.CountActiveSessions()
+		if err != nil {
+			t.Fatalf("CountActiveSessions failed: %v", err)
+		}
+		if count != 5 {
+			t.Errorf("Expected 5 active sessions, got %d", count)
+		}
+	})
+}
+
 func TestListFeedbackLimitValidation(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-feedback-limit-*.db")
 	if err != nil {
