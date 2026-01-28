@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**294 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**295 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,42 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**294 tasks completed.** Working through remaining tasks from deep inspection.
+**295 tasks completed.** Working on Task 296 (database context timeouts).
 
 ### Recent Work (2026-01-28)
+
+**Task 296: Database Query Context Timeouts (IN PROGRESS)**
+- Added context timeouts to 15+ critical database functions in db/db.go
+- Updated: CreateTranscription, GetTranscription, UpdateTranscriptionStatus, CompleteTranscription, FailTranscription
+- Updated: ListVideosPaginated, CountVideosBySession
+- Updated: CreateUser, GetUserByID
+- Updated: CreateSession, GetSessionsByUserIDWithLimit, DeleteSessionByID, DeleteSession, DeleteExpiredSessions, DeleteUserSessions, CountActiveSessions
+- Updated: SetTOTPSecret, EnableTOTP
+- Pattern: `ctx, cancel := db.queryContext(); defer cancel(); db.conn.ExecContext(ctx, ...)`
+- ~86 non-transaction calls remain to be updated (14 transaction calls already have context from WithTransaction)
+
+**New Tasks Created from Deep Inspection:**
+- Task 296: Backend: Add context timeouts to database query calls (in_progress)
+- Task 297: Backend: Log unchecked os.Remove errors
+- Task 298: Backend: Consolidate password validation logic
+- Task 299: Frontend: Add timeout to CAPTCHA script loading
+- Task 300: Frontend: Add tests for subtitles.ts
+- Task 301: Frontend: Add tests for history.ts
+- Task 302: Backend: Add tests for email package
+- Task 303: Backend: Add tests for httputil.ContentDisposition
+- Task 304: Docs: Fix password complexity claims in SECURITY_CHECKLIST.md
+- Task 305: Frontend: Extract form blur validation to shared utility
+
+**Task 294: Runtime Schema Validation for API Responses**
+- Added Zod schemas in `src/utils/api-schemas.ts` for all major API responses
+- Updated VideoListResponseSchema to match actual API fields (transcription_status, thumbnail_path, etc.)
+- Added schemas: VideoSchema, AuthMeResponseSchema, SessionListResponseSchema, TotpSetupResponseSchema, TotpVerifyResponseSchema, RecoveryCodesResponseSchema, TranscriptionStatusResponseSchema, CsrfTokenResponseSchema, LoginResponseSchema, RegisterResponseSchema
+- Added helper functions: safeParse(), parse(), isValid(), validateResponse(), validateResponseOrThrow()
+- Updated videos.astro to validate video list and transcription responses
+- Updated settings.astro to validate TOTP setup, verify, recovery codes, and sessions responses
+- Updated nav-auth.ts to validate auth/me response
+- Created 34 unit tests in api-schemas.test.ts
+- Total frontend tests increased from 399 to 433
 
 **Task 293: Fetch Timeout Utility**
 - Created `src/utils/fetch-timeout.ts` with AbortController-based timeout handling

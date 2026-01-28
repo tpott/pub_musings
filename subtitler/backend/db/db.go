@@ -510,7 +510,10 @@ func (db *DB) GetVideo(id string) (*Video, error) {
 
 // CreateTranscription creates a new transcription record
 func (db *DB) CreateTranscription(t *Transcription) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO transcriptions (id, video_id, status, message, progress, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, t.ID, t.VideoID, t.Status, t.Message, t.Progress, t.CreatedAt)
@@ -570,7 +573,10 @@ func (db *DB) GetTranscription(videoID string) (*Transcription, error) {
 // with completion/failure updates from the main goroutine. Once status becomes 'complete'
 // or 'error', progress updates are blocked.
 func (db *DB) UpdateTranscriptionStatus(videoID, status, message string, progress int) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE transcriptions SET status = ?, message = ?, progress = ?
 		WHERE video_id = ? AND status IN ('pending', 'processing')
 	`, status, message, progress, videoID)
@@ -582,13 +588,16 @@ func (db *DB) UpdateTranscriptionStatus(videoID, status, message string, progres
 
 // CompleteTranscription marks a transcription as complete with results
 func (db *DB) CompleteTranscription(videoID string, language string, duration float64, fullText string, segments []Segment) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	segmentsJSON, err := json.Marshal(segments)
 	if err != nil {
 		return fmt.Errorf("failed to marshal segments: %w", err)
 	}
 
 	now := time.Now()
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		UPDATE transcriptions
 		SET status = 'complete', message = 'Transcription complete', progress = 100,
 		    language = ?, duration = ?, full_text = ?, segments_json = ?, completed_at = ?
@@ -602,7 +611,10 @@ func (db *DB) CompleteTranscription(videoID string, language string, duration fl
 
 // FailTranscription marks a transcription as failed with an error message
 func (db *DB) FailTranscription(videoID, errorMessage string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE transcriptions SET status = 'error', message = ? WHERE video_id = ?
 	`, errorMessage, videoID)
 	if err != nil {
@@ -641,6 +653,9 @@ func (db *DB) ListVideos(userID, sessionID *string) ([]Video, error) {
 // ListVideosPaginated returns videos with pagination support
 // limit=0 means no limit, offset=0 starts from the beginning
 func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) (*VideoListResult, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var whereClause string
 	var args []interface{}
 
@@ -655,7 +670,7 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 	// Get total count
 	countQuery := "SELECT COUNT(*) FROM videos " + whereClause
 	var totalCount int
-	if err := db.conn.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
+	if err := db.conn.QueryRowContext(ctx, countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to count videos: %w", err)
 	}
 
@@ -672,7 +687,7 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 		}
 	}
 
-	rows, err := db.conn.Query(query, args...)
+	rows, err := db.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query videos: %w", err)
 	}
@@ -699,8 +714,11 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 
 // CountVideosBySession returns the number of videos uploaded by a session
 func (db *DB) CountVideosBySession(sessionID string) (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM videos WHERE session_id = ?
 	`, sessionID).Scan(&count)
 	if err != nil {
@@ -711,12 +729,15 @@ func (db *DB) CountVideosBySession(sessionID string) (int, error) {
 
 // CreateUser creates a new user record
 func (db *DB) CreateUser(user *User) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Default to user role if not specified
 	role := user.Role
 	if role == "" {
 		role = RoleUser
 	}
-	_, err := db.conn.Exec(`
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO users (id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, role, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, user.ID, user.Email, user.PasswordHash, user.TOTPSecret, user.TOTPEnabled, user.EmailVerified, user.VerifiedAt, role, user.CreatedAt)
@@ -728,10 +749,13 @@ func (db *DB) CreateUser(user *User) error {
 
 // GetUserByID retrieves a user by ID
 func (db *DB) GetUserByID(id string) (*User, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	user := &User{}
 	var totpSecret sql.NullString
 	var verifiedAt sql.NullTime
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, email, password_hash, totp_secret, totp_enabled, email_verified, verified_at, role, created_at
 		FROM users WHERE id = ?
 	`, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &totpSecret, &user.TOTPEnabled, &user.EmailVerified, &verifiedAt, &user.Role, &user.CreatedAt)
@@ -779,7 +803,10 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 
 // CreateSession creates a new session record
 func (db *DB) CreateSession(session *Session) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO sessions (id, user_id, token, ip_address, user_agent, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, session.ID, session.UserID, session.Token, session.IPAddress, session.UserAgent, session.ExpiresAt, session.CreatedAt)
@@ -828,11 +855,14 @@ func (db *DB) GetSessionsByUserID(userID string) ([]Session, error) {
 // GetSessionsByUserIDWithLimit retrieves active sessions for a user with a custom limit.
 // If limit is 0 or negative, MaxSessionsPerUser is used.
 func (db *DB) GetSessionsByUserIDWithLimit(userID string, limit int) ([]Session, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	if limit <= 0 {
 		limit = MaxSessionsPerUser
 	}
 
-	rows, err := db.conn.Query(`
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT id, user_id, token, ip_address, user_agent, expires_at, created_at
 		FROM sessions
 		WHERE user_id = ? AND expires_at > ?
@@ -867,8 +897,11 @@ func (db *DB) GetSessionsByUserIDWithLimit(userID string, limit int) ([]Session,
 
 // DeleteSessionByID deletes a session by its ID (for session management)
 func (db *DB) DeleteSessionByID(sessionID, userID string) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Require userID to ensure users can only delete their own sessions
-	result, err := db.conn.Exec(`DELETE FROM sessions WHERE id = ? AND user_id = ?`, sessionID, userID)
+	result, err := db.conn.ExecContext(ctx, `DELETE FROM sessions WHERE id = ? AND user_id = ?`, sessionID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
@@ -884,7 +917,10 @@ func (db *DB) DeleteSessionByID(sessionID, userID string) error {
 
 // DeleteSession deletes a session by token
 func (db *DB) DeleteSession(token string) error {
-	_, err := db.conn.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
 	if err != nil {
 		return fmt.Errorf("failed to delete session by token: %w", err)
 	}
@@ -893,7 +929,10 @@ func (db *DB) DeleteSession(token string) error {
 
 // DeleteExpiredSessions deletes all expired sessions
 func (db *DB) DeleteExpiredSessions() (int64, error) {
-	result, err := db.conn.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now())
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at < ?`, time.Now())
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete expired sessions: %w", err)
 	}
@@ -906,7 +945,10 @@ func (db *DB) DeleteExpiredSessions() (int64, error) {
 
 // DeleteUserSessions deletes all sessions for a user
 func (db *DB) DeleteUserSessions(userID string) error {
-	_, err := db.conn.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user sessions: %w", err)
 	}
@@ -916,8 +958,11 @@ func (db *DB) DeleteUserSessions(userID string) error {
 // CountActiveSessions returns the count of non-expired sessions.
 // Used for metrics reporting.
 func (db *DB) CountActiveSessions() (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`SELECT COUNT(*) FROM sessions WHERE expires_at > ?`, time.Now()).Scan(&count)
+	err := db.conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE expires_at > ?`, time.Now()).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count active sessions: %w", err)
 	}
@@ -926,7 +971,10 @@ func (db *DB) CountActiveSessions() (int, error) {
 
 // SetTOTPSecret sets the TOTP secret for a user (during 2FA setup)
 func (db *DB) SetTOTPSecret(userID, secret string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE users SET totp_secret = ? WHERE id = ?
 	`, secret, userID)
 	if err != nil {
@@ -937,7 +985,10 @@ func (db *DB) SetTOTPSecret(userID, secret string) error {
 
 // EnableTOTP enables 2FA for a user (after verification)
 func (db *DB) EnableTOTP(userID string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE users SET totp_enabled = 1 WHERE id = ?
 	`, userID)
 	if err != nil {

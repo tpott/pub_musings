@@ -885,6 +885,13 @@ import '../styles/theme.css';
 				setBionicFixation,
 				toBionicHTML,
 			} from '../utils/bionic';
+			import {
+				TotpSetupResponseSchema,
+				TotpVerifyResponseSchema,
+				RecoveryCodesResponseSchema,
+				SessionListResponseSchema,
+				safeParse,
+			} from '../utils/api-schemas';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const notLoggedIn = document.getElementById('notLoggedIn') as HTMLElement;
@@ -1128,17 +1135,26 @@ import '../styles/theme.css';
 						method: 'POST',
 					});
 
-					const data = await response.json();
+					const rawData = await response.json();
 
 					if (!response.ok) {
-						showError(data.error || 'Failed to start setup');
+						showError(rawData.error || 'Failed to start setup');
+						startSetupBtn.disabled = false;
+						startSetupBtn.textContent = 'Enable 2FA';
+						return;
+					}
+
+					// Validate response structure
+					const data = safeParse(TotpSetupResponseSchema, rawData);
+					if (!data) {
+						showError('Invalid response from server');
 						startSetupBtn.disabled = false;
 						startSetupBtn.textContent = 'Enable 2FA';
 						return;
 					}
 
 					setupSecret = data.secret;
-					secretDisplay.textContent = data.secret_display;
+					secretDisplay.textContent = data.secret_display || data.secret;
 
 					// Use QR code from backend (self-hosted, no external requests)
 					qrCode.src = data.qr_code;
@@ -1267,10 +1283,19 @@ ${recoveryCodes.join('\n')}
 						body: JSON.stringify({ code }),
 					});
 
-					const data = await response.json();
+					const rawData = await response.json();
 
 					if (!response.ok) {
-						showError(data.error || 'Verification failed');
+						showError(rawData.error || 'Verification failed');
+						verifyBtn.disabled = false;
+						verifyBtn.textContent = 'Verify & Enable';
+						return;
+					}
+
+					// Validate response structure
+					const data = safeParse(TotpVerifyResponseSchema, rawData);
+					if (!data) {
+						showError('Invalid response from server');
 						verifyBtn.disabled = false;
 						verifyBtn.textContent = 'Verify & Enable';
 						return;
@@ -1431,10 +1456,19 @@ ${recoveryCodes.join('\n')}
 						body: JSON.stringify({ password, code }),
 					});
 
-					const data = await response.json();
+					const rawData = await response.json();
 
 					if (!response.ok) {
-						showError(data.error || 'Failed to regenerate recovery codes');
+						showError(rawData.error || 'Failed to regenerate recovery codes');
+						regenBtn.disabled = false;
+						regenBtn.textContent = 'Regenerate Codes';
+						return;
+					}
+
+					// Validate response structure
+					const data = safeParse(RecoveryCodesResponseSchema, rawData);
+					if (!data) {
+						showError('Invalid response from server');
 						regenBtn.disabled = false;
 						regenBtn.textContent = 'Regenerate Codes';
 						return;
@@ -1515,8 +1549,16 @@ ${recoveryCodes.join('\n')}
 						return;
 					}
 
-					const data = await response.json();
-					const sessions: Session[] = data.sessions || [];
+					const rawData = await response.json();
+
+					// Validate response structure
+					const data = safeParse(SessionListResponseSchema, rawData);
+					if (!data) {
+						sessionsLoading.textContent = 'Invalid response from server';
+						return;
+					}
+
+					const sessions: Session[] = data.sessions;
 
 					sessionsLoading.classList.add('hidden');
 					sessionsList.classList.remove('hidden');

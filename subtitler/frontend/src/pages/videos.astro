@@ -799,6 +799,12 @@ import '../styles/theme.css';
 				formatSpeed
 			} from '../utils/playback-speed';
 			import type { TranscriptionSegment } from '../types/transcription';
+			import {
+				VideoListResponseSchema,
+				TranscriptionStatusResponseSchema,
+				safeParse,
+				type Video as ApiVideo
+			} from '../utils/api-schemas';
 
 			const loading = document.getElementById('loading') as HTMLElement;
 			const error = document.getElementById('error') as HTMLElement;
@@ -1142,19 +1148,25 @@ import '../styles/theme.css';
 
 				// Fetch from server
 				const response = await fetch(`/api/transcribe/${videoId}`);
-				const data = await response.json();
+				const rawData = await response.json();
 
 				if (!response.ok) {
-					throw new Error(data.error || 'Failed to load transcription');
+					throw new Error(rawData.error || 'Failed to load transcription');
+				}
+
+				// Validate transcription response structure
+				const data = safeParse(TranscriptionStatusResponseSchema, rawData);
+				if (!data) {
+					throw new Error('Invalid transcription response format');
 				}
 
 				if (data.status !== 'complete' || !data.result) {
 					throw new Error('Transcription not available');
 				}
 
-				const segments = data.result.segments || [];
-				addToCache(videoId, segments);
-				return segments;
+				const segments = data.result.segments;
+				addToCache(videoId, segments as TranscriptionSegment[]);
+				return segments as TranscriptionSegment[];
 			}
 
 			// Download handler helper - used by event delegation on videoList
@@ -1453,17 +1465,23 @@ import '../styles/theme.css';
 
 					// Load transcription
 					const response = await fetch(`/api/transcribe/${videoId}`);
-					const data = await response.json();
+					const rawData = await response.json();
 
 					if (!response.ok) {
-						throw new Error(data.error || 'Failed to load transcription');
+						throw new Error(rawData.error || 'Failed to load transcription');
+					}
+
+					// Validate transcription response structure
+					const data = safeParse(TranscriptionStatusResponseSchema, rawData);
+					if (!data) {
+						throw new Error('Invalid transcription response format');
 					}
 
 					if (data.status !== 'complete' || !data.result) {
 						throw new Error('Transcription not available');
 					}
 
-					modalSubtitleSegments = data.result.segments || [];
+					modalSubtitleSegments = data.result.segments as TranscriptionSegment[];
 
 					// Render segments
 					renderModalSegments();
@@ -1687,18 +1705,24 @@ import '../styles/theme.css';
 
 					const response = await fetch(url);
 					if (!response.ok) {
-						const data = await response.json().catch(() => ({}));
-						throw new Error(data.error || `HTTP ${response.status}`);
+						const errorData = await response.json().catch(() => ({}));
+						throw new Error(errorData.error || `HTTP ${response.status}`);
 					}
-					const data = await response.json();
+					const rawData = await response.json();
+
+					// Validate response structure
+					const data = safeParse(VideoListResponseSchema, rawData);
+					if (!data) {
+						throw new Error('Invalid response format from server');
+					}
 
 					loading.style.display = 'none';
 
-					// Store pagination metadata
-					totalVideos = data.total_count || 0;
-					hasMore = data.has_more || false;
+					// Store pagination metadata (validated)
+					totalVideos = data.total_count ?? 0;
+					hasMore = data.has_more ?? false;
 
-					if (!data.videos || data.videos.length === 0) {
+					if (data.videos.length === 0) {
 						if (page === 0) {
 							empty.style.display = 'block';
 							pagination.style.display = 'none';
@@ -1706,7 +1730,8 @@ import '../styles/theme.css';
 						return;
 					}
 
-					videoList.innerHTML = data.videos.map(renderVideo).join('');
+					// Cast to local Video interface (api schema maps to it)
+					videoList.innerHTML = (data.videos as unknown as Video[]).map(renderVideo).join('');
 					videoList.style.display = 'flex';
 					// Event handlers are managed via event delegation on videoList,
 					// so no need to attach per-element handlers on each pagination

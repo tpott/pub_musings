@@ -6,12 +6,9 @@
  */
 
 import { csrfFetch, fetchCsrfToken, clearCsrfToken } from './csrf';
+import { AuthMeResponseSchema, safeParse, type User } from './api-schemas';
 
-export interface User {
-	email: string;
-	totp_enabled?: boolean;
-	role?: string;
-}
+export type { User };
 
 export interface AuthResult {
 	isAuthenticated: boolean;
@@ -46,8 +43,11 @@ export async function checkAuthAndUpdateNav(
 	try {
 		const response = await fetch('/api/auth/me');
 		if (response.ok) {
-			const data = await response.json();
-			if (data.user) {
+			const rawData = await response.json();
+
+			// Validate response structure
+			const data = safeParse(AuthMeResponseSchema, rawData);
+			if (data?.user) {
 				// User is authenticated
 				loginLink.style.display = 'none';
 				registerLink.style.display = 'none';
