@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/trevor/subtitler/backend/db"
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 // IsHTTPSOnly returns true if HTTPS_ONLY env var is set to a truthy value.
@@ -226,7 +227,12 @@ func ValidateSession(database *db.DB, token string) (*db.User, *db.Session, erro
 	// Check if expired
 	if time.Now().After(session.ExpiresAt) {
 		// Clean up expired session
-		database.DeleteSession(token)
+		if err := database.DeleteSession(token); err != nil {
+			logging.Warn("Failed to delete expired session during cleanup",
+				"session_id", session.ID,
+				"user_id", session.UserID,
+				"error", err)
+		}
 		return nil, nil, nil
 	}
 
@@ -235,8 +241,13 @@ func ValidateSession(database *db.DB, token string) (*db.User, *db.Session, erro
 		return nil, nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	if user == nil {
-		// Session exists but user doesn't - clean up
-		database.DeleteSession(token)
+		// Session exists but user doesn't - clean up orphaned session
+		if err := database.DeleteSession(token); err != nil {
+			logging.Warn("Failed to delete orphaned session during cleanup",
+				"session_id", session.ID,
+				"user_id", session.UserID,
+				"error", err)
+		}
 		return nil, nil, nil
 	}
 

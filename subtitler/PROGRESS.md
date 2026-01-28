@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**279 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**280 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**279 tasks completed.** All tasks completed. Next: deep inspection for new tasks.
+**280 tasks completed.** All tasks completed. Next: deep inspection for new tasks.
+
+### Task 280: Session Cleanup Error Logging (2026-01-28)
+
+- ✅ Task 280: Backend - Added logging for DeleteSession errors in auth cleanup paths
+  - In `auth/auth.go` ValidateSession(), two DeleteSession calls silently ignored errors
+  - Added logging.Warn() calls for expired session cleanup and orphaned session cleanup
+  - Logs include session_id, user_id, and error message to aid debugging
+  - Uses Warn level since cleanup failures are non-fatal but worth investigating
 
 ### Tasks 275-279: Error Handling and Testing (2026-01-28)
 
