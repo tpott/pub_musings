@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**292 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**293 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**292 tasks completed.** Working through remaining tasks from deep inspection.
+**293 tasks completed.** Working through remaining tasks from deep inspection.
 
 ### Recent Work (2026-01-28)
+
+**Task 292: MaxBytesReader for JSON Endpoints**
+- Added decodeJSONBody() helper function with 1MB limit
+- Updated all 13 JSON endpoint handlers to use the helper
+- Returns HTTP 413 Request Entity Too Large for oversized payloads
 
 **Task 291: Backend Panic to Error Conversion**
 - WithTransaction now converts panics to PanicError instead of re-panicking
