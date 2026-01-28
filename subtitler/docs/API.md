@@ -87,11 +87,14 @@ All error responses return a JSON object with an `error` field:
 - [Password Reset](#password-reset)
 - [Session Management](#session-management)
 - [Videos](#videos)
+- [Language Detection](#language-detection)
+- [Embedded Subtitles](#embedded-subtitles)
 - [Thumbnails](#thumbnails)
 - [Chunked Upload](#chunked-upload)
 - [Transcription](#transcription)
 - [Subtitles](#subtitles)
 - [Script Conversion](#script-conversion)
+- [Feedback](#feedback)
 
 ---
 
@@ -1346,6 +1349,153 @@ curl -X POST "http://localhost:8080/api/videos/abc123/reprocess?session_id=your-
 
 ---
 
+## Language Detection
+
+### GET /api/videos/{id}/language-hints
+
+Get language detection hints for a video based on metadata and filename patterns.
+
+**Authentication:** Not required
+
+**Rate Limited:** No
+
+**Path Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `id` | Video ID (32-character hex string) |
+
+**Success Response (200):**
+```json
+{
+  "hints": [
+    {
+      "source": "metadata",
+      "language": "en",
+      "language_name": "English",
+      "confidence": "high",
+      "raw_value": "eng"
+    },
+    {
+      "source": "filename",
+      "language": "en",
+      "language_name": "English",
+      "confidence": "medium",
+      "raw_value": "en"
+    }
+  ],
+  "suggested_language": "en",
+  "suggested_confidence": "high"
+}
+```
+
+**Fields:**
+| Field | Description |
+|-------|-------------|
+| `hints` | Array of detected language hints from different sources |
+| `hints[].source` | Detection source: `"metadata"` (ffprobe) or `"filename"` (pattern matching) |
+| `hints[].language` | ISO 639-1 two-letter language code |
+| `hints[].language_name` | Human-readable language name |
+| `hints[].confidence` | Confidence level: `"high"`, `"medium"`, or `"low"` |
+| `hints[].raw_value` | Original value before normalization |
+| `suggested_language` | Best suggested language code (empty if no hints) |
+| `suggested_confidence` | Confidence of the suggestion |
+
+**Error Responses:**
+- `400 Bad Request` - Invalid video ID format
+- `404 Not Found` - Video not found
+- `500 Internal Server Error` - Database or decryption error
+
+**Example:**
+```bash
+curl http://localhost:8080/api/videos/abc123def456.../language-hints
+```
+
+**Notes:**
+- Metadata detection uses ffprobe to read audio track language tags
+- Filename detection uses regex patterns for ISO codes and language names (e.g., `video.en.mp4`, `movie_spanish.mp4`)
+- If the video is encrypted, it's temporarily decrypted for metadata analysis
+- This endpoint is called automatically during upload but can be called manually
+
+---
+
+## Embedded Subtitles
+
+### GET /api/videos/{id}/embedded-subtitles/{track}
+
+Extract an embedded subtitle track from a video file.
+
+**Authentication:** Optional (requires ownership via session or user ID)
+
+**Rate Limited:** Yes (30/min per IP - same as downloads)
+
+**Path Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `id` | Video ID (32-character hex string) |
+| `track` | Subtitle track index (integer, 0-based) |
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | `srt` | Output format: `srt` or `vtt` |
+| `session_id` | string | *(none)* | Required for anonymous user access |
+
+**Success Response (200):**
+- Content-Type: `text/plain; charset=utf-8` (SRT) or `text/vtt; charset=utf-8` (VTT)
+- Content-Disposition: `attachment; filename="{filename}_{language}_embedded.{ext}"`
+- Body: Subtitle file content
+
+**Error Responses:**
+- `400 Bad Request` - Invalid video ID, track index, or format
+- `400 Bad Request` - Image-based subtitle track (requires OCR, not supported)
+- `403 Forbidden` - Access denied (user doesn't own video)
+- `404 Not Found` - Video not found, no embedded subtitles, or track not found
+- `429 Too Many Requests` - Rate limit exceeded
+- `500 Internal Server Error` - Decryption or extraction error
+
+**Example:**
+```bash
+# Download as SRT (default)
+curl -o subtitles.srt "http://localhost:8080/api/videos/abc123/embedded-subtitles/0?session_id=mysession"
+
+# Download as VTT
+curl -o subtitles.vtt "http://localhost:8080/api/videos/abc123/embedded-subtitles/0?format=vtt&session_id=mysession"
+```
+
+**Subtitle Track Information:**
+
+Embedded subtitle tracks are detected during upload and stored in the video record. Each track has:
+
+```json
+{
+  "index": 0,
+  "language": "eng",
+  "title": "English",
+  "codec": "subrip",
+  "default": true,
+  "forced": false,
+  "text_based": true
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `index` | Stream index to use in this endpoint |
+| `language` | ISO 639-1/2 language code |
+| `title` | Optional track title from metadata |
+| `codec` | Subtitle codec (subrip, ass, mov_text, etc.) |
+| `default` | Whether this is the default subtitle track |
+| `forced` | Whether this is a forced subtitle track |
+| `text_based` | `true` if extractable as text, `false` for image-based (PGS, VOBSUB) |
+
+**Notes:**
+- Only text-based subtitle codecs can be extracted (SRT, ASS, WebVTT, MOV text, etc.)
+- Image-based subtitles (Blu-ray PGS, DVD VOBSUB) return a 400 error suggesting OCR
+- Extraction uses ffmpeg to convert the embedded track to the requested format
+- Access requires video ownership (authenticated user ID match or session ID match)
+
+---
+
 ## Thumbnails
 
 ### GET /api/videos/{id}/thumbnail
@@ -2231,6 +2381,195 @@ Convert text from one script to another (e.g., romanized to native script).
 curl -X POST http://localhost:8080/api/text/convert \
   -H "Content-Type: application/json" \
   -d '{"text": "namaste", "target_script": "Devanagari", "language": "hi"}'
+```
+
+---
+
+## Feedback
+
+User feedback submission and admin management endpoints.
+
+### POST /api/feedback
+
+Submit user feedback about the application.
+
+**Rate limit:** 5 requests/minute per IP
+
+**Authentication:** Optional (anonymous feedback allowed)
+
+**Request Body:**
+```json
+{
+  "text": "string",           // Required. Max 10KB
+  "type": "string",           // Optional. "general" (default), "bug", "feature"
+  "rating": 1-5,              // Optional. Integer from 1 to 5
+  "page_url": "string",       // Optional. Current page URL
+  "video_id": "string",       // Optional. Related video ID
+  "session_id": "string",     // Optional. Anonymous session ID
+  "browser_info": "string"    // Optional. Browser/viewport info
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "status": "ok",
+  "id": "abc123def456..."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid request body, missing text, or invalid type/rating
+- `429 Too Many Requests` - Rate limit exceeded
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/api/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Great app!", "type": "general", "rating": 5}'
+```
+
+---
+
+### GET /api/admin/feedback
+
+List all feedback entries (admin only).
+
+**Rate limit:** 5 requests/minute per IP
+
+**Authentication:** Required (admin role)
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `status` | string | *(all)* | Filter by status: `new`, `read`, `resolved` |
+| `type` | string | *(all)* | Filter by type: `general`, `bug`, `feature` |
+| `limit` | int | 50 | Results per page (max 100) |
+| `offset` | int | 0 | Pagination offset |
+
+**Success Response (200):**
+```json
+{
+  "feedback": [
+    {
+      "id": "abc123def456...",
+      "user_id": "user123...",
+      "session_id": null,
+      "video_id": "video456...",
+      "page_url": "/upload",
+      "text": "Great feature!",
+      "rating": 5,
+      "type": "general",
+      "browser_info": "Mozilla/5.0...",
+      "created_at": "2026-01-27T10:30:00Z",
+      "status": "new"
+    }
+  ],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - User is not an admin
+- `429 Too Many Requests` - Rate limit exceeded
+
+**Example:**
+```bash
+curl http://localhost:8080/api/admin/feedback?status=new&limit=10 \
+  -H "Cookie: session=your_session_token"
+```
+
+---
+
+### GET /api/admin/feedback/{id}
+
+Get a single feedback entry by ID (admin only).
+
+**Rate limit:** 5 requests/minute per IP
+
+**Authentication:** Required (admin role)
+
+**Path Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `id` | Feedback ID (32-character hex string) |
+
+**Success Response (200):**
+```json
+{
+  "id": "abc123def456...",
+  "user_id": "user123...",
+  "session_id": null,
+  "video_id": "video456...",
+  "page_url": "/upload",
+  "text": "Great feature!",
+  "rating": 5,
+  "type": "general",
+  "browser_info": "Mozilla/5.0...",
+  "created_at": "2026-01-27T10:30:00Z",
+  "status": "new"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid feedback ID format
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - User is not an admin
+- `404 Not Found` - Feedback not found
+- `429 Too Many Requests` - Rate limit exceeded
+
+**Example:**
+```bash
+curl http://localhost:8080/api/admin/feedback/abc123def456... \
+  -H "Cookie: session=your_session_token"
+```
+
+---
+
+### PATCH /api/admin/feedback/{id}
+
+Update feedback status (admin only).
+
+**Rate limit:** 5 requests/minute per IP
+
+**Authentication:** Required (admin role)
+
+**Path Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `id` | Feedback ID (32-character hex string) |
+
+**Request Body:**
+```json
+{
+  "status": "string"  // Required. "new", "read", or "resolved"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "status": "ok",
+  "id": "abc123def456...",
+  "updated": "resolved"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid feedback ID format or invalid status
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - User is not an admin
+- `429 Too Many Requests` - Rate limit exceeded
+
+**Example:**
+```bash
+curl -X PATCH http://localhost:8080/api/admin/feedback/abc123def456... \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your_session_token" \
+  -d '{"status": "resolved"}'
 ```
 
 ---

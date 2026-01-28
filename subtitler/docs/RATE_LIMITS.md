@@ -20,6 +20,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | **Download** | 30 requests | 1 minute | Video, thumbnail, burned video downloads |
 | **Script Conversion** | 10 requests | 1 minute | Script detection, Text conversion |
 | **Metrics** | 10 requests | 1 minute | Prometheus metrics endpoint |
+| **Feedback** | 5 requests | 1 minute | User feedback submission and admin management |
 
 ## Endpoints by Category
 
@@ -72,6 +73,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | `GET /api/videos/{id}/video` | Download original video file |
 | `GET /api/videos/{id}/thumbnail` | Download video thumbnail |
 | `GET /api/videos/{id}/burned` | Download video with burned subtitles |
+| `GET /api/videos/{id}/embedded-subtitles/{track}` | Extract embedded subtitle track |
 
 **Note**: These limits prevent bandwidth abuse and CPU exhaustion from repeated decryption operations.
 
@@ -88,7 +90,18 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 |----------|-------------|
 | `GET /metrics` | Prometheus metrics endpoint |
 
-**Note**: This endpoint is rate limited to prevent reconnaissance attacks. Requires authentication via API key (`X-Metrics-API-Key` header or `api_key` query param) or valid user session.
+**Note**: This endpoint is rate limited to prevent reconnaissance attacks.
+
+### Feedback (5 req/min)
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/feedback` | Submit user feedback |
+| `GET /api/admin/feedback` | List all feedback (admin only) |
+| `GET /api/admin/feedback/{id}` | Get single feedback entry (admin only) |
+| `PATCH /api/admin/feedback/{id}` | Update feedback status (admin only) |
+
+**Note**: All feedback endpoints share the same rate limit. Admin endpoints require admin role authentication. Requires authentication via API key (`X-Metrics-API-Key` header or `api_key` query param) or valid user session.
 
 ## Error Response
 
@@ -195,6 +208,7 @@ var transcribeLimiter = ratelimit.New(5, time.Minute)       // Transcribe: 5/min
 var burnLimiter = ratelimit.New(2, time.Minute)             // Burn: 2/min
 var scriptLimiter = ratelimit.New(10, time.Minute)          // Script: 10/min
 var metricsLimiter = ratelimit.New(10, time.Minute)         // Metrics: 10/min
+var feedbackLimiter = ratelimit.New(5, time.Minute)         // Feedback: 5/min
 ```
 
 These values can be adjusted based on server capacity and usage patterns.

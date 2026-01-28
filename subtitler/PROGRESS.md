@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**243 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**243 tasks completed** as of 2026-01-27. All core features implemented and tested. Seventh deep inspection filed 15 new improvement tasks (244-258).
 
 ## Feature Summary
 
@@ -138,7 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**231 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; remaining tasks (227-243) focus on refinements.
+**248 tasks completed.** Seventh deep inspection (2026-01-27) identified improvements; tasks 244-248 completed (documentation updates).
+
+### Tasks 244-248: Documentation Updates (2026-01-27)
+
+- ✅ Task 244: Added feedback endpoints to docs/API.md (POST /api/feedback, admin endpoints)
+- ✅ Task 245: Added language hints and embedded subtitles endpoints to docs/API.md
+- ✅ Task 246: Added feedback rate limit to docs/RATE_LIMITS.md
+- ✅ Task 247: Added admin.feedback.updated to docs/SECURITY_EVENTS.md
+- ✅ Task 248: Updated specs/script-conversion.md to document pure Go implementation
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -240,6 +248,31 @@ Deep code review using exploration agents identified areas for improvement:
   - Shows centered overlay with speed (e.g., "0.75x") for 800ms when changing speed
   - Added to both upload.astro and videos.astro modal player
 - ✅ Task 243: Improved file size error message to show actual vs max (e.g., "750.5 MB. Maximum allowed size is 500 MB")
+
+### Tasks 244-258: Seventh Deep Inspection (2026-01-27)
+
+Comprehensive deep inspection using parallel exploration agents analyzed frontend, backend, specs, and documentation:
+
+**Documentation Gaps (5 tasks):**
+- Task 244: Add feedback endpoints to API.md (POST /api/feedback, admin endpoints)
+- Task 245: Add language hints and embedded subtitles endpoints to API.md
+- Task 246: Add feedback rate limit to RATE_LIMITS.md
+- Task 247: Add admin.feedback.updated to SECURITY_EVENTS.md
+- Task 248: Update specs/script-conversion.md to document pure Go implementation
+
+**Backend Performance/Quality (4 tasks):**
+- Task 249: Check json.Encode errors in API handlers (50+ unchecked calls)
+- Task 250: Add index on transcriptions.status column (query optimization)
+- Task 251: Add composite index for burn_jobs queries
+- Task 252: Add composite index for feedback queries
+- Task 253: Add pagination limit validation to ListFeedback
+
+**Frontend Performance/UX (5 tasks):**
+- Task 254: Optimize DOM queries in video timeupdate handler (30+ queries/sec)
+- Task 255: Replace native alert/confirm dialogs with styled modals
+- Task 256: Extract video player component from upload and videos pages
+- Task 257: Add loading states with meaningful messages
+- Task 258: Add aria-live regions for subtitle segment changes
 
 ### Recently Completed (2026-01-27)
 - Task 218: Feature - Improve language auto-detection

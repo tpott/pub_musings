@@ -111,6 +111,12 @@ All security events are logged through the `security` package with consistent fo
 | `admin.delete.video_user` | User deleted own video | `user_id`, `video_id`, `filename` |
 | `admin.delete.video_system` | System deleted expired video | `video_id`, `filename`, `is_anonymous`, `retention_hours` |
 
+### Admin Operations - Feedback Management
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `admin.feedback.updated` | Admin updated feedback status | `admin_user_id`, `feedback_id`, `new_status` |
+
 ### Admin Operations - Database Maintenance
 
 | Event | Description | Fields |

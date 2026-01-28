@@ -112,15 +112,18 @@ Not recommended due to external dependency and deprecation concerns.
 
 ## Recommendation
 
-### Phase 1: GoVarnam for Indic Languages
+### Implemented: Pure Go Mapping Tables
 
-For the initial implementation, use **GoVarnam** because:
-1. Native Go bindings with minimal dependencies
-2. Specifically designed for romanized → native script conversion
-3. Good coverage of major Indian languages
-4. Active maintenance and community
+After evaluating GoVarnam's CGO dependency complexity, we implemented a **pure Go solution** using lookup tables. This approach:
 
-### Phase 2: Consider Aksharamukha (Future)
+1. **Zero external dependencies** - No CGO, no shared libraries, no Docker
+2. **Simple deployment** - Single binary works everywhere
+3. **Good accuracy** - 200+ romanization patterns for Hindi with ITRANS/Google conventions
+4. **Easily extensible** - Add new language mappings without build complexity
+
+The pure Go implementation handles common romanization conventions for Hindi (Devanagari), with the architecture ready to support additional Indic scripts.
+
+### Future: Consider Aksharamukha (Optional)
 
 If users need broader script support (e.g., Thai, Arabic, Southeast Asian scripts), consider adding Aksharamukha as an optional backend with Docker requirement clearly documented.
 
@@ -204,29 +207,42 @@ Response:
 | Oriya | or | namaskar | ନମସ୍କାର |
 | Gurmukhi (Punjabi) | pa | sat sri akal | ਸਤ ਸ੍ਰੀ ਅਕਾਲ |
 
-## Implementation Plan
+## Implementation Status
 
-1. **Evaluate GoVarnam build process** - Can we use without CGO? Need to test.
-2. **Create script detection** - Unicode range checking for common scripts
-3. **Create conversion endpoint** - Wrap GoVarnam or fallback method
-4. **Add to align API** - Optional post-processing step
+### Completed ✅
+
+1. **Script detection** - `backend/script/script.go` implements Unicode range checking for 14 scripts
+2. **Pure Go transliteration** - `Converter` struct with mapping tables for Hindi (200+ patterns)
+3. **API endpoints** - `/api/text/detect-script` and `/api/text/convert` implemented
+4. **Align API integration** - Optional `script` parameter for post-processing
 5. **Frontend UI** - Language/script selector on upload page (Task 57)
 
-## Alternative: Pure Go Implementation
+### Implementation Details
 
-If GoVarnam's CGO dependency is problematic, we could implement basic romanized Hindi → Devanagari conversion using a rule-based approach:
+The `backend/script/` package provides:
 
 ```go
-// Basic transliteration map (simplified)
-var hindiMap = map[string]string{
-    "a": "अ", "aa": "आ", "i": "इ", "ee": "ई",
-    "u": "उ", "oo": "ऊ", "e": "ए", "ai": "ऐ",
-    "o": "ओ", "au": "औ", "k": "क", "kh": "ख",
-    // ... etc
-}
+// Script detection using Unicode ranges
+script.DetectScript(text) // Returns Script type (Latin, Devanagari, etc.)
+
+// Conversion using mapping tables
+converter := script.NewConverter()
+result, err := converter.Convert(text, targetScript, language)
 ```
 
-This would be less accurate than GoVarnam but avoids external dependencies.
+The Hindi mapping table includes:
+- Independent vowels (अ आ इ ई उ ऊ ए ऐ ओ औ)
+- Vowel signs/matras (ा ि ी ु ू े ै ो ौ)
+- All consonants with aspirated variants (क ख ग घ...)
+- Conjuncts and special characters (क्ष ज्ञ श्र...)
+- Nukta characters for Persian/Arabic sounds (क़ ख़ ग़...)
+- Chandrabindu, anusvara, visarga (ँ ं ः)
+
+The converter handles:
+- Case-insensitive input ("Namaste" = "namaste")
+- Multi-character sequences (longest match first: "chh" before "ch")
+- Word-initial vs word-medial vowel handling
+- Implicit 'a' vowel (inherent schwa)
 
 ## Security Considerations
 
