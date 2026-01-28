@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**239 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**240 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -203,7 +203,10 @@ Deep code review using exploration agents identified areas for improvement:
 
 **Documentation:**
 - ✅ Task 237: Updated deployment.md - moved chunked uploads from Future to Implemented
-- Task 238: Create specs/metrics.md for Prometheus metrics system
+- ✅ Task 238: Created specs/metrics.md for Prometheus metrics system
+  - Documents architecture, design decisions, metrics catalog
+  - Covers integration with monitoring systems
+  - Cross-referenced from docs/METRICS.md
 - ✅ Task 241: Added comprehensive Features section to README.md
   - Documents core functionality, language/script support, UX features
   - Covers advanced features and security capabilities
