@@ -893,56 +893,58 @@ import '../styles/theme.css';
 				SessionListResponseSchema,
 				safeParse,
 			} from '../utils/api-schemas';
+			import { getRequiredElement, queryAllElements } from '../utils/dom';
 
-			const loading = document.getElementById('loading') as HTMLElement;
-			const notLoggedIn = document.getElementById('notLoggedIn') as HTMLElement;
-			const content = document.getElementById('content') as HTMLElement;
-			const totpStatus = document.getElementById('totpStatus') as HTMLElement;
-			const enableSection = document.getElementById('enableSection') as HTMLElement;
-			const setupSection = document.getElementById('setupSection') as HTMLElement;
-			const disableSection = document.getElementById('disableSection') as HTMLElement;
-			const errorMessage = document.getElementById('errorMessage') as HTMLElement;
-			const successMessage = document.getElementById('successMessage') as HTMLElement;
-			const startSetupBtn = document.getElementById('startSetupBtn') as HTMLButtonElement;
-			const cancelSetupBtn = document.getElementById('cancelSetupBtn') as HTMLButtonElement;
-			const verifyForm = document.getElementById('verifyForm') as HTMLFormElement;
-			const verifyBtn = document.getElementById('verifyBtn') as HTMLButtonElement;
-			const verifyCode = document.getElementById('verifyCode') as HTMLInputElement;
-			const verifyCodeError = document.getElementById('verifyCodeError') as HTMLElement;
-			const disableForm = document.getElementById('disableForm') as HTMLFormElement;
-			const disableBtn = document.getElementById('disableBtn') as HTMLButtonElement;
-			const disablePassword = document.getElementById('disablePassword') as HTMLInputElement;
-			const disablePasswordError = document.getElementById('disablePasswordError') as HTMLElement;
-			const disableCode = document.getElementById('disableCode') as HTMLInputElement;
-			const disableCodeError = document.getElementById('disableCodeError') as HTMLElement;
-			const qrCode = document.getElementById('qrCode') as HTMLImageElement;
-			const secretDisplay = document.getElementById('secretDisplay') as HTMLElement;
+			// Get all required elements with type checking
+			const loading = getRequiredElement('loading', HTMLElement);
+			const notLoggedIn = getRequiredElement('notLoggedIn', HTMLElement);
+			const content = getRequiredElement('content', HTMLElement);
+			const totpStatus = getRequiredElement('totpStatus', HTMLElement);
+			const enableSection = getRequiredElement('enableSection', HTMLElement);
+			const setupSection = getRequiredElement('setupSection', HTMLElement);
+			const disableSection = getRequiredElement('disableSection', HTMLElement);
+			const errorMessage = getRequiredElement('errorMessage', HTMLElement);
+			const successMessage = getRequiredElement('successMessage', HTMLElement);
+			const startSetupBtn = getRequiredElement('startSetupBtn', HTMLButtonElement);
+			const cancelSetupBtn = getRequiredElement('cancelSetupBtn', HTMLButtonElement);
+			const verifyForm = getRequiredElement('verifyForm', HTMLFormElement);
+			const verifyBtn = getRequiredElement('verifyBtn', HTMLButtonElement);
+			const verifyCode = getRequiredElement('verifyCode', HTMLInputElement);
+			const verifyCodeError = getRequiredElement('verifyCodeError', HTMLElement);
+			const disableForm = getRequiredElement('disableForm', HTMLFormElement);
+			const disableBtn = getRequiredElement('disableBtn', HTMLButtonElement);
+			const disablePassword = getRequiredElement('disablePassword', HTMLInputElement);
+			const disablePasswordError = getRequiredElement('disablePasswordError', HTMLElement);
+			const disableCode = getRequiredElement('disableCode', HTMLInputElement);
+			const disableCodeError = getRequiredElement('disableCodeError', HTMLElement);
+			const qrCode = getRequiredElement('qrCode', HTMLImageElement);
+			const secretDisplay = getRequiredElement('secretDisplay', HTMLElement);
 			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
-			const recoveryCodesSection = document.getElementById('recoveryCodesSection') as HTMLElement;
-			const recoveryCodesGrid = document.getElementById('recoveryCodesGrid') as HTMLElement;
-			const copyCodesBtn = document.getElementById('copyCodesBtn') as HTMLButtonElement;
-			const downloadCodesBtn = document.getElementById('downloadCodesBtn') as HTMLButtonElement;
-			const savedCodesCheckbox = document.getElementById('savedCodesCheckbox') as HTMLInputElement;
-			const continueBtn = document.getElementById('continueBtn') as HTMLButtonElement;
+			const recoveryCodesSection = getRequiredElement('recoveryCodesSection', HTMLElement);
+			const recoveryCodesGrid = getRequiredElement('recoveryCodesGrid', HTMLElement);
+			const copyCodesBtn = getRequiredElement('copyCodesBtn', HTMLButtonElement);
+			const downloadCodesBtn = getRequiredElement('downloadCodesBtn', HTMLButtonElement);
+			const savedCodesCheckbox = getRequiredElement('savedCodesCheckbox', HTMLInputElement);
+			const continueBtn = getRequiredElement('continueBtn', HTMLButtonElement);
 
-			// New elements for regenerate/disable flow
-			const managementOptions = document.getElementById('managementOptions') as HTMLElement;
-			const regenSection = document.getElementById('regenSection') as HTMLElement;
-			const disableFormSection = document.getElementById('disableFormSection') as HTMLElement;
-			const startRegenBtn = document.getElementById('startRegenBtn') as HTMLButtonElement;
-			const startDisableBtn = document.getElementById('startDisableBtn') as HTMLButtonElement;
-			const cancelRegenBtn = document.getElementById('cancelRegenBtn') as HTMLButtonElement;
-			const cancelDisableBtn = document.getElementById('cancelDisableBtn') as HTMLButtonElement;
-			const regenForm = document.getElementById('regenForm') as HTMLFormElement;
-			const regenBtn = document.getElementById('regenBtn') as HTMLButtonElement;
-			const regenPassword = document.getElementById('regenPassword') as HTMLInputElement;
-			const regenPasswordError = document.getElementById('regenPasswordError') as HTMLElement;
-			const regenCode = document.getElementById('regenCode') as HTMLInputElement;
-			const regenCodeError = document.getElementById('regenCodeError') as HTMLElement;
+			// Elements for regenerate/disable flow
+			const managementOptions = getRequiredElement('managementOptions', HTMLElement);
+			const regenSection = getRequiredElement('regenSection', HTMLElement);
+			const disableFormSection = getRequiredElement('disableFormSection', HTMLElement);
+			const startRegenBtn = getRequiredElement('startRegenBtn', HTMLButtonElement);
+			const startDisableBtn = getRequiredElement('startDisableBtn', HTMLButtonElement);
+			const cancelRegenBtn = getRequiredElement('cancelRegenBtn', HTMLButtonElement);
+			const cancelDisableBtn = getRequiredElement('cancelDisableBtn', HTMLButtonElement);
+			const regenForm = getRequiredElement('regenForm', HTMLFormElement);
+			const regenBtn = getRequiredElement('regenBtn', HTMLButtonElement);
+			const regenPassword = getRequiredElement('regenPassword', HTMLInputElement);
+			const regenPasswordError = getRequiredElement('regenPasswordError', HTMLElement);
+			const regenCode = getRequiredElement('regenCode', HTMLInputElement);
+			const regenCodeError = getRequiredElement('regenCodeError', HTMLElement);
 
 			// Tab elements
-			const tabButtons = document.querySelectorAll('.tab') as NodeListOf<HTMLButtonElement>;
-			const tabContents = document.querySelectorAll('.tab-content') as NodeListOf<HTMLElement>;
+			const tabButtons = queryAllElements('.tab', HTMLButtonElement);
+			const tabContents = queryAllElements('.tab-content', HTMLElement);
 
 			let isRegenerating = false;
 
@@ -1464,8 +1466,8 @@ ${recoveryCodes.join('\n')}
 			regenForm.addEventListener('submit', regenerateCodes);
 
 			// Sessions management elements
-			const sessionsLoading = document.getElementById('sessionsLoading') as HTMLElement;
-			const sessionsList = document.getElementById('sessionsList') as HTMLElement;
+			const sessionsLoading = getRequiredElement('sessionsLoading', HTMLElement);
+			const sessionsList = getRequiredElement('sessionsList', HTMLElement);
 
 			interface Session {
 				id: string;
@@ -1597,11 +1599,11 @@ ${recoveryCodes.join('\n')}
 			};
 
 			// Bionic Reading preferences
-			const bionicToggle = document.getElementById('bionicToggle') as HTMLInputElement;
-			const bionicOptions = document.getElementById('bionicOptions') as HTMLElement;
-			const fixationSlider = document.getElementById('fixationSlider') as HTMLInputElement;
-			const fixationValue = document.getElementById('fixationValue') as HTMLElement;
-			const previewText = document.getElementById('previewText') as HTMLElement;
+			const bionicToggle = getRequiredElement('bionicToggle', HTMLInputElement);
+			const bionicOptions = getRequiredElement('bionicOptions', HTMLElement);
+			const fixationSlider = getRequiredElement('fixationSlider', HTMLInputElement);
+			const fixationValue = getRequiredElement('fixationValue', HTMLElement);
+			const previewText = getRequiredElement('previewText', HTMLElement);
 
 			const PREVIEW_SAMPLE = 'The quick brown fox jumps over the lazy dog.';
 

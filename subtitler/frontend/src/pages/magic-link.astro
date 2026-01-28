@@ -186,11 +186,14 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
-			const loadingSection = document.getElementById('loadingSection') as HTMLElement;
-			const successSection = document.getElementById('successSection') as HTMLElement;
-			const errorSection = document.getElementById('errorSection') as HTMLElement;
-			const noTokenSection = document.getElementById('noTokenSection') as HTMLElement;
-			const errorMessage = document.getElementById('errorMessage') as HTMLElement;
+			import { getRequiredElement } from '../utils/dom';
+
+			// Get all required elements with type checking
+			const loadingSection = getRequiredElement('loadingSection', HTMLElement);
+			const successSection = getRequiredElement('successSection', HTMLElement);
+			const errorSection = getRequiredElement('errorSection', HTMLElement);
+			const noTokenSection = getRequiredElement('noTokenSection', HTMLElement);
+			const errorMessage = getRequiredElement('errorMessage', HTMLElement);
 
 			// Get token from URL
 			const urlParams = new URLSearchParams(window.location.search);

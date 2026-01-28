@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**317 tasks completed.**
+**318 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 315: Use dom.ts Helpers in Page Scripts (COMPLETE)**
+- Updated 9 page files to use getRequiredElement/getOptionalElement from dom.ts
+- Replaced 150+ `document.getElementById() as Type` patterns
+- Pages updated: login.astro, register.astro, forgot-password.astro, reset-password.astro, magic-link.astro, verify-email.astro, settings.astro, videos.astro, upload.astro, admin/feedback.astro
+- Also used queryAllElements() for tab navigation in settings.astro
+- All tests pass, reduces boilerplate and adds runtime validation
 
 **Task 314: Add Max Concurrent Upload Sessions Limit (COMPLETE)**
 - Added MAX_UPLOAD_SESSIONS constant (50) to session.ts

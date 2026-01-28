@@ -805,11 +805,13 @@ import '../styles/theme.css';
 				safeParse,
 				type Video as ApiVideo
 			} from '../utils/api-schemas';
+			import { getRequiredElement } from '../utils/dom';
 
-			const loading = document.getElementById('loading') as HTMLElement;
-			const error = document.getElementById('error') as HTMLElement;
-			const empty = document.getElementById('empty') as HTMLElement;
-			const videoList = document.getElementById('videoList') as HTMLElement;
+			// Get all required elements with type checking
+			const loading = getRequiredElement('loading', HTMLElement);
+			const error = getRequiredElement('error', HTMLElement);
+			const empty = getRequiredElement('empty', HTMLElement);
+			const videoList = getRequiredElement('videoList', HTMLElement);
 
 			interface SubtitleTrack {
 				index: number;
@@ -1208,23 +1210,23 @@ import '../styles/theme.css';
 			}
 
 			// Modal elements
-			const videoModal = document.getElementById('videoModal') as HTMLElement;
-			const modalClose = document.getElementById('modalClose') as HTMLButtonElement;
-			const modalTitle = document.getElementById('modalTitle') as HTMLElement;
-			const modalLoading = document.getElementById('modalLoading') as HTMLElement;
-			const modalError = document.getElementById('modalError') as HTMLElement;
-			const modalVideoContainer = document.getElementById('modalVideoContainer') as HTMLElement;
-			const modalVideo = document.getElementById('modalVideo') as HTMLVideoElement;
-			const modalCurrentSubtitle = document.getElementById('modalCurrentSubtitle') as HTMLElement;
-			const modalSegments = document.getElementById('modalSegments') as HTMLElement;
-			const modalDownloadSrt = document.getElementById('modalDownloadSrt') as HTMLAnchorElement;
-			const modalDownloadVtt = document.getElementById('modalDownloadVtt') as HTMLAnchorElement;
-			const modalDownloadJson = document.getElementById('modalDownloadJson') as HTMLAnchorElement;
-			const modalEditLink = document.getElementById('modalEditLink') as HTMLAnchorElement;
-			const modalSpeedBtn = document.getElementById('modalSpeedBtn') as HTMLButtonElement;
-			const modalSpeedOptions = document.getElementById('modalSpeedOptions') as HTMLElement;
-			const modalSpeedDropdown = document.getElementById('modalSpeedDropdown') as HTMLElement;
-			const modalSpeedIndicator = document.getElementById('modalSpeedIndicator') as HTMLElement;
+			const videoModal = getRequiredElement('videoModal', HTMLElement);
+			const modalClose = getRequiredElement('modalClose', HTMLButtonElement);
+			const modalTitle = getRequiredElement('modalTitle', HTMLElement);
+			const modalLoading = getRequiredElement('modalLoading', HTMLElement);
+			const modalError = getRequiredElement('modalError', HTMLElement);
+			const modalVideoContainer = getRequiredElement('modalVideoContainer', HTMLElement);
+			const modalVideo = getRequiredElement('modalVideo', HTMLVideoElement);
+			const modalCurrentSubtitle = getRequiredElement('modalCurrentSubtitle', HTMLElement);
+			const modalSegments = getRequiredElement('modalSegments', HTMLElement);
+			const modalDownloadSrt = getRequiredElement('modalDownloadSrt', HTMLAnchorElement);
+			const modalDownloadVtt = getRequiredElement('modalDownloadVtt', HTMLAnchorElement);
+			const modalDownloadJson = getRequiredElement('modalDownloadJson', HTMLAnchorElement);
+			const modalEditLink = getRequiredElement('modalEditLink', HTMLAnchorElement);
+			const modalSpeedBtn = getRequiredElement('modalSpeedBtn', HTMLButtonElement);
+			const modalSpeedOptions = getRequiredElement('modalSpeedOptions', HTMLElement);
+			const modalSpeedDropdown = getRequiredElement('modalSpeedDropdown', HTMLElement);
+			const modalSpeedIndicator = getRequiredElement('modalSpeedIndicator', HTMLElement);
 
 			let currentModalVideoId: string | null = null;
 			let modalSubtitleSegments: TranscriptionSegment[] = [];
@@ -1670,10 +1672,10 @@ import '../styles/theme.css';
 			let hasMore = false;
 
 			// Pagination elements
-			const pagination = document.getElementById('pagination') as HTMLElement;
-			const prevPageBtn = document.getElementById('prevPage') as HTMLButtonElement;
-			const nextPageBtn = document.getElementById('nextPage') as HTMLButtonElement;
-			const pageInfo = document.getElementById('pageInfo') as HTMLElement;
+			const pagination = getRequiredElement('pagination', HTMLElement);
+			const prevPageBtn = getRequiredElement('prevPage', HTMLButtonElement);
+			const nextPageBtn = getRequiredElement('nextPage', HTMLButtonElement);
+			const pageInfo = getRequiredElement('pageInfo', HTMLElement);
 
 			function updatePaginationUI() {
 				if (totalVideos <= VIDEOS_PER_PAGE) {

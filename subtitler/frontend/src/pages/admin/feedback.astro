@@ -419,18 +419,21 @@ import '../../styles/theme.css';
 				offset: number;
 			}
 
-			const accessDenied = document.getElementById('accessDenied') as HTMLDivElement;
-			const mainContent = document.getElementById('mainContent') as HTMLDivElement;
-			const loadingEl = document.getElementById('loading') as HTMLDivElement;
-			const errorEl = document.getElementById('error') as HTMLDivElement;
-			const emptyState = document.getElementById('emptyState') as HTMLDivElement;
-			const feedbackList = document.getElementById('feedbackList') as HTMLDivElement;
-			const pagination = document.getElementById('pagination') as HTMLDivElement;
-			const prevBtn = document.getElementById('prevBtn') as HTMLButtonElement;
-			const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
-			const pageInfo = document.getElementById('pageInfo') as HTMLSpanElement;
-			const statusFilter = document.getElementById('statusFilter') as HTMLSelectElement;
-			const typeFilter = document.getElementById('typeFilter') as HTMLSelectElement;
+			import { getRequiredElement } from '../../utils/dom';
+
+			// Get all required elements with type checking
+			const accessDenied = getRequiredElement('accessDenied', HTMLDivElement);
+			const mainContent = getRequiredElement('mainContent', HTMLDivElement);
+			const loadingEl = getRequiredElement('loading', HTMLDivElement);
+			const errorEl = getRequiredElement('error', HTMLDivElement);
+			const emptyState = getRequiredElement('emptyState', HTMLDivElement);
+			const feedbackList = getRequiredElement('feedbackList', HTMLDivElement);
+			const pagination = getRequiredElement('pagination', HTMLDivElement);
+			const prevBtn = getRequiredElement('prevBtn', HTMLButtonElement);
+			const nextBtn = getRequiredElement('nextBtn', HTMLButtonElement);
+			const pageInfo = getRequiredElement('pageInfo', HTMLSpanElement);
+			const statusFilter = getRequiredElement('statusFilter', HTMLSelectElement);
+			const typeFilter = getRequiredElement('typeFilter', HTMLSelectElement);
 
 			let currentOffset = 0;
 			const limit = 20;

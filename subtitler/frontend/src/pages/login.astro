@@ -395,27 +395,29 @@ import '../styles/theme.css';
 			import { getCaptchaConfig, renderCaptcha, getCaptchaToken, resetCaptcha } from '../utils/captcha';
 			import { clearFieldError, showFieldError } from '../utils/form-errors';
 			import { setupBlurValidation, createOptionalValidator } from '../utils/form-validation';
+			import { getRequiredElement } from '../utils/dom';
 
-			const form = document.getElementById('loginForm') as HTMLFormElement;
-			const errorDiv = document.getElementById('error') as HTMLElement;
-			const successDiv = document.getElementById('success') as HTMLElement;
-			const verifyWarningDiv = document.getElementById('verifyWarning') as HTMLElement;
-			const resendVerifyBtn = document.getElementById('resendVerifyBtn') as HTMLButtonElement;
-			const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
-			const emailInput = document.getElementById('email') as HTMLInputElement;
-			const passwordInput = document.getElementById('password') as HTMLInputElement;
-			const totpInput = document.getElementById('totpCode') as HTMLInputElement;
-			const recoveryCodeInput = document.getElementById('recoveryCode') as HTMLInputElement;
-			const credentialsSection = document.getElementById('credentialsSection') as HTMLElement;
-			const totpSection = document.getElementById('totpSection') as HTMLElement;
-			const recoverySection = document.getElementById('recoverySection') as HTMLElement;
-			const showRecoveryLink = document.getElementById('showRecoveryLink') as HTMLButtonElement;
-			const backToTotpLink = document.getElementById('backToTotpLink') as HTMLButtonElement;
-			const emailError = document.getElementById('emailError') as HTMLElement;
-			const passwordError = document.getElementById('passwordError') as HTMLElement;
-			const totpError = document.getElementById('totpError') as HTMLElement;
-			const captchaContainer = document.getElementById('captchaContainer') as HTMLElement;
-			const captchaError = document.getElementById('captchaError') as HTMLElement;
+			// Get all required elements with type checking
+			const form = getRequiredElement('loginForm', HTMLFormElement);
+			const errorDiv = getRequiredElement('error', HTMLElement);
+			const successDiv = getRequiredElement('success', HTMLElement);
+			const verifyWarningDiv = getRequiredElement('verifyWarning', HTMLElement);
+			const resendVerifyBtn = getRequiredElement('resendVerifyBtn', HTMLButtonElement);
+			const submitBtn = getRequiredElement('submitBtn', HTMLButtonElement);
+			const emailInput = getRequiredElement('email', HTMLInputElement);
+			const passwordInput = getRequiredElement('password', HTMLInputElement);
+			const totpInput = getRequiredElement('totpCode', HTMLInputElement);
+			const recoveryCodeInput = getRequiredElement('recoveryCode', HTMLInputElement);
+			const credentialsSection = getRequiredElement('credentialsSection', HTMLElement);
+			const totpSection = getRequiredElement('totpSection', HTMLElement);
+			const recoverySection = getRequiredElement('recoverySection', HTMLElement);
+			const showRecoveryLink = getRequiredElement('showRecoveryLink', HTMLButtonElement);
+			const backToTotpLink = getRequiredElement('backToTotpLink', HTMLButtonElement);
+			const emailError = getRequiredElement('emailError', HTMLElement);
+			const passwordError = getRequiredElement('passwordError', HTMLElement);
+			const totpError = getRequiredElement('totpError', HTMLElement);
+			const captchaContainer = getRequiredElement('captchaContainer', HTMLElement);
+			const captchaError = getRequiredElement('captchaError', HTMLElement);
 
 			let totpRequired = false;
 			let recoveryMode = false;
@@ -700,10 +702,10 @@ import '../styles/theme.css';
 			});
 
 			// Magic link form handling
-			const magicLinkForm = document.getElementById('magicLinkForm') as HTMLFormElement;
-			const magicEmailInput = document.getElementById('magicEmail') as HTMLInputElement;
-			const magicEmailError = document.getElementById('magicEmailError') as HTMLElement;
-			const magicLinkBtn = document.getElementById('magicLinkBtn') as HTMLButtonElement;
+			const magicLinkForm = getRequiredElement('magicLinkForm', HTMLFormElement);
+			const magicEmailInput = getRequiredElement('magicEmail', HTMLInputElement);
+			const magicEmailError = getRequiredElement('magicEmailError', HTMLElement);
+			const magicLinkBtn = getRequiredElement('magicLinkBtn', HTMLButtonElement);
 
 			// Add blur validation using shared utility
 			setupBlurValidation({ input: magicEmailInput, errorEl: magicEmailError, validate: validateEmail });
