@@ -93,6 +93,34 @@ All security events are logged through the `security` package with consistent fo
 | `file.access` | File accessed (audit) | `user_id`, `file_type`, `file_id` |
 | `file.access.denied` | File access denied | `file_type`, `file_id`, `reason` |
 
+### Admin Operations - Key Rotation
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `admin.rotation.started` | New encryption key generated | `old_version`, `new_version` |
+| `admin.rotation.completed` | Key rotation finished | `old_version`, `new_version` |
+| `admin.rotation.reencrypt_started` | File re-encryption started | `total_files` |
+| `admin.rotation.reencrypt_progress` | Batch re-encryption progress | `processed_files`, `total_files`, `current_version` |
+| `admin.rotation.reencrypt_completed` | Re-encryption finished | `total_files`, `duration_seconds` |
+| `admin.rotation.reencrypt_failed` | Re-encryption failed | `video_id`, `error` |
+
+### Admin Operations - File Deletion
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `admin.delete.video_user` | User deleted own video | `user_id`, `video_id`, `filename` |
+| `admin.delete.video_system` | System deleted expired video | `video_id`, `filename`, `is_anonymous`, `retention_hours` |
+
+### Admin Operations - Database Maintenance
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `admin.maintenance.started` | Database maintenance started | - |
+| `admin.maintenance.completed` | Database maintenance finished | `duration_seconds` |
+| `admin.maintenance.failed` | Database maintenance failed | `error` |
+| `admin.cleanup.started` | Scheduled cleanup started | - |
+| `admin.cleanup.completed` | Scheduled cleanup finished | `videos_deleted`, `sessions_deleted`, `login_attempts_deleted`, `upload_sessions_deleted`, `orphan_chunks_deleted` |
+
 ## Log Levels
 
 Security events use different log levels to indicate severity:

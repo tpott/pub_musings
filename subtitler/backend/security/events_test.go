@@ -318,3 +318,191 @@ func TestAccountLocked(t *testing.T) {
 func contains(s, substr string) bool {
 	return bytes.Contains([]byte(s), []byte(substr))
 }
+
+// Admin operation event tests
+
+func TestKeyRotationEvents(t *testing.T) {
+	t.Run("started", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		KeyRotationStarted(1, 2)
+
+		output := buf.String()
+		if !contains(output, EventKeyRotationStarted) {
+			t.Errorf("expected event %s in output: %s", EventKeyRotationStarted, output)
+		}
+		if !contains(output, "old_version=1") {
+			t.Errorf("expected old_version in output: %s", output)
+		}
+		if !contains(output, "new_version=2") {
+			t.Errorf("expected new_version in output: %s", output)
+		}
+	})
+
+	t.Run("completed", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		KeyRotationCompleted(1, 2)
+
+		output := buf.String()
+		if !contains(output, EventKeyRotationCompleted) {
+			t.Errorf("expected event %s in output: %s", EventKeyRotationCompleted, output)
+		}
+	})
+
+	t.Run("reencryption started", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		KeyReencryptionStarted(100)
+
+		output := buf.String()
+		if !contains(output, EventKeyReencryptionStarted) {
+			t.Errorf("expected event %s in output: %s", EventKeyReencryptionStarted, output)
+		}
+		if !contains(output, "total_files=100") {
+			t.Errorf("expected total_files in output: %s", output)
+		}
+	})
+
+	t.Run("reencryption progress", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		KeyReencryptionProgress(50, 100, 2)
+
+		output := buf.String()
+		if !contains(output, EventKeyReencryptionProgress) {
+			t.Errorf("expected event %s in output: %s", EventKeyReencryptionProgress, output)
+		}
+		if !contains(output, "processed_files=50") {
+			t.Errorf("expected processed_files in output: %s", output)
+		}
+	})
+
+	t.Run("reencryption completed", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		KeyReencryptionCompleted(100, 45.5)
+
+		output := buf.String()
+		if !contains(output, EventKeyReencryptionComplete) {
+			t.Errorf("expected event %s in output: %s", EventKeyReencryptionComplete, output)
+		}
+		if !contains(output, "duration_seconds=45.5") {
+			t.Errorf("expected duration_seconds in output: %s", output)
+		}
+	})
+}
+
+func TestVideoDeletedEvents(t *testing.T) {
+	t.Run("deleted by user", func(t *testing.T) {
+		buf := setupTestLogger()
+		ctx := context.Background()
+
+		VideoDeletedByUser(ctx, "192.168.1.1", "user123", "video456", "test.mp4")
+
+		output := buf.String()
+		if !contains(output, EventVideoDeletedByUser) {
+			t.Errorf("expected event %s in output: %s", EventVideoDeletedByUser, output)
+		}
+		if !contains(output, "video_id=video456") {
+			t.Errorf("expected video_id in output: %s", output)
+		}
+		if !contains(output, "filename=test.mp4") {
+			t.Errorf("expected filename in output: %s", output)
+		}
+	})
+
+	t.Run("deleted by system", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		VideoDeletedBySystem("video789", "expired.mp4", true, 48)
+
+		output := buf.String()
+		if !contains(output, EventVideoDeletedBySystem) {
+			t.Errorf("expected event %s in output: %s", EventVideoDeletedBySystem, output)
+		}
+		if !contains(output, "is_anonymous=true") {
+			t.Errorf("expected is_anonymous in output: %s", output)
+		}
+		if !contains(output, "retention_hours=48") {
+			t.Errorf("expected retention_hours in output: %s", output)
+		}
+	})
+}
+
+func TestMaintenanceEvents(t *testing.T) {
+	t.Run("started", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		MaintenanceStarted()
+
+		output := buf.String()
+		if !contains(output, EventMaintenanceStarted) {
+			t.Errorf("expected event %s in output: %s", EventMaintenanceStarted, output)
+		}
+	})
+
+	t.Run("completed", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		MaintenanceCompleted(120.5)
+
+		output := buf.String()
+		if !contains(output, EventMaintenanceCompleted) {
+			t.Errorf("expected event %s in output: %s", EventMaintenanceCompleted, output)
+		}
+		if !contains(output, "duration_seconds=120.5") {
+			t.Errorf("expected duration_seconds in output: %s", output)
+		}
+	})
+
+	t.Run("failed", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		MaintenanceFailed(bytes.ErrTooLarge)
+
+		output := buf.String()
+		if !contains(output, EventMaintenanceFailed) {
+			t.Errorf("expected event %s in output: %s", EventMaintenanceFailed, output)
+		}
+	})
+}
+
+func TestCleanupEvents(t *testing.T) {
+	t.Run("started", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		CleanupStarted()
+
+		output := buf.String()
+		if !contains(output, EventCleanupStarted) {
+			t.Errorf("expected event %s in output: %s", EventCleanupStarted, output)
+		}
+	})
+
+	t.Run("completed", func(t *testing.T) {
+		buf := setupTestLogger()
+
+		CleanupCompleted(5, 10, 100, 3, 2)
+
+		output := buf.String()
+		if !contains(output, EventCleanupCompleted) {
+			t.Errorf("expected event %s in output: %s", EventCleanupCompleted, output)
+		}
+		if !contains(output, "videos_deleted=5") {
+			t.Errorf("expected videos_deleted in output: %s", output)
+		}
+		if !contains(output, "sessions_deleted=10") {
+			t.Errorf("expected sessions_deleted in output: %s", output)
+		}
+		if !contains(output, "login_attempts_deleted=100") {
+			t.Errorf("expected login_attempts_deleted in output: %s", output)
+		}
+		if !contains(output, "upload_sessions_deleted=3") {
+			t.Errorf("expected upload_sessions_deleted in output: %s", output)
+		}
+		if !contains(output, "orphan_chunks_deleted=2") {
+			t.Errorf("expected orphan_chunks_deleted in output: %s", output)
+		}
+	})
+}

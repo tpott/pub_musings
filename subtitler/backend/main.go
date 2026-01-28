@@ -4905,7 +4905,12 @@ func main() {
 			}
 		}
 
-		logging.InfoContext(r.Context(), "Video deleted", "video_id", videoID)
+		// Log security event for video deletion
+		userID := ""
+		if user != nil {
+			userID = user.ID
+		}
+		security.VideoDeletedByUser(r.Context(), ratelimit.GetClientIP(r), userID, videoID, video.Filename)
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -6004,6 +6009,7 @@ func startCleanupScheduler() {
 
 // runCleanup deletes expired videos and their associated files
 func runCleanup() {
+	security.CleanupStarted()
 	logging.Info("Running cleanup for expired videos")
 
 	expiredVideos, err := database.GetExpiredVideos()
@@ -6014,7 +6020,6 @@ func runCleanup() {
 
 	if len(expiredVideos) == 0 {
 		logging.Debug("No expired videos to clean up")
-		return
 	}
 
 	logging.Info("Found expired videos to clean up", "count", len(expiredVideos))
@@ -6061,6 +6066,14 @@ func runCleanup() {
 			}
 		}
 
+		// Log security event for system video deletion
+		isAnonymous := video.UserID == nil
+		retentionHours := 2160 // 90 days for registered users
+		if isAnonymous {
+			retentionHours = 48
+		}
+		security.VideoDeletedBySystem(video.ID, video.Filename, isAnonymous, retentionHours)
+
 		deletedCount++
 		logging.Info("Cleaned up expired video",
 			"video_id", video.ID,
@@ -6085,11 +6098,11 @@ func runCleanup() {
 	}
 
 	// Clean up expired upload sessions
+	uploadSessionDeleteCount := 0
 	expiredSessions, err := database.GetExpiredUploadSessions()
 	if err != nil {
 		logging.Error("Error getting expired upload sessions", "error", err)
 	} else if len(expiredSessions) > 0 {
-		sessionDeleteCount := 0
 		for _, session := range expiredSessions {
 			chunkPaths, err := database.DeleteUploadSession(session.ID)
 			if err != nil {
@@ -6103,10 +6116,10 @@ func runCleanup() {
 			// Try to remove the chunks directory
 			chunksDir := filepath.Join(uploadDir, "chunks", session.ID)
 			os.Remove(chunksDir)
-			sessionDeleteCount++
+			uploadSessionDeleteCount++
 		}
-		if sessionDeleteCount > 0 {
-			logging.Info("Deleted expired upload sessions", "count", sessionDeleteCount)
+		if uploadSessionDeleteCount > 0 {
+			logging.Info("Deleted expired upload sessions", "count", uploadSessionDeleteCount)
 		}
 	}
 
@@ -6116,6 +6129,8 @@ func runCleanup() {
 		logging.Info("Deleted orphan chunk directories", "count", orphanCleanupCount)
 	}
 
+	// Log security event with cleanup summary
+	security.CleanupCompleted(deletedCount, sessionCount, loginAttemptCount, uploadSessionDeleteCount, orphanCleanupCount)
 	logging.Info("Cleanup complete", "videos_deleted", deletedCount)
 }
 
@@ -6196,14 +6211,17 @@ func startMaintenanceScheduler() {
 
 // runDatabaseMaintenance performs VACUUM and ANALYZE on the SQLite database.
 func runDatabaseMaintenance() {
+	security.MaintenanceStarted()
 	logging.Info("Running database maintenance (VACUUM + ANALYZE)")
 	startTime := time.Now()
 
 	if err := database.Maintenance(); err != nil {
+		security.MaintenanceFailed(err)
 		logging.Error("Database maintenance failed", "error", err)
 		return
 	}
 
 	duration := time.Since(startTime)
+	security.MaintenanceCompleted(duration.Seconds())
 	logging.Info("Database maintenance complete", "duration", duration)
 }

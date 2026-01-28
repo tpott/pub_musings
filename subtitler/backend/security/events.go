@@ -71,6 +71,25 @@ const (
 	// File access events
 	EventFileAccess       = "file.access"
 	EventFileAccessDenied = "file.access.denied"
+
+	// Admin operations - key rotation
+	EventKeyRotationStarted      = "admin.rotation.started"
+	EventKeyRotationCompleted    = "admin.rotation.completed"
+	EventKeyReencryptionStarted  = "admin.rotation.reencrypt_started"
+	EventKeyReencryptionProgress = "admin.rotation.reencrypt_progress"
+	EventKeyReencryptionComplete = "admin.rotation.reencrypt_completed"
+	EventKeyReencryptionFailed   = "admin.rotation.reencrypt_failed"
+
+	// Admin operations - file deletion
+	EventVideoDeletedByUser   = "admin.delete.video_user"
+	EventVideoDeletedBySystem = "admin.delete.video_system"
+
+	// Admin operations - database maintenance
+	EventMaintenanceStarted   = "admin.maintenance.started"
+	EventMaintenanceCompleted = "admin.maintenance.completed"
+	EventMaintenanceFailed    = "admin.maintenance.failed"
+	EventCleanupStarted       = "admin.cleanup.started"
+	EventCleanupCompleted     = "admin.cleanup.completed"
 )
 
 // LogSecurityEvent logs a security event with standard fields.
@@ -275,4 +294,76 @@ func FileAccessDenied(ctx context.Context, ip, fileType, fileID, reason string) 
 // MagicLinkRateLimitExceeded logs when a user exceeds the per-email magic link rate limit.
 func MagicLinkRateLimitExceeded(userID, email string) {
 	logging.Warn("Security event", "event", EventMagicLinkRateLimitExceeded, "user_id", userID, "email", email)
+}
+
+// --- Admin operation events ---
+
+// KeyRotationStarted logs when a new encryption key is being generated.
+func KeyRotationStarted(oldVersion, newVersion int) {
+	logging.Info("Security event", "event", EventKeyRotationStarted, "old_version", oldVersion, "new_version", newVersion)
+}
+
+// KeyRotationCompleted logs when key rotation is complete.
+func KeyRotationCompleted(oldVersion, newVersion int) {
+	logging.Info("Security event", "event", EventKeyRotationCompleted, "old_version", oldVersion, "new_version", newVersion)
+}
+
+// KeyReencryptionStarted logs when file re-encryption begins.
+func KeyReencryptionStarted(totalFiles int) {
+	logging.Info("Security event", "event", EventKeyReencryptionStarted, "total_files", totalFiles)
+}
+
+// KeyReencryptionProgress logs batch progress during re-encryption.
+func KeyReencryptionProgress(processedFiles, totalFiles int, currentVersion int) {
+	logging.Info("Security event", "event", EventKeyReencryptionProgress, "processed_files", processedFiles, "total_files", totalFiles, "current_version", currentVersion)
+}
+
+// KeyReencryptionCompleted logs successful completion of re-encryption.
+func KeyReencryptionCompleted(totalFiles int, durationSecs float64) {
+	logging.Info("Security event", "event", EventKeyReencryptionComplete, "total_files", totalFiles, "duration_seconds", durationSecs)
+}
+
+// KeyReencryptionFailed logs a re-encryption failure.
+func KeyReencryptionFailed(videoID string, err error) {
+	logging.Error("Security event", "event", EventKeyReencryptionFailed, "video_id", videoID, "error", err.Error())
+}
+
+// VideoDeletedByUser logs when a user deletes their own video.
+func VideoDeletedByUser(ctx context.Context, ip, userID, videoID, filename string) {
+	LogSecurityEvent(ctx, EventVideoDeletedByUser, ip, "user_id", userID, "video_id", videoID, "filename", filename)
+}
+
+// VideoDeletedBySystem logs when the system deletes an expired video.
+func VideoDeletedBySystem(videoID, filename string, isAnonymous bool, retentionHours int) {
+	logging.Info("Security event", "event", EventVideoDeletedBySystem, "video_id", videoID, "filename", filename, "is_anonymous", isAnonymous, "retention_hours", retentionHours)
+}
+
+// MaintenanceStarted logs when database maintenance begins.
+func MaintenanceStarted() {
+	logging.Info("Security event", "event", EventMaintenanceStarted)
+}
+
+// MaintenanceCompleted logs when database maintenance completes successfully.
+func MaintenanceCompleted(durationSecs float64) {
+	logging.Info("Security event", "event", EventMaintenanceCompleted, "duration_seconds", durationSecs)
+}
+
+// MaintenanceFailed logs when database maintenance fails.
+func MaintenanceFailed(err error) {
+	logging.Error("Security event", "event", EventMaintenanceFailed, "error", err.Error())
+}
+
+// CleanupStarted logs when scheduled cleanup begins.
+func CleanupStarted() {
+	logging.Info("Security event", "event", EventCleanupStarted)
+}
+
+// CleanupCompleted logs when scheduled cleanup completes.
+func CleanupCompleted(videosDeleted int, sessionsDeleted, loginAttemptsDeleted int64, uploadSessionsDeleted, orphanChunksDeleted int) {
+	logging.Info("Security event", "event", EventCleanupCompleted,
+		"videos_deleted", videosDeleted,
+		"sessions_deleted", sessionsDeleted,
+		"login_attempts_deleted", loginAttemptsDeleted,
+		"upload_sessions_deleted", uploadSessionsDeleted,
+		"orphan_chunks_deleted", orphanChunksDeleted)
 }
