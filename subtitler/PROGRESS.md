@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**291 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**292 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**291 tasks completed.** Working through remaining tasks from deep inspection.
+**292 tasks completed.** Working through remaining tasks from deep inspection.
 
 ### Recent Work (2026-01-28)
+
+**Task 291: Backend Panic to Error Conversion**
+- WithTransaction now converts panics to PanicError instead of re-panicking
+- PanicError includes panic value and stack trace for debugging
+- Prevents server crashes from panics during database transactions
+- Updated test to verify new behavior
 
 **Task 295: Processing Speed localStorage Cleanup**
 - getHistory() now clears corrupted localStorage instead of just logging

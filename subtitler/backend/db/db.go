@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -341,11 +342,23 @@ type Tx struct {
 	tx *sql.Tx
 }
 
+// PanicError wraps a panic value and stack trace as an error.
+// This allows panics to propagate through the error handling system
+// rather than crashing the server.
+type PanicError struct {
+	Value interface{}
+	Stack string
+}
+
+func (e *PanicError) Error() string {
+	return fmt.Sprintf("panic in transaction: %v\n%s", e.Value, e.Stack)
+}
+
 // WithTransaction executes the given function within a database transaction.
 // If the function returns an error, the transaction is rolled back.
 // If the function succeeds, the transaction is committed.
-// If the function panics, the transaction is rolled back and the panic is re-raised
-// to preserve the original stack trace.
+// If the function panics, the transaction is rolled back and the panic is
+// converted to a PanicError that is returned, preventing server crashes.
 // The transaction uses a context with timeout (default 30s) to prevent indefinite hangs.
 func (db *DB) WithTransaction(fn func(*Tx) error) (err error) {
 	ctx, cancel := db.queryContext()
@@ -356,13 +369,19 @@ func (db *DB) WithTransaction(fn func(*Tx) error) (err error) {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	// Ensure transaction is rolled back on panic
+	// Ensure transaction is rolled back on panic and convert panic to error
 	defer func() {
 		if p := recover(); p != nil {
-			// Attempt to rollback - best effort, don't override panic
+			// Attempt to rollback - best effort
 			_ = tx.Rollback()
-			// Re-panic to preserve the original stack trace
-			panic(p)
+			// Capture stack trace
+			buf := make([]byte, 4096)
+			n := runtime.Stack(buf, false)
+			// Convert panic to error instead of re-panicking
+			err = &PanicError{
+				Value: p,
+				Stack: string(buf[:n]),
+			}
 		}
 	}()
 

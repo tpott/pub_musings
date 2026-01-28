@@ -1913,27 +1913,30 @@ func TestWithTransactionPanicRecovery(t *testing.T) {
 
 	// Execute transaction that panics after making a change
 	panicMsg := "test panic in transaction"
-	func() {
-		defer func() {
-			p := recover()
-			if p == nil {
-				t.Fatal("Expected panic to be re-raised")
-			}
-			if p != panicMsg {
-				t.Errorf("Expected panic message '%s', got '%v'", panicMsg, p)
-			}
-		}()
+	err = db.WithTransaction(func(tx *Tx) error {
+		// Make a change
+		_, err := tx.tx.Exec(`UPDATE users SET email = 'panic-changed@example.com' WHERE id = ?`, user.ID)
+		if err != nil {
+			return err
+		}
+		// Panic after the change
+		panic(panicMsg)
+	})
 
-		_ = db.WithTransaction(func(tx *Tx) error {
-			// Make a change
-			_, err := tx.tx.Exec(`UPDATE users SET email = 'panic-changed@example.com' WHERE id = ?`, user.ID)
-			if err != nil {
-				return err
-			}
-			// Panic after the change
-			panic(panicMsg)
-		})
-	}()
+	// Verify panic was converted to PanicError
+	if err == nil {
+		t.Fatal("Expected error from panicking transaction")
+	}
+	panicErr, ok := err.(*PanicError)
+	if !ok {
+		t.Fatalf("Expected PanicError, got %T: %v", err, err)
+	}
+	if panicErr.Value != panicMsg {
+		t.Errorf("Expected panic value '%s', got '%v'", panicMsg, panicErr.Value)
+	}
+	if panicErr.Stack == "" {
+		t.Error("Expected stack trace in PanicError, got empty string")
+	}
 
 	// Verify the change was rolled back
 	unchangedUser, err := db.GetUserByID(user.ID)
