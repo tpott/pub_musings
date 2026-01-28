@@ -2432,6 +2432,21 @@ func (ts *testServer) registerHandlers() {
 		var chunkIndex int
 		fmt.Sscanf(chunkIndexStr, "%d", &chunkIndex)
 
+		// Early validation: reject negative index
+		if chunkIndex < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid chunk_index"})
+			return
+		}
+
+		// Early upper bound validation - prevents integer overflow issues
+		const maxChunkIndex = 100000
+		if chunkIndex >= maxChunkIndex {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Chunk index exceeds maximum allowed value"})
+			return
+		}
+
 		// Get session
 		session, err := ts.db.GetUploadSession(uploadSessionID)
 		if err != nil || session == nil {
@@ -7895,6 +7910,47 @@ func TestChunkedUploadNegativeChunkIndex(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for negative chunk index, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestChunkedUploadExcessiveChunkIndex(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Initialize session
+	initResp := ts.doRequest("POST", "/api/upload/init", map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         1000,
+		"content_type": "video/mp4",
+		"chunk_size":   500,
+	}, "")
+
+	var initResult map[string]interface{}
+	json.NewDecoder(initResp.Body).Decode(&initResult)
+	sessionID := initResult["upload_session_id"].(string)
+
+	// Try to upload chunk with index exceeding maximum allowed
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("upload_session_id", sessionID)
+	writer.WriteField("chunk_index", "100000") // Exceeds maxChunkIndex
+	part, _ := writer.CreateFormFile("chunk", "chunk_excessive")
+	part.Write(make([]byte, 500))
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/upload/chunk", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for excessive chunk index, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(rr.Body).Decode(&result)
+	if !strings.Contains(result["error"], "maximum") {
+		t.Errorf("Expected error message about maximum, got: %s", result["error"])
 	}
 }
 

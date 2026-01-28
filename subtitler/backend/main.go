@@ -3638,6 +3638,15 @@ func main() {
 			return
 		}
 
+		// Early upper bound validation - prevents integer overflow issues
+		// Maximum reasonable chunks: 500GB / 50MB = 10,000 chunks
+		const maxChunkIndex = 100000
+		if chunkIndex >= maxChunkIndex {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Chunk index exceeds maximum allowed value"})
+			return
+		}
+
 		// Get session
 		session, err := database.GetUploadSession(uploadSessionID)
 		if err != nil {

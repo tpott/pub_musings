@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**308 tasks completed.**
+**309 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 309: Add Chunk Index Upper Bound Validation (COMPLETE)**
+- Added early upper bound check in `/api/upload/chunk` endpoint (main.go line 3641-3648)
+- Maximum chunk index set to 100,000 (supports files up to ~5TB with 50MB chunks)
+- Validation occurs before database query, preventing integer overflow edge cases
+- Added same validation to test server handler for consistency
+- Added `TestChunkedUploadExcessiveChunkIndex` test verifying the behavior
 
 **Task 308: Add Path Validation for Chunk Directories (COMPLETE)**
 - Added `validation.ValidateHexID()` checks for all user-provided uploadSessionID values
