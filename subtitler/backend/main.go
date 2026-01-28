@@ -3305,10 +3305,7 @@ func main() {
 			logging.ErrorContext(r.Context(), "Error copying file", "error", err)
 			removeWithLogging(destPath, "partial file cleanup after copy error")
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to save file",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save file")
 			return
 		}
 		// Close before encrypting - log any close error but continue since data is written
@@ -3322,10 +3319,7 @@ func main() {
 		if err := audio.ValidateVideoFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
 			removeWithLogging(destPath, "invalid video file cleanup")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File is not a valid video. Please upload a valid video file.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "File is not a valid video. Please upload a valid video file.")
 			return
 		}
 

@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**325 tasks completed.**
+**326 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 326: Replace json.NewEncoder Error Responses with httputil.RespondError (COMPLETE)**
+- Replaced 2 json.NewEncoder(w).Encode calls in upload error paths with httputil.RespondError()
+- httputil.RespondError() handles encoding errors internally with logging
+- Note: 191 total json.NewEncoder calls exist in main.go - full refactor is future work
 
 **Task 325: Validate UPLOAD_DIR and DB_PATH Environment Variable Paths (COMPLETE)**
 - Added validation.ValidateFilePath() calls for UPLOAD_DIR, DB_PATH, and KEY_PATH in initConfig()
