@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**318 tasks completed.**
+**319 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 316: Add Debouncing to Form Input Validation (COMPLETE)**
+- Added debounce() utility function to form-validation.ts
+- setupBlurValidation() now debounces input handler (default 100ms)
+- Added debounceDelay config option for custom delay
+- Added 8 new tests for debounce behavior
+- Updated existing test to account for debouncing
+- Prevents excessive DOM updates during rapid typing
 
 **Task 315: Use dom.ts Helpers in Page Scripts (COMPLETE)**
 - Updated 9 page files to use getRequiredElement/getOptionalElement from dom.ts

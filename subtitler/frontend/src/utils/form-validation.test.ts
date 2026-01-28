@@ -4,6 +4,7 @@ import {
 	setupBlurValidations,
 	createPasswordMatchValidator,
 	createOptionalValidator,
+	debounce,
 	type BlurValidationConfig,
 } from './form-validation';
 
@@ -111,7 +112,8 @@ describe('form-validation utility', () => {
 			expect(mockErrorEl.style.display).toBe('none');
 		});
 
-		it('should clear error on input', () => {
+		it('should clear error on input (after debounce)', () => {
+			vi.useFakeTimers();
 			const validate = vi.fn().mockReturnValue(null);
 			let inputHandler: () => void = () => {};
 
@@ -123,8 +125,12 @@ describe('form-validation utility', () => {
 
 			inputHandler();
 
+			// Wait for debounce delay (default 100ms)
+			vi.advanceTimersByTime(100);
+
 			expect(mockInput.classList.remove).toHaveBeenCalledWith('input-error');
 			expect(mockErrorEl.style.display).toBe('none');
+			vi.useRealTimers();
 		});
 
 		it('should skip validation when condition returns false', () => {
@@ -300,6 +306,167 @@ describe('form-validation utility', () => {
 		});
 	});
 
+	describe('debounce', () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('should delay function execution', () => {
+			const fn = vi.fn();
+			const debouncedFn = debounce(fn, 100);
+
+			debouncedFn();
+			expect(fn).not.toHaveBeenCalled();
+
+			vi.advanceTimersByTime(50);
+			expect(fn).not.toHaveBeenCalled();
+
+			vi.advanceTimersByTime(50);
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it('should reset timer on subsequent calls', () => {
+			const fn = vi.fn();
+			const debouncedFn = debounce(fn, 100);
+
+			debouncedFn();
+			vi.advanceTimersByTime(50);
+			debouncedFn(); // Reset the timer
+			vi.advanceTimersByTime(50);
+			expect(fn).not.toHaveBeenCalled(); // Still waiting
+
+			vi.advanceTimersByTime(50);
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it('should only call function once after rapid calls', () => {
+			const fn = vi.fn();
+			const debouncedFn = debounce(fn, 100);
+
+			// Simulate rapid typing
+			debouncedFn();
+			debouncedFn();
+			debouncedFn();
+			debouncedFn();
+			debouncedFn();
+
+			vi.advanceTimersByTime(100);
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it('should use default delay of 100ms', () => {
+			const fn = vi.fn();
+			const debouncedFn = debounce(fn);
+
+			debouncedFn();
+			vi.advanceTimersByTime(99);
+			expect(fn).not.toHaveBeenCalled();
+
+			vi.advanceTimersByTime(1);
+			expect(fn).toHaveBeenCalledTimes(1);
+		});
+
+		it('should pass arguments to the debounced function', () => {
+			const fn = vi.fn();
+			const debouncedFn = debounce(fn, 100);
+
+			debouncedFn('arg1', 'arg2');
+			vi.advanceTimersByTime(100);
+
+			expect(fn).toHaveBeenCalledWith('arg1', 'arg2');
+		});
+	});
+
+	describe('setupBlurValidation with debouncing', () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('should debounce input handler with default 100ms delay', () => {
+			const validate = vi.fn().mockReturnValue(null);
+			let inputHandler: () => void = () => {};
+
+			// Create mock input element for this test
+			const testInput = {
+				value: '',
+				classList: {
+					add: vi.fn(),
+					remove: vi.fn(),
+				},
+				addEventListener: vi.fn((event, handler) => {
+					if (event === 'input') inputHandler = handler as () => void;
+				}),
+				removeEventListener: vi.fn(),
+			} as unknown as HTMLInputElement;
+
+			const testErrorEl = {
+				textContent: '',
+				style: { display: 'block' },
+			} as unknown as HTMLElement;
+
+			setupBlurValidation({ input: testInput, errorEl: testErrorEl, validate });
+
+			// Simulate rapid input
+			inputHandler();
+			inputHandler();
+			inputHandler();
+
+			// classList.remove should not have been called yet
+			expect(testInput.classList.remove).not.toHaveBeenCalled();
+
+			// After debounce delay, it should be called once
+			vi.advanceTimersByTime(100);
+			expect(testInput.classList.remove).toHaveBeenCalledTimes(1);
+		});
+
+		it('should use custom debounce delay when provided', () => {
+			const validate = vi.fn().mockReturnValue(null);
+			let inputHandler: () => void = () => {};
+
+			const testInput = {
+				value: '',
+				classList: {
+					add: vi.fn(),
+					remove: vi.fn(),
+				},
+				addEventListener: vi.fn((event, handler) => {
+					if (event === 'input') inputHandler = handler as () => void;
+				}),
+				removeEventListener: vi.fn(),
+			} as unknown as HTMLInputElement;
+
+			const testErrorEl = {
+				textContent: '',
+				style: { display: 'block' },
+			} as unknown as HTMLElement;
+
+			setupBlurValidation({
+				input: testInput,
+				errorEl: testErrorEl,
+				validate,
+				debounceDelay: 200,
+			});
+
+			inputHandler();
+
+			// Should not be called at 100ms
+			vi.advanceTimersByTime(100);
+			expect(testInput.classList.remove).not.toHaveBeenCalled();
+
+			// Should be called at 200ms
+			vi.advanceTimersByTime(100);
+			expect(testInput.classList.remove).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	describe('module exports', () => {
 		it('should export setupBlurValidation', () => {
 			expect(typeof setupBlurValidation).toBe('function');
@@ -315,6 +482,10 @@ describe('form-validation utility', () => {
 
 		it('should export createOptionalValidator', () => {
 			expect(typeof createOptionalValidator).toBe('function');
+		});
+
+		it('should export debounce', () => {
+			expect(typeof debounce).toBe('function');
 		});
 	});
 });

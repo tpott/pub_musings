@@ -8,6 +8,30 @@
 import { clearFieldError, showFieldError } from './form-errors';
 
 /**
+ * Creates a debounced version of a function
+ *
+ * @param fn - Function to debounce
+ * @param delay - Delay in milliseconds (default 100ms)
+ * @returns Debounced function
+ */
+export function debounce<T extends (...args: unknown[]) => void>(
+	fn: T,
+	delay: number = 100
+): (...args: Parameters<T>) => void {
+	let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+	return (...args: Parameters<T>) => {
+		if (timeoutId !== null) {
+			clearTimeout(timeoutId);
+		}
+		timeoutId = setTimeout(() => {
+			fn(...args);
+			timeoutId = null;
+		}, delay);
+	};
+}
+
+/**
  * Configuration for setting up blur validation on a field
  */
 export interface BlurValidationConfig {
@@ -19,6 +43,8 @@ export interface BlurValidationConfig {
 	validate: (value: string) => string | null;
 	/** Optional: only validate if a condition is met */
 	condition?: () => boolean;
+	/** Optional: debounce delay for input handler in ms (default 100ms) */
+	debounceDelay?: number;
 }
 
 /**
@@ -41,7 +67,7 @@ export interface BlurValidationConfig {
  * ```
  */
 export function setupBlurValidation(config: BlurValidationConfig): () => void {
-	const { input, errorEl, validate, condition } = config;
+	const { input, errorEl, validate, condition, debounceDelay = 100 } = config;
 
 	const handleBlur = () => {
 		// Skip validation if condition is provided and returns false
@@ -57,9 +83,12 @@ export function setupBlurValidation(config: BlurValidationConfig): () => void {
 		}
 	};
 
-	const handleInput = () => {
+	const handleInputRaw = () => {
 		clearFieldError(input, errorEl);
 	};
+
+	// Debounce the input handler to prevent excessive DOM updates during rapid typing
+	const handleInput = debounce(handleInputRaw, debounceDelay);
 
 	input.addEventListener('blur', handleBlur);
 	input.addEventListener('input', handleInput);
