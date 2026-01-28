@@ -491,35 +491,17 @@ import '../styles/theme.css';
 				opacity: 1;
 			}
 			/* Playback speed control */
-			.modal-video-controls {
-				display: flex;
-				align-items: center;
-				gap: 0.75rem;
-				margin-top: 0.75rem;
-				padding: 0.5rem;
-				background-color: var(--secondary-bg);
-				border-radius: 6px;
-			}
-			.speed-control {
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-			}
-			.speed-label {
-				font-size: 0.8rem;
-				color: var(--text-secondary);
-			}
 			.speed-btn {
-				padding: 0.25rem 0.5rem;
+				padding: 0.75rem 1.25rem;
 				background-color: var(--btn-secondary-bg);
 				color: var(--text-color);
 				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-size: 0.8rem;
+				border-radius: 6px;
+				font-size: 0.9rem;
 				font-weight: 500;
 				cursor: pointer;
 				transition: background-color 0.2s;
-				min-width: 50px;
+				min-width: 60px;
 				text-align: center;
 			}
 			.speed-btn:hover {
@@ -587,9 +569,14 @@ import '../styles/theme.css';
 				font-size: 1.25rem;
 				text-align: center;
 				min-height: 3.5rem;
-				display: flex;
-				align-items: center;
-				justify-content: center;
+				/* Use table display for vertical centering instead of flex
+				   to prevent bionic <strong> tags from breaking word spacing */
+				display: table;
+				width: 100%;
+			}
+			.modal-current-subtitle-inner {
+				display: table-cell;
+				vertical-align: middle;
 			}
 			.modal-segments {
 				margin-top: 1rem;
@@ -769,25 +756,17 @@ import '../styles/theme.css';
 							<video class="modal-video" id="modalVideo" controls></video>
 							<div class="modal-speed-indicator" id="modalSpeedIndicator" aria-live="polite">1x</div>
 						</div>
-						<div class="modal-video-controls">
-							<div class="speed-control">
-								<span class="speed-label">Speed:</span>
-								<div class="speed-dropdown" id="modalSpeedDropdown">
-									<button class="speed-btn" id="modalSpeedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
-									<div class="speed-options" id="modalSpeedOptions" role="menu">
-										<button class="speed-option" data-speed="0.5" role="menuitem">0.5x</button>
-										<button class="speed-option" data-speed="0.75" role="menuitem">0.75x</button>
-										<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
-										<button class="speed-option" data-speed="1.25" role="menuitem">1.25x</button>
-										<button class="speed-option" data-speed="1.5" role="menuitem">1.5x</button>
-										<button class="speed-option" data-speed="2" role="menuitem">2x</button>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div class="modal-current-subtitle" id="modalCurrentSubtitle"></div>
+						<div class="modal-current-subtitle"><span class="modal-current-subtitle-inner" id="modalCurrentSubtitle"></span></div>
 						<div class="modal-segments" id="modalSegments"></div>
 						<div class="modal-actions">
+							<div class="speed-dropdown" id="modalSpeedDropdown">
+								<button class="speed-btn" id="modalSpeedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
+								<div class="speed-options" id="modalSpeedOptions" role="menu">
+									<button class="speed-option" data-speed="0.8" role="menuitem">0.8x</button>
+									<button class="speed-option" data-speed="0.9" role="menuitem">0.9x</button>
+									<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
+								</div>
+							</div>
 							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener" aria-label="View subtitles in SRT format">SRT</a>
 							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener" aria-label="View subtitles in VTT format">VTT</a>
 							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener" aria-label="View subtitles in JSON format">JSON</a>
@@ -1540,17 +1519,17 @@ import '../styles/theme.css';
 				modalSegments.querySelectorAll('.modal-segment').forEach((el, idx) => {
 					if (idx === currentIndex) {
 						el.classList.add('active');
-						// Center the active segment in the container (not at bottom)
+						// Position active segment in lower portion of container
+						// This shows more "already played" context above, less "upcoming" below
 						const container = modalSegments;
 						const segmentEl = el as HTMLElement;
 
-						// Calculate scroll position to center the segment
 						const containerHeight = container.clientHeight;
 						const segmentTop = segmentEl.offsetTop;
 						const segmentHeight = segmentEl.offsetHeight;
 
-						// Target: position segment in the center of the container
-						const targetScrollTop = segmentTop - (containerHeight / 2) + (segmentHeight / 2);
+						// Target: position segment 2/3 down the container (more past, less future)
+						const targetScrollTop = segmentTop - (containerHeight * 2 / 3) + (segmentHeight / 2);
 						container.scrollTop = Math.max(0, targetScrollTop);
 					} else {
 						el.classList.remove('active');

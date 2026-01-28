@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**243 tasks completed** as of 2026-01-27. All core features implemented and tested. Seventh deep inspection filed 15 new improvement tasks (244-258).
+**248 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**248 tasks completed.** Seventh deep inspection (2026-01-27) identified improvements; tasks 244-248 completed (documentation updates).
+**248 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### User Feedback Fixes (2026-01-28)
+
+- **Bionic reading word squashing fix**: Changed `.modal-current-subtitle` from `display: flex` to `display: table` to prevent `<strong>` tags from breaking word spacing
+- **Playback speed update**: Changed options from `0.5x-2x` to `0.8x, 0.9x, 1x` for language learning focus
+- **Playback speed location**: Moved speed control from separate row to action bar (saves vertical space), overlay on upload video
+- **Modal segments scroll**: Changed from centering active segment to positioning 2/3 down (shows more past context, less future)
+- **Dark mode refresh**: Softened colors - warmer backgrounds (#1a1a1f), brighter accents (#60a5fa), better contrast throughout
+- **SRT/VTT/JSON viewer**: Changed from blob download to HTML viewer page with copy-to-clipboard button (prevents browser download prompts)
+- **Word-level bionic reading spec**: Created `specs/word-level-highlighting.md` documenting plan for karaoke-style word highlighting
 
 ### Tasks 244-248: Documentation Updates (2026-01-27)
 

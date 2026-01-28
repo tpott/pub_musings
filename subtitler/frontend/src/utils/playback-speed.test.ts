@@ -42,7 +42,7 @@ describe('playback-speed utility', () => {
 
     describe('PLAYBACK_SPEEDS constant', () => {
         it('should contain expected speed values', () => {
-            expect(PLAYBACK_SPEEDS).toEqual([0.5, 0.75, 1.0, 1.25, 1.5, 2.0]);
+            expect(PLAYBACK_SPEEDS).toEqual([0.8, 0.9, 1.0]);
         });
 
         it('should have DEFAULT_SPEED as 1.0', () => {
@@ -56,8 +56,8 @@ describe('playback-speed utility', () => {
         });
 
         it('should return saved value when valid', () => {
-            localStorageMock._setStore({ 'subtitler:playback-speed': '0.75' });
-            expect(getSavedSpeed()).toBe(0.75);
+            localStorageMock._setStore({ 'subtitler:playback-speed': '0.8' });
+            expect(getSavedSpeed()).toBe(0.8);
         });
 
         it('should return saved value for all valid speeds', () => {
@@ -85,37 +85,34 @@ describe('playback-speed utility', () => {
 
     describe('saveSpeed', () => {
         it('should save speed to localStorage', () => {
-            saveSpeed(0.75);
-            expect(localStorageMock.setItem).toHaveBeenCalledWith('subtitler:playback-speed', '0.75');
+            saveSpeed(0.8);
+            expect(localStorageMock.setItem).toHaveBeenCalledWith('subtitler:playback-speed', '0.8');
         });
 
         it('should overwrite previous value', () => {
-            saveSpeed(0.75);
-            saveSpeed(1.5);
-            expect(localStorageMock.setItem).toHaveBeenLastCalledWith('subtitler:playback-speed', '1.5');
+            saveSpeed(0.8);
+            saveSpeed(0.9);
+            expect(localStorageMock.setItem).toHaveBeenLastCalledWith('subtitler:playback-speed', '0.9');
         });
     });
 
     describe('setPlaybackSpeed', () => {
         it('should set video playbackRate and save to localStorage', () => {
             const mockVideo = { playbackRate: 1.0 } as HTMLVideoElement;
-            setPlaybackSpeed(mockVideo, 0.75);
-            expect(mockVideo.playbackRate).toBe(0.75);
-            expect(localStorageMock.setItem).toHaveBeenCalledWith('subtitler:playback-speed', '0.75');
+            setPlaybackSpeed(mockVideo, 0.9);
+            expect(mockVideo.playbackRate).toBe(0.9);
+            expect(localStorageMock.setItem).toHaveBeenCalledWith('subtitler:playback-speed', '0.9');
         });
     });
 
     describe('getNextSpeed', () => {
         it('should return next speed in sequence', () => {
-            expect(getNextSpeed(0.5)).toBe(0.75);
-            expect(getNextSpeed(0.75)).toBe(1.0);
-            expect(getNextSpeed(1.0)).toBe(1.25);
-            expect(getNextSpeed(1.25)).toBe(1.5);
-            expect(getNextSpeed(1.5)).toBe(2.0);
+            expect(getNextSpeed(0.8)).toBe(0.9);
+            expect(getNextSpeed(0.9)).toBe(1.0);
         });
 
         it('should wrap around from max to min', () => {
-            expect(getNextSpeed(2.0)).toBe(0.5);
+            expect(getNextSpeed(1.0)).toBe(0.8);
         });
 
         it('should return default for invalid speed', () => {
@@ -125,15 +122,12 @@ describe('playback-speed utility', () => {
 
     describe('getPreviousSpeed', () => {
         it('should return previous speed in sequence', () => {
-            expect(getPreviousSpeed(2.0)).toBe(1.5);
-            expect(getPreviousSpeed(1.5)).toBe(1.25);
-            expect(getPreviousSpeed(1.25)).toBe(1.0);
-            expect(getPreviousSpeed(1.0)).toBe(0.75);
-            expect(getPreviousSpeed(0.75)).toBe(0.5);
+            expect(getPreviousSpeed(1.0)).toBe(0.9);
+            expect(getPreviousSpeed(0.9)).toBe(0.8);
         });
 
         it('should wrap around from min to max', () => {
-            expect(getPreviousSpeed(0.5)).toBe(2.0);
+            expect(getPreviousSpeed(0.8)).toBe(1.0);
         });
 
         it('should return default for invalid speed', () => {
@@ -143,13 +137,12 @@ describe('playback-speed utility', () => {
 
     describe('increaseSpeed', () => {
         it('should increase speed by one step', () => {
-            expect(increaseSpeed(0.5)).toBe(0.75);
-            expect(increaseSpeed(0.75)).toBe(1.0);
-            expect(increaseSpeed(1.0)).toBe(1.25);
+            expect(increaseSpeed(0.8)).toBe(0.9);
+            expect(increaseSpeed(0.9)).toBe(1.0);
         });
 
         it('should stay at max speed when already at max', () => {
-            expect(increaseSpeed(2.0)).toBe(2.0);
+            expect(increaseSpeed(1.0)).toBe(1.0);
         });
 
         it('should return default for invalid speed', () => {
@@ -159,13 +152,12 @@ describe('playback-speed utility', () => {
 
     describe('decreaseSpeed', () => {
         it('should decrease speed by one step', () => {
-            expect(decreaseSpeed(2.0)).toBe(1.5);
-            expect(decreaseSpeed(1.5)).toBe(1.25);
-            expect(decreaseSpeed(1.0)).toBe(0.75);
+            expect(decreaseSpeed(1.0)).toBe(0.9);
+            expect(decreaseSpeed(0.9)).toBe(0.8);
         });
 
         it('should stay at min speed when already at min', () => {
-            expect(decreaseSpeed(0.5)).toBe(0.5);
+            expect(decreaseSpeed(0.8)).toBe(0.8);
         });
 
         it('should return default for invalid speed', () => {
@@ -180,18 +172,12 @@ describe('playback-speed utility', () => {
         });
 
         it('should format fractional speeds correctly', () => {
-            expect(formatSpeed(0.5)).toBe('0.5x');
-            expect(formatSpeed(0.75)).toBe('0.75x');
-            expect(formatSpeed(1.25)).toBe('1.25x');
-            expect(formatSpeed(1.5)).toBe('1.5x');
+            expect(formatSpeed(0.8)).toBe('0.8x');
+            expect(formatSpeed(0.9)).toBe('0.9x');
         });
 
         it('should handle 1.0 as whole number', () => {
             expect(formatSpeed(1.0)).toBe('1x');
-        });
-
-        it('should handle 2.0 as whole number', () => {
-            expect(formatSpeed(2.0)).toBe('2x');
         });
     });
 });

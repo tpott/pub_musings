@@ -16,6 +16,44 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-28: Flex display breaks bionic reading word spacing
+
+**Problem:** Bionic reading uses `<strong>` tags to bold first portion of words: `<strong>He</strong>llo <strong>Wor</strong>ld`. When rendered inside a `display: flex` container, each text node and `<strong>` element becomes a separate flex item, causing word spacing to collapse.
+
+**Solution:** Changed `.modal-current-subtitle` from flex to table display:
+```css
+.modal-current-subtitle {
+  display: table;
+  width: 100%;
+}
+.modal-current-subtitle-inner {
+  display: table-cell;
+  vertical-align: middle;
+}
+```
+
+**Lesson:** Flex containers treat each child (including text nodes between inline elements) as a flex item. For content with inline formatting like `<strong>`, use block/table display instead of flex to preserve natural text flow.
+
+---
+
+### 2026-01-28: Blob URLs trigger downloads instead of display
+
+**Problem:** Using `window.open(blobURL)` with `text/plain` or `application/json` MIME types causes some browsers to download the file instead of displaying it in the tab.
+
+**Solution:** Wrap content in an HTML viewer page with syntax highlighting and a copy button:
+```typescript
+function createViewerHTML(content: string, title: string): string {
+  return `<!DOCTYPE html><html>...<pre>${escapeHtml(content)}</pre>...</html>`;
+}
+const html = createViewerHTML(content, 'Subtitles (SRT)');
+const blobUrl = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
+window.open(blobUrl, '_blank');
+```
+
+**Lesson:** For "view in new tab" functionality, always serve as `text/html`. Browser behavior for blob URLs with other MIME types is inconsistent.
+
+---
+
 ### 2026-01-22: Ralph isn't creating new tasks in TASKS.jsonl
 
 **Problem:** Ralph will run out of explicit TASKS and will start working on implicit ones

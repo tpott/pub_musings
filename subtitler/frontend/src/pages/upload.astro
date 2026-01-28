@@ -141,32 +141,20 @@ import '../styles/theme.css';
 			.speed-indicator.visible {
 				opacity: 1;
 			}
-			/* Playback speed control */
-			.video-controls {
-				display: flex;
-				align-items: center;
-				gap: 0.75rem;
-				margin-top: 0.75rem;
-				padding: 0.5rem;
-				background-color: var(--secondary-bg);
-				border-radius: 6px;
-			}
-			.speed-control {
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-			}
-			.speed-label {
-				font-size: 0.8rem;
-				color: var(--text-secondary);
+			/* Playback speed control - overlay on video */
+			.speed-dropdown-overlay {
+				position: absolute;
+				bottom: 50px;
+				right: 10px;
+				z-index: 10;
 			}
 			.speed-btn {
-				padding: 0.25rem 0.5rem;
-				background-color: var(--btn-secondary-bg);
-				color: var(--text-color);
-				border: 1px solid var(--border-color);
+				padding: 0.4rem 0.75rem;
+				background-color: rgba(0, 0, 0, 0.7);
+				color: white;
+				border: none;
 				border-radius: 4px;
-				font-size: 0.8rem;
+				font-size: 0.85rem;
 				font-weight: 500;
 				cursor: pointer;
 				transition: background-color 0.2s;
@@ -174,7 +162,7 @@ import '../styles/theme.css';
 				text-align: center;
 			}
 			.speed-btn:hover {
-				background-color: var(--btn-secondary-hover);
+				background-color: rgba(0, 0, 0, 0.85);
 			}
 			.speed-btn:focus {
 				outline: 2px solid var(--accent-color);
@@ -1295,20 +1283,12 @@ import '../styles/theme.css';
 				<div class="video-preview-container">
 					<video id="previewVideo" controls></video>
 					<div class="speed-indicator" id="speedIndicator" aria-live="polite">1x</div>
-				</div>
-				<div class="video-controls">
-					<div class="speed-control">
-						<span class="speed-label">Speed:</span>
-						<div class="speed-dropdown" id="speedDropdown">
-							<button class="speed-btn" id="speedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
-							<div class="speed-options" id="speedOptions" role="menu">
-								<button class="speed-option" data-speed="0.5" role="menuitem">0.5x</button>
-								<button class="speed-option" data-speed="0.75" role="menuitem">0.75x</button>
-								<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
-								<button class="speed-option" data-speed="1.25" role="menuitem">1.25x</button>
-								<button class="speed-option" data-speed="1.5" role="menuitem">1.5x</button>
-								<button class="speed-option" data-speed="2" role="menuitem">2x</button>
-							</div>
+					<div class="speed-dropdown speed-dropdown-overlay" id="speedDropdown">
+						<button class="speed-btn" id="speedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
+						<div class="speed-options" id="speedOptions" role="menu">
+							<button class="speed-option" data-speed="0.8" role="menuitem">0.8x</button>
+							<button class="speed-option" data-speed="0.9" role="menuitem">0.9x</button>
+							<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
 						</div>
 					</div>
 				</div>

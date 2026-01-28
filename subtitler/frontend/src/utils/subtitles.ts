@@ -148,16 +148,103 @@ export function downloadJSON(segments: TranscriptionSegment[], baseFilename: str
 }
 
 /**
- * Open content in a new browser tab
+ * HTML escape helper for safe display
  */
-export function openInNewTab(content: string, mimeType: string): void {
-  const { url, revoke } = createDownloadURL(content, mimeType);
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Create an HTML viewer page for subtitle content
+ */
+function createViewerHTML(content: string, title: string, language: string = ''): string {
+  const escapedContent = escapeHtml(content);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    body {
+      font-family: monospace;
+      margin: 0;
+      padding: 1rem;
+      background: #1a1a1f;
+      color: #e8e8ec;
+      line-height: 1.5;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #3a3a42;
+    }
+    h1 {
+      font-size: 1rem;
+      font-weight: normal;
+      margin: 0;
+      color: #9ca3af;
+    }
+    .copy-btn {
+      padding: 0.5rem 1rem;
+      background: #60a5fa;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .copy-btn:hover { background: #3b82f6; }
+    .copy-btn.copied { background: #4ade80; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${title}</h1>
+    <button class="copy-btn" onclick="copyContent()">Copy to Clipboard</button>
+  </div>
+  <pre><code${language ? ` class="language-${language}"` : ''}>${escapedContent}</code></pre>
+  <script>
+    const content = ${JSON.stringify(content)};
+    function copyContent() {
+      navigator.clipboard.writeText(content).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy to Clipboard';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Open content as an HTML viewer page in a new tab
+ */
+function openAsViewerPage(content: string, title: string, language?: string): void {
+  const html = createViewerHTML(content, title, language);
+  const { url, revoke } = createDownloadURL(html, 'text/html; charset=utf-8');
 
   const newTab = window.open(url, '_blank');
 
   // Revoke after a delay to ensure tab has loaded
-  // Use longer delay for tab vs download since tab needs time to render
-  setTimeout(revoke, 1000);
+  setTimeout(revoke, 2000);
 
   // If popup was blocked, fall back to navigating current window
   if (!newTab) {
@@ -166,25 +253,25 @@ export function openInNewTab(content: string, mimeType: string): void {
 }
 
 /**
- * Open SRT content in new tab
+ * Open SRT content in new tab as formatted viewer
  */
 export function openSRT(segments: TranscriptionSegment[]): void {
   const content = generateSRT(segments);
-  openInNewTab(content, 'text/plain; charset=utf-8');
+  openAsViewerPage(content, 'Subtitles (SRT)');
 }
 
 /**
- * Open VTT content in new tab
+ * Open VTT content in new tab as formatted viewer
  */
 export function openVTT(segments: TranscriptionSegment[]): void {
   const content = generateVTT(segments);
-  openInNewTab(content, 'text/vtt; charset=utf-8');
+  openAsViewerPage(content, 'Subtitles (WebVTT)');
 }
 
 /**
- * Open JSON content in new tab
+ * Open JSON content in new tab as formatted viewer
  */
 export function openJSON(segments: TranscriptionSegment[]): void {
   const content = generateJSON(segments);
-  openInNewTab(content, 'application/json; charset=utf-8');
+  openAsViewerPage(content, 'Subtitles (JSON)', 'json');
 }
