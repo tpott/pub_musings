@@ -1,7 +1,10 @@
 // Playback speed control utility
 
-// Available speed options for language learning (slower speeds for comprehension)
-export const PLAYBACK_SPEEDS = [0.8, 0.9, 1.0] as const;
+// Available speed options for language learning
+// - Slower speeds (0.5x, 0.75x) for catching difficult pronunciations
+// - Normal speed (1x) as default
+// - Faster speeds (1.25x, 1.5x, 2x) for review of familiar content
+export const PLAYBACK_SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] as const;
 export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
 
 export const DEFAULT_SPEED: PlaybackSpeed = 1.0;

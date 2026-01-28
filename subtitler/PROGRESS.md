@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**321 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**331 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**330 tasks completed.**
+**331 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 331: Expand Playback Speed Options to Match Spec (COMPLETE)**
+- Updated PLAYBACK_SPEEDS from [0.8, 0.9, 1.0] to [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+- Updated all tests in playback-speed.test.ts to match new speed values
+- Updated specs/playback-speed.md status to "Implemented"
+- Enables language learners to slow down (0.5x, 0.75x) or speed up (1.25x, 1.5x, 2x) playback
 
 **Tasks 327-330: Documentation and Type Improvements (COMPLETE)**
 - Task 330: Added Performance Tuning configuration section to ENV.md
