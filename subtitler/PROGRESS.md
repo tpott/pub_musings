@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**237 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**238 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -166,7 +166,11 @@ Deep code review using exploration agents identified areas for improvement:
   - Created `utils/nav-auth.ts` with `checkAuthAndUpdateNav()` function
   - Accepts callbacks for page-specific auth handling
   - Used by index.astro, videos.astro, settings.astro, upload.astro
-- Task 229: Add aria-describedby for form error associations
+- ✅ Task 229: Add aria-describedby for form error associations
+  - Added `aria-describedby` attributes linking inputs to error divs
+  - Added `role="alert"` to error divs for screen reader announcements
+  - Updated: login.astro, register.astro, settings.astro, forgot-password.astro, reset-password.astro
+  - Password hint in register.astro also linked via aria-describedby
 
 **Backend (Security/Performance):**
 - ✅ Task 231: Sanitize file extensions in path construction

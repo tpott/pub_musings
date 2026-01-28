@@ -333,28 +333,28 @@ import '../styles/theme.css';
 					<div id="credentialsSection">
 						<div class="form-group">
 							<label for="email">Email</label>
-							<input type="email" id="email" name="email" required autocomplete="email" />
-							<div id="emailError" class="field-error"></div>
+							<input type="email" id="email" name="email" required autocomplete="email" aria-describedby="emailError" />
+							<div id="emailError" class="field-error" role="alert"></div>
 						</div>
 						<div class="form-group">
 							<label for="password">Password</label>
-							<input type="password" id="password" name="password" required autocomplete="current-password" />
-							<div id="passwordError" class="field-error"></div>
+							<input type="password" id="password" name="password" required autocomplete="current-password" aria-describedby="passwordError" />
+							<div id="passwordError" class="field-error" role="alert"></div>
 						</div>
 						<div class="forgot-link">
 							<a href="/forgot-password">Forgot password?</a>
 						</div>
 						<div id="captchaContainer" class="form-group captcha-container" style="display: none;">
-							<div id="hcaptcha"></div>
-							<div id="captchaError" class="field-error"></div>
+							<div id="hcaptcha" aria-describedby="captchaError"></div>
+							<div id="captchaError" class="field-error" role="alert"></div>
 						</div>
 					</div>
 					<div id="totpSection" class="hidden">
 						<p class="totp-info">Enter the 6-digit code from your authenticator app</p>
 						<div class="form-group">
 							<label for="totpCode">Authentication Code</label>
-							<input type="text" id="totpCode" name="totpCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" />
-							<div id="totpError" class="field-error"></div>
+							<input type="text" id="totpCode" name="totpCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" aria-describedby="totpError" />
+							<div id="totpError" class="field-error" role="alert"></div>
 						</div>
 						<div class="recovery-link">
 							<button type="button" id="showRecoveryLink" class="link-button">Lost access to authenticator?</button>
@@ -377,8 +377,8 @@ import '../styles/theme.css';
 					<form id="magicLinkForm">
 						<div class="form-group">
 							<label for="magicEmail">Email</label>
-							<input type="email" id="magicEmail" name="magicEmail" required autocomplete="email" />
-							<div id="magicEmailError" class="field-error"></div>
+							<input type="email" id="magicEmail" name="magicEmail" required autocomplete="email" aria-describedby="magicEmailError" />
+							<div id="magicEmailError" class="field-error" role="alert"></div>
 						</div>
 						<button type="submit" class="btn btn-secondary" id="magicLinkBtn">Email me a login link</button>
 					</form>

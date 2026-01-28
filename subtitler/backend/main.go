@@ -169,8 +169,8 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 
 // Size range limits to prevent misconfiguration and potential issues
 const (
-	minReasonableSize = 1 << 20   // 1 MB minimum
-	maxReasonableSize = 10 << 30  // 10 GB maximum
+	minReasonableSize = 1 << 20  // 1 MB minimum
+	maxReasonableSize = 10 << 30 // 10 GB maximum
 )
 
 // getEnvSizeOrDefault parses a size from environment variable (e.g., "500M", "1G")

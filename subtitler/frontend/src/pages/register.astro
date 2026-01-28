@@ -227,23 +227,23 @@ import '../styles/theme.css';
 					<form id="registerForm">
 						<div class="form-group">
 							<label for="email">Email</label>
-							<input type="email" id="email" name="email" required autocomplete="email" />
-							<div id="emailError" class="field-error"></div>
+							<input type="email" id="email" name="email" required autocomplete="email" aria-describedby="emailError" />
+							<div id="emailError" class="field-error" role="alert"></div>
 						</div>
 						<div class="form-group">
 							<label for="password">Password</label>
-							<input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" />
-							<p class="hint">At least 8 characters</p>
-							<div id="passwordError" class="field-error"></div>
+							<input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" aria-describedby="passwordHint passwordError" />
+							<p id="passwordHint" class="hint">At least 8 characters</p>
+							<div id="passwordError" class="field-error" role="alert"></div>
 						</div>
 						<div class="form-group">
 							<label for="confirmPassword">Confirm Password</label>
-							<input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" />
-							<div id="confirmPasswordError" class="field-error"></div>
+							<input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" aria-describedby="confirmPasswordError" />
+							<div id="confirmPasswordError" class="field-error" role="alert"></div>
 						</div>
 						<div id="captchaContainer" class="form-group captcha-container" style="display: none;">
-							<div id="hcaptcha"></div>
-							<div id="captchaError" class="field-error"></div>
+							<div id="hcaptcha" aria-describedby="captchaError"></div>
+							<div id="captchaError" class="field-error" role="alert"></div>
 						</div>
 						<button type="submit" class="btn btn-primary" id="submitBtn">Create account</button>
 					</form>
