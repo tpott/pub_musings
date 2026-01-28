@@ -1544,43 +1544,45 @@ ${recoveryCodes.join('\n')}
 						</div>
 					`).join('');
 
-					// Add click handlers for revoke buttons
-					sessionsList.querySelectorAll('.btn-revoke').forEach(btn => {
-						btn.addEventListener('click', async (e) => {
-							const target = e.target as HTMLButtonElement;
-							const sessionId = target.dataset.sessionId;
-							if (!sessionId) return;
-
-							target.disabled = true;
-							target.textContent = 'Revoking...';
-
-							try {
-								const response = await csrfFetch(`/api/auth/sessions/${sessionId}`, {
-									method: 'DELETE',
-								});
-
-								if (!response.ok) {
-									const data = await response.json();
-									showError(data.error || 'Failed to revoke session');
-									target.disabled = false;
-									target.textContent = 'Revoke';
-									return;
-								}
-
-								showSuccess('Session revoked successfully');
-								loadSessions(); // Refresh the list
-							} catch (err) {
-								showError('Network error. Please try again.');
-								target.disabled = false;
-								target.textContent = 'Revoke';
-							}
-						});
-					});
-
 				} catch (err) {
 					sessionsLoading.textContent = 'Failed to load sessions';
 				}
 			}
+
+			// Use event delegation for revoke button clicks to prevent memory leaks
+			// This single listener handles all revoke buttons, even after list refreshes
+			sessionsList.addEventListener('click', async (e) => {
+				const target = e.target as HTMLElement;
+				if (!target.classList.contains('btn-revoke')) return;
+
+				const btn = target as HTMLButtonElement;
+				const sessionId = btn.dataset.sessionId;
+				if (!sessionId) return;
+
+				btn.disabled = true;
+				btn.textContent = 'Revoking...';
+
+				try {
+					const response = await csrfFetch(`/api/auth/sessions/${sessionId}`, {
+						method: 'DELETE',
+					});
+
+					if (!response.ok) {
+						const data = await response.json();
+						showError(data.error || 'Failed to revoke session');
+						btn.disabled = false;
+						btn.textContent = 'Revoke';
+						return;
+					}
+
+					showSuccess('Session revoked successfully');
+					loadSessions(); // Refresh the list
+				} catch (err) {
+					showError('Network error. Please try again.');
+					btn.disabled = false;
+					btn.textContent = 'Revoke';
+				}
+			});
 
 			// Modify checkAuth to also load sessions after successful auth
 			const originalCheckAuth = checkAuth;
