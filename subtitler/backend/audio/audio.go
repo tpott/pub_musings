@@ -385,6 +385,68 @@ func GetSubtitleTracks(filePath string) ([]SubtitleTrack, error) {
 	return tracks, nil
 }
 
+// ExtractSubtitleTrack extracts an embedded subtitle track from a video file.
+// The trackIndex is the ffprobe stream index (not the subtitle track number).
+// Format can be "srt" or "vtt" - default is "srt".
+// Returns the extracted subtitle content as a string.
+func ExtractSubtitleTrack(videoPath string, trackIndex int, format string) (string, error) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return "", fmt.Errorf("ffmpeg not available: %w", err)
+	}
+
+	// Validate format
+	if format == "" {
+		format = "srt"
+	}
+	format = strings.ToLower(format)
+	if format != "srt" && format != "vtt" {
+		return "", fmt.Errorf("unsupported subtitle format: %s (use srt or vtt)", format)
+	}
+
+	// Validate track index
+	if trackIndex < 0 {
+		return "", fmt.Errorf("invalid track index: %d", trackIndex)
+	}
+
+	// Extract subtitle to stdout using ffmpeg
+	// -i: input file
+	// -map 0:{index}: select the specific stream by index
+	// -c:s: specify subtitle codec (srt or webvtt)
+	// -f: output format
+	// pipe:1: write to stdout
+	codec := "srt"
+	outputFormat := "srt"
+	if format == "vtt" {
+		codec = "webvtt"
+		outputFormat = "webvtt"
+	}
+
+	cmd := exec.Command(ffmpegPath,
+		"-i", videoPath,
+		"-map", fmt.Sprintf("0:%d", trackIndex),
+		"-c:s", codec,
+		"-f", outputFormat,
+		"pipe:1",
+	)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// Include stderr in error for debugging
+		return "", fmt.Errorf("ffmpeg subtitle extraction failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	content := stdout.String()
+	if content == "" {
+		return "", fmt.Errorf("extracted subtitle content is empty")
+	}
+
+	return content, nil
+}
+
 // MockExtractor is a test implementation of Extractor.
 type MockExtractor struct {
 	// ShouldFail controls whether ExtractAudio returns an error.

@@ -353,10 +353,11 @@ type WhisperResult struct {
 
 // TranscriptionStatus tracks the state of a transcription job (API response format)
 type TranscriptionStatus struct {
-	Status   string         `json:"status"` // pending, processing, complete, error
-	Message  string         `json:"message,omitempty"`
-	Result   *WhisperResult `json:"result,omitempty"`
-	Progress int            `json:"progress,omitempty"` // 0-100
+	Status            string                `json:"status"` // pending, processing, complete, error
+	Message           string                `json:"message,omitempty"`
+	Result            *WhisperResult        `json:"result,omitempty"`
+	Progress          int                   `json:"progress,omitempty"` // 0-100
+	EmbeddedSubtitles []audio.SubtitleTrack `json:"embedded_subtitles,omitempty"`
 }
 
 // Global database connection
@@ -4204,8 +4205,19 @@ func main() {
 			return
 		}
 
+		status := dbTranscriptionToStatus(transcription)
+
+		// Include embedded subtitles info from the video
+		video, err := database.GetVideo(uploadID)
+		if err == nil && video != nil && video.EmbeddedSubtitlesJSON != nil {
+			var tracks []audio.SubtitleTrack
+			if err := json.Unmarshal([]byte(*video.EmbeddedSubtitlesJSON), &tracks); err == nil {
+				status.EmbeddedSubtitles = tracks
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(dbTranscriptionToStatus(transcription))
+		json.NewEncoder(w).Encode(status)
 	})
 
 	// Update segments for a transcription (edit subtitles)
@@ -4738,6 +4750,128 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
 	})
+
+	// Extract embedded subtitle track from video
+	mux.HandleFunc("GET /api/videos/{id}/embedded-subtitles/{track}", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		videoID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
+		if !valid {
+			return
+		}
+
+		// Parse track index
+		trackStr := r.PathValue("track")
+		trackIndex, err := strconv.Atoi(trackStr)
+		if err != nil || trackIndex < 0 {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid track index")
+			return
+		}
+
+		// Get the video
+		video, err := database.GetVideo(videoID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		// Verify the track exists in the video's embedded subtitles
+		if video.EmbeddedSubtitlesJSON == nil {
+			httputil.RespondError(w, http.StatusNotFound, "This video has no embedded subtitles")
+			return
+		}
+
+		var tracks []audio.SubtitleTrack
+		if err := json.Unmarshal([]byte(*video.EmbeddedSubtitlesJSON), &tracks); err != nil {
+			logging.ErrorContext(r.Context(), "Error parsing embedded subtitles", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to parse subtitle information")
+			return
+		}
+
+		// Find the track with the given index
+		var foundTrack *audio.SubtitleTrack
+		for _, t := range tracks {
+			if t.Index == trackIndex {
+				foundTrack = &t
+				break
+			}
+		}
+		if foundTrack == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Subtitle track not found")
+			return
+		}
+
+		// Only text-based subtitles can be extracted
+		if !foundTrack.TextBased {
+			httputil.RespondError(w, http.StatusBadRequest, "Cannot extract image-based subtitle track (use OCR for Blu-ray/DVD subtitles)")
+			return
+		}
+
+		// Check access (user owns video or has matching session_id)
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
+		// Get format from query parameter (default to srt)
+		format := r.URL.Query().Get("format")
+		if format == "" {
+			format = "srt"
+		}
+		if format != "srt" && format != "vtt" {
+			httputil.RespondError(w, http.StatusBadRequest, "Format must be 'srt' or 'vtt'")
+			return
+		}
+
+		// Decrypt the video to a temp file for extraction
+		decryptedPath, err := multiEnc.DecryptToTempFile(video.FilePath, video.KeyVersion)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error decrypting video", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to access video")
+			return
+		}
+		defer os.Remove(decryptedPath)
+
+		// Extract the subtitle track
+		content, err := audio.ExtractSubtitleTrack(decryptedPath, trackIndex, format)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error extracting subtitle track", "track", trackIndex, "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to extract subtitle track")
+			return
+		}
+
+		// Set response headers
+		contentType := "text/plain; charset=utf-8"
+		ext := ".srt"
+		if format == "vtt" {
+			contentType = "text/vtt; charset=utf-8"
+			ext = ".vtt"
+		}
+
+		filename := strings.TrimSuffix(video.Filename, filepath.Ext(video.Filename))
+		if foundTrack.Language != "" {
+			filename += "_" + foundTrack.Language
+		}
+		filename += "_embedded" + ext
+
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(filename))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(content))
+	}))
 
 	// List all videos
 	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {

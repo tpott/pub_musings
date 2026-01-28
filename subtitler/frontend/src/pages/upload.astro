@@ -326,6 +326,65 @@ import '../styles/theme.css';
 				flex-wrap: wrap;
 				align-items: center;
 			}
+			/* Embedded subtitles notice */
+			.embedded-subtitles-notice {
+				margin-top: 1rem;
+				padding: 1rem;
+				background-color: var(--input-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 1rem;
+				align-items: center;
+			}
+			.notice-content {
+				display: flex;
+				gap: 0.75rem;
+				align-items: flex-start;
+				flex: 1;
+				min-width: 200px;
+			}
+			.notice-icon {
+				width: 20px;
+				height: 20px;
+				flex-shrink: 0;
+				color: var(--accent-color);
+			}
+			.notice-text {
+				display: flex;
+				flex-direction: column;
+				gap: 0.25rem;
+			}
+			.notice-text strong {
+				font-weight: 600;
+			}
+			.notice-text span {
+				font-size: 0.9rem;
+				color: var(--text-muted);
+			}
+			.track-select {
+				padding: 0.5rem 0.75rem;
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				font-size: 0.9rem;
+				cursor: pointer;
+			}
+			.use-embedded-btn {
+				padding: 0.5rem 1rem;
+				background-color: var(--accent-color);
+				color: #fff;
+				border: none;
+				border-radius: 6px;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s;
+			}
+			.use-embedded-btn:hover {
+				background-color: var(--accent-color-hover);
+			}
 			.full-text, .full-text-inner {
 				margin-top: 0;
 				padding: 1rem;
@@ -1370,6 +1429,22 @@ import '../styles/theme.css';
 					<div class="align-status" id="alignStatus"></div>
 					</div>
 				</div>
+				<div class="embedded-subtitles-notice" id="embeddedSubtitlesNotice" style="display: none;">
+					<div class="notice-content">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="notice-icon">
+							<circle cx="12" cy="12" r="10"></circle>
+							<line x1="12" y1="16" x2="12" y2="12"></line>
+							<line x1="12" y1="8" x2="12.01" y2="8"></line>
+						</svg>
+						<div class="notice-text">
+							<strong>Embedded subtitles detected</strong>
+							<span id="embeddedSubtitlesList"></span>
+						</div>
+					</div>
+					<select id="embeddedTrackSelect" class="track-select">
+					</select>
+					<button class="use-embedded-btn" id="useEmbeddedBtn">Use Embedded Subtitles</button>
+				</div>
 				<div class="actions" id="actions" style="display: none;">
 					<a href="#" class="view-btn" id="viewBtn" aria-label="View in My Videos page">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1537,6 +1612,10 @@ import '../styles/theme.css';
 			const fullTextHeader = document.getElementById('fullTextHeader') as HTMLElement;
 			const currentSubtitle = document.getElementById('currentSubtitle') as HTMLElement;
 			const actions = document.getElementById('actions') as HTMLElement;
+			const embeddedSubtitlesNotice = document.getElementById('embeddedSubtitlesNotice') as HTMLElement;
+			const embeddedSubtitlesList = document.getElementById('embeddedSubtitlesList') as HTMLElement;
+			const embeddedTrackSelect = document.getElementById('embeddedTrackSelect') as HTMLSelectElement;
+			const useEmbeddedBtn = document.getElementById('useEmbeddedBtn') as HTMLButtonElement;
 			const viewBtn = document.getElementById('viewBtn') as HTMLAnchorElement;
 			const downloadSrt = document.getElementById('downloadSrt') as HTMLAnchorElement;
 			const downloadVtt = document.getElementById('downloadVtt') as HTMLAnchorElement;
@@ -1751,6 +1830,18 @@ import '../styles/theme.css';
 			let editedSegments: TranscriptionSegment[] = [];
 			let isEditMode = false;
 			let hasUnsavedChanges = false;
+
+			// Embedded subtitles tracking
+			interface SubtitleTrack {
+				index: number;
+				language: string;
+				title: string;
+				codec: string;
+				default: boolean;
+				forced: boolean;
+				text_based: boolean;
+			}
+			let embeddedSubtitleTracks: SubtitleTrack[] = [];
 
 			// Segment alignment feedback storage
 			// Feedback types: 'good' (thumbs up), 'misaligned' (timing off), 'missing' (words missing)
@@ -2442,6 +2533,9 @@ import '../styles/theme.css';
 							// Reset tracking variables
 							transcriptionStartTime = null;
 
+							// Store embedded subtitle tracks if present
+							embeddedSubtitleTracks = result.embedded_subtitles || [];
+
 							transcriptionStatus.textContent = 'Transcription complete!';
 							displayTranscription(result.result);
 						} else if (result.status === 'error') {
@@ -2524,6 +2618,9 @@ import '../styles/theme.css';
 					fullTextSection.style.display = 'block';
 				}
 
+				// Show embedded subtitles notice if tracks were detected
+				showEmbeddedSubtitlesNotice();
+
 				// Load video from server for playback (replacing blob URL)
 				if (currentUploadId) {
 					previewVideo.src = `/api/videos/${currentUploadId}/video`;
@@ -2531,6 +2628,137 @@ import '../styles/theme.css';
 
 				// Set up video timeupdate handler for subtitle syncing
 				setupSubtitleSync();
+			}
+
+			// Show embedded subtitles notice if tracks are available
+			function showEmbeddedSubtitlesNotice() {
+				// Only show if there are text-based tracks we can extract
+				const textTracks = embeddedSubtitleTracks.filter(t => t.text_based);
+				if (textTracks.length === 0) {
+					embeddedSubtitlesNotice.style.display = 'none';
+					return;
+				}
+
+				// Build track list description
+				const trackList = textTracks.map(t => {
+					let label = t.language || 'Unknown';
+					if (t.title) label += ` (${t.title})`;
+					if (t.default) label += ' [default]';
+					return label;
+				}).join(', ');
+				embeddedSubtitlesList.textContent = trackList;
+
+				// Populate dropdown
+				embeddedTrackSelect.innerHTML = '';
+				textTracks.forEach((track, i) => {
+					const option = document.createElement('option');
+					option.value = track.index.toString();
+					let label = track.language || 'Unknown language';
+					if (track.title) label = `${label} - ${track.title}`;
+					label += ` (${track.codec})`;
+					if (track.default) label += ' [default]';
+					option.textContent = label;
+					if (i === 0) option.selected = true;
+					embeddedTrackSelect.appendChild(option);
+				});
+
+				// Hide dropdown if only one track
+				if (textTracks.length === 1) {
+					embeddedTrackSelect.style.display = 'none';
+				} else {
+					embeddedTrackSelect.style.display = 'block';
+				}
+
+				embeddedSubtitlesNotice.style.display = 'flex';
+			}
+
+			// Handle "Use Embedded Subtitles" button click
+			useEmbeddedBtn.addEventListener('click', async () => {
+				if (!currentUploadId) return;
+
+				const trackIndex = parseInt(embeddedTrackSelect.value, 10);
+				useEmbeddedBtn.disabled = true;
+				useEmbeddedBtn.textContent = 'Loading...';
+
+				try {
+					// Fetch the embedded subtitle track as SRT
+					const response = await fetch(
+						`/api/videos/${currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
+					);
+					if (!response.ok) {
+						const err = await response.json();
+						throw new Error(err.error || 'Failed to extract subtitles');
+					}
+
+					const srtContent = await response.text();
+
+					// Parse SRT content into segments
+					const parsedSegments = parseSRT(srtContent);
+					if (parsedSegments.length === 0) {
+						throw new Error('No subtitles found in embedded track');
+					}
+
+					// Replace current segments with embedded ones
+					transcriptionSegments = parsedSegments;
+					editedSegments = JSON.parse(JSON.stringify(parsedSegments));
+					hasUnsavedChanges = true;
+					updateUnsavedIndicator();
+
+					// Re-render segments
+					renderSegments();
+
+					// Update full text
+					const fullTextContent = parsedSegments.map(s => s.text).join(' ');
+					fullText.textContent = fullTextContent;
+
+					transcriptionStatus.textContent = 'Loaded embedded subtitles! (Unsaved)';
+				} catch (error) {
+					console.error('Failed to load embedded subtitles:', error);
+					transcriptionStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
+				} finally {
+					useEmbeddedBtn.disabled = false;
+					useEmbeddedBtn.textContent = 'Use Embedded Subtitles';
+				}
+			});
+
+			// Parse SRT content into TranscriptionSegment array
+			function parseSRT(srtContent: string): TranscriptionSegment[] {
+				const segments: TranscriptionSegment[] = [];
+				const blocks = srtContent.trim().split(/\n\n+/);
+
+				for (const block of blocks) {
+					const lines = block.split('\n');
+					if (lines.length < 3) continue;
+
+					// Parse timestamp line (format: 00:00:00,000 --> 00:00:00,000)
+					const timeLine = lines[1];
+					const timeMatch = timeLine.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
+					if (!timeMatch) continue;
+
+					const startHrs = parseInt(timeMatch[1], 10);
+					const startMins = parseInt(timeMatch[2], 10);
+					const startSecs = parseInt(timeMatch[3], 10);
+					const startMs = parseInt(timeMatch[4], 10);
+					const start = startHrs * 3600 + startMins * 60 + startSecs + startMs / 1000;
+
+					const endHrs = parseInt(timeMatch[5], 10);
+					const endMins = parseInt(timeMatch[6], 10);
+					const endSecs = parseInt(timeMatch[7], 10);
+					const endMs = parseInt(timeMatch[8], 10);
+					const end = endHrs * 3600 + endMins * 60 + endSecs + endMs / 1000;
+
+					// Join remaining lines as text (skip index and timestamp lines)
+					const text = lines.slice(2).join('\n').trim();
+
+					segments.push({
+						id: segments.length,
+						start,
+						end,
+						text
+					});
+				}
+
+				return segments;
 			}
 
 			// Align pasted transcript with transcription timing

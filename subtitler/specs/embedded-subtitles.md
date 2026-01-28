@@ -304,10 +304,12 @@ Create minimal test video files:
   - [x] Call detection during upload (both simple and chunked)
   - [x] Include in API responses (GET /api/videos with parsed JSON)
   - [x] Frontend indicator/badge on My Videos page
-- [ ] Phase 2: Extraction
-  - [ ] Add `ExtractSubtitleTrack()` function
-  - [ ] Add extraction endpoint
-  - [ ] Frontend "Use embedded" option
+- [x] Phase 2: Extraction
+  - [x] Add `ExtractSubtitleTrack()` function to audio.go
+  - [x] Add `GET /api/videos/{id}/embedded-subtitles/{track}` endpoint
+  - [x] Include embedded subtitles in transcription status response
+  - [x] Frontend "Use embedded subtitles" notice and button on upload page
+  - [x] SRT parsing to load extracted subtitles into editor
 - [ ] Phase 3: Comparison
   - [ ] Implement WER/CER calculation
   - [ ] Add comparison endpoint

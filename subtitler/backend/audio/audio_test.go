@@ -559,3 +559,45 @@ func TestSubtitleTrackStruct(t *testing.T) {
 		t.Error("Expected TextBased=true")
 	}
 }
+
+func TestExtractSubtitleTrack_InvalidFormat(t *testing.T) {
+	// Test invalid format parameter
+	_, err := ExtractSubtitleTrack("/tmp/fake.mp4", 0, "invalid")
+	if err == nil {
+		t.Error("Expected error for invalid format")
+	}
+	if !strings.Contains(err.Error(), "unsupported subtitle format") {
+		t.Errorf("Expected error about unsupported format, got: %v", err)
+	}
+}
+
+func TestExtractSubtitleTrack_InvalidTrackIndex(t *testing.T) {
+	// Test negative track index
+	_, err := ExtractSubtitleTrack("/tmp/fake.mp4", -1, "srt")
+	if err == nil {
+		t.Error("Expected error for negative track index")
+	}
+	if !strings.Contains(err.Error(), "invalid track index") {
+		t.Errorf("Expected error about invalid track index, got: %v", err)
+	}
+}
+
+func TestExtractSubtitleTrack_DefaultFormat(t *testing.T) {
+	// This test verifies the default format is srt when empty string passed
+	// It will fail at ffmpeg execution since we don't have a real video,
+	// but it validates the format defaulting logic
+	_, err := ExtractSubtitleTrack("/tmp/nonexistent.mp4", 0, "")
+	// Will fail but not due to format issues - either ffmpeg not found or file not found
+	if err != nil && strings.Contains(err.Error(), "unsupported subtitle format") {
+		t.Errorf("Empty format should default to srt, not fail with format error: %v", err)
+	}
+}
+
+func TestExtractSubtitleTrack_VTTFormat(t *testing.T) {
+	// Verify vtt format is accepted
+	_, err := ExtractSubtitleTrack("/tmp/nonexistent.mp4", 0, "vtt")
+	// Will fail but not due to format issues
+	if err != nil && strings.Contains(err.Error(), "unsupported subtitle format") {
+		t.Errorf("vtt format should be valid, got: %v", err)
+	}
+}
