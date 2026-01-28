@@ -115,7 +115,7 @@ func TestValidatePassword(t *testing.T) {
 		{"short", true, "at least 8 characters"},
 		{"1234567", true, "at least 8 characters"},
 		{"Aa1!", true, "at least 8 characters"},
-		{"", true, "at least 8 characters"},
+		{"", true, "required"},
 
 		// Missing uppercase
 		{"password1!", true, "uppercase"},

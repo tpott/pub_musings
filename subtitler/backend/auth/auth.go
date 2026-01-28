@@ -14,6 +14,7 @@ import (
 
 	"github.com/trevor/subtitler/backend/db"
 	"github.com/trevor/subtitler/backend/logging"
+	"github.com/trevor/subtitler/backend/validation"
 )
 
 // IsHTTPSOnly returns true if HTTPS_ONLY env var is set to a truthy value.
@@ -29,9 +30,6 @@ const (
 
 	// TokenLength is the length of session tokens in bytes (32 bytes = 64 hex chars)
 	TokenLength = 32
-
-	// MinPasswordLength is the minimum password length
-	MinPasswordLength = 8
 
 	// BcryptCost is the bcrypt cost factor
 	BcryptCost = 12
@@ -92,13 +90,12 @@ func ValidateEmail(email string) error {
 // - At least one number
 // - At least one special character
 func ValidatePassword(password string) error {
-	if len(password) < MinPasswordLength {
-		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
-	}
-	if len(password) > 72 { // bcrypt max
-		return fmt.Errorf("password is too long (max 72 characters)")
+	// First, validate length using the centralized validation package
+	if err := validation.ValidatePassword(password); err != nil {
+		return err
 	}
 
+	// Then check complexity requirements
 	var hasUpper, hasLower, hasNumber, hasSpecial bool
 	for _, r := range password {
 		switch {

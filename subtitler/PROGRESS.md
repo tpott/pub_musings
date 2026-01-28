@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**297 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**298 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -141,6 +141,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 **297 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 298: Consolidate Password Validation Logic (COMPLETE)**
+- auth.ValidatePassword() now calls validation.ValidatePassword() for length checks
+- Removed duplicate MinPasswordLength constant from auth package
+- Single source of truth for password length constants in validation package
+- auth.ValidatePassword() still adds complexity requirements on top
+- Updated test to expect "required" message for empty passwords
 
 **Task 297: Log Unchecked os.Remove Errors (COMPLETE)**
 - Created `removeWithLogging()` helper function in main.go

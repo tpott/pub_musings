@@ -295,7 +295,7 @@
 {"id": 295, "name": "Frontend: Handle corrupted localStorage in processing-speed.ts", "done_when": "In processing-speed.ts getHistory(), when JSON.parse fails, clear the corrupted key instead of just logging.", "status": "done"}
 {"id": 296, "name": "Backend: Add context timeouts to database query calls", "done_when": "In db/db.go, replace direct .Query() and .Exec() calls with QueryContext/ExecContext using db.GetQueryTimeout() to prevent indefinite hangs.", "status": "done"}
 {"id": 297, "name": "Backend: Log unchecked os.Remove errors", "done_when": "In main.go and cmd/rotate-keys/main.go, wrap os.Remove() calls with logging.Warn() on error to avoid silent cleanup failures.", "status": "done"}
-{"id": 298, "name": "Backend: Consolidate password validation logic", "done_when": "Remove duplicate password validation from auth/auth.go, use only validation/validation.go for consistency.", "status": "todo"}
+{"id": 298, "name": "Backend: Consolidate password validation logic", "done_when": "Remove duplicate password validation from auth/auth.go, use only validation/validation.go for consistency.", "status": "done"}
 {"id": 299, "name": "Frontend: Add timeout to CAPTCHA script loading", "done_when": "In captcha.ts, add timeout and fallback when loading hCaptcha script from CDN to prevent indefinite hanging.", "status": "todo"}
 {"id": 300, "name": "Frontend: Add tests for subtitles.ts", "done_when": "Create subtitles.test.ts with coverage for timestamp formatting, SRT/VTT generation, and edge cases.", "status": "todo"}
 {"id": 301, "name": "Frontend: Add tests for history.ts", "done_when": "Create history.test.ts with coverage for navigation history management functions.", "status": "todo"}
