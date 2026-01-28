@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**248 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**252 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**248 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**252 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Tasks 250-252: Database Query Optimization (2026-01-28)
+
+- ✅ Task 250: Added index on transcriptions(status) for filtering pending/processing jobs
+- ✅ Task 251: Added composite index on burn_jobs(video_id, created_at DESC) for recent jobs queries
+- ✅ Task 252: Added composite index on feedback(status, feedback_type) for admin dashboard filtering
+- Migration 008: `backend/db/migrations/008_add_query_optimization_indexes.up.sql`
 
 ### User Feedback Fixes (2026-01-28)
 
