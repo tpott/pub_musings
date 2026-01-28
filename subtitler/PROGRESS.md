@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**268 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**269 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**268 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**269 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 269: Add composite index for login_attempts (2026-01-28)
+
+- ✅ Task 269: Added composite index for login_attempts queries
+  - Created migration 009 with index on `login_attempts(email, created_at DESC)`
+  - Improves performance of `GetRecentFailedLoginAttempts()` and `IsEmailLocked()` queries
+  - These queries filter by email AND time range - composite index more efficient than separate indexes
 
 ### Task 268: Wire SetActiveSessions metrics (2026-01-28)
 
