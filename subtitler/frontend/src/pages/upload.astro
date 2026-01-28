@@ -1860,8 +1860,8 @@ import '../styles/theme.css';
 						const feedbackMap = JSON.parse(stored) as Record<string, FeedbackType>;
 						return feedbackMap[index.toString()] || null;
 					}
-				} catch {
-					// Ignore parse errors
+				} catch (error) {
+					console.error('Failed to parse segment feedback:', error);
 				}
 				return null;
 			}
@@ -1880,8 +1880,8 @@ import '../styles/theme.css';
 					}
 
 					localStorage.setItem(key, JSON.stringify(feedbackMap));
-				} catch {
-					// Ignore storage errors
+				} catch (error) {
+					console.error('Failed to save segment feedback:', error);
 				}
 			}
 
@@ -1890,7 +1890,8 @@ import '../styles/theme.css';
 				try {
 					const stored = localStorage.getItem(getFeedbackStorageKey());
 					return stored ? JSON.parse(stored) : {};
-				} catch {
+				} catch (error) {
+					console.error('Failed to parse all feedback:', error);
 					return {};
 				}
 			}
@@ -2165,14 +2166,16 @@ import '../styles/theme.css';
 						if (xhr.status >= 200 && xhr.status < 300) {
 							try {
 								resolve(JSON.parse(xhr.responseText));
-							} catch {
+							} catch (parseError) {
+								console.error('Failed to parse upload response:', parseError, xhr.responseText);
 								reject(new Error('Invalid JSON response'));
 							}
 						} else {
 							try {
 								const error = JSON.parse(xhr.responseText);
 								reject(new Error(error.error || 'Upload failed'));
-							} catch {
+							} catch (parseError) {
+								console.error('Failed to parse upload error response:', parseError, xhr.responseText);
 								reject(new Error(`Upload failed: ${xhr.status}`));
 							}
 						}
@@ -2267,7 +2270,8 @@ import '../styles/theme.css';
 							removeUploadSessionRecord(sessionKey);
 							sessionId = null;
 						}
-					} catch {
+					} catch (error) {
+						console.error('Failed to check resumable upload session:', error);
 						localStorage.removeItem(sessionKey);
 						removeUploadSessionRecord(sessionKey);
 						sessionId = null;
@@ -2355,7 +2359,8 @@ import '../styles/theme.css';
 								try {
 									const error = JSON.parse(xhr.responseText);
 									reject(new Error(error.error || `Chunk ${i} upload failed`));
-								} catch {
+								} catch (parseError) {
+									console.error('Failed to parse chunk upload error response:', parseError, xhr.responseText);
 									reject(new Error(`Chunk ${i} upload failed: ${xhr.status}`));
 								}
 							}
