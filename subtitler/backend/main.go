@@ -148,8 +148,8 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getEnvIntOrDefault parses an integer from environment variable.
-// Returns default value if not set or invalid.
+// getEnvIntOrDefault parses a non-negative integer from environment variable.
+// Returns default value if not set, invalid, or negative.
 func getEnvIntOrDefault(key string, defaultValue int) int {
 	value := os.Getenv(key)
 	if value == "" {
@@ -160,11 +160,23 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 		logging.Warn("Invalid integer, using default", "key", key, "value", value, "default", defaultValue)
 		return defaultValue
 	}
+	if n < 0 {
+		logging.Warn("Negative value not allowed, using default", "key", key, "value", n, "default", defaultValue)
+		return defaultValue
+	}
 	return n
 }
 
+// Size range limits to prevent misconfiguration and potential issues
+const (
+	minReasonableSize = 1 << 20   // 1 MB minimum
+	maxReasonableSize = 10 << 30  // 10 GB maximum
+)
+
 // getEnvSizeOrDefault parses a size from environment variable (e.g., "500M", "1G")
-// Returns default value if not set or invalid
+// Returns default value if not set or invalid.
+// Validates that the value is within reasonable bounds (1MB to 10GB) to prevent
+// misconfiguration and potential integer overflow issues.
 func getEnvSizeOrDefault(key string, defaultValue int64) int64 {
 	value := os.Getenv(key)
 	if value == "" {
@@ -172,6 +184,7 @@ func getEnvSizeOrDefault(key string, defaultValue int64) int64 {
 	}
 
 	// Parse size with optional suffix (M for MB, G for GB)
+	rawValue := value
 	value = strings.TrimSpace(strings.ToUpper(value))
 	multiplier := int64(1)
 
@@ -188,11 +201,25 @@ func getEnvSizeOrDefault(key string, defaultValue int64) int64 {
 
 	var size int64
 	if _, err := fmt.Sscanf(value, "%d", &size); err != nil {
-		logging.Warn("Invalid MAX_UPLOAD_SIZE, using default", "value", os.Getenv(key), "default_bytes", defaultValue)
+		logging.Warn("Invalid size value, using default", "key", key, "value", rawValue, "default_bytes", defaultValue)
 		return defaultValue
 	}
 
-	return size * multiplier
+	result := size * multiplier
+
+	// Validate range to prevent misconfiguration
+	if result < minReasonableSize {
+		logging.Warn("Size below minimum (1MB), using default",
+			"key", key, "value", rawValue, "parsed_bytes", result, "default_bytes", defaultValue)
+		return defaultValue
+	}
+	if result > maxReasonableSize {
+		logging.Warn("Size above maximum (10GB), using default",
+			"key", key, "value", rawValue, "parsed_bytes", result, "default_bytes", defaultValue)
+		return defaultValue
+	}
+
+	return result
 }
 
 // parseRateLimit parses a rate limit string like "5/min" or "10/hour"

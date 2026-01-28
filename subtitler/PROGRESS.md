@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**234 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**235 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -183,7 +183,11 @@ Deep code review using exploration agents identified areas for improvement:
   - Added `defer recover()` to `WithTransaction()` to catch panics
   - Rolls back transaction before re-panicking to preserve stack trace
   - Test verifies database changes are rolled back when transaction panics
-- Task 235: Validate environment variable ranges
+- ✅ Task 235: Validate environment variable ranges
+  - Added range validation to `getEnvSizeOrDefault()` (1MB min, 10GB max)
+  - Added negative value validation to `getEnvIntOrDefault()`
+  - Logs warnings when values are out of range, uses defaults
+  - 16 new tests covering size/int validation edge cases
 
 **Backend (Operations):**
 - Task 236: Add security events for admin operations

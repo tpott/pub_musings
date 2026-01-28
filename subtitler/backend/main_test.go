@@ -208,6 +208,78 @@ func TestGetEnvOrDefault(t *testing.T) {
 	}
 }
 
+func TestGetEnvIntOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue int
+		envValue     string
+		expected     int
+	}{
+		{
+			name:         "uses default when env not set",
+			key:          "TEST_INT_NOT_SET",
+			defaultValue: 10,
+			envValue:     "",
+			expected:     10,
+		},
+		{
+			name:         "parses valid integer",
+			key:          "TEST_INT_VALID",
+			defaultValue: 10,
+			envValue:     "42",
+			expected:     42,
+		},
+		{
+			name:         "parses zero",
+			key:          "TEST_INT_ZERO",
+			defaultValue: 10,
+			envValue:     "0",
+			expected:     0,
+		},
+		{
+			name:         "uses default for invalid value",
+			key:          "TEST_INT_INVALID",
+			defaultValue: 10,
+			envValue:     "not-a-number",
+			expected:     10,
+		},
+		{
+			name:         "uses default for negative value",
+			key:          "TEST_INT_NEGATIVE",
+			defaultValue: 10,
+			envValue:     "-5",
+			expected:     10,
+		},
+		{
+			name:         "uses default for float value",
+			key:          "TEST_INT_FLOAT",
+			defaultValue: 10,
+			envValue:     "3.14",
+			expected:     10,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the env var first
+			os.Unsetenv(tc.key)
+
+			// Set env if test case specifies a value
+			if tc.envValue != "" {
+				os.Setenv(tc.key, tc.envValue)
+				defer os.Unsetenv(tc.key)
+			}
+
+			result := getEnvIntOrDefault(tc.key, tc.defaultValue)
+			if result != tc.expected {
+				t.Errorf("getEnvIntOrDefault(%s, %d) = %d, expected %d",
+					tc.key, tc.defaultValue, result, tc.expected)
+			}
+		})
+	}
+}
+
 func TestGetEnvSizeOrDefault(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -219,58 +291,72 @@ func TestGetEnvSizeOrDefault(t *testing.T) {
 		{
 			name:         "uses default when env not set",
 			key:          "TEST_SIZE_NOT_SET",
-			defaultValue: 100,
+			defaultValue: 100 << 20, // 100 MB
 			envValue:     "",
-			expected:     100,
-		},
-		{
-			name:         "parses plain number",
-			key:          "TEST_SIZE_PLAIN",
-			defaultValue: 100,
-			envValue:     "500",
-			expected:     500,
-		},
-		{
-			name:         "parses KB suffix",
-			key:          "TEST_SIZE_KB",
-			defaultValue: 100,
-			envValue:     "10K",
-			expected:     10 * 1024,
+			expected:     100 << 20,
 		},
 		{
 			name:         "parses MB suffix",
 			key:          "TEST_SIZE_MB",
-			defaultValue: 100,
+			defaultValue: 100 << 20,
 			envValue:     "500M",
-			expected:     500 * 1024 * 1024,
+			expected:     500 << 20,
 		},
 		{
 			name:         "parses GB suffix",
 			key:          "TEST_SIZE_GB",
-			defaultValue: 100,
+			defaultValue: 100 << 20,
 			envValue:     "1G",
-			expected:     1 * 1024 * 1024 * 1024,
+			expected:     1 << 30,
 		},
 		{
 			name:         "handles lowercase suffix",
 			key:          "TEST_SIZE_LOWER",
-			defaultValue: 100,
+			defaultValue: 100 << 20,
 			envValue:     "500m",
-			expected:     500 * 1024 * 1024,
+			expected:     500 << 20,
 		},
 		{
 			name:         "handles whitespace",
 			key:          "TEST_SIZE_WHITESPACE",
-			defaultValue: 100,
+			defaultValue: 100 << 20,
 			envValue:     " 500M ",
-			expected:     500 * 1024 * 1024,
+			expected:     500 << 20,
 		},
 		{
 			name:         "uses default for invalid value",
 			key:          "TEST_SIZE_INVALID",
-			defaultValue: 100,
+			defaultValue: 100 << 20,
 			envValue:     "not-a-number",
-			expected:     100,
+			expected:     100 << 20,
+		},
+		{
+			name:         "rejects value below minimum (1MB)",
+			key:          "TEST_SIZE_TOO_SMALL",
+			defaultValue: 100 << 20,
+			envValue:     "500K", // 500KB < 1MB minimum
+			expected:     100 << 20,
+		},
+		{
+			name:         "rejects value above maximum (10GB)",
+			key:          "TEST_SIZE_TOO_LARGE",
+			defaultValue: 100 << 20,
+			envValue:     "20G", // 20GB > 10GB maximum
+			expected:     100 << 20,
+		},
+		{
+			name:         "accepts exact minimum (1MB)",
+			key:          "TEST_SIZE_MIN",
+			defaultValue: 100 << 20,
+			envValue:     "1M",
+			expected:     1 << 20,
+		},
+		{
+			name:         "accepts exact maximum (10GB)",
+			key:          "TEST_SIZE_MAX",
+			defaultValue: 100 << 20,
+			envValue:     "10G",
+			expected:     10 << 30,
 		},
 	}
 
