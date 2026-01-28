@@ -2,6 +2,40 @@
 
 A web application for generating accurate subtitles for video content.
 
+## Features
+
+### Core Functionality
+- **Video Upload & Transcription**: Upload videos (up to 500MB) and generate subtitles using Whisper AI
+- **Chunked Uploads**: Large files are automatically split into 50MB chunks for reliable uploading
+- **Multiple Export Formats**: Download subtitles as SRT, VTT, or JSON
+- **Subtitle Editor**: Edit text and timing with inline editing and undo/redo support
+- **Subtitle Burning**: Embed subtitles directly into videos (burned or soft subtitles)
+
+### Language & Script Support
+- **Language Detection**: Automatic language detection with hints from video metadata and filename patterns
+- **Language Override**: Select transcription language before or after processing
+- **Script Conversion**: Convert romanized text to native scripts (9 Indic languages supported)
+- **Lyrics Mode**: Special alignment mode for music videos with known lyrics
+
+### User Experience
+- **Variable Playback Speed**: Adjust speed from 0.5x to 2x for language learning
+- **Bionic Reading Mode**: Bold first portion of words to aid reading speed (configurable in Settings)
+- **Dark Mode**: Toggle between light, dark, and auto (system) themes
+- **Keyboard Shortcuts**: Comprehensive shortcuts for video control and navigation
+- **Video Thumbnails**: Preview thumbnails on the My Videos page
+
+### Advanced Features
+- **Embedded Subtitle Detection**: Automatically detects existing subtitle tracks in uploaded videos
+- **Feedback System**: Built-in feedback button on all pages to report issues
+- **Estimated Time Remaining**: Processing time estimates based on historical data
+
+### Security
+- **Authentication**: Email/password, magic link (passwordless), and TOTP 2FA
+- **File Encryption**: Videos encrypted at rest using age library
+- **Session Management**: View and revoke active sessions
+- **CAPTCHA Protection**: Optional hCaptcha integration
+- **Rate Limiting**: Protection against abuse on all endpoints
+
 ## Quick Start
 
 ### Backend (Go)
