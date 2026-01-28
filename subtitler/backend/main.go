@@ -586,17 +586,11 @@ func generateID() (string, error) {
 // Returns the ID and true if valid, or empty string and false if invalid (response already written).
 func validatePathID(w http.ResponseWriter, id string, fieldName string) (string, bool) {
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": fieldName + " required",
-		})
+		httputil.RespondError(w, http.StatusBadRequest, fieldName+" required")
 		return "", false
 	}
 	if err := validation.ValidateHexID(id); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Invalid " + fieldName + " format",
-		})
+		httputil.RespondError(w, http.StatusBadRequest, "Invalid "+fieldName+" format")
 		return "", false
 	}
 	return id, true
@@ -1242,32 +1236,20 @@ func main() {
 		// Fall back to checking for admin user
 		token := auth.GetTokenFromRequest(r)
 		if token == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid session",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid session")
 			return
 		}
 
 		// Check if user has admin role
 		if !user.IsAdmin() {
 			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/metrics")
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Admin access required",
-			})
+			httputil.RespondError(w, http.StatusForbidden, "Admin access required")
 			return
 		}
 
@@ -1288,10 +1270,7 @@ func main() {
 			Column  int           `json:"column"`  // column number (optional)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid request body",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -1314,10 +1293,7 @@ func main() {
 		}
 		logging.DebugContext(r.Context(), "Frontend log", attrs...)
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "ok",
-		})
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
 	// Feedback submission endpoint (rate limited)
@@ -1444,8 +1420,7 @@ func main() {
 		// Check admin role
 		if !user.IsAdmin() {
 			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/api/admin/feedback")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			httputil.RespondError(w, http.StatusForbidden, "Admin access required")
 			return
 		}
 
@@ -1499,23 +1474,20 @@ func main() {
 		// Check authentication
 		token := auth.GetTokenFromRequest(r)
 		if token == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid session")
 			return
 		}
 
 		// Check admin role
 		if !user.IsAdmin() {
 			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/api/admin/feedback/{id}")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			httputil.RespondError(w, http.StatusForbidden, "Admin access required")
 			return
 		}
 
@@ -1554,23 +1526,20 @@ func main() {
 		// Check authentication
 		token := auth.GetTokenFromRequest(r)
 		if token == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid session")
 			return
 		}
 
 		// Check admin role
 		if !user.IsAdmin() {
 			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/api/admin/feedback/{id}")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			httputil.RespondError(w, http.StatusForbidden, "Admin access required")
 			return
 		}
 
@@ -1700,10 +1669,7 @@ func main() {
 		userID, err := auth.GenerateID()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating user ID", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Registration failed",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Registration failed")
 			return
 		}
 
@@ -1717,10 +1683,7 @@ func main() {
 		}
 		if err := database.CreateUser(user); err != nil {
 			logging.ErrorContext(r.Context(), "Error creating user", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Registration failed",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Registration failed")
 			return
 		}
 
@@ -1729,8 +1692,7 @@ func main() {
 		if _, err := rand.Read(tokenBytes); err != nil {
 			logging.ErrorContext(r.Context(), "Error generating verification token", "error", err)
 			// User created but verification email failed - return success with message
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 				"message":            "Account created. Please check your email to verify your account.",
 				"email_verification": true,
 				"user": map[string]interface{}{
@@ -1839,10 +1801,7 @@ func main() {
 		if user == nil {
 			recordFailure()
 			security.LoginFailedUserNotFound(r.Context(), clientIP, req.Email)
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid email or password",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid email or password")
 			return
 		}
 
@@ -1856,18 +1815,14 @@ func main() {
 			if attempts >= maxLoginAttempts {
 				security.AccountLocked(r.Context(), clientIP, req.Email, attempts)
 			}
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid email or password",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid email or password")
 			return
 		}
 
 		// Check if email is verified
 		if !user.EmailVerified {
 			security.LoginFailedUnverified(r.Context(), clientIP, req.Email)
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusForbidden, map[string]interface{}{
 				"error":                   "Please verify your email address before logging in",
 				"email_verification":      true,
 				"email_not_verified":      true,
@@ -1880,8 +1835,7 @@ func main() {
 		if user.TOTPEnabled {
 			if req.TOTPCode == "" {
 				// Don't record as failed attempt - just needs 2FA code
-				w.WriteHeader(http.StatusUnauthorized)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				httputil.RespondJSON(w, http.StatusUnauthorized, map[string]interface{}{
 					"error":         "2FA code required",
 					"totp_required": true,
 				})
@@ -1892,10 +1846,7 @@ func main() {
 			if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.TOTPCode) {
 				recordFailure()
 				security.TwoFAVerifyFailed(r.Context(), clientIP, user.ID, user.Email)
-				w.WriteHeader(http.StatusUnauthorized)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Invalid 2FA code",
-				})
+				httputil.RespondError(w, http.StatusUnauthorized, "Invalid 2FA code")
 				return
 			}
 			security.TwoFAVerifySuccess(r.Context(), clientIP, user.ID, user.Email)
@@ -1911,10 +1862,7 @@ func main() {
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating session", "user_id", user.ID, "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Login failed",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Login failed")
 			return
 		}
 
@@ -1999,10 +1947,7 @@ func main() {
 
 		sessionToken := auth.GetTokenFromRequest(r)
 		if sessionToken == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Not authenticated",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Not authenticated")
 			return
 		}
 
@@ -2010,18 +1955,12 @@ func main() {
 		user, _, err := auth.ValidateSession(database, sessionToken)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to validate session",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to validate session")
 			return
 		}
 
 		if user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Not authenticated",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Not authenticated")
 			return
 		}
 
@@ -2041,28 +1980,19 @@ func main() {
 		user, currentSession, err := auth.ValidateSession(database, token)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to validate session",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to validate session")
 			return
 		}
 
 		if user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		sessions, err := database.GetSessionsByUserID(user.ID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting sessions", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get sessions",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get sessions")
 			return
 		}
 
@@ -2115,20 +2045,14 @@ func main() {
 
 		// Prevent deleting current session through this endpoint
 		if sessionID == currentSession.ID {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Cannot revoke current session. Use logout instead.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Cannot revoke current session. Use logout instead.")
 			return
 		}
 
 		err = database.DeleteSessionByID(sessionID, user.ID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error deleting session", "error", err)
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Session not found",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Session not found")
 			return
 		}
 
@@ -2138,7 +2062,7 @@ func main() {
 		clientIP := ratelimit.GetClientIP(r)
 		security.SessionRevoked(r.Context(), clientIP, user.ID, sessionID, false)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":  "success",
 			"message": "Session revoked",
 		})
@@ -2153,19 +2077,13 @@ func main() {
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		// Check if 2FA is already enabled
 		if user.TOTPEnabled {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "2FA is already enabled. Disable it first to set up a new authenticator.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "2FA is already enabled. Disable it first to set up a new authenticator.")
 			return
 		}
 
@@ -2173,20 +2091,14 @@ func main() {
 		secret, err := totp.GenerateSecret()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating TOTP secret", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to generate secret",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate secret")
 			return
 		}
 
 		// Save the secret to the database (not yet enabled)
 		if err := database.SetTOTPSecret(user.ID, secret); err != nil {
 			logging.ErrorContext(r.Context(), "Error saving TOTP secret", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to save secret",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save secret")
 			return
 		}
 
