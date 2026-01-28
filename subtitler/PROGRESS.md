@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**231 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**232 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -169,7 +169,11 @@ Deep code review using exploration agents identified areas for improvement:
   - Rejects null bytes, path separators, `..` sequences, too-long extensions
   - Applied to both simple upload and chunked upload finalize handlers
   - 20 unit tests covering all malicious extension patterns
-- Task 232: Configure SQLite connection pool limits
+- ✅ Task 232: Configure SQLite connection pool limits
+  - Added `DB_MAX_OPEN_CONNS` (default 10) and `DB_MAX_IDLE_CONNS` (default 5) env vars
+  - Created `db.PoolConfig` struct and `db.OpenWithConfig()` function
+  - Updated main.go to read pool config from environment and log values at startup
+  - Documented in docs/ENV.md with tuning guidance
 - Task 233: Add session listing pagination/limit
 - Task 234: Add panic recovery to WithTransaction
 - Task 235: Validate environment variable ranges

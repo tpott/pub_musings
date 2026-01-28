@@ -2695,3 +2695,84 @@ func TestQueryTimeout(t *testing.T) {
 		}
 	})
 }
+
+func TestOpenWithConfig(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-pool-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	t.Run("default config uses default values", func(t *testing.T) {
+		cfg := DefaultPoolConfig()
+		if cfg.MaxOpenConns != DefaultMaxOpenConns {
+			t.Errorf("Expected MaxOpenConns %d, got %d", DefaultMaxOpenConns, cfg.MaxOpenConns)
+		}
+		if cfg.MaxIdleConns != DefaultMaxIdleConns {
+			t.Errorf("Expected MaxIdleConns %d, got %d", DefaultMaxIdleConns, cfg.MaxIdleConns)
+		}
+	})
+
+	t.Run("opens with custom pool config", func(t *testing.T) {
+		cfg := PoolConfig{
+			MaxOpenConns: 20,
+			MaxIdleConns: 10,
+		}
+		db, err := OpenWithConfig(tmpFile.Name(), cfg)
+		if err != nil {
+			t.Fatalf("Failed to open database: %v", err)
+		}
+		defer db.Close()
+
+		// Verify database is functional
+		if err := db.Ping(); err != nil {
+			t.Errorf("Ping failed: %v", err)
+		}
+	})
+
+	t.Run("opens with zero pool limits (unlimited)", func(t *testing.T) {
+		tmpFile2, err := os.CreateTemp("", "test-pool-unlimited-*.db")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		tmpFile2.Close()
+		defer os.Remove(tmpFile2.Name())
+
+		cfg := PoolConfig{
+			MaxOpenConns: 0, // unlimited
+			MaxIdleConns: 0, // unlimited
+		}
+		db, err := OpenWithConfig(tmpFile2.Name(), cfg)
+		if err != nil {
+			t.Fatalf("Failed to open database with unlimited pool: %v", err)
+		}
+		defer db.Close()
+
+		// Verify database is functional
+		if err := db.Ping(); err != nil {
+			t.Errorf("Ping failed: %v", err)
+		}
+	})
+
+	t.Run("Open uses default pool config", func(t *testing.T) {
+		tmpFile3, err := os.CreateTemp("", "test-pool-default-*.db")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		tmpFile3.Close()
+		defer os.Remove(tmpFile3.Name())
+
+		// Open without explicit config should work
+		db, err := Open(tmpFile3.Name())
+		if err != nil {
+			t.Fatalf("Failed to open database: %v", err)
+		}
+		defer db.Close()
+
+		// Verify database is functional
+		if err := db.Ping(); err != nil {
+			t.Errorf("Ping failed: %v", err)
+		}
+	})
+}

@@ -124,6 +124,10 @@ var (
 	// Database maintenance configuration
 	dbMaintenanceInterval time.Duration
 
+	// Database connection pool configuration
+	dbMaxOpenConns int
+	dbMaxIdleConns int
+
 	// Subtitle font configuration
 	subtitleFont string
 
@@ -283,6 +287,10 @@ func initConfig() {
 
 	// Database maintenance configuration
 	dbMaintenanceInterval = getEnvDurationOrDefault("DB_MAINTENANCE_INTERVAL", defaultDBMaintenanceInterval)
+
+	// Database connection pool configuration
+	dbMaxOpenConns = getEnvIntOrDefault("DB_MAX_OPEN_CONNS", db.DefaultMaxOpenConns)
+	dbMaxIdleConns = getEnvIntOrDefault("DB_MAX_IDLE_CONNS", db.DefaultMaxIdleConns)
 
 	// Subtitle font configuration
 	// For proper Indic script rendering (Hindi, Tamil, etc.), install fonts like:
@@ -1038,13 +1046,17 @@ func main() {
 	}
 	logging.Info("Path validator initialized", "allowed_dirs", uploadDir)
 
-	// Initialize database
-	database, err = db.Open(dbPath)
+	// Initialize database with connection pool configuration
+	poolCfg := db.PoolConfig{
+		MaxOpenConns: dbMaxOpenConns,
+		MaxIdleConns: dbMaxIdleConns,
+	}
+	database, err = db.OpenWithConfig(dbPath, poolCfg)
 	if err != nil {
 		logging.Fatal("Failed to open database", "error", err)
 	}
 	defer database.Close()
-	logging.Info("Database initialized", "path", dbPath)
+	logging.Info("Database initialized", "path", dbPath, "max_open_conns", dbMaxOpenConns, "max_idle_conns", dbMaxIdleConns)
 
 	// Check for initial admin email configuration
 	// If set, promotes the user with this email to admin role

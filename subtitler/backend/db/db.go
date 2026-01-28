@@ -17,6 +17,28 @@ import (
 // Can be overridden via DB_QUERY_TIMEOUT environment variable.
 const DefaultQueryTimeout = 30 * time.Second
 
+// Default connection pool settings optimized for SQLite.
+// SQLite typically doesn't benefit from many connections due to
+// file-level locking, but these allow for concurrent reads with WAL mode.
+const (
+	DefaultMaxOpenConns = 10 // Max simultaneous connections
+	DefaultMaxIdleConns = 5  // Max idle connections to retain
+)
+
+// PoolConfig holds database connection pool configuration.
+type PoolConfig struct {
+	MaxOpenConns int // Maximum number of open connections (0 = unlimited)
+	MaxIdleConns int // Maximum number of idle connections
+}
+
+// DefaultPoolConfig returns the default connection pool configuration.
+func DefaultPoolConfig() PoolConfig {
+	return PoolConfig{
+		MaxOpenConns: DefaultMaxOpenConns,
+		MaxIdleConns: DefaultMaxIdleConns,
+	}
+}
+
 // DB wraps the SQLite database connection
 type DB struct {
 	conn         *sql.DB
@@ -232,8 +254,13 @@ type Feedback struct {
 	Status      string    `json:"status"` // "new", "read", "resolved"
 }
 
-// Open opens or creates a SQLite database at the given path
+// Open opens or creates a SQLite database at the given path with default pool settings.
 func Open(dbPath string) (*DB, error) {
+	return OpenWithConfig(dbPath, DefaultPoolConfig())
+}
+
+// OpenWithConfig opens or creates a SQLite database with custom pool configuration.
+func OpenWithConfig(dbPath string, cfg PoolConfig) (*DB, error) {
 	// Ensure directory exists
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -243,6 +270,14 @@ func Open(dbPath string) (*DB, error) {
 	conn, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Configure connection pool
+	if cfg.MaxOpenConns > 0 {
+		conn.SetMaxOpenConns(cfg.MaxOpenConns)
+	}
+	if cfg.MaxIdleConns > 0 {
+		conn.SetMaxIdleConns(cfg.MaxIdleConns)
 	}
 
 	// Test connection

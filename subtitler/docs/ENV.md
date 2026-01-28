@@ -15,7 +15,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Admin | `INITIAL_ADMIN_EMAIL` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `CHUNK_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT` |
 | Debugging | `LOG_LEVEL`, `LOG_SLOW_QUERIES`, `SLOW_QUERY_THRESHOLD_MS` |
-| Maintenance | `DB_MAINTENANCE_INTERVAL` |
+| Database | `DB_MAINTENANCE_INTERVAL`, `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS` |
 | Subtitles | `SUBTITLE_FONT` |
 
 ## Server Configuration
@@ -575,7 +575,7 @@ Threshold in milliseconds for logging slow queries. Only used when `LOG_SLOW_QUE
 - Set to `200` for less verbose logging
 - Set to `1` during debugging to log all queries
 
-## Maintenance Configuration
+## Database Configuration
 
 ### DB_MAINTENANCE_INTERVAL
 
@@ -587,6 +587,38 @@ Threshold in milliseconds for logging slow queries. Only used when `LOG_SLOW_QUE
 | Example | `DB_MAINTENANCE_INTERVAL=12h` |
 
 Interval for automatic SQLite maintenance (VACUUM and ANALYZE). Set to `0` or `disabled` to disable.
+
+### DB_MAX_OPEN_CONNS
+
+| Property | Value |
+|----------|-------|
+| Default | `10` |
+| Required | No |
+| Format | Integer |
+| Example | `DB_MAX_OPEN_CONNS=20` |
+
+Maximum number of open database connections. SQLite with WAL mode can handle concurrent reads, but write operations are serialized. The default of 10 is suitable for most workloads.
+
+**Tuning guidance:**
+- Increase for high-traffic production deployments
+- Decrease for memory-constrained environments
+- Set to `0` for unlimited connections (not recommended)
+
+### DB_MAX_IDLE_CONNS
+
+| Property | Value |
+|----------|-------|
+| Default | `5` |
+| Required | No |
+| Format | Integer |
+| Example | `DB_MAX_IDLE_CONNS=10` |
+
+Maximum number of idle connections to retain in the pool. Keeping connections open avoids reconnection overhead.
+
+**Tuning guidance:**
+- Should generally be less than or equal to `DB_MAX_OPEN_CONNS`
+- Higher values reduce connection setup latency at the cost of memory
+- Set to `0` to close connections immediately when idle
 
 ## Subtitle Configuration
 
