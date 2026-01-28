@@ -750,11 +750,19 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 
 	// Add request parameters
 	// Use verbose_json to get segments with timing
-	writer.WriteField("response_format", "verbose_json")
-	writer.WriteField("temperature", whisperTemperature) // configurable via WHISPER_TEMPERATURE
-	writer.WriteField("language", language)
+	if err := writer.WriteField("response_format", "verbose_json"); err != nil {
+		return nil, fmt.Errorf("failed to write response_format field: %v", err)
+	}
+	if err := writer.WriteField("temperature", whisperTemperature); err != nil {
+		return nil, fmt.Errorf("failed to write temperature field: %v", err)
+	}
+	if err := writer.WriteField("language", language); err != nil {
+		return nil, fmt.Errorf("failed to write language field: %v", err)
+	}
 
-	writer.Close()
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close multipart writer: %v", err)
+	}
 
 	// Retry configuration: 3 attempts with exponential backoff (1s, 2s, 4s)
 	maxRetries := 3
