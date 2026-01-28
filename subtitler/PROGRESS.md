@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**261 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**262 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**261 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**262 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 264: Session.ts cleanup tests already exist (2026-01-28)
+
+- ✅ Task 264: Verified session.ts tests already cover stale session cleanup
+  - 27 tests in session.test.ts including cleanupStaleUploadSessions() tests
+  - Tests cover: 48-hour threshold, fresh vs stale sessions, untracked legacy sessions, invalid JSON
 
 ### Task 263: Replace FeedbackButton native alerts with styled dialogs (2026-01-28)
 
