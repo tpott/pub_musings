@@ -59,6 +59,32 @@ func (db *DB) GetQueryTimeout() time.Duration {
 	return db.queryTimeout
 }
 
+// sqliteTimestampFormats lists the formats SQLite may return for datetime values.
+// SQLite stores timestamps as strings and returns them in various formats
+// depending on how they were inserted. Aggregate functions like MIN() return strings.
+var sqliteTimestampFormats = []string{
+	"2006-01-02 15:04:05.999999999-07:00",
+	"2006-01-02 15:04:05.999999999",
+	"2006-01-02T15:04:05.999999999-07:00",
+	"2006-01-02T15:04:05.999999999Z07:00",
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02 15:04:05",
+	"2006-01-02T15:04:05",
+}
+
+// parseSQLiteTimestamp parses a timestamp string from SQLite.
+// SQLite stores timestamps as strings and returns them in various formats.
+// This function tries multiple formats to handle different insertion methods.
+func parseSQLiteTimestamp(s string) (time.Time, error) {
+	for _, format := range sqliteTimestampFormats {
+		if t, err := time.Parse(format, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("failed to parse SQLite timestamp: %q", s)
+}
+
 // queryContext returns a context with the configured query timeout.
 func (db *DB) queryContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), db.GetQueryTimeout())
@@ -1696,26 +1722,22 @@ func (db *DB) IsEmailLocked(email string, maxAttempts int, lockDuration time.Dur
 
 	if count >= maxAttempts {
 		// Get the oldest failed attempt in the window to calculate unlock time
-		var oldestAttemptStr string
+		// Note: MIN() returns a string in SQLite, so we scan to string and parse
+		var oldestAttemptStr sql.NullString
 		err := db.conn.QueryRow(`
 			SELECT MIN(created_at) FROM login_attempts
 			WHERE email = ? AND success = 0 AND created_at > ?
 		`, email, since).Scan(&oldestAttemptStr)
 		if err != nil {
-			return false, time.Time{}, err
+			return false, time.Time{}, fmt.Errorf("failed to get oldest login attempt: %w", err)
 		}
-		// Parse the datetime string (SQLite format)
-		oldestAttempt, err := time.Parse("2006-01-02 15:04:05.999999999-07:00", oldestAttemptStr)
+		if !oldestAttemptStr.Valid {
+			// This shouldn't happen since count >= maxAttempts, but handle gracefully
+			return false, time.Time{}, fmt.Errorf("no login attempts found despite count >= %d", maxAttempts)
+		}
+		oldestAttempt, err := parseSQLiteTimestamp(oldestAttemptStr.String)
 		if err != nil {
-			// Try without timezone
-			oldestAttempt, err = time.Parse("2006-01-02 15:04:05.999999999", oldestAttemptStr)
-			if err != nil {
-				// Try RFC3339
-				oldestAttempt, err = time.Parse(time.RFC3339Nano, oldestAttemptStr)
-				if err != nil {
-					return false, time.Time{}, fmt.Errorf("failed to parse oldest attempt time: %v", err)
-				}
-			}
+			return false, time.Time{}, fmt.Errorf("failed to parse oldest login attempt time: %w", err)
 		}
 		unlockTime := oldestAttempt.Add(lockDuration)
 		return true, unlockTime, nil
