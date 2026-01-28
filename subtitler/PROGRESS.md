@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**229 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
+**230 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -154,7 +154,9 @@ Deep code review using exploration agents identified areas for improvement:
   - Focus indicators on: thumbnails, modal segments, buttons, pagination, nav links
   - Uses consistent `outline: 2px solid var(--accent-color); outline-offset: 2px`
   - Changed `:focus` to `:focus-visible` for better UX (only shows on keyboard nav)
-- Task 230: Add transcription cache cleanup to prevent unbounded growth
+- ✅ Task 230: Added LRU cache cleanup (max 10 entries) to transcriptionCache
+  - Evicts oldest entry when cache is full
+  - Moves accessed entries to end on cache hit for proper LRU behavior
 
 **Frontend (Code Quality):**
 - Task 227: Extract navigation component to reduce duplication (~150 lines)

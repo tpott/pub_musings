@@ -1177,13 +1177,31 @@ import '../styles/theme.css';
 			});
 
 			// Cache for loaded transcription data to avoid refetching
+			// LRU-style cache with maximum 10 entries to prevent unbounded growth
+			const CACHE_MAX_SIZE = 10;
 			const transcriptionCache: Map<string, TranscriptionSegment[]> = new Map();
+
+			function addToCache(videoId: string, segments: TranscriptionSegment[]) {
+				// Remove oldest entry if cache is at max size
+				if (transcriptionCache.size >= CACHE_MAX_SIZE) {
+					// Map iterates in insertion order, so first key is oldest
+					const oldestKey = transcriptionCache.keys().next().value;
+					if (oldestKey) {
+						transcriptionCache.delete(oldestKey);
+					}
+				}
+				transcriptionCache.set(videoId, segments);
+			}
 
 			// Helper to get segments from cache or fetch from server
 			async function getSubtitleSegments(videoId: string): Promise<TranscriptionSegment[]> {
 				// Check cache first
 				if (transcriptionCache.has(videoId)) {
-					return transcriptionCache.get(videoId)!;
+					// Move to end (most recently used) by re-inserting
+					const cached = transcriptionCache.get(videoId)!;
+					transcriptionCache.delete(videoId);
+					transcriptionCache.set(videoId, cached);
+					return cached;
 				}
 
 				// Fetch from server
@@ -1199,7 +1217,7 @@ import '../styles/theme.css';
 				}
 
 				const segments = data.result.segments || [];
-				transcriptionCache.set(videoId, segments);
+				addToCache(videoId, segments);
 				return segments;
 			}
 
