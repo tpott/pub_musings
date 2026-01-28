@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 // trustProxy indicates whether to trust X-Forwarded-For and X-Real-IP headers.
@@ -187,7 +189,9 @@ func (l *Limiter) WrapNamed(endpoint string, next http.HandlerFunc) http.Handler
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"Too many requests. Please try again later."}`))
+			if _, err := w.Write([]byte(`{"error":"Too many requests. Please try again later."}`)); err != nil {
+				logging.Warn("failed to write rate limit response", "error", err.Error(), "endpoint", endpoint)
+			}
 			return
 		}
 
@@ -268,7 +272,9 @@ func (ul *UserLimiter) WrapWithUserLimitNamed(endpoint string, getUserID UserRat
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"Rate limit exceeded. Please try again later."}`))
+			if _, err := w.Write([]byte(`{"error":"Rate limit exceeded. Please try again later."}`)); err != nil {
+				logging.Warn("failed to write user rate limit response", "error", err.Error(), "user_id", userID)
+			}
 			return
 		}
 

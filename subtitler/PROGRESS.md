@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**317 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**321 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**320 tasks completed.**
+**321 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 321: Check w.Write Errors in Rate Limiter and Download Endpoints (COMPLETE)**
+- Created `httputil.WriteContent()` helper function that logs errors when w.Write() fails
+- Updated rate limiter in main.go to use WriteContent for error responses
+- Updated SRT, VTT, and embedded subtitles download endpoints to use WriteContent
+- Updated ratelimit package to check w.Write errors (2 locations)
+- Updated csrf package to check w.Write errors (2 locations)
+- Added 3 tests for WriteContent function (successful write, empty content, large content)
+- Improves visibility into client disconnect/write failures
 
 **Task 317: Add Tests for localStorage Quota Exceeded Scenarios (COMPLETE)**
 - Added try/catch wrappers to session.ts functions for localStorage operations

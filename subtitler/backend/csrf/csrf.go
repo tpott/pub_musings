@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 const (
@@ -192,7 +194,9 @@ func ProtectFunc(handler http.HandlerFunc, getSessionToken func(*http.Request) s
 		if !ValidateToken(sessionToken, csrfToken) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(`{"error":"Invalid or missing CSRF token"}`))
+			if _, err := w.Write([]byte(`{"error":"Invalid or missing CSRF token"}`)); err != nil {
+				logging.Warn("failed to write CSRF error response", "error", err.Error())
+			}
 			return
 		}
 
@@ -230,7 +234,9 @@ func Middleware(getSessionToken func(*http.Request) string) func(http.Handler) h
 			if !ValidateToken(sessionToken, csrfToken) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte(`{"error":"Invalid or missing CSRF token"}`))
+				if _, err := w.Write([]byte(`{"error":"Invalid or missing CSRF token"}`)); err != nil {
+					logging.Warn("failed to write CSRF error response", "error", err.Error())
+				}
 				return
 			}
 

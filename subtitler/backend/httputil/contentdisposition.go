@@ -72,6 +72,22 @@ func RespondErrorf(w http.ResponseWriter, statusCode int, format string, args ..
 	RespondError(w, statusCode, msg)
 }
 
+// WriteContent writes content bytes to the response writer with error logging.
+// Logs a warning if the write fails (e.g., client disconnected).
+// Returns the number of bytes written and any error encountered.
+func WriteContent(w http.ResponseWriter, content []byte, description string) (int, error) {
+	n, err := w.Write(content)
+	if err != nil {
+		logging.Warn("failed to write response content",
+			"error", err.Error(),
+			"description", description,
+			"bytes_expected", len(content),
+			"bytes_written", n,
+		)
+	}
+	return n, err
+}
+
 // ContentDisposition generates a Content-Disposition header value for file downloads.
 // It follows RFC 5987 to properly encode non-ASCII filenames, ensuring compatibility
 // with modern browsers while providing fallback for older clients.

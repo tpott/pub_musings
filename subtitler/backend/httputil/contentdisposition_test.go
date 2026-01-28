@@ -593,3 +593,50 @@ func TestDefaultMaxJSONBodySize(t *testing.T) {
 		t.Errorf("DefaultMaxJSONBodySize = %d, want %d (1MB)", DefaultMaxJSONBodySize, expected)
 	}
 }
+
+func TestWriteContent(t *testing.T) {
+	t.Run("successful write", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		content := []byte("Hello, World!")
+
+		n, err := WriteContent(w, content, "test content")
+
+		if err != nil {
+			t.Errorf("WriteContent() error = %v, want nil", err)
+		}
+		if n != len(content) {
+			t.Errorf("WriteContent() wrote %d bytes, want %d", n, len(content))
+		}
+		if w.Body.String() != "Hello, World!" {
+			t.Errorf("WriteContent() body = %q, want %q", w.Body.String(), "Hello, World!")
+		}
+	})
+
+	t.Run("empty content", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		content := []byte{}
+
+		n, err := WriteContent(w, content, "empty content")
+
+		if err != nil {
+			t.Errorf("WriteContent() error = %v, want nil", err)
+		}
+		if n != 0 {
+			t.Errorf("WriteContent() wrote %d bytes, want 0", n)
+		}
+	})
+
+	t.Run("large content", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		content := []byte(strings.Repeat("x", 10000))
+
+		n, err := WriteContent(w, content, "large content")
+
+		if err != nil {
+			t.Errorf("WriteContent() error = %v, want nil", err)
+		}
+		if n != len(content) {
+			t.Errorf("WriteContent() wrote %d bytes, want %d", n, len(content))
+		}
+	})
+}

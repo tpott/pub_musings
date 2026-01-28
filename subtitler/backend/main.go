@@ -523,7 +523,7 @@ func userRateLimitMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"Rate limit exceeded. Please try again later."}`))
+			httputil.WriteContent(w, []byte(`{"error":"Rate limit exceeded. Please try again later."}`), "user rate limit response")
 			return
 		}
 
@@ -4838,7 +4838,7 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".srt"))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(srtContent))
+		httputil.WriteContent(w, []byte(srtContent), "SRT download")
 	})
 
 	// Download VTT file for a transcription
@@ -4928,7 +4928,7 @@ func main() {
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".vtt"))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(vttContent))
+		httputil.WriteContent(w, []byte(vttContent), "VTT download")
 	})
 
 	// Download JSON file for a transcription
@@ -5129,7 +5129,7 @@ func main() {
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Content-Disposition", httputil.ContentDisposition(filename))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(content))
+		httputil.WriteContent(w, []byte(content), "embedded subtitles download")
 	}))
 
 	// List all videos
