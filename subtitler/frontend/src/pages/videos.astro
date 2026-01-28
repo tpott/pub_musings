@@ -1590,6 +1590,7 @@ import '../styles/theme.css';
 
 				currentModalVideoId = null;
 				modalSubtitleSegments = [];
+				cachedModalSegmentElements = []; // Clear cached DOM references to prevent memory leak
 
 				// Restore focus to the trigger element
 				if (modalTriggerElement) {
