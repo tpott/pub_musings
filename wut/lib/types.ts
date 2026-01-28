@@ -10,6 +10,7 @@ export interface CliArgs {
   select?: number[];      // --select "N,M,...": Select specific job indices
   dryRun?: boolean;       // --dry-run: Show what would be crawled
   followIframe?: boolean; // --follow-iframe/--no-follow-iframe: Control iframe navigation
+  location?: string;      // --location "pattern": Filter by location substring
 }
 
 export interface JobListing {

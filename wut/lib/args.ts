@@ -11,6 +11,7 @@ export function parseArgs(): CliArgs {
   let select: number[] | undefined;
   let dryRun = false;
   let followIframe: boolean | undefined;
+  let location: string | undefined;
   const positional: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -30,6 +31,12 @@ export function parseArgs(): CliArgs {
       if (nextArg !== undefined && !nextArg.startsWith('-')) {
         select = nextArg.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
         i++; // Skip the value
+      }
+    } else if (arg === '--location') {
+      const nextArg = args[i + 1];
+      if (nextArg !== undefined && !nextArg.startsWith('-')) {
+        location = nextArg;
+        i++;
       }
     } else if (arg === '--dry-run') {
       dryRun = true;
@@ -52,6 +59,7 @@ export function parseArgs(): CliArgs {
     console.log('  --all               Select all jobs and crawl (non-interactive)');
     console.log('  --first N           Select first N jobs and crawl');
     console.log('  --select "N,M,..."  Select specific job indices to crawl (comma-separated)');
+    console.log('  --location "pat"    Filter jobs by location (case-insensitive substring match)');
     console.log('  --dry-run           Show what would be crawled without actually crawling');
     console.log('  --follow-iframe     Force following job board iframes');
     console.log('  --no-follow-iframe  Stay on parent page, don\'t follow iframes');
@@ -62,6 +70,7 @@ export function parseArgs(): CliArgs {
     console.log('  bun run job-crawler.ts "https://example.com/careers" --list');
     console.log('  bun run job-crawler.ts "https://example.com/careers" --first 3');
     console.log('  bun run job-crawler.ts "https://example.com/careers" --select "1,3,5"');
+    console.log('  bun run job-crawler.ts "https://example.com/careers" --list --location "Redmond"');
     console.log('  bun run job-crawler.ts "https://example.com/careers" --all --dry-run');
     process.exit(1);
   }
@@ -75,5 +84,6 @@ export function parseArgs(): CliArgs {
     select,
     dryRun,
     followIframe,
+    location,
   };
 }

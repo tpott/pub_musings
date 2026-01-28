@@ -23,10 +23,11 @@ export function displayJobPage(listings: JobListing[], page: number, pageSize: n
 export async function promptForSelection(
   listings: JobListing[],
   page: Page,
-  pattern: JobBoardPattern
+  pattern: JobBoardPattern,
+  locationFilter?: string
 ): Promise<number[]> {
   const pageSize = 20;
-  const totalPages = Math.ceil(listings.length / pageSize);
+  let totalPages = Math.ceil(listings.length / pageSize);
   let currentPage = 0;
   const selectedIndices: number[] = [];
 
@@ -84,14 +85,23 @@ export async function promptForSelection(
 
     if (answer === 'r' || answer === 'refresh') {
       console.log('\nRe-extracting job listings from current page state...');
-      const newListings = await extractJobListings(page, pattern);
+      let newListings = await extractJobListings(page, pattern);
+      if (locationFilter) {
+        const lowerFilter = locationFilter.toLowerCase();
+        newListings = newListings.filter(
+          (job) => job.location?.toLowerCase().includes(lowerFilter)
+        );
+      }
       if (newListings.length === 0) {
         console.log('No jobs found. Try scrolling or adjusting filters.');
         continue;
       }
+      // Re-index after filtering
+      newListings.forEach((job, i) => { job.index = i + 1; });
       // Reset state with new listings
       listings.length = 0;
       listings.push(...newListings);
+      totalPages = Math.ceil(listings.length / pageSize);
       selectedIndices.length = 0;
       currentPage = 0;
       console.log(`Found ${listings.length} job listing(s).`);

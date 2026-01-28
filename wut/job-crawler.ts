@@ -116,7 +116,7 @@ async function crawlJobPage(
 
 // Main IIFE
 (async (): Promise<void> => {
-  const { careersUrl, pattern: patternName, list, all, first, select, dryRun, followIframe } = parseArgs();
+  const { careersUrl, pattern: patternName, list, all, first, select, dryRun, followIframe, location } = parseArgs();
 
   // Determine which pattern to use
   let pattern: JobBoardPattern;
@@ -170,6 +170,17 @@ async function crawlJobPage(
     console.log('Extracting job listings...');
     let listings = await extractJobListings(page, pattern);
 
+    // Apply location filter if provided
+    if (location) {
+      const lowerFilter = location.toLowerCase();
+      listings = listings.filter(
+        (job) => job.location?.toLowerCase().includes(lowerFilter)
+      );
+      // Re-index after filtering
+      listings.forEach((job, i) => { job.index = i + 1; });
+      console.log(`Filtered to ${listings.length} job(s) matching location "${location}".`);
+    }
+
     // If no listings found, allow user to navigate and retry (unless in non-interactive mode)
     while (listings.length === 0) {
       console.log('\nNo job listings found. Try a different pattern or check the URL.');
@@ -202,6 +213,14 @@ async function crawlJobPage(
       if (trimmed === 'r' || trimmed === 'refresh') {
         console.log('\nRe-extracting job listings from current page state...');
         listings = await extractJobListings(page, pattern);
+        if (location) {
+          const lowerFilter = location.toLowerCase();
+          listings = listings.filter(
+            (job) => job.location?.toLowerCase().includes(lowerFilter)
+          );
+          listings.forEach((job, i) => { job.index = i + 1; });
+          console.log(`Filtered to ${listings.length} job(s) matching location "${location}".`);
+        }
         if (listings.length > 0) {
           break;
         }
@@ -249,7 +268,7 @@ async function crawlJobPage(
       console.log(`Selected ${selectedIndices.length} job(s) by index.`);
     } else {
       // Interactive mode
-      selectedIndices = await promptForSelection(listings, page, pattern);
+      selectedIndices = await promptForSelection(listings, page, pattern, location);
     }
 
     if (selectedIndices.length === 0) {
