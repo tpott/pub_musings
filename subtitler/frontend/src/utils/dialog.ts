@@ -5,9 +5,17 @@
 
 import { escapeHtml } from './html';
 
-// Dialog container singleton
+// Dialog container singleton - created once and reused
+// Event listeners are added once during container creation and persist for the page lifetime
+// This is intentional: the singleton pattern means listeners don't accumulate
 let dialogContainer: HTMLElement | null = null;
 let activeDialog: { resolve: (value: boolean) => void } | null = null;
+
+// Store references to event handlers for cleanup
+let cancelClickHandler: (() => void) | null = null;
+let confirmClickHandler: (() => void) | null = null;
+let overlayClickHandler: ((e: MouseEvent) => void) | null = null;
+let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
 /**
  * Dialog options for customization
@@ -54,26 +62,27 @@ function ensureContainer(): HTMLElement {
 			document.head.appendChild(style);
 		}
 
-		// Set up event listeners
+		// Set up event listeners - store references for potential cleanup
 		const cancelBtn = dialogContainer.querySelector('#dialog-cancel') as HTMLButtonElement;
 		const confirmBtn = dialogContainer.querySelector('#dialog-confirm') as HTMLButtonElement;
 
-		cancelBtn.addEventListener('click', () => closeDialog(false));
-		confirmBtn.addEventListener('click', () => closeDialog(true));
-
-		// Close on overlay click
-		dialogContainer.addEventListener('click', (e) => {
+		cancelClickHandler = () => closeDialog(false);
+		confirmClickHandler = () => closeDialog(true);
+		overlayClickHandler = (e: MouseEvent) => {
 			if (e.target === dialogContainer) {
 				closeDialog(false);
 			}
-		});
-
-		// Close on Escape key
-		dialogContainer.addEventListener('keydown', (e) => {
+		};
+		keydownHandler = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
 				closeDialog(false);
 			}
-		});
+		};
+
+		cancelBtn.addEventListener('click', cancelClickHandler);
+		confirmBtn.addEventListener('click', confirmClickHandler);
+		dialogContainer.addEventListener('click', overlayClickHandler);
+		dialogContainer.addEventListener('keydown', keydownHandler);
 	}
 	return dialogContainer;
 }
@@ -88,6 +97,51 @@ function closeDialog(confirmed: boolean): void {
 	}
 	if (activeDialog) {
 		activeDialog.resolve(confirmed);
+		activeDialog = null;
+	}
+}
+
+/**
+ * Destroy the dialog container and clean up all event listeners
+ * Useful for testing or when the dialog system is no longer needed
+ */
+export function destroyDialog(): void {
+	if (dialogContainer) {
+		// Remove event listeners
+		const cancelBtn = dialogContainer.querySelector('#dialog-cancel') as HTMLButtonElement;
+		const confirmBtn = dialogContainer.querySelector('#dialog-confirm') as HTMLButtonElement;
+
+		if (cancelClickHandler) {
+			cancelBtn?.removeEventListener('click', cancelClickHandler);
+			cancelClickHandler = null;
+		}
+		if (confirmClickHandler) {
+			confirmBtn?.removeEventListener('click', confirmClickHandler);
+			confirmClickHandler = null;
+		}
+		if (overlayClickHandler) {
+			dialogContainer.removeEventListener('click', overlayClickHandler);
+			overlayClickHandler = null;
+		}
+		if (keydownHandler) {
+			dialogContainer.removeEventListener('keydown', keydownHandler);
+			keydownHandler = null;
+		}
+
+		// Remove from DOM
+		dialogContainer.remove();
+		dialogContainer = null;
+	}
+
+	// Remove styles
+	const styles = document.getElementById('dialog-styles');
+	if (styles) {
+		styles.remove();
+	}
+
+	// Resolve any pending dialog
+	if (activeDialog) {
+		activeDialog.resolve(false);
 		activeDialog = null;
 	}
 }

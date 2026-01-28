@@ -380,7 +380,8 @@
 	const submitBtn = document.getElementById('feedbackSubmit') as HTMLButtonElement;
 
 	let selectedRating: number | null = null;
-	const stars = document.querySelectorAll('.star');
+	const starRatingContainer = document.getElementById('starRating') as HTMLElement;
+	const stars = starRatingContainer.querySelectorAll('.star');
 
 	// Character count update
 	feedbackText.addEventListener('input', () => {
@@ -388,31 +389,40 @@
 		charCount.textContent = `${length.toLocaleString()} / 10,240`;
 	});
 
-	// Star rating hover effects
-	stars.forEach((star, index) => {
-		star.addEventListener('mouseenter', () => {
-			stars.forEach((s, i) => {
-				if (i <= index) {
-					s.classList.add('hover');
-				} else {
-					s.classList.remove('hover');
-				}
-			});
+	// Star rating with event delegation - single listener on container
+	// This pattern is more efficient than attaching listeners to each star
+	starRatingContainer.addEventListener('mouseenter', (e) => {
+		const star = (e.target as HTMLElement).closest('.star');
+		if (!star) return;
+		const index = Array.from(stars).indexOf(star);
+		stars.forEach((s, i) => {
+			if (i <= index) {
+				s.classList.add('hover');
+			} else {
+				s.classList.remove('hover');
+			}
 		});
+	}, true); // Use capture to handle mouseenter on children
 
-		star.addEventListener('mouseleave', () => {
+	starRatingContainer.addEventListener('mouseleave', (e) => {
+		const relatedTarget = e.relatedTarget as HTMLElement;
+		// Only clear hover if leaving the container entirely
+		if (!starRatingContainer.contains(relatedTarget)) {
 			stars.forEach((s) => s.classList.remove('hover'));
-		});
+		}
+	});
 
-		star.addEventListener('click', () => {
-			selectedRating = index + 1;
-			stars.forEach((s, i) => {
-				if (i < selectedRating!) {
-					s.classList.add('active');
-				} else {
-					s.classList.remove('active');
-				}
-			});
+	starRatingContainer.addEventListener('click', (e) => {
+		const star = (e.target as HTMLElement).closest('.star');
+		if (!star) return;
+		const index = Array.from(stars).indexOf(star);
+		selectedRating = index + 1;
+		stars.forEach((s, i) => {
+			if (i < selectedRating!) {
+				s.classList.add('active');
+			} else {
+				s.classList.remove('active');
+			}
 		});
 	});
 

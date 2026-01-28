@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**264 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**266 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,20 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**264 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**266 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 265-266: Dialog and FeedbackButton cleanup (2026-01-28)
+
+- ✅ Task 265: Added destroyDialog() cleanup function to dialog.ts
+  - Stored event handler references for proper cleanup
+  - destroyDialog() removes all listeners and DOM elements
+  - Useful for testing and explicit cleanup scenarios
+  - Added 2 new tests (total tests: 326)
+
+- ✅ Task 266: Refactored FeedbackButton star rating to use event delegation
+  - Replaced 15 individual listeners (5 stars × 3 events) with 3 delegated listeners
+  - Single mouseenter, mouseleave, and click handler on container
+  - Better maintainability and no risk of listener accumulation
 
 ### Task 261: Replace any types with proper interfaces (2026-01-28)
 
