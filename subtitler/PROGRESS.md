@@ -138,9 +138,20 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**322 tasks completed.**
+**325 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 325: Validate UPLOAD_DIR and DB_PATH Environment Variable Paths (COMPLETE)**
+- Added validation.ValidateFilePath() calls for UPLOAD_DIR, DB_PATH, and KEY_PATH in initConfig()
+- Invalid paths now log.Fatal with descriptive error message
+- All paths are normalized with filepath.Clean() after validation
+- Prevents path traversal attacks via configuration
+
+**Tasks 323-324: Verify align and crypto package tests exist (COMPLETE)**
+- Align package already has comprehensive tests: align_test.go (250 lines), lyrics_test.go (525 lines)
+- Crypto package already has tests: crypto_test.go, multi_test.go
+- Added learning to LEARNINGS.md about verifying test coverage before filing tasks
 
 **Task 322: Use removeWithLogging Helper for All os.Remove Calls (COMPLETE)**
 - Updated upload error cleanup paths to use removeWithLogging()

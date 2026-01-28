@@ -947,3 +947,13 @@ Benefits:
 - The console.error helps developers debug in DevTools
 
 **Lesson:** Not every console.error needs user-facing feedback. For internal utilities that degrade gracefully (returning default values), console.error is the right choice. User-facing errors should be reserved for operations the user explicitly initiated that failed.
+
+---
+
+### 2026-01-28: Verify test coverage before filing tasks
+
+**Problem:** Deep inspection agent reported that backend/align/ package had "no test file" but it actually has comprehensive tests in align_test.go and lyrics_test.go (500+ lines of test coverage).
+
+**Solution:** Task 323 was marked done immediately after verifying the test files exist. No code changes needed.
+
+**Lesson:** When an exploration agent reports missing tests, verify by checking for `*_test.go` files before filing a task. The agent may have missed test files or made an error in its analysis.

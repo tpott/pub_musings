@@ -298,6 +298,22 @@ func initConfig() {
 	dbPath = getEnvOrDefault("DB_PATH", defaultDBPath)
 	keyPath = getEnvOrDefault("KEY_PATH", defaultKeyPath)
 
+	// Validate directory/file paths for security (path traversal, null bytes)
+	if err := validation.ValidateFilePath(uploadDir); err != nil {
+		logging.Fatal("Invalid UPLOAD_DIR path", "path", uploadDir, "error", err)
+	}
+	uploadDir = filepath.Clean(uploadDir)
+
+	if err := validation.ValidateFilePath(dbPath); err != nil {
+		logging.Fatal("Invalid DB_PATH path", "path", dbPath, "error", err)
+	}
+	dbPath = filepath.Clean(dbPath)
+
+	if err := validation.ValidateFilePath(keyPath); err != nil {
+		logging.Fatal("Invalid KEY_PATH path", "path", keyPath, "error", err)
+	}
+	keyPath = filepath.Clean(keyPath)
+
 	// Rate limit configuration
 	authRateLimit, authRateWindow = getEnvRateLimitOrDefault("AUTH_RATE_LIMIT", defaultAuthRateLimit, defaultAuthRateWindow)
 	passwordResetRateLimit, passwordResetWindow = getEnvRateLimitOrDefault("PASSWORD_RESET_RATE_LIMIT", defaultPasswordResetRateLimit, defaultPasswordResetWindow)
