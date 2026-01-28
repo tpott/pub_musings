@@ -435,6 +435,17 @@ const (
 	defaultShutdownTimeout = 30 * time.Second // Time allowed for graceful shutdown
 )
 
+// isShuttingDown checks if the server is shutting down.
+// Background goroutines should call this at key checkpoints to exit gracefully.
+func isShuttingDown() bool {
+	select {
+	case <-shutdownCtx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
 // Global audio extractor for video processing
 var audioExtractor audio.Extractor
 
@@ -4277,6 +4288,13 @@ func main() {
 				}
 			}()
 
+			// Check for shutdown before starting
+			if isShuttingDown() {
+				logging.Info("Transcription cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailTranscription(uploadID, "Server shutting down - transcription interrupted")
+				return
+			}
+
 			transcriptionStart := time.Now()
 			metrics.RecordTranscriptionStarted()
 			logging.Info("Starting transcription", "upload_id", uploadID, "language", lang, "key_version", kv)
@@ -4296,6 +4314,13 @@ func main() {
 				defer os.Remove(decryptedPath) // Clean up decrypted file when done
 			}
 
+			// Check for shutdown after decryption
+			if isShuttingDown() {
+				logging.Info("Transcription cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailTranscription(uploadID, "Server shutting down - transcription interrupted")
+				return
+			}
+
 			// Extract audio
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
@@ -4306,6 +4331,13 @@ func main() {
 				return
 			}
 			defer os.Remove(audioPath) // Clean up audio file when done (even on panic/error)
+
+			// Check for shutdown after audio extraction
+			if isShuttingDown() {
+				logging.Info("Transcription cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailTranscription(uploadID, "Server shutting down - transcription interrupted")
+				return
+			}
 
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
@@ -4322,6 +4354,8 @@ func main() {
 				for {
 					select {
 					case <-progressCtx.Done():
+						return
+					case <-shutdownCtx.Done():
 						return
 					case <-ticker.C:
 						// Increment progress slowly from 30% to 90% during transcription
@@ -5327,6 +5361,13 @@ func main() {
 				}
 			}()
 
+			// Check for shutdown before starting
+			if isShuttingDown() {
+				logging.Info("Reprocess cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted")
+				return
+			}
+
 			logging.Info("Reprocessing transcription", "upload_id", uploadID, "key_version", kv)
 
 			// Decrypt video file if encrypted
@@ -5344,6 +5385,13 @@ func main() {
 				defer os.Remove(decryptedPath)
 			}
 
+			// Check for shutdown after decryption
+			if isShuttingDown() {
+				logging.Info("Reprocess cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted")
+				return
+			}
+
 			// Extract audio
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
@@ -5354,6 +5402,13 @@ func main() {
 				return
 			}
 			defer os.Remove(audioPath) // Clean up audio file when done (even on panic/error)
+
+			// Check for shutdown after audio extraction
+			if isShuttingDown() {
+				logging.Info("Reprocess cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted")
+				return
+			}
 
 			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
 
@@ -5368,6 +5423,8 @@ func main() {
 				for {
 					select {
 					case <-progressCtx.Done():
+						return
+					case <-shutdownCtx.Done():
 						return
 					case <-ticker.C:
 						if progress < 90 {
@@ -5783,6 +5840,13 @@ func main() {
 				}
 			}()
 
+			// Check for shutdown before starting
+			if isShuttingDown() {
+				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailBurnJob(uploadID, "Server shutting down - burn interrupted")
+				return
+			}
+
 			logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", kv, "mode", mode)
 
 			// Decrypt video if encrypted
@@ -5797,6 +5861,13 @@ func main() {
 				}
 				workingVideoPath = decryptedPath
 				defer os.Remove(decryptedPath)
+			}
+
+			// Check for shutdown after decryption
+			if isShuttingDown() {
+				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailBurnJob(uploadID, "Server shutting down - burn interrupted")
+				return
 			}
 
 			// Get segments for SRT generation
@@ -5846,6 +5917,13 @@ func main() {
 			// Defer removal of unencrypted output file (cleaned up even on panic/error)
 			// Note: This is a no-op if the file doesn't exist or was already removed
 			defer os.Remove(outputPath)
+
+			// Check for shutdown before starting ffmpeg (the long-running operation)
+			if isShuttingDown() {
+				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
+				database.FailBurnJob(uploadID, "Server shutting down - burn interrupted")
+				return
+			}
 
 			var cmd *exec.Cmd
 			if mode == "embed" {
@@ -5917,6 +5995,8 @@ func main() {
 				for {
 					select {
 					case <-burnProgressCtx.Done():
+						return
+					case <-shutdownCtx.Done():
 						return
 					case <-ticker.C:
 						if progress < 85 {

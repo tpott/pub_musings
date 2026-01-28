@@ -16,6 +16,28 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-28: Background goroutines need shutdown context checks
+
+**Problem:** Long-running goroutines (transcription, burn) spawned via `go func()` continued executing during server shutdown. Jobs would get stuck in "processing" state if the server was killed, with no way for them to detect they should exit.
+
+**Solution:** Added `isShuttingDown()` helper that checks the global `shutdownCtx`:
+```go
+func isShuttingDown() bool {
+    select {
+    case <-shutdownCtx.Done():
+        return true
+    default:
+        return false
+    }
+}
+```
+
+Call at key checkpoints in goroutines (before expensive operations). Progress simulation goroutines should also listen on `shutdownCtx.Done()`.
+
+**Lesson:** Any background goroutine that can run longer than the shutdown grace period (30s) needs periodic shutdown checks. Check at: start of work, after each long operation (decryption, extraction, encoding), and in any polling loops via `select`.
+
+---
+
 ### 2026-01-28: Flex display breaks bionic reading word spacing
 
 **Problem:** Bionic reading uses `<strong>` tags to bold first portion of words: `<strong>He</strong>llo <strong>Wor</strong>ld`. When rendered inside a `display: flex` container, each text node and `<strong>` element becomes a separate flex item, causing word spacing to collapse.

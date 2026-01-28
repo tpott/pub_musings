@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**305 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**306 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,25 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**305 tasks completed.**
+**306 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 306: Add Shutdown Context to Transcription/Burn Goroutines (COMPLETE)**
+- Added `isShuttingDown()` helper function to check shutdown context
+- Updated transcription goroutine (line 4281) to check shutdown at:
+  - Before starting work
+  - After video decryption
+  - After audio extraction
+- Updated reprocess goroutine (line 5354) with same checks
+- Updated burn goroutine (line 5834) with checks at:
+  - Before starting work
+  - After video decryption
+  - Before starting ffmpeg
+- Updated all progress simulation goroutines to also listen on `shutdownCtx.Done()`
+- Jobs are marked with "Server shutting down - [type] interrupted" message
+- Added 2 unit tests for `isShuttingDown()` behavior
+- Ensures clean shutdown without leaving jobs in stuck "processing" state
 
 **Task 305: Extract Form Blur Validation to Shared Utility (COMPLETE)**
 - Created `src/utils/form-validation.ts` with reusable validation pattern

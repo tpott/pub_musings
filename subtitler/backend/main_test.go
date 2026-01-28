@@ -1271,6 +1271,43 @@ func TestShutdownContextCancellation(t *testing.T) {
 			t.Errorf("Shutdown timeout %v is too long (should be at most 60 seconds)", defaultShutdownTimeout)
 		}
 	})
+
+	t.Run("isShuttingDown returns false before shutdown", func(t *testing.T) {
+		// Save the original context and restore after test
+		origCtx := shutdownCtx
+		origCancel := shutdownCancel
+		defer func() {
+			shutdownCtx = origCtx
+			shutdownCancel = origCancel
+		}()
+
+		// Create a fresh context for this test
+		shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
+
+		if isShuttingDown() {
+			t.Error("isShuttingDown should return false before shutdown")
+		}
+	})
+
+	t.Run("isShuttingDown returns true after shutdown", func(t *testing.T) {
+		// Save the original context and restore after test
+		origCtx := shutdownCtx
+		origCancel := shutdownCancel
+		defer func() {
+			shutdownCtx = origCtx
+			shutdownCancel = origCancel
+		}()
+
+		// Create a fresh context for this test
+		shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
+
+		// Cancel the context (simulating shutdown)
+		shutdownCancel()
+
+		if !isShuttingDown() {
+			t.Error("isShuttingDown should return true after shutdown")
+		}
+	})
 }
 
 // TestGoroutinePanicRecovery tests the panic recovery pattern used in transcription,
