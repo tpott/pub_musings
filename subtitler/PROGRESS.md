@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**257 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**258 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**257 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**258 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 256: Video player speed control utility (2026-01-28)
+
+- ✅ Task 256: Created shared speed control utility for video players
+  - Created `frontend/src/utils/speed-control.ts` with reusable speed control logic
+  - Exports `createSpeedControl()` factory function
+  - Handles: speed button, dropdown menu, keyboard shortcuts ([/]), indicator overlay
+  - Includes cleanup method for proper event listener removal
+  - Can be incrementally adopted by upload.astro and videos.astro
+  - 5 module structure tests added
 
 ### Task 257: Loading states with meaningful messages (2026-01-28)
 
