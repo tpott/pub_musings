@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**266 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**267 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**266 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**267 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 267: Add request body size limits (2026-01-28)
+
+- ✅ Task 267: Added DecodeJSONBody helper with request size limits
+  - Created `httputil.DecodeJSONBody()` function with http.MaxBytesReader
+  - Default 1MB limit, customizable per endpoint
+  - Applied to critical auth endpoints: register, login, forgot-password, reset-password, feedback
+  - Added 7 tests for size limit enforcement
+  - Prevents DoS through oversized JSON payloads
 
 ### Task 265-266: Dialog and FeedbackButton cleanup (2026-01-28)
 

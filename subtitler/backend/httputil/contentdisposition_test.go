@@ -489,3 +489,107 @@ func TestRespondErrorf(t *testing.T) {
 		})
 	}
 }
+
+// ========== DecodeJSONBody Tests ==========
+
+func TestDecodeJSONBody(t *testing.T) {
+	type testStruct struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+
+	tests := []struct {
+		name      string
+		body      string
+		maxSize   int64
+		wantErr   bool
+		wantValue testStruct
+	}{
+		{
+			name:      "valid JSON within limit",
+			body:      `{"name":"test","value":42}`,
+			maxSize:   1000,
+			wantErr:   false,
+			wantValue: testStruct{Name: "test", Value: 42},
+		},
+		{
+			name:      "valid JSON with default limit",
+			body:      `{"name":"default","value":100}`,
+			maxSize:   0, // use default
+			wantErr:   false,
+			wantValue: testStruct{Name: "default", Value: 100},
+		},
+		{
+			name:    "body exceeds limit",
+			body:    `{"name":"` + strings.Repeat("a", 1000) + `","value":1}`,
+			maxSize: 100, // Much smaller than body
+			wantErr: true,
+		},
+		{
+			name:    "invalid JSON",
+			body:    `{"name":"test"`,
+			maxSize: 1000,
+			wantErr: true,
+		},
+		{
+			name:      "empty JSON object",
+			body:      `{}`,
+			maxSize:   1000,
+			wantErr:   false,
+			wantValue: testStruct{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create request with body
+			req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			// Create response recorder
+			w := httptest.NewRecorder()
+
+			// Decode
+			var result testStruct
+			err := DecodeJSONBody(req, w, &result, tt.maxSize)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("DecodeJSONBody() error = nil, want error")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("DecodeJSONBody() error = %v, want nil", err)
+				}
+				if result != tt.wantValue {
+					t.Errorf("DecodeJSONBody() result = %+v, want %+v", result, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeJSONBodyOversizedRequest(t *testing.T) {
+	// Create a body that's definitely over 1MB (default limit)
+	largeBody := `{"data":"` + strings.Repeat("x", 2*1024*1024) + `"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+
+	var result map[string]string
+	err := DecodeJSONBody(req, w, &result, 0) // Use default 1MB limit
+
+	if err == nil {
+		t.Error("DecodeJSONBody() should reject body over 1MB")
+	}
+}
+
+func TestDefaultMaxJSONBodySize(t *testing.T) {
+	// Verify the constant is 1MB
+	expected := int64(1 << 20) // 1MB
+	if DefaultMaxJSONBodySize != expected {
+		t.Errorf("DefaultMaxJSONBodySize = %d, want %d (1MB)", DefaultMaxJSONBodySize, expected)
+	}
+}

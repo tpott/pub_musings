@@ -12,6 +12,25 @@ import (
 	"github.com/trevor/subtitler/backend/logging"
 )
 
+// DefaultMaxJSONBodySize is the default maximum size for JSON request bodies (1MB).
+const DefaultMaxJSONBodySize = 1 << 20 // 1MB
+
+// DecodeJSONBody decodes JSON from the request body with a size limit.
+// Returns an error if the body exceeds maxSize bytes.
+// If maxSize is 0, DefaultMaxJSONBodySize (1MB) is used.
+// This function wraps r.Body with http.MaxBytesReader to prevent memory
+// exhaustion from oversized requests.
+func DecodeJSONBody(r *http.Request, w http.ResponseWriter, v interface{}, maxSize int64) error {
+	if maxSize == 0 {
+		maxSize = DefaultMaxJSONBodySize
+	}
+
+	// Wrap the body with MaxBytesReader to enforce size limit
+	r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
 // RespondJSON writes a JSON response with the given status code and data.
 // Logs an error if JSON encoding fails but does not change the HTTP response
 // since headers may have already been sent.

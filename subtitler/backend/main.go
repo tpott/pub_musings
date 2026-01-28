@@ -1302,7 +1302,7 @@ func main() {
 	mux.HandleFunc("POST /api/feedback", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// Parse request body
+		// Parse request body (limited to 32KB - feedback text is capped at 10KB)
 		var req struct {
 			Text        string  `json:"text"`
 			Type        string  `json:"type"`
@@ -1312,7 +1312,7 @@ func main() {
 			SessionID   *string `json:"session_id"`
 			BrowserInfo string  `json:"browser_info"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := httputil.DecodeJSONBody(r, w, &req, 32*1024); err != nil {
 			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -1612,13 +1612,13 @@ func main() {
 
 	// Auth: Register new user (rate limited)
 	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		// Parse request body
+		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {
 			Email        string `json:"email"`
 			Password     string `json:"password"`
 			CaptchaToken string `json:"captcha_token,omitempty"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := httputil.DecodeJSONBody(r, w, &req, 64*1024); err != nil {
 			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -1755,14 +1755,14 @@ func main() {
 	const loginLockDuration = 15 * time.Minute
 
 	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		// Parse request body
+		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {
 			Email        string `json:"email"`
 			Password     string `json:"password"`
 			TOTPCode     string `json:"totp_code,omitempty"`     // Required if 2FA is enabled
 			CaptchaToken string `json:"captcha_token,omitempty"` // Required if CAPTCHA is enabled
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := httputil.DecodeJSONBody(r, w, &req, 64*1024); err != nil {
 			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -2648,10 +2648,11 @@ func main() {
 
 	// Auth: Forgot password - initiates password reset flow (stricter rate limiting)
 	mux.HandleFunc("POST /api/auth/forgot-password", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		// Parse request body (limited to 8KB - just an email)
 		var req struct {
 			Email string `json:"email"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := httputil.DecodeJSONBody(r, w, &req, 8*1024); err != nil {
 			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
@@ -2718,11 +2719,12 @@ func main() {
 	mux.HandleFunc("POST /api/auth/reset-password", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		// Parse request body (limited to 64KB - token + password)
 		var req struct {
 			Token    string `json:"token"`
 			Password string `json:"password"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := httputil.DecodeJSONBody(r, w, &req, 64*1024); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid request body",
