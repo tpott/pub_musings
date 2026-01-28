@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**272 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**273 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**272 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**273 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 273: Add RecordUploadFailed metrics (2026-01-28)
+
+- ✅ Task 273: Added metrics.RecordUploadFailed() to all upload error paths
+  - Audited both POST /api/upload and POST /api/upload/complete handlers
+  - Added 15 RecordUploadFailed() calls total:
+    - POST /api/upload: 10 error paths (form parsing, file errors, encryption, DB save)
+    - POST /api/upload/complete: 5 error paths (chunk handling, encryption, DB save)
+  - Skipped validation errors (unsupported format, magic bytes) - not system failures
+  - Improves observability of upload failures in Prometheus metrics
 
 ### Task 272: Create specs/path-security.md (2026-01-28)
 

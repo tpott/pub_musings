@@ -3208,6 +3208,7 @@ func main() {
 		// Parse multipart form
 		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 			logging.ErrorContext(r.Context(), "Error parsing form", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "File too large or invalid form data",
@@ -3219,6 +3220,7 @@ func main() {
 		file, header, err := r.FormFile("video")
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting form file", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "No video file provided",
@@ -3229,6 +3231,7 @@ func main() {
 
 		// Validate file is not empty/zero-size
 		if header.Size == 0 {
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "File is empty. Please upload a valid video file.",
@@ -3272,6 +3275,7 @@ func main() {
 		if seeker, ok := file.(io.Seeker); ok {
 			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
 				logging.ErrorContext(r.Context(), "Failed to seek file", "error", err)
+				metrics.RecordUploadFailed()
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{
 					"error": "Failed to process file",
@@ -3293,6 +3297,7 @@ func main() {
 		uploadID, err := generateID()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating upload ID", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
 			return
@@ -3315,6 +3320,7 @@ func main() {
 		destFile, err := os.Create(destPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save file",
@@ -3328,6 +3334,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error copying file", "error", err)
 			os.Remove(destPath) // Clean up partial file
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save file",
@@ -3400,6 +3407,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			os.Remove(destPath)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to encrypt file",
@@ -3437,6 +3445,7 @@ func main() {
 			if encThumbPath != nil {
 				os.Remove(*encThumbPath) // Clean up encrypted thumbnail
 			}
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Failed to save video record",
@@ -3449,6 +3458,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
 			os.Remove(encPath) // Clean up encrypted file
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
 			return
@@ -3921,6 +3931,7 @@ func main() {
 		chunks, err := database.GetUploadChunks(req.UploadSessionID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting chunks", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get chunks"})
 			return
@@ -3930,6 +3941,7 @@ func main() {
 		uploadID, err := generateID()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating upload ID", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
 			return
@@ -3952,6 +3964,7 @@ func main() {
 		destFile, err := os.Create(destPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create destination file"})
 			return
@@ -3964,6 +3977,7 @@ func main() {
 				destFile.Close()
 				os.Remove(destPath)
 				logging.ErrorContext(r.Context(), "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
+				metrics.RecordUploadFailed()
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read chunk"})
 				return
@@ -3974,6 +3988,7 @@ func main() {
 				destFile.Close()
 				os.Remove(destPath)
 				logging.ErrorContext(r.Context(), "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
+				metrics.RecordUploadFailed()
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to assemble file"})
 				return
@@ -4052,6 +4067,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			os.Remove(destPath)
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to encrypt file"})
 			return
@@ -4078,6 +4094,7 @@ func main() {
 			if encThumbPath != nil {
 				os.Remove(*encThumbPath)
 			}
+			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save video record"})
 			return
