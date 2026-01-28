@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**235 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**237 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -159,8 +159,13 @@ Deep code review using exploration agents identified areas for improvement:
   - Moves accessed entries to end on cache hit for proper LRU behavior
 
 **Frontend (Code Quality):**
-- Task 227: Extract navigation component to reduce duplication (~150 lines)
-- Task 228: Extract auth check logic to shared utility (~160 lines)
+- ✅ Task 227: Extract navigation component to reduce duplication (~150 lines)
+  - Created `Navigation.astro` component with all nav styles and HTML
+  - Supports `showSettings` prop for conditional Settings link
+- ✅ Task 228: Extract auth check logic to shared utility (~160 lines)
+  - Created `utils/nav-auth.ts` with `checkAuthAndUpdateNav()` function
+  - Accepts callbacks for page-specific auth handling
+  - Used by index.astro, videos.astro, settings.astro, upload.astro
 - Task 229: Add aria-describedby for form error associations
 
 **Backend (Security/Performance):**

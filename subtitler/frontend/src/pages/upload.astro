@@ -1,7 +1,7 @@
 ---
 import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
 import ThemeInit from '../components/ThemeInit.astro';
-import ThemeToggle from '../components/ThemeToggle.astro';
+import Navigation from '../components/Navigation.astro';
 import CookieConsent from '../components/CookieConsent.astro';
 import FeedbackButton from '../components/FeedbackButton.astro';
 import '../styles/theme.css';
@@ -333,41 +333,6 @@ import '../styles/theme.css';
 				border-radius: 4px;
 				font-size: 0.95rem;
 				line-height: 1.8;
-			}
-			.nav {
-				display: flex;
-				justify-content: flex-end;
-				padding: 1rem 2rem;
-				gap: 1rem;
-			}
-			.nav-link {
-				color: var(--text-color);
-				text-decoration: none;
-				font-size: 0.9rem;
-				padding: 0.5rem 1rem;
-				border-radius: 6px;
-				transition: background-color 0.2s;
-			}
-			.nav-link:hover {
-				background-color: var(--border-color);
-			}
-			.nav-user {
-				color: var(--text-secondary);
-				font-size: 0.9rem;
-				padding: 0.5rem 1rem;
-			}
-			.nav-logout {
-				background: none;
-				border: none;
-				color: var(--text-color);
-				font-size: 0.9rem;
-				padding: 0.5rem 1rem;
-				border-radius: 6px;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.nav-logout:hover {
-				background-color: var(--border-color);
 			}
 			/* Edit mode styles */
 			.edit-btn {
@@ -1152,17 +1117,6 @@ import '../styles/theme.css';
 			}
 			/* Mobile responsive styles */
 			@media (max-width: 480px) {
-				.nav {
-					padding: 0.75rem 1rem;
-					gap: 0.5rem;
-				}
-				.nav-link, .nav-logout {
-					padding: 0.5rem 0.75rem;
-					font-size: 0.85rem;
-					min-height: 44px;
-					display: flex;
-					align-items: center;
-				}
 				.container {
 					padding: 1rem;
 				}
@@ -1264,11 +1218,7 @@ import '../styles/theme.css';
 		</style>
 	</head>
 	<body>
-		<nav class="nav" id="nav">
-			<ThemeToggle />
-			<a href="/login" class="nav-link" id="loginLink">Log in</a>
-			<a href="/register" class="nav-link" id="registerLink">Sign up</a>
-		</nav>
+		<Navigation />
 		<div class="container">
 			<div class="header">
 				<a href="/" class="back-link" aria-label="Back to home">&larr;</a>
@@ -1539,7 +1489,7 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
-			import { csrfFetch, fetchCsrfToken, clearCsrfToken, getCsrfToken, CSRF_HEADER } from '../utils/csrf';
+			import { csrfFetch, getCsrfToken, CSRF_HEADER } from '../utils/csrf';
 			import { getOrCreateSessionId, cleanupStaleUploadSessions, recordUploadSession, removeUploadSessionRecord } from '../utils/session';
 			import { parseTimeString } from '../utils/validation';
 			import { escapeHtml } from '../utils/html';
@@ -3538,50 +3488,8 @@ import '../styles/theme.css';
 			});
 
 			// Auth handling
-			const nav = document.getElementById('nav') as HTMLElement;
-			const loginLink = document.getElementById('loginLink') as HTMLElement;
-			const registerLink = document.getElementById('registerLink') as HTMLElement;
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
 			let isAuthenticated = false;
-
-			async function checkAuth() {
-				try {
-					const response = await fetch('/api/auth/me');
-					if (response.ok) {
-						const data = await response.json();
-						if (data.user) {
-							isAuthenticated = true;
-							loginLink.style.display = 'none';
-							registerLink.style.display = 'none';
-
-							// Fetch CSRF token for authenticated requests
-							await fetchCsrfToken();
-
-							const userSpan = document.createElement('span');
-							userSpan.className = 'nav-user';
-							userSpan.textContent = data.user.email;
-							nav.appendChild(userSpan);
-
-							const logoutBtn = document.createElement('button');
-							logoutBtn.className = 'nav-logout';
-							logoutBtn.textContent = 'Log out';
-							logoutBtn.addEventListener('click', logout);
-							nav.appendChild(logoutBtn);
-						}
-					}
-				} catch (err) {
-					// Not logged in
-				}
-			}
-
-			async function logout() {
-				try {
-					await csrfFetch('/api/auth/logout', { method: 'POST' });
-					clearCsrfToken();
-					window.location.reload();
-				} catch (err) {
-					console.error('Logout failed:', err);
-				}
-			}
 
 			// Re-transcribe with selected language
 			async function retranscribe() {
@@ -3678,7 +3586,11 @@ import '../styles/theme.css';
 				}
 			}
 
-			checkAuth();
+			checkAuthAndUpdateNav({
+				onAuthenticated: () => {
+					isAuthenticated = true;
+				}
+			});
 			loadExistingVideo();
 		</script>
 		<CookieConsent />
