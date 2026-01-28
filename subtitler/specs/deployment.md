@@ -509,7 +509,7 @@ chmod 600 /backup/age.key
 - `journalctl -u caddy` shows: `msg="aborting with incomplete response"`
 
 **Solutions:**
-1. **Chunked uploads** (recommended) - See TASKS.jsonl task 116 for implementation plan
+1. **Chunked uploads** (implemented) - Files >50MB automatically split into 50MB chunks. See [specs/chunked-upload.md](chunked-upload.md)
 2. **Upgrade Cloudflare plan** - Pro tier allows 500MB uploads
 3. **Direct upload bypass** - For trusted networks, expose backend directly (not through tunnel)
 
@@ -534,9 +534,12 @@ tail -f /var/log/caddy/subtitler-access.log | jq .
 1. **Docker containerization:** Package backend + frontend in containers for easier deployment
 2. **Kubernetes:** For horizontal scaling when needed
 3. **CDN:** CloudFlare or similar for static asset caching
-4. **Monitoring:** Prometheus + Grafana for metrics
+4. **Monitoring:** Prometheus + Grafana for metrics (see [Task 147](../PROGRESS.md) - /metrics endpoint implemented)
 5. **GPU passthrough:** See [Metal via MoltenVK research](../specs/metal-moltenvk.md)
-6. **Chunked uploads:** Implement resumable uploads to bypass Cloudflare's 100MB limit
+
+### Implemented Features (previously listed as Future)
+
+- **Chunked uploads:** Resumable uploads implemented (Task 116). Files >50MB automatically split into 50MB chunks to bypass Cloudflare's 100MB limit. See [specs/chunked-upload.md](chunked-upload.md).
 
 ## See Also
 

@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**226 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
+**227 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -172,7 +172,7 @@ Deep code review using exploration agents identified areas for improvement:
 - Task 236: Add security events for admin operations
 
 **Documentation:**
-- Task 237: Update deployment.md to remove chunked uploads from Future
+- ✅ Task 237: Updated deployment.md - moved chunked uploads from Future to Implemented
 - Task 238: Create specs/metrics.md for Prometheus metrics system
 - Task 241: Add recent features to README.md
 
