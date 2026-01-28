@@ -611,7 +611,7 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 	countQuery := "SELECT COUNT(*) FROM videos " + whereClause
 	var totalCount int
 	if err := db.conn.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to count videos: %w", err)
 	}
 
 	// Build paginated query with parameterized LIMIT/OFFSET
@@ -629,7 +629,7 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 
 	rows, err := db.conn.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query videos: %w", err)
 	}
 	defer rows.Close()
 
@@ -637,13 +637,13 @@ func (db *DB) ListVideosPaginated(userID, sessionID *string, limit, offset int) 
 	for rows.Next() {
 		var v Video
 		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.EmbeddedSubtitlesJSON, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan video row: %w", err)
 		}
 		videos = append(videos, v)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error iterating video rows: %w", err)
 	}
 
 	return &VideoListResult{
