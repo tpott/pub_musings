@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**274 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**279 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,34 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**274 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**279 tasks completed.** All tasks completed. Next: deep inspection for new tasks.
+
+### Tasks 275-279: Error Handling and Testing (2026-01-28)
+
+- ✅ Task 275: Backend - Added error handling to whisper WriteField calls
+  - Check errors from writer.WriteField() for response_format, temperature, language
+  - Check error from writer.Close() after writing all fields
+  - Return descriptive errors instead of ignoring them
+
+- ✅ Task 276: Backend - Standardized JSON response encoding with httputil helpers
+  - Converted 36 direct json.NewEncoder(w).Encode() calls to httputil helpers
+  - Uses RespondError() for error responses, RespondJSON() for success responses
+  - Benefits: error handling for encoding failures, consistent headers, reduced duplication
+
+- ✅ Task 277: Backend - Added error handling to file Close() calls in upload handlers
+  - Simple upload: destFile.Close() after copying uploaded file
+  - Chunked upload: destFile.Close() after writing chunk data
+  - Chunked upload complete: destFile.Close() and chunkFile.Close() during assembly
+  - Close errors logged with WarnContext but don't fail operations (data already written)
+
+- ✅ Task 278: Backend - Added tests for goroutine panic recovery
+  - TestGoroutinePanicRecovery: panic is recovered, callback called, runtime errors, error values
+  - TestJobFailureOnPanic: job transitions to error state, normal completion works
+  - Tests verify defer/recover pattern in transcription, reprocess, and burn goroutines
+
+- ✅ Task 279: Docs - Documented existing E2E upload test scenarios in BROWSER_TESTING.md
+  - Upload Flow Tests: file selection, validation, transcription, video visibility
+  - Chunked Upload Tests: initialization, progress, error handling, resumability
 
 ### Task 274: Create DOM query helper (2026-01-28)
 
