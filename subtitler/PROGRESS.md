@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**224 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**225 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,14 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**224 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 19 new tasks (225-243).
+**225 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
 Deep code review using exploration agents identified areas for improvement:
 
 **Frontend (Memory/Performance):**
-- Task 225: Fix memory leak in videos.astro pagination handlers
+- ✅ Task 225: Fixed memory leak in videos.astro pagination handlers
+  - Replaced per-element event handlers with event delegation on videoList container
+  - Single click/keydown listeners handle all button and thumbnail interactions
+  - No more accumulating handlers on each pagination
 - Task 226: Add focus indicators for keyboard navigation elements
 - Task 230: Add transcription cache cleanup to prevent unbounded growth
 

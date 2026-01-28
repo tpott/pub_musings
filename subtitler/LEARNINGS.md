@@ -829,3 +829,47 @@ Filed 19 new improvement tasks (225-243) covering security, performance, code qu
 3. Navigation/auth code duplication across pages indicates need for shared components
 4. Specs can drift from implementation - periodic audits catch this
 5. Parallel exploration agents can cover more ground faster than sequential analysis
+
+---
+
+### 2026-01-27: Use event delegation for paginated/dynamic lists
+
+**Problem:** videos.astro had memory leaks from event handlers. Each pagination call:
+1. Re-rendered video list HTML via `videoList.innerHTML = ...`
+2. Called `attachDeleteHandlers()`, `attachRetryHandlers()`, `attachViewHandlers()`, etc.
+3. These functions did `element.addEventListener()` on each button/thumbnail
+
+While old DOM elements get garbage collected (and their handlers with them), the pattern is fragile and the repeated attach calls cluttered the code.
+
+**Solution:** Event delegation - attach ONE listener to the parent container, handle all child interactions:
+
+```javascript
+// BEFORE: Multiple per-element handlers attached on each render
+function attachDeleteHandlers() {
+    videoList.querySelectorAll('.btn-delete').forEach((btn) => {
+        btn.addEventListener('click', (e) => { ... });
+    });
+}
+
+// AFTER: Single delegated handler, set up once
+videoList.addEventListener('click', (e) => {
+    const button = (e.target as HTMLElement).closest('button');
+    if (button?.classList.contains('btn-delete')) {
+        const videoId = button.dataset.videoId;
+        deleteVideo(videoId, ...);
+    }
+    // Handle other button types similarly
+});
+```
+
+Benefits:
+1. Single listener vs. N listeners - uses less memory
+2. Works for dynamically added elements without re-attaching handlers
+3. Cleaner code - no "attach" functions to call after each render
+4. No risk of duplicate handlers if attach called multiple times
+
+**Lesson:**
+1. For lists that get re-rendered (pagination, filtering, sorting), use event delegation
+2. Use `event.target.closest('.class')` to find the relevant element (handles clicks on child elements)
+3. Set up the delegated listener once at page load, not after each render
+4. This pattern was already correctly used for modal segments - should have applied it everywhere

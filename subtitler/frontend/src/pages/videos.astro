@@ -794,7 +794,7 @@ import '../styles/theme.css';
 			import { getOrCreateSessionId } from '../utils/session';
 			import { escapeHtml } from '../utils/html';
 			import { renderBionicText, isBionicEnabled } from '../utils/bionic';
-			import { openSRT, openVTT, openJSON } from '../utils/subtitles';
+			import { openSRT, openVTT, openJSON, downloadSRT, downloadVTT, downloadJSON } from '../utils/subtitles';
 			import {
 				PLAYBACK_SPEEDS,
 				getSavedSpeed,
@@ -1028,69 +1028,85 @@ import '../styles/theme.css';
 				}
 			}
 
-			function attachDeleteHandlers() {
-				const deleteButtons = videoList.querySelectorAll('.btn-delete');
-				deleteButtons.forEach((btn) => {
-					btn.addEventListener('click', (e) => {
-						const button = e.target as HTMLButtonElement;
-						const videoId = button.dataset.videoId;
-						const filename = button.dataset.filename;
-						if (videoId) {
-							deleteVideo(videoId, filename || 'this video', button);
-						}
-					});
-				});
-			}
+			// Event delegation for video list - single listeners on the container prevent memory leaks
+			// These are set up once on page load, not per-render or per-pagination
+			videoList.addEventListener('click', async (e) => {
+				const target = e.target as HTMLElement;
+				const button = target.closest('button') as HTMLButtonElement | null;
+				const thumbnail = target.closest('.clickable-thumbnail') as HTMLElement | null;
 
-			function attachRetryHandlers() {
-				const retryButtons = videoList.querySelectorAll('.btn-retry');
-				retryButtons.forEach((btn) => {
-					btn.addEventListener('click', (e) => {
-						const button = e.target as HTMLButtonElement;
-						const videoId = button.dataset.videoId;
-						if (videoId) {
-							reprocessVideo(videoId, button);
-						}
-					});
-				});
-			}
+				// Handle delete button clicks
+				if (button?.classList.contains('btn-delete')) {
+					const videoId = button.dataset.videoId;
+					const filename = button.dataset.filename;
+					if (videoId) {
+						deleteVideo(videoId, filename || 'this video', button);
+					}
+					return;
+				}
 
-			function attachViewHandlers() {
-				const viewButtons = videoList.querySelectorAll('.btn-view');
-				viewButtons.forEach((btn) => {
-					btn.addEventListener('click', (e) => {
-						const button = e.target as HTMLButtonElement;
-						const videoId = button.dataset.videoId;
-						const filename = button.dataset.filename;
-						if (videoId) {
-							modalTriggerElement = button;
-							openVideoModal(videoId, filename || 'Video');
-						}
-					});
-				});
-			}
+				// Handle retry button clicks
+				if (button?.classList.contains('btn-retry')) {
+					const videoId = button.dataset.videoId;
+					if (videoId) {
+						reprocessVideo(videoId, button);
+					}
+					return;
+				}
 
-			function attachThumbnailHandlers() {
-				const thumbnails = videoList.querySelectorAll('.clickable-thumbnail');
-				thumbnails.forEach((thumb) => {
-					const el = thumb as HTMLElement;
-					const handler = () => {
-						const videoId = el.dataset.videoId;
-						const filename = el.dataset.filename;
-						if (videoId) {
-							modalTriggerElement = el;
-							openVideoModal(videoId, filename || 'Video');
-						}
-					};
-					el.addEventListener('click', handler);
-					el.addEventListener('keydown', (e) => {
-						if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-							e.preventDefault();
-							handler();
-						}
-					});
-				});
-			}
+				// Handle view button clicks
+				if (button?.classList.contains('btn-view')) {
+					const videoId = button.dataset.videoId;
+					const filename = button.dataset.filename;
+					if (videoId) {
+						modalTriggerElement = button;
+						openVideoModal(videoId, filename || 'Video');
+					}
+					return;
+				}
+
+				// Handle download button clicks
+				if (button?.classList.contains('btn-download-srt')) {
+					await handleDownloadClick(button, 'srt');
+					return;
+				}
+				if (button?.classList.contains('btn-download-vtt')) {
+					await handleDownloadClick(button, 'vtt');
+					return;
+				}
+				if (button?.classList.contains('btn-download-json')) {
+					await handleDownloadClick(button, 'json');
+					return;
+				}
+
+				// Handle thumbnail clicks
+				if (thumbnail) {
+					const videoId = thumbnail.dataset.videoId;
+					const filename = thumbnail.dataset.filename;
+					if (videoId) {
+						modalTriggerElement = thumbnail;
+						openVideoModal(videoId, filename || 'Video');
+					}
+				}
+			});
+
+			// Keyboard support for thumbnails (Enter/Space to open)
+			videoList.addEventListener('keydown', (e) => {
+				if (e.key !== 'Enter' && e.key !== ' ') {
+					return;
+				}
+				const target = e.target as HTMLElement;
+				const thumbnail = target.closest('.clickable-thumbnail') as HTMLElement | null;
+				if (thumbnail) {
+					e.preventDefault();
+					const videoId = thumbnail.dataset.videoId;
+					const filename = thumbnail.dataset.filename;
+					if (videoId) {
+						modalTriggerElement = thumbnail;
+						openVideoModal(videoId, filename || 'Video');
+					}
+				}
+			});
 
 			// Cache for loaded transcription data to avoid refetching
 			const transcriptionCache: Map<string, TranscriptionSegment[]> = new Map();
@@ -1119,57 +1135,40 @@ import '../styles/theme.css';
 				return segments;
 			}
 
-			// Attach download button handlers (for inline video card buttons)
-			function attachDownloadHandlers() {
-				const handleDownload = async (
-					button: HTMLButtonElement,
-					format: 'srt' | 'vtt' | 'json'
-				) => {
-					const videoId = button.dataset.videoId;
-					const filename = button.dataset.filename || videoId || 'subtitles';
+			// Download handler helper - used by event delegation on videoList
+			async function handleDownloadClick(
+				button: HTMLButtonElement,
+				format: 'srt' | 'vtt' | 'json'
+			) {
+				const videoId = button.dataset.videoId;
+				const filename = button.dataset.filename || videoId || 'subtitles';
 
-					if (!videoId) return;
+				if (!videoId) return;
 
-					button.disabled = true;
-					const originalText = button.textContent;
-					button.textContent = '...';
+				button.disabled = true;
+				const originalText = button.textContent;
+				button.textContent = '...';
 
-					try {
-						const segments = await getSubtitleSegments(videoId);
-						if (segments.length === 0) {
-							alert('No subtitles available');
-							return;
-						}
-
-						if (format === 'srt') {
-							downloadSRT(segments, filename);
-						} else if (format === 'vtt') {
-							downloadVTT(segments, filename);
-						} else {
-							downloadJSON(segments, filename);
-						}
-					} catch (err) {
-						alert(`Error: ${err instanceof Error ? err.message : 'Failed to download'}`);
-					} finally {
-						button.disabled = false;
-						button.textContent = originalText;
+				try {
+					const segments = await getSubtitleSegments(videoId);
+					if (segments.length === 0) {
+						alert('No subtitles available');
+						return;
 					}
-				};
 
-				// SRT buttons
-				videoList.querySelectorAll('.btn-download-srt').forEach((btn) => {
-					btn.addEventListener('click', () => handleDownload(btn as HTMLButtonElement, 'srt'));
-				});
-
-				// VTT buttons
-				videoList.querySelectorAll('.btn-download-vtt').forEach((btn) => {
-					btn.addEventListener('click', () => handleDownload(btn as HTMLButtonElement, 'vtt'));
-				});
-
-				// JSON buttons
-				videoList.querySelectorAll('.btn-download-json').forEach((btn) => {
-					btn.addEventListener('click', () => handleDownload(btn as HTMLButtonElement, 'json'));
-				});
+					if (format === 'srt') {
+						downloadSRT(segments, filename);
+					} else if (format === 'vtt') {
+						downloadVTT(segments, filename);
+					} else {
+						downloadJSON(segments, filename);
+					}
+				} catch (err) {
+					alert(`Error: ${err instanceof Error ? err.message : 'Failed to download'}`);
+				} finally {
+					button.disabled = false;
+					button.textContent = originalText;
+				}
 			}
 
 			// Modal elements
@@ -1649,11 +1648,8 @@ import '../styles/theme.css';
 
 					videoList.innerHTML = data.videos.map(renderVideo).join('');
 					videoList.style.display = 'flex';
-					attachRetryHandlers();
-					attachViewHandlers();
-					attachThumbnailHandlers();
-					attachDownloadHandlers();
-					attachDeleteHandlers();
+					// Event handlers are managed via event delegation on videoList,
+					// so no need to attach per-element handlers on each pagination
 					updatePaginationUI();
 
 				} catch (err) {
