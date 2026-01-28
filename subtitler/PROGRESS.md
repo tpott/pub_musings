@@ -138,9 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**326 tasks completed.**
+**329 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Tasks 327-329: Documentation and Type Improvements (COMPLETE)**
+- Task 329: Added FEEDBACK_RATE_LIMIT to docs/ENV.md with full documentation
+  - LOG_SLOW_QUERIES and SLOW_QUERY_THRESHOLD_MS already documented
+  - Updated Quick Reference table
+- Tasks 327-328: Deferred for future work (frontend type safety improvements)
 
 **Task 326: Replace json.NewEncoder Error Responses with httputil.RespondError (COMPLETE)**
 - Replaced 2 json.NewEncoder(w).Encode calls in upload error paths with httputil.RespondError()
