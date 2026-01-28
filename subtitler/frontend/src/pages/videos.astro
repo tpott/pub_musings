@@ -522,6 +522,29 @@ import '../styles/theme.css';
 				border-radius: 8px;
 				background-color: #000;
 			}
+			.modal-video-wrapper {
+				position: relative;
+			}
+			/* Speed indicator overlay */
+			.modal-speed-indicator {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				background-color: rgba(0, 0, 0, 0.75);
+				color: white;
+				padding: 0.75rem 1.5rem;
+				border-radius: 8px;
+				font-size: 1.5rem;
+				font-weight: 600;
+				opacity: 0;
+				pointer-events: none;
+				transition: opacity 0.2s ease;
+				z-index: 10;
+			}
+			.modal-speed-indicator.visible {
+				opacity: 1;
+			}
 			/* Playback speed control */
 			.modal-video-controls {
 				display: flex;
@@ -801,7 +824,10 @@ import '../styles/theme.css';
 					<div class="modal-loading" id="modalLoading">Loading video...</div>
 					<div class="modal-error" id="modalError" style="display: none;"></div>
 					<div id="modalVideoContainer" style="display: none;">
-						<video class="modal-video" id="modalVideo" controls></video>
+						<div class="modal-video-wrapper">
+							<video class="modal-video" id="modalVideo" controls></video>
+							<div class="modal-speed-indicator" id="modalSpeedIndicator" aria-live="polite">1x</div>
+						</div>
 						<div class="modal-video-controls">
 							<div class="speed-control">
 								<span class="speed-label">Speed:</span>
@@ -1230,6 +1256,7 @@ import '../styles/theme.css';
 			const modalSpeedBtn = document.getElementById('modalSpeedBtn') as HTMLButtonElement;
 			const modalSpeedOptions = document.getElementById('modalSpeedOptions') as HTMLElement;
 			const modalSpeedDropdown = document.getElementById('modalSpeedDropdown') as HTMLElement;
+			const modalSpeedIndicator = document.getElementById('modalSpeedIndicator') as HTMLElement;
 
 			let currentModalVideoId: string | null = null;
 			let modalSubtitleSegments: TranscriptionSegment[] = [];
@@ -1305,6 +1332,25 @@ import '../styles/theme.css';
 				});
 			}
 
+			// Speed indicator for keyboard shortcuts
+			let modalSpeedIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
+
+			function showModalSpeedIndicator(speed: number) {
+				modalSpeedIndicator.textContent = formatSpeed(speed);
+				modalSpeedIndicator.classList.add('visible');
+
+				// Clear any existing timeout
+				if (modalSpeedIndicatorTimeout) {
+					clearTimeout(modalSpeedIndicatorTimeout);
+				}
+
+				// Hide after 800ms
+				modalSpeedIndicatorTimeout = setTimeout(() => {
+					modalSpeedIndicator.classList.remove('visible');
+					modalSpeedIndicatorTimeout = null;
+				}, 800);
+			}
+
 			function toggleModalSpeedMenu() {
 				modalSpeedMenuOpen = !modalSpeedMenuOpen;
 				modalSpeedOptions.classList.toggle('visible', modalSpeedMenuOpen);
@@ -1366,6 +1412,7 @@ import '../styles/theme.css';
 					const newSpeed = decreaseSpeed(modalVideo.playbackRate);
 					setPlaybackSpeed(modalVideo, newSpeed);
 					updateModalSpeedUI(newSpeed);
+					showModalSpeedIndicator(newSpeed);
 					return;
 				}
 				if (e.key === ']') {
@@ -1373,6 +1420,7 @@ import '../styles/theme.css';
 					const newSpeed = increaseSpeed(modalVideo.playbackRate);
 					setPlaybackSpeed(modalVideo, newSpeed);
 					updateModalSpeedUI(newSpeed);
+					showModalSpeedIndicator(newSpeed);
 					return;
 				}
 

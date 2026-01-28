@@ -116,6 +116,31 @@ import '../styles/theme.css';
 				max-width: 100%;
 				border-radius: 8px;
 			}
+			.video-preview-container {
+				position: relative;
+				display: inline-block;
+				width: 100%;
+			}
+			/* Speed indicator overlay */
+			.speed-indicator {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				background-color: rgba(0, 0, 0, 0.75);
+				color: white;
+				padding: 0.75rem 1.5rem;
+				border-radius: 8px;
+				font-size: 1.5rem;
+				font-weight: 600;
+				opacity: 0;
+				pointer-events: none;
+				transition: opacity 0.2s ease;
+				z-index: 10;
+			}
+			.speed-indicator.visible {
+				opacity: 1;
+			}
 			/* Playback speed control */
 			.video-controls {
 				display: flex;
@@ -1258,7 +1283,10 @@ import '../styles/theme.css';
 			</div>
 
 			<div class="video-preview" id="videoPreview">
-				<video id="previewVideo" controls></video>
+				<div class="video-preview-container">
+					<video id="previewVideo" controls></video>
+					<div class="speed-indicator" id="speedIndicator" aria-live="polite">1x</div>
+				</div>
 				<div class="video-controls">
 					<div class="speed-control">
 						<span class="speed-label">Speed:</span>
@@ -1600,6 +1628,7 @@ import '../styles/theme.css';
 			const speedBtn = document.getElementById('speedBtn') as HTMLButtonElement;
 			const speedOptions = document.getElementById('speedOptions') as HTMLElement;
 			const speedDropdown = document.getElementById('speedDropdown') as HTMLElement;
+			const speedIndicator = document.getElementById('speedIndicator') as HTMLElement;
 
 			// Language display names for showing detected language
 			const languageDisplayNames: Record<string, string> = {
@@ -3204,6 +3233,7 @@ import '../styles/theme.css';
 							const newSpeed = decreaseSpeed(previewVideo.playbackRate);
 							setPlaybackSpeed(previewVideo, newSpeed);
 							updateSpeedUI(newSpeed);
+							showSpeedIndicator(newSpeed);
 						}
 						break;
 					case ']':  // ]: Faster speed
@@ -3212,6 +3242,7 @@ import '../styles/theme.css';
 							const newSpeed = increaseSpeed(previewVideo.playbackRate);
 							setPlaybackSpeed(previewVideo, newSpeed);
 							updateSpeedUI(newSpeed);
+							showSpeedIndicator(newSpeed);
 						}
 						break;
 					case '?':  // ?: Show keyboard shortcuts
@@ -3246,6 +3277,25 @@ import '../styles/theme.css';
 						option.classList.remove('active');
 					}
 				});
+			}
+
+			// Speed indicator for keyboard shortcuts
+			let speedIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
+
+			function showSpeedIndicator(speed: number) {
+				speedIndicator.textContent = formatSpeed(speed);
+				speedIndicator.classList.add('visible');
+
+				// Clear any existing timeout
+				if (speedIndicatorTimeout) {
+					clearTimeout(speedIndicatorTimeout);
+				}
+
+				// Hide after 800ms
+				speedIndicatorTimeout = setTimeout(() => {
+					speedIndicator.classList.remove('visible');
+					speedIndicatorTimeout = null;
+				}, 800);
 			}
 
 			function toggleSpeedMenu() {

@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**228 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
+**229 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -181,7 +181,9 @@ Deep code review using exploration agents identified areas for improvement:
 - Task 240: Add admin dashboard for feedback viewing
 
 **UX:**
-- Task 242: Show on-screen indicator for playback speed changes
+- ✅ Task 242: Added on-screen speed indicator for [ and ] keyboard shortcuts
+  - Shows centered overlay with speed (e.g., "0.75x") for 800ms when changing speed
+  - Added to both upload.astro and videos.astro modal player
 - ✅ Task 243: Improved file size error message to show actual vs max (e.g., "750.5 MB. Maximum allowed size is 500 MB")
 
 ### Recently Completed (2026-01-27)
