@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**290 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**291 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**290 tasks completed.** Working through remaining tasks from deep inspection.
+**291 tasks completed.** Working through remaining tasks from deep inspection.
 
 ### Recent Work (2026-01-28)
+
+**Task 295: Processing Speed localStorage Cleanup**
+- getHistory() now clears corrupted localStorage instead of just logging
+- Also clears invalid structure (valid JSON but missing records array)
+- Updated 2 tests to verify cleanup behavior
 
 **Task 290: CSRF JSON Parse Error Handling**
 - Added separate try-catch for response.json() in fetchCsrfToken()

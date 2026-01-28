@@ -192,17 +192,21 @@ describe('processing-speed utility', () => {
   });
 
   describe('edge cases', () => {
-    it('should handle corrupted localStorage gracefully', () => {
+    it('should handle corrupted localStorage gracefully and clear it', () => {
       localStorageMock._setStore({ 'subtitler:processing_speed_history': 'not valid json' });
       expect(getAverageSpeedRatio()).toBeNull();
       expect(hasHistoricalData()).toBe(false);
+      // Verify corrupted data was cleared
+      expect(localStorageMock.getItem('subtitler:processing_speed_history')).toBeNull();
     });
 
-    it('should handle malformed history object', () => {
+    it('should handle malformed history object and clear it', () => {
       localStorageMock._setStore({
         'subtitler:processing_speed_history': JSON.stringify({ notRecords: true })
       });
       expect(getAverageSpeedRatio()).toBeNull();
+      // Verify malformed data was cleared
+      expect(localStorageMock.getItem('subtitler:processing_speed_history')).toBeNull();
     });
 
     it('should handle very small progress percentages', () => {

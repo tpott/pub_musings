@@ -29,9 +29,18 @@ function getHistory(): SpeedHistory {
       if (history && Array.isArray(history.records)) {
         return history;
       }
+      // Valid JSON but invalid structure - clear it
+      console.error('Invalid processing speed history structure, clearing');
+      localStorage.removeItem(STORAGE_KEY);
     }
   } catch (e) {
-    console.error('Failed to parse processing speed history:', e);
+    // JSON parse error or other - clear corrupted data
+    console.error('Failed to parse processing speed history, clearing:', e);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore if localStorage is unavailable
+    }
   }
   return { records: [] };
 }
