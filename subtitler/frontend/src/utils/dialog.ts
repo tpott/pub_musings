@@ -3,7 +3,6 @@
  * Provides consistent styling, accessibility, and better UX
  */
 
-import { escapeHtml } from './html';
 
 // Dialog container singleton - created once and reused
 // Event listeners are added once during container creation and persist for the page lifetime
@@ -156,9 +155,9 @@ function showDialog(options: DialogOptions): Promise<boolean> {
 	const cancelBtn = container.querySelector('#dialog-cancel') as HTMLButtonElement;
 	const confirmBtn = container.querySelector('#dialog-confirm') as HTMLButtonElement;
 
-	// Set content
+	// Set content (use textContent for both - it's safe and simpler than escapeHtml + innerHTML)
 	title.textContent = options.title || getDefaultTitle(options.type);
-	message.innerHTML = escapeHtml(options.message);
+	message.textContent = options.message;
 
 	// Configure buttons
 	confirmBtn.textContent = options.confirmText || 'OK';

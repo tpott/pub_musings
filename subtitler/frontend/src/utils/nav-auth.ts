@@ -55,15 +55,18 @@ export async function checkAuthAndUpdateNav(
 				// Fetch CSRF token for authenticated requests
 				await fetchCsrfToken();
 
-				// Add user email display
-				const userSpan = document.createElement('span');
-				userSpan.className = 'nav-user';
+				// Add user email display (only if not already present)
+				let userSpan = nav.querySelector('.nav-user') as HTMLSpanElement | null;
+				if (!userSpan) {
+					userSpan = document.createElement('span');
+					userSpan.className = 'nav-user';
+					nav.appendChild(userSpan);
+				}
 				userSpan.textContent = data.user.email;
-				nav.appendChild(userSpan);
 
-				// Add Settings link if requested via data attribute
+				// Add Settings link if requested via data attribute (only if not already present)
 				const showSettings = nav.dataset.showSettings === 'true';
-				if (showSettings) {
+				if (showSettings && !nav.querySelector('.nav-link[href="/settings"]')) {
 					const settingsLink = document.createElement('a');
 					settingsLink.href = '/settings';
 					settingsLink.className = 'nav-link';
@@ -71,12 +74,14 @@ export async function checkAuthAndUpdateNav(
 					nav.appendChild(settingsLink);
 				}
 
-				// Add logout button
-				const logoutBtn = document.createElement('button');
-				logoutBtn.className = 'nav-logout';
-				logoutBtn.textContent = 'Log out';
-				logoutBtn.addEventListener('click', () => logout());
-				nav.appendChild(logoutBtn);
+				// Add logout button (only if not already present)
+				if (!nav.querySelector('.nav-logout')) {
+					const logoutBtn = document.createElement('button');
+					logoutBtn.className = 'nav-logout';
+					logoutBtn.textContent = 'Log out';
+					logoutBtn.addEventListener('click', () => logout());
+					nav.appendChild(logoutBtn);
+				}
 
 				// Call page-specific callback
 				if (callbacks?.onAuthenticated) {
