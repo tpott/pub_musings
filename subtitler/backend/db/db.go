@@ -424,9 +424,12 @@ func (db *DB) migrate() error {
 // handleExistingDatabase handles the case where a database already has tables
 // but no schema_migrations table (pre-migration system database)
 func (db *DB) handleExistingDatabase(migrator *Migrator) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Check if schema_migrations table exists
 	var tableName string
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT name FROM sqlite_master
 		WHERE type='table' AND name='schema_migrations'
 	`).Scan(&tableName)
@@ -437,7 +440,7 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 	}
 
 	// Check if videos table exists (indicates pre-migration database)
-	err = db.conn.QueryRow(`
+	err = db.conn.QueryRowContext(ctx, `
 		SELECT name FROM sqlite_master
 		WHERE type='table' AND name='videos'
 	`).Scan(&tableName)
@@ -449,7 +452,7 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 
 	// This is a pre-migration database - we need to create schema_migrations
 	// and mark the initial migration as applied
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version INTEGER PRIMARY KEY,
 			description TEXT NOT NULL,
@@ -461,7 +464,7 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 	}
 
 	// Mark migration 1 (initial_schema) as applied since tables already exist
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		INSERT INTO schema_migrations (version, description, applied_at)
 		VALUES (1, 'initial_schema', CURRENT_TIMESTAMP)
 	`)
@@ -999,7 +1002,10 @@ func (db *DB) EnableTOTP(userID string) error {
 
 // DisableTOTP disables 2FA and clears the secret for a user
 func (db *DB) DisableTOTP(userID string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE users SET totp_enabled = 0, totp_secret = NULL WHERE id = ?
 	`, userID)
 	if err != nil {
@@ -1023,6 +1029,9 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 // Use limit=0 for no limit (not recommended for large datasets).
 // Anonymous videos expire after 48 hours, registered videos after 90 days.
 func (db *DB) GetExpiredVideosPaginated(limit, offset int) ([]Video, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	now := time.Now()
 	anonymousExpiry := now.Add(-48 * time.Hour)
 	registeredExpiry := now.Add(-90 * 24 * time.Hour)
@@ -1045,7 +1054,7 @@ func (db *DB) GetExpiredVideosPaginated(limit, offset int) ([]Video, error) {
 		}
 	}
 
-	rows, err := db.conn.Query(query, args...)
+	rows, err := db.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query expired videos: %w", err)
 	}
@@ -1069,12 +1078,15 @@ func (db *DB) GetExpiredVideosPaginated(limit, offset int) ([]Video, error) {
 
 // CountExpiredVideos returns the total count of expired videos.
 func (db *DB) CountExpiredVideos() (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	now := time.Now()
 	anonymousExpiry := now.Add(-48 * time.Hour)
 	registeredExpiry := now.Add(-90 * 24 * time.Hour)
 
 	var count int
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT COUNT(*)
 		FROM videos
 		WHERE (user_id IS NULL AND created_at < ?)
@@ -1090,6 +1102,9 @@ func (db *DB) CountExpiredVideos() (int, error) {
 
 // UpdateSegments updates the segments for a transcription
 func (db *DB) UpdateSegments(videoID string, segments []Segment) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	segmentsJSON, err := json.Marshal(segments)
 	if err != nil {
 		return fmt.Errorf("failed to marshal segments: %w", err)
@@ -1104,7 +1119,7 @@ func (db *DB) UpdateSegments(videoID string, segments []Segment) error {
 		fullText += seg.Text
 	}
 
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		UPDATE transcriptions
 		SET segments_json = ?, full_text = ?
 		WHERE video_id = ?
@@ -1117,7 +1132,10 @@ func (db *DB) UpdateSegments(videoID string, segments []Segment) error {
 
 // CreateBurnJob creates a new burn job record
 func (db *DB) CreateBurnJob(job *BurnJob) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO burn_jobs (id, video_id, status, message, progress, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, job.ID, job.VideoID, job.Status, job.Message, job.Progress, job.CreatedAt)
@@ -1129,12 +1147,15 @@ func (db *DB) CreateBurnJob(job *BurnJob) error {
 
 // GetBurnJob retrieves a burn job by video ID
 func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	job := &BurnJob{}
 	var message, outputPath sql.NullString
 	var outputKeyVersion sql.NullInt64
 	var completedAt sql.NullTime
 
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, video_id, status, message, progress, output_path, output_key_version, created_at, completed_at
 		FROM burn_jobs WHERE video_id = ? ORDER BY created_at DESC LIMIT 1
 	`, videoID).Scan(&job.ID, &job.VideoID, &job.Status, &message, &job.Progress, &outputPath, &outputKeyVersion, &job.CreatedAt, &completedAt)
@@ -1168,7 +1189,10 @@ func (db *DB) GetBurnJob(videoID string) (*BurnJob, error) {
 // with completion/failure updates from the main goroutine. Once status becomes 'complete'
 // or 'error', progress updates are blocked.
 func (db *DB) UpdateBurnJobStatus(videoID, status, message string, progress int) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE burn_jobs SET status = ?, message = ?, progress = ?
 		WHERE video_id = ? AND status IN ('pending', 'processing')
 	`, status, message, progress, videoID)
@@ -1185,8 +1209,11 @@ func (db *DB) CompleteBurnJob(videoID, outputPath string) error {
 
 // CompleteBurnJobWithKeyVersion marks a burn job as complete with output file path and key version
 func (db *DB) CompleteBurnJobWithKeyVersion(videoID, outputPath string, keyVersion int) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	now := time.Now()
-	_, err := db.conn.Exec(`
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE burn_jobs
 		SET status = 'complete', message = 'Subtitles burned successfully', progress = 100,
 		    output_path = ?, output_key_version = ?, completed_at = ?
@@ -1200,7 +1227,10 @@ func (db *DB) CompleteBurnJobWithKeyVersion(videoID, outputPath string, keyVersi
 
 // FailBurnJob marks a burn job as failed with an error message
 func (db *DB) FailBurnJob(videoID, errorMessage string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE burn_jobs SET status = 'error', message = ? WHERE video_id = ?
 	`, errorMessage, videoID)
 	if err != nil {
@@ -1219,6 +1249,9 @@ type DeletedVideoFiles struct {
 // DeleteVideo deletes a video and its associated transcription from the database.
 // Returns the file paths so the caller can delete the files from disk.
 func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Get the file paths before deleting
 	video, err := db.GetVideo(videoID)
 	if err != nil {
@@ -1239,19 +1272,19 @@ func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
 	}
 
 	// Delete transcription first (foreign key constraint)
-	_, err = db.conn.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, videoID)
+	_, err = db.conn.ExecContext(ctx, `DELETE FROM transcriptions WHERE video_id = ?`, videoID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete transcription: %w", err)
 	}
 
 	// Delete burn jobs
-	_, err = db.conn.Exec(`DELETE FROM burn_jobs WHERE video_id = ?`, videoID)
+	_, err = db.conn.ExecContext(ctx, `DELETE FROM burn_jobs WHERE video_id = ?`, videoID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete burn jobs: %w", err)
 	}
 
 	// Delete video record
-	_, err = db.conn.Exec(`DELETE FROM videos WHERE id = ?`, videoID)
+	_, err = db.conn.ExecContext(ctx, `DELETE FROM videos WHERE id = ?`, videoID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete video: %w", err)
 	}
@@ -1265,21 +1298,30 @@ func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
 
 // UpdateVideoThumbnail updates the thumbnail path for a video
 func (db *DB) UpdateVideoThumbnail(videoID, thumbnailPath string) error {
-	_, err := db.conn.Exec(`UPDATE videos SET thumbnail_path = ? WHERE id = ?`, thumbnailPath, videoID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `UPDATE videos SET thumbnail_path = ? WHERE id = ?`, thumbnailPath, videoID)
 	return err
 }
 
 // UpdateVideoEmbeddedSubtitles updates the embedded subtitles JSON for a video
 func (db *DB) UpdateVideoEmbeddedSubtitles(videoID string, subtitlesJSON *string) error {
-	_, err := db.conn.Exec(`UPDATE videos SET embedded_subtitles_json = ? WHERE id = ?`, subtitlesJSON, videoID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `UPDATE videos SET embedded_subtitles_json = ? WHERE id = ?`, subtitlesJSON, videoID)
 	return err
 }
 
 // SaveRecoveryCodes stores hashed recovery codes for a user.
 // Deletes any existing unused codes first.
 func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Delete existing unused codes
-	_, err := db.conn.Exec(`DELETE FROM recovery_codes WHERE user_id = ? AND used = 0`, userID)
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id = ? AND used = 0`, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete old recovery codes: %w", err)
 	}
@@ -1290,7 +1332,7 @@ func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to generate recovery code ID: %w", err)
 		}
-		_, err = db.conn.Exec(`
+		_, err = db.conn.ExecContext(ctx, `
 			INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
 			VALUES (?, ?, ?, ?)
 		`, id, userID, hash, time.Now())
@@ -1313,7 +1355,10 @@ func generateID() (string, error) {
 
 // GetUnusedRecoveryCodes returns all unused recovery codes for a user
 func (db *DB) GetUnusedRecoveryCodes(userID string) ([]RecoveryCode, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT id, user_id, code_hash, used, created_at, used_at
 		FROM recovery_codes
 		WHERE user_id = ? AND used = 0
@@ -1343,8 +1388,11 @@ func (db *DB) GetUnusedRecoveryCodes(userID string) ([]RecoveryCode, error) {
 // UseRecoveryCode marks a recovery code as used.
 // Returns true if successful, false if code not found or already used.
 func (db *DB) UseRecoveryCode(codeID string) (bool, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	now := time.Now()
-	result, err := db.conn.Exec(`
+	result, err := db.conn.ExecContext(ctx, `
 		UPDATE recovery_codes
 		SET used = 1, used_at = ?
 		WHERE id = ? AND used = 0
@@ -1363,14 +1411,20 @@ func (db *DB) UseRecoveryCode(codeID string) (bool, error) {
 
 // DeleteRecoveryCodes deletes all recovery codes for a user
 func (db *DB) DeleteRecoveryCodes(userID string) error {
-	_, err := db.conn.Exec(`DELETE FROM recovery_codes WHERE user_id = ?`, userID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id = ?`, userID)
 	return err
 }
 
 // CountUnusedRecoveryCodes returns the number of unused recovery codes for a user
 func (db *DB) CountUnusedRecoveryCodes(userID string) (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used = 0
 	`, userID).Scan(&count)
 	return count, err
@@ -1379,8 +1433,11 @@ func (db *DB) CountUnusedRecoveryCodes(userID string) (int, error) {
 // CreatePasswordResetToken creates a new password reset token for a user.
 // Deletes any existing unused tokens for the user first.
 func (db *DB) CreatePasswordResetToken(userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Delete existing unused tokens for this user
-	_, err := db.conn.Exec(`DELETE FROM password_reset_tokens WHERE user_id = ? AND used = 0`, userID)
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM password_reset_tokens WHERE user_id = ? AND used = 0`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete old reset tokens: %w", err)
 	}
@@ -1398,7 +1455,7 @@ func (db *DB) CreatePasswordResetToken(userID, tokenHash string, expiresAt time.
 		CreatedAt: time.Now(),
 	}
 
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, token.ID, token.UserID, token.TokenHash, token.ExpiresAt, 0, token.CreatedAt)
@@ -1412,8 +1469,11 @@ func (db *DB) CreatePasswordResetToken(userID, tokenHash string, expiresAt time.
 // GetPasswordResetToken retrieves a password reset token by its hash.
 // Returns nil if not found.
 func (db *DB) GetPasswordResetToken(tokenHash string) (*PasswordResetToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	token := &PasswordResetToken{}
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, user_id, token_hash, expires_at, used, created_at
 		FROM password_reset_tokens
 		WHERE token_hash = ?
@@ -1431,7 +1491,10 @@ func (db *DB) GetPasswordResetToken(tokenHash string) (*PasswordResetToken, erro
 // UsePasswordResetToken marks a password reset token as used.
 // Returns true if the token was valid and unused, false otherwise.
 func (db *DB) UsePasswordResetToken(tokenHash string) (bool, error) {
-	result, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `
 		UPDATE password_reset_tokens
 		SET used = 1
 		WHERE token_hash = ? AND used = 0 AND expires_at > ?
@@ -1450,13 +1513,19 @@ func (db *DB) UsePasswordResetToken(tokenHash string) (bool, error) {
 
 // DeletePasswordResetTokens deletes all password reset tokens for a user
 func (db *DB) DeletePasswordResetTokens(userID string) error {
-	_, err := db.conn.Exec(`DELETE FROM password_reset_tokens WHERE user_id = ?`, userID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM password_reset_tokens WHERE user_id = ?`, userID)
 	return err
 }
 
 // DeleteExpiredPasswordResetTokens deletes all expired password reset tokens
 func (db *DB) DeleteExpiredPasswordResetTokens() (int64, error) {
-	result, err := db.conn.Exec(`DELETE FROM password_reset_tokens WHERE expires_at < ?`, time.Now())
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `DELETE FROM password_reset_tokens WHERE expires_at < ?`, time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -1466,8 +1535,11 @@ func (db *DB) DeleteExpiredPasswordResetTokens() (int64, error) {
 // CreateEmailVerificationToken creates a new email verification token for a user.
 // Deletes any existing unused tokens for the user first.
 func (db *DB) CreateEmailVerificationToken(userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Delete existing unused tokens for this user
-	_, err := db.conn.Exec(`DELETE FROM email_verification_tokens WHERE user_id = ? AND used = 0`, userID)
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM email_verification_tokens WHERE user_id = ? AND used = 0`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete old verification tokens: %w", err)
 	}
@@ -1485,7 +1557,7 @@ func (db *DB) CreateEmailVerificationToken(userID, tokenHash string, expiresAt t
 		CreatedAt: time.Now(),
 	}
 
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, used, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, token.ID, token.UserID, token.TokenHash, token.ExpiresAt, 0, token.CreatedAt)
@@ -1499,8 +1571,11 @@ func (db *DB) CreateEmailVerificationToken(userID, tokenHash string, expiresAt t
 // GetEmailVerificationToken retrieves an email verification token by its hash.
 // Returns nil if not found.
 func (db *DB) GetEmailVerificationToken(tokenHash string) (*EmailVerificationToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	token := &EmailVerificationToken{}
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, user_id, token_hash, expires_at, used, created_at
 		FROM email_verification_tokens
 		WHERE token_hash = ?
@@ -1562,20 +1637,29 @@ func (db *DB) UseEmailVerificationToken(tokenHash string) (bool, error) {
 
 // VerifyUserEmail sets a user's email as verified
 func (db *DB) VerifyUserEmail(userID string) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	now := time.Now()
-	_, err := db.conn.Exec(`UPDATE users SET email_verified = 1, verified_at = ? WHERE id = ?`, now, userID)
+	_, err := db.conn.ExecContext(ctx, `UPDATE users SET email_verified = 1, verified_at = ? WHERE id = ?`, now, userID)
 	return err
 }
 
 // DeleteEmailVerificationTokens deletes all email verification tokens for a user
 func (db *DB) DeleteEmailVerificationTokens(userID string) error {
-	_, err := db.conn.Exec(`DELETE FROM email_verification_tokens WHERE user_id = ?`, userID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM email_verification_tokens WHERE user_id = ?`, userID)
 	return err
 }
 
 // DeleteExpiredEmailVerificationTokens deletes all expired email verification tokens
 func (db *DB) DeleteExpiredEmailVerificationTokens() (int64, error) {
-	result, err := db.conn.Exec(`DELETE FROM email_verification_tokens WHERE expires_at < ?`, time.Now())
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `DELETE FROM email_verification_tokens WHERE expires_at < ?`, time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -1584,8 +1668,11 @@ func (db *DB) DeleteExpiredEmailVerificationTokens() (int64, error) {
 
 // GetUnusedEmailVerificationToken returns the most recent unused verification token for a user
 func (db *DB) GetUnusedEmailVerificationToken(userID string) (*EmailVerificationToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	token := &EmailVerificationToken{}
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, user_id, token_hash, expires_at, used, created_at
 		FROM email_verification_tokens
 		WHERE user_id = ? AND used = 0 AND expires_at > ?
@@ -1605,8 +1692,11 @@ func (db *DB) GetUnusedEmailVerificationToken(userID string) (*EmailVerification
 // CreateMagicLinkToken creates a new magic link token for passwordless login.
 // Deletes any existing unused tokens for the user first.
 func (db *DB) CreateMagicLinkToken(userID, tokenHash string, expiresAt time.Time) (*MagicLinkToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Delete existing unused tokens for this user
-	_, err := db.conn.Exec(`DELETE FROM magic_link_tokens WHERE user_id = ? AND used = 0`, userID)
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM magic_link_tokens WHERE user_id = ? AND used = 0`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete old magic link tokens: %w", err)
 	}
@@ -1624,7 +1714,7 @@ func (db *DB) CreateMagicLinkToken(userID, tokenHash string, expiresAt time.Time
 		CreatedAt: time.Now(),
 	}
 
-	_, err = db.conn.Exec(`
+	_, err = db.conn.ExecContext(ctx, `
 		INSERT INTO magic_link_tokens (id, user_id, token_hash, expires_at, used, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, token.ID, token.UserID, token.TokenHash, token.ExpiresAt, 0, token.CreatedAt)
@@ -1638,8 +1728,11 @@ func (db *DB) CreateMagicLinkToken(userID, tokenHash string, expiresAt time.Time
 // GetMagicLinkToken retrieves a magic link token by its hash.
 // Returns nil if not found.
 func (db *DB) GetMagicLinkToken(tokenHash string) (*MagicLinkToken, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	token := &MagicLinkToken{}
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, user_id, token_hash, expires_at, used, created_at
 		FROM magic_link_tokens
 		WHERE token_hash = ?
@@ -1657,7 +1750,10 @@ func (db *DB) GetMagicLinkToken(tokenHash string) (*MagicLinkToken, error) {
 // UseMagicLinkToken marks a magic link token as used.
 // Returns true if the token was valid and unused, false otherwise.
 func (db *DB) UseMagicLinkToken(tokenHash string) (bool, error) {
-	result, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `
 		UPDATE magic_link_tokens
 		SET used = 1
 		WHERE token_hash = ? AND used = 0 AND expires_at > ?
@@ -1676,13 +1772,19 @@ func (db *DB) UseMagicLinkToken(tokenHash string) (bool, error) {
 
 // DeleteMagicLinkTokens deletes all magic link tokens for a user
 func (db *DB) DeleteMagicLinkTokens(userID string) error {
-	_, err := db.conn.Exec(`DELETE FROM magic_link_tokens WHERE user_id = ?`, userID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM magic_link_tokens WHERE user_id = ?`, userID)
 	return err
 }
 
 // DeleteExpiredMagicLinkTokens deletes all expired magic link tokens
 func (db *DB) DeleteExpiredMagicLinkTokens() (int64, error) {
-	result, err := db.conn.Exec(`DELETE FROM magic_link_tokens WHERE expires_at < ?`, time.Now())
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `DELETE FROM magic_link_tokens WHERE expires_at < ?`, time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -1693,8 +1795,11 @@ func (db *DB) DeleteExpiredMagicLinkTokens() (int64, error) {
 // Used for per-email rate limiting to prevent abuse. Note: this counts all created tokens,
 // including used and expired ones, to track request frequency.
 func (db *DB) CountRecentMagicLinkRequests(userID string, since time.Time) (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM magic_link_tokens
 		WHERE user_id = ? AND created_at > ?
 	`, userID, since).Scan(&count)
@@ -1703,23 +1808,32 @@ func (db *DB) CountRecentMagicLinkRequests(userID string, since time.Time) (int,
 
 // UpdateUserPassword updates a user's password hash
 func (db *DB) UpdateUserPassword(userID, passwordHash string) error {
-	_, err := db.conn.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
 	return err
 }
 
 // UpdateUserRole updates a user's role
 func (db *DB) UpdateUserRole(userID, role string) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Validate role
 	if role != RoleUser && role != RoleAdmin {
 		return fmt.Errorf("invalid role: %s", role)
 	}
-	_, err := db.conn.Exec(`UPDATE users SET role = ? WHERE id = ?`, role, userID)
+	_, err := db.conn.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, userID)
 	return err
 }
 
 // PromoteToAdmin promotes a user to admin role by email
 func (db *DB) PromoteToAdmin(email string) error {
-	result, err := db.conn.Exec(`UPDATE users SET role = ? WHERE email = ?`, RoleAdmin, email)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `UPDATE users SET role = ? WHERE email = ?`, RoleAdmin, email)
 	if err != nil {
 		return err
 	}
@@ -1735,6 +1849,9 @@ func (db *DB) PromoteToAdmin(email string) error {
 
 // RecordLoginAttempt records a login attempt for rate limiting
 func (db *DB) RecordLoginAttempt(email, ipAddress string, success bool) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	id := make([]byte, 16)
 	if _, err := rand.Read(id); err != nil {
 		return err
@@ -1745,7 +1862,7 @@ func (db *DB) RecordLoginAttempt(email, ipAddress string, success bool) error {
 		successInt = 1
 	}
 
-	_, err := db.conn.Exec(`
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO login_attempts (id, email, success, ip_address, created_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, fmt.Sprintf("%x", id), email, successInt, ipAddress, time.Now())
@@ -1755,8 +1872,11 @@ func (db *DB) RecordLoginAttempt(email, ipAddress string, success bool) error {
 // GetRecentFailedLoginAttempts returns the number of failed login attempts for an email
 // in the given time window
 func (db *DB) GetRecentFailedLoginAttempts(email string, since time.Time) (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM login_attempts
 		WHERE email = ? AND success = 0 AND created_at > ?
 	`, email, since).Scan(&count)
@@ -1768,13 +1888,19 @@ func (db *DB) GetRecentFailedLoginAttempts(email string, since time.Time) (int, 
 
 // ClearLoginAttempts clears login attempts for an email (e.g., after successful login)
 func (db *DB) ClearLoginAttempts(email string) error {
-	_, err := db.conn.Exec(`DELETE FROM login_attempts WHERE email = ?`, email)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `DELETE FROM login_attempts WHERE email = ?`, email)
 	return err
 }
 
 // DeleteExpiredLoginAttempts deletes login attempts older than the given time
 func (db *DB) DeleteExpiredLoginAttempts(olderThan time.Time) (int64, error) {
-	result, err := db.conn.Exec(`DELETE FROM login_attempts WHERE created_at < ?`, olderThan)
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	result, err := db.conn.ExecContext(ctx, `DELETE FROM login_attempts WHERE created_at < ?`, olderThan)
 	if err != nil {
 		return 0, err
 	}
@@ -1784,6 +1910,9 @@ func (db *DB) DeleteExpiredLoginAttempts(olderThan time.Time) (int64, error) {
 // IsEmailLocked checks if an email is locked due to too many failed login attempts
 // Returns true if locked, along with the time when the lock expires
 func (db *DB) IsEmailLocked(email string, maxAttempts int, lockDuration time.Duration) (bool, time.Time, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	since := time.Now().Add(-lockDuration)
 	count, err := db.GetRecentFailedLoginAttempts(email, since)
 	if err != nil {
@@ -1794,7 +1923,7 @@ func (db *DB) IsEmailLocked(email string, maxAttempts int, lockDuration time.Dur
 		// Get the oldest failed attempt in the window to calculate unlock time
 		// Note: MIN() returns a string in SQLite, so we scan to string and parse
 		var oldestAttemptStr sql.NullString
-		err := db.conn.QueryRow(`
+		err := db.conn.QueryRowContext(ctx, `
 			SELECT MIN(created_at) FROM login_attempts
 			WHERE email = ? AND success = 0 AND created_at > ?
 		`, email, since).Scan(&oldestAttemptStr)
@@ -1917,14 +2046,20 @@ func (db *DB) DisableTOTPAndClearSessions(userID string) error {
 // This should be run periodically (e.g., daily) during low-usage periods.
 // Note: VACUUM requires exclusive access and may take time for large databases.
 func (db *DB) Vacuum() error {
-	_, err := db.conn.Exec("VACUUM")
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, "VACUUM")
 	return err
 }
 
 // Analyze runs SQLite ANALYZE to update query planner statistics.
 // This should be run after significant data changes to improve query performance.
 func (db *DB) Analyze() error {
-	_, err := db.conn.Exec("ANALYZE")
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, "ANALYZE")
 	return err
 }
 
@@ -1942,7 +2077,10 @@ func (db *DB) Maintenance() error {
 
 // CreateUploadSession creates a new chunked upload session
 func (db *DB) CreateUploadSession(session *UploadSession) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO upload_sessions (id, filename, content_type, total_size, chunk_size, total_chunks, user_id, session_id, status, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, session.ID, session.Filename, session.ContentType, session.TotalSize, session.ChunkSize, session.TotalChunks, session.UserID, session.SessionID, session.Status, session.CreatedAt, session.ExpiresAt)
@@ -1951,11 +2089,14 @@ func (db *DB) CreateUploadSession(session *UploadSession) error {
 
 // GetUploadSession retrieves an upload session by ID
 func (db *DB) GetUploadSession(id string) (*UploadSession, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	session := &UploadSession{}
 	var userID, sessionID sql.NullString
 	var completedAt sql.NullTime
 
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, filename, content_type, total_size, chunk_size, total_chunks, user_id, session_id, status, created_at, expires_at, completed_at
 		FROM upload_sessions WHERE id = ?
 	`, id).Scan(&session.ID, &session.Filename, &session.ContentType, &session.TotalSize, &session.ChunkSize, &session.TotalChunks, &userID, &sessionID, &session.Status, &session.CreatedAt, &session.ExpiresAt, &completedAt)
@@ -1982,11 +2123,14 @@ func (db *DB) GetUploadSession(id string) (*UploadSession, error) {
 
 // UpdateUploadSessionStatus updates the status of an upload session
 func (db *DB) UpdateUploadSessionStatus(sessionID, status string) error {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var completedAt interface{}
 	if status == "complete" {
 		completedAt = time.Now()
 	}
-	_, err := db.conn.Exec(`
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE upload_sessions SET status = ?, completed_at = ? WHERE id = ?
 	`, status, completedAt, sessionID)
 	return err
@@ -1994,7 +2138,10 @@ func (db *DB) UpdateUploadSessionStatus(sessionID, status string) error {
 
 // CreateUploadChunk records a chunk upload
 func (db *DB) CreateUploadChunk(chunk *UploadChunk) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		INSERT INTO upload_chunks (id, upload_session_id, chunk_index, chunk_path, size, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, chunk.ID, chunk.UploadSessionID, chunk.ChunkIndex, chunk.ChunkPath, chunk.Size, chunk.CreatedAt)
@@ -2003,8 +2150,11 @@ func (db *DB) CreateUploadChunk(chunk *UploadChunk) error {
 
 // GetUploadChunk retrieves a specific chunk by session ID and index
 func (db *DB) GetUploadChunk(sessionID string, chunkIndex int) (*UploadChunk, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	chunk := &UploadChunk{}
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT id, upload_session_id, chunk_index, chunk_path, size, created_at
 		FROM upload_chunks WHERE upload_session_id = ? AND chunk_index = ?
 	`, sessionID, chunkIndex).Scan(&chunk.ID, &chunk.UploadSessionID, &chunk.ChunkIndex, &chunk.ChunkPath, &chunk.Size, &chunk.CreatedAt)
@@ -2020,7 +2170,10 @@ func (db *DB) GetUploadChunk(sessionID string, chunkIndex int) (*UploadChunk, er
 
 // GetUploadChunks retrieves all chunks for an upload session
 func (db *DB) GetUploadChunks(sessionID string) ([]UploadChunk, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT id, upload_session_id, chunk_index, chunk_path, size, created_at
 		FROM upload_chunks WHERE upload_session_id = ? ORDER BY chunk_index
 	`, sessionID)
@@ -2042,8 +2195,11 @@ func (db *DB) GetUploadChunks(sessionID string) ([]UploadChunk, error) {
 
 // CountUploadChunks returns the number of chunks uploaded for a session
 func (db *DB) CountUploadChunks(sessionID string) (int, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM upload_chunks WHERE upload_session_id = ?
 	`, sessionID).Scan(&count)
 	return count, err
@@ -2051,7 +2207,10 @@ func (db *DB) CountUploadChunks(sessionID string) (int, error) {
 
 // GetReceivedChunkIndices returns the indices of all chunks received for a session
 func (db *DB) GetReceivedChunkIndices(sessionID string) ([]int, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT chunk_index FROM upload_chunks WHERE upload_session_id = ? ORDER BY chunk_index
 	`, sessionID)
 	if err != nil {
@@ -2072,8 +2231,11 @@ func (db *DB) GetReceivedChunkIndices(sessionID string) ([]int, error) {
 
 // GetTotalReceivedBytes returns the sum of all chunk sizes for a session
 func (db *DB) GetTotalReceivedBytes(sessionID string) (int64, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var total sql.NullInt64
-	err := db.conn.QueryRow(`
+	err := db.conn.QueryRowContext(ctx, `
 		SELECT SUM(size) FROM upload_chunks WHERE upload_session_id = ?
 	`, sessionID).Scan(&total)
 	if err != nil {
@@ -2087,7 +2249,10 @@ func (db *DB) GetTotalReceivedBytes(sessionID string) (int64, error) {
 
 // GetExpiredUploadSessions returns all expired upload sessions
 func (db *DB) GetExpiredUploadSessions() ([]UploadSession, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT id, filename, content_type, total_size, chunk_size, total_chunks, user_id, session_id, status, created_at, expires_at, completed_at
 		FROM upload_sessions WHERE expires_at < ? AND status = 'in_progress'
 	`, time.Now())
@@ -2121,6 +2286,9 @@ func (db *DB) GetExpiredUploadSessions() ([]UploadSession, error) {
 // DeleteUploadSession deletes an upload session and its chunks
 // Returns the chunk paths so caller can delete files
 func (db *DB) DeleteUploadSession(sessionID string) ([]string, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	// Get chunk paths before deleting
 	chunks, err := db.GetUploadChunks(sessionID)
 	if err != nil {
@@ -2133,13 +2301,13 @@ func (db *DB) DeleteUploadSession(sessionID string) ([]string, error) {
 	}
 
 	// Delete chunks first (foreign key constraint)
-	_, err = db.conn.Exec(`DELETE FROM upload_chunks WHERE upload_session_id = ?`, sessionID)
+	_, err = db.conn.ExecContext(ctx, `DELETE FROM upload_chunks WHERE upload_session_id = ?`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete upload chunks: %w", err)
 	}
 
 	// Delete session
-	_, err = db.conn.Exec(`DELETE FROM upload_sessions WHERE id = ?`, sessionID)
+	_, err = db.conn.ExecContext(ctx, `DELETE FROM upload_sessions WHERE id = ?`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete upload session: %w", err)
 	}
@@ -2149,8 +2317,11 @@ func (db *DB) DeleteUploadSession(sessionID string) ([]string, error) {
 
 // UploadSessionExists checks if an upload session exists in the database
 func (db *DB) UploadSessionExists(sessionID string) (bool, error) {
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
 	var count int
-	err := db.conn.QueryRow(`SELECT COUNT(*) FROM upload_sessions WHERE id = ?`, sessionID).Scan(&count)
+	err := db.conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM upload_sessions WHERE id = ?`, sessionID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -2159,7 +2330,10 @@ func (db *DB) UploadSessionExists(sessionID string) (bool, error) {
 
 // GetVideosByKeyVersion returns all videos encrypted with a specific key version
 func (db *DB) GetVideosByKeyVersion(keyVersion int) ([]Video, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos WHERE key_version = ? ORDER BY created_at
 	`, keyVersion)
@@ -2182,7 +2356,10 @@ func (db *DB) GetVideosByKeyVersion(keyVersion int) ([]Video, error) {
 // GetVideosWithOldKeyVersion returns videos encrypted with keys older than the specified version
 // Useful for finding files that need re-encryption during key rotation
 func (db *DB) GetVideosWithOldKeyVersion(currentVersion, limit int) ([]Video, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos WHERE key_version < ? ORDER BY created_at LIMIT ?
 	`, currentVersion, limit)
@@ -2204,7 +2381,10 @@ func (db *DB) GetVideosWithOldKeyVersion(currentVersion, limit int) ([]Video, er
 
 // CountVideosByKeyVersion returns the count of videos per key version
 func (db *DB) CountVideosByKeyVersion() (map[int]int, error) {
-	rows, err := db.conn.Query(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	rows, err := db.conn.QueryContext(ctx, `
 		SELECT key_version, COUNT(*) FROM videos GROUP BY key_version ORDER BY key_version
 	`)
 	if err != nil {
@@ -2225,7 +2405,10 @@ func (db *DB) CountVideosByKeyVersion() (map[int]int, error) {
 
 // UpdateVideoKeyVersion updates the key version and file path for a video after re-encryption
 func (db *DB) UpdateVideoKeyVersion(videoID string, newKeyVersion int, newFilePath string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE videos SET key_version = ?, file_path = ? WHERE id = ?
 	`, newKeyVersion, newFilePath, videoID)
 	return err
@@ -2233,7 +2416,10 @@ func (db *DB) UpdateVideoKeyVersion(videoID string, newKeyVersion int, newFilePa
 
 // UpdateVideoThumbnailKeyVersion updates the thumbnail path for a video after re-encryption
 func (db *DB) UpdateVideoThumbnailKeyVersion(videoID string, newThumbnailPath string) error {
-	_, err := db.conn.Exec(`
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	_, err := db.conn.ExecContext(ctx, `
 		UPDATE videos SET thumbnail_path = ? WHERE id = ?
 	`, newThumbnailPath, videoID)
 	return err

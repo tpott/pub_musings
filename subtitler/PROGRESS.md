@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**295 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**296 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,19 +138,28 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**295 tasks completed.** Working on Task 296 (database context timeouts).
+**296 tasks completed.**
 
 ### Recent Work (2026-01-28)
 
-**Task 296: Database Query Context Timeouts (IN PROGRESS)**
-- Added context timeouts to 15+ critical database functions in db/db.go
-- Updated: CreateTranscription, GetTranscription, UpdateTranscriptionStatus, CompleteTranscription, FailTranscription
-- Updated: ListVideosPaginated, CountVideosBySession
-- Updated: CreateUser, GetUserByID
-- Updated: CreateSession, GetSessionsByUserIDWithLimit, DeleteSessionByID, DeleteSession, DeleteExpiredSessions, DeleteUserSessions, CountActiveSessions
-- Updated: SetTOTPSecret, EnableTOTP
+**Task 296: Database Query Context Timeouts (COMPLETE)**
+- Added context timeouts to ALL remaining database functions in db/db.go
 - Pattern: `ctx, cancel := db.queryContext(); defer cancel(); db.conn.ExecContext(ctx, ...)`
-- ~86 non-transaction calls remain to be updated (14 transaction calls already have context from WithTransaction)
+- Updated functions include:
+  - TOTP: DisableTOTP
+  - Videos: GetExpiredVideosPaginated, CountExpiredVideos, UpdateSegments, DeleteVideo, UpdateVideoThumbnail, UpdateVideoEmbeddedSubtitles, GetVideosByKeyVersion, GetVideosWithOldKeyVersion, CountVideosByKeyVersion, UpdateVideoKeyVersion, UpdateVideoThumbnailKeyVersion
+  - Burn jobs: CreateBurnJob, GetBurnJob, UpdateBurnJobStatus, CompleteBurnJobWithKeyVersion, FailBurnJob
+  - Recovery codes: SaveRecoveryCodes, GetUnusedRecoveryCodes, UseRecoveryCode, DeleteRecoveryCodes, CountUnusedRecoveryCodes
+  - Password reset: CreatePasswordResetToken, GetPasswordResetToken, UsePasswordResetToken, DeletePasswordResetTokens, DeleteExpiredPasswordResetTokens
+  - Email verification: CreateEmailVerificationToken, GetEmailVerificationToken, VerifyUserEmail, DeleteEmailVerificationTokens, DeleteExpiredEmailVerificationTokens, GetUnusedEmailVerificationToken
+  - Magic link: CreateMagicLinkToken, GetMagicLinkToken, UseMagicLinkToken, DeleteMagicLinkTokens, DeleteExpiredMagicLinkTokens, CountRecentMagicLinkRequests
+  - User management: UpdateUserPassword, UpdateUserRole, PromoteToAdmin
+  - Login attempts: RecordLoginAttempt, GetRecentFailedLoginAttempts, ClearLoginAttempts, DeleteExpiredLoginAttempts, IsEmailLocked
+  - Maintenance: Vacuum, Analyze
+  - Upload sessions: CreateUploadSession, GetUploadSession, UpdateUploadSessionStatus, CreateUploadChunk, GetUploadChunk, GetUploadChunks, CountUploadChunks, GetReceivedChunkIndices, GetTotalReceivedBytes, GetExpiredUploadSessions, DeleteUploadSession, UploadSessionExists
+  - Migration helper: handleExistingDatabase
+- All `db.conn.Exec()`, `db.conn.Query()`, `db.conn.QueryRow()` calls now use context variants
+- Prevents indefinite hangs if database becomes unresponsive
 
 **New Tasks Created from Deep Inspection:**
 - Task 296: Backend: Add context timeouts to database query calls (in_progress)
