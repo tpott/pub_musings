@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**254 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**255 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**254 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**255 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 255: Styled Dialog Modals (2026-01-28)
+
+- ✅ Task 255: Replaced native alert/confirm with styled modals
+  - Created `frontend/src/utils/dialog.ts` with showAlert() and showConfirm() utilities
+  - Supports info, warning, error, and confirm dialog types
+  - Dark mode compatible with CSS variables
+  - Keyboard accessible (Escape to close, focus management)
+  - Replaced 8 dialogs in videos.astro (7 alerts + 1 confirm)
 
 ### Task 254: Frontend DOM Query Optimization (2026-01-28)
 

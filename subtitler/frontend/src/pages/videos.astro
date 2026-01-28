@@ -783,6 +783,7 @@ import '../styles/theme.css';
 			import { escapeHtml } from '../utils/html';
 			import { renderBionicText, isBionicEnabled } from '../utils/bionic';
 			import { openSRT, openVTT, openJSON, downloadSRT, downloadVTT, downloadJSON } from '../utils/subtitles';
+			import { showAlert, showConfirm } from '../utils/dialog';
 			import {
 				PLAYBACK_SPEEDS,
 				getSavedSpeed,
@@ -950,7 +951,7 @@ import '../styles/theme.css';
 					const data = await response.json();
 
 					if (!response.ok) {
-						alert(`Failed to retry: ${data.error || 'Unknown error'}`);
+						await showAlert(`Failed to retry: ${data.error || 'Unknown error'}`, 'error');
 						button.disabled = false;
 						button.textContent = 'Retry';
 						return;
@@ -959,15 +960,19 @@ import '../styles/theme.css';
 					// Redirect to upload page to see progress
 					window.location.href = `/upload?id=${videoId}`;
 				} catch (err) {
-					alert(`Failed to retry: ${err instanceof Error ? err.message : 'Unknown error'}`);
+					await showAlert(`Failed to retry: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
 					button.disabled = false;
 					button.textContent = 'Retry';
 				}
 			}
 
 			async function deleteVideo(videoId: string, filename: string, button: HTMLButtonElement) {
-				// Confirm deletion
-				if (!confirm(`Are you sure you want to delete "${filename}"? This cannot be undone.`)) {
+				// Confirm deletion with styled dialog
+				const confirmed = await showConfirm(
+					`Are you sure you want to delete "${filename}"? This cannot be undone.`,
+					{ title: 'Delete Video', confirmText: 'Delete', cancelText: 'Cancel' }
+				);
+				if (!confirmed) {
 					return;
 				}
 
@@ -986,7 +991,7 @@ import '../styles/theme.css';
 					const data = await response.json();
 
 					if (!response.ok) {
-						alert(`Failed to delete: ${data.error || 'Unknown error'}`);
+						await showAlert(`Failed to delete: ${data.error || 'Unknown error'}`, 'error');
 						button.disabled = false;
 						button.textContent = 'Delete';
 						return;
@@ -1010,7 +1015,7 @@ import '../styles/theme.css';
 						`;
 					}
 				} catch (err) {
-					alert(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
+					await showAlert(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
 					button.disabled = false;
 					button.textContent = 'Delete';
 				}
@@ -1158,7 +1163,7 @@ import '../styles/theme.css';
 				try {
 					const segments = await getSubtitleSegments(videoId);
 					if (segments.length === 0) {
-						alert('No subtitles available');
+						await showAlert('No subtitles available', 'info');
 						return;
 					}
 
@@ -1170,7 +1175,7 @@ import '../styles/theme.css';
 						downloadJSON(segments, filename);
 					}
 				} catch (err) {
-					alert(`Error: ${err instanceof Error ? err.message : 'Failed to download'}`);
+					await showAlert(`Error: ${err instanceof Error ? err.message : 'Failed to download'}`, 'error');
 				} finally {
 					button.disabled = false;
 					button.textContent = originalText;
@@ -1582,28 +1587,28 @@ import '../styles/theme.css';
 
 			// Modal subtitle buttons - open content in new tabs for viewing
 			// No server request needed since segments are already in memory
-			modalDownloadSrt.addEventListener('click', (e) => {
+			modalDownloadSrt.addEventListener('click', async (e) => {
 				e.preventDefault();
 				if (modalSubtitleSegments.length === 0) {
-					alert('No subtitles available to view');
+					await showAlert('No subtitles available to view', 'info');
 					return;
 				}
 				openSRT(modalSubtitleSegments);
 			});
 
-			modalDownloadVtt.addEventListener('click', (e) => {
+			modalDownloadVtt.addEventListener('click', async (e) => {
 				e.preventDefault();
 				if (modalSubtitleSegments.length === 0) {
-					alert('No subtitles available to view');
+					await showAlert('No subtitles available to view', 'info');
 					return;
 				}
 				openVTT(modalSubtitleSegments);
 			});
 
-			modalDownloadJson.addEventListener('click', (e) => {
+			modalDownloadJson.addEventListener('click', async (e) => {
 				e.preventDefault();
 				if (modalSubtitleSegments.length === 0) {
-					alert('No subtitles available to view');
+					await showAlert('No subtitles available to view', 'info');
 					return;
 				}
 				openJSON(modalSubtitleSegments);
