@@ -1,8 +1,21 @@
 # Word-Level Highlighting Specification
 
-**Status: Not Implemented - Future Enhancement**
+**Status: Backend Infrastructure Complete - Frontend Display Pending**
 
-This feature is fully designed but not yet built. The specification below documents the planned implementation for karaoke-style word highlighting during video playback.
+This feature has backend infrastructure in place for word-level timing, but the frontend karaoke-style display is not yet implemented.
+
+## Implementation Status
+
+### Backend Infrastructure (Complete)
+- `backend/align/align.go` defines `Word` struct with Start/End timing
+- `extractWordsFromSegments()` interpolates word timing from segment-level data
+- Word timing is computed during alignment operations
+- Infrastructure ready to persist word timing if/when Whisper word timestamps are enabled
+
+### Frontend Display (Pending)
+- Karaoke-style word highlighting during playback is not yet implemented
+- Requires Phase 2 work (see below) to render words with time-synced highlighting
+- Would allow users to see each word highlight as it's spoken
 
 ---
 

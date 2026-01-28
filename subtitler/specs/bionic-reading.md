@@ -140,69 +140,41 @@ A free font designed specifically for dyslexic readers with:
 
 Already planned as a potential future feature (separate from Bionic Reading).
 
-## Implementation Plan for Subtitler
+## Implementation Status
 
-### Recommendation
+**Status: Fully Implemented**
 
-**Implement Bionic Reading as an optional accessibility feature** with clear disclaimers that:
+Bionic Reading is available as an optional accessibility feature with clear disclaimers that:
 1. Scientific evidence does not support claims of faster reading
 2. Some individuals may find it subjectively helpful
 3. Users should experiment to see if it works for them
 
-### Phase 1: Core Utility (Task 224)
+### Implemented Components
 
-Create `frontend/src/utils/bionic.ts`:
+**Core Utility** (`frontend/src/utils/bionic.ts`):
+- `toBionicSegments()` - Converts text to array of segments with bold flags
+- `toBionicHTML()` - Generates HTML string with `<strong>` tags
+- `renderBionicText()` - Safely renders with XSS protection
+- Configurable fixation percentage (default 40%)
+- Minimum word length filter (words under 3 chars skipped)
 
-```typescript
-export interface BionicOptions {
-  /** Percentage of word to bold (0.3-0.5, default 0.4) */
-  fixationPercent?: number;
-  /** Minimum word length to apply bolding (default 3) */
-  minWordLength?: number;
-}
+**Settings Integration** (`frontend/src/pages/settings.astro`):
+- Toggle to enable/disable Bionic Reading
+- Fixation percentage slider (30%, 40%, 50%)
+- Persisted in localStorage (`subtitler:bionic-reading`)
 
-/**
- * Converts plain text to HTML with bionic reading formatting.
- * Returns HTML string with <strong> tags for fixation points.
- */
-export function toBionicHTML(text: string, options?: BionicOptions): string;
+**Subtitle Display**:
+- Applied to segments in view mode on upload page
+- Applied to modal segments on videos page
+- Original text preserved in data, transformed only for display
 
-/**
- * Converts plain text to an array of segments for rendering.
- * Each segment has { text: string, bold: boolean }.
- */
-export function toBionicSegments(text: string, options?: BionicOptions): Array<{text: string, bold: boolean}>;
-```
-
-### Phase 2: Settings Integration
-
-1. Add "Bionic Reading" toggle to Settings > Preferences tab
-2. Persist preference in localStorage (`subtitler:bionic-reading`)
-3. Add fixation percentage slider (30%, 40%, 50%)
-
-### Phase 3: Apply to Subtitles
-
-1. **Upload page**: Apply to segments in view mode (not edit mode)
-2. **Videos page modal**: Apply to modal segments display
-3. **Preserve original text**: Always keep original in data, transform only for display
-
-### Phase 4: Testing
-
-Unit tests for `bionic.ts`:
-- Empty string handling
-- Single word
-- Multiple words
-- Whitespace preservation
-- Punctuation handling
-- Different fixation percentages
-- Minimum word length filter
-- Unicode/non-ASCII characters
-
-E2E tests:
-- Toggle setting persists
-- Setting applies to upload page
-- Setting applies to videos modal
-- Editing mode shows original text
+**Test Coverage** (`frontend/src/utils/bionic.test.ts`):
+- 49 tests covering all functionality
+- Empty string, single word, multiple words
+- Whitespace and punctuation preservation
+- Unicode/non-ASCII character support
+- All fixation percentages
+- XSS prevention verification
 
 ### Non-Goals
 

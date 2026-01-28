@@ -138,9 +138,30 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**331 tasks completed.**
+**336 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Tasks 332-336: Code Quality and Accessibility (COMPLETE)**
+- Task 332: Fixed HTTP response body leak in transcribeAudioServer retry loop
+  - Moved defer resp.Body.Close() out of loop, closes immediately after read
+- Task 333: Verified checkWhisperServerHealth() is already safe (not needed)
+- Task 334: Prevented nav element accumulation in nav-auth.ts
+  - Checks if logout button, user span, settings link exist before creating
+- Task 335: Simplified dialog.ts by using textContent instead of escapeHtml+innerHTML
+- Task 336: Added aria-invalid attribute to form fields for accessibility
+  - showFieldError() sets aria-invalid="true"
+  - clearFieldError() removes aria-invalid attribute
+
+**Tasks 327-328: Frontend Type Safety and Error Logging (COMPLETE)**
+- Task 327: Added proper TypeScript interface for upload response
+  - Created UploadResponse interface in types/transcription.ts
+  - Added LanguageHint and LanguageHints interfaces to shared types
+  - Replaced Promise<any> with Promise<UploadResponse>
+  - Removed duplicate local interface definitions
+- Task 328: Added console.error logging to empty catch blocks
+  - Updated 6 catch blocks in upload.astro with error logging
+  - Covers localStorage operations, XHR response parsing, session checks
 
 **Task 331: Expand Playback Speed Options to Match Spec (COMPLETE)**
 - Updated PLAYBACK_SPEEDS from [0.8, 0.9, 1.0] to [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
@@ -148,7 +169,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Updated specs/playback-speed.md status to "Implemented"
 - Enables language learners to slow down (0.5x, 0.75x) or speed up (1.25x, 1.5x, 2x) playback
 
-**Tasks 327-330: Documentation and Type Improvements (COMPLETE)**
+**Tasks 329-330: Documentation Improvements (COMPLETE)**
 - Task 330: Added Performance Tuning configuration section to ENV.md
   - Database connection pool tuning
   - Rate limit tuning for high-traffic servers
@@ -156,7 +177,6 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Task 329: Added FEEDBACK_RATE_LIMIT to docs/ENV.md with full documentation
   - LOG_SLOW_QUERIES and SLOW_QUERY_THRESHOLD_MS already documented
   - Updated Quick Reference table
-- Tasks 327-328: Deferred for future work (frontend type safety improvements)
 
 **Task 326: Replace json.NewEncoder Error Responses with httputil.RespondError (COMPLETE)**
 - Replaced 2 json.NewEncoder(w).Encode calls in upload error paths with httputil.RespondError()
