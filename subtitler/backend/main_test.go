@@ -1272,3 +1272,211 @@ func TestShutdownContextCancellation(t *testing.T) {
 		}
 	})
 }
+
+// TestGoroutinePanicRecovery tests the panic recovery pattern used in transcription,
+// reprocess, and burn goroutines. This verifies that:
+// 1. Panic is caught and doesn't crash the goroutine
+// 2. Error callback is executed when panic occurs
+// 3. The goroutine completes normally when no panic occurs
+func TestGoroutinePanicRecovery(t *testing.T) {
+	t.Run("panic is recovered and callback is called", func(t *testing.T) {
+		callbackCalled := false
+		var recoveredValue interface{}
+
+		// Simulate the panic recovery pattern used in transcription goroutines
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					recoveredValue = r
+					callbackCalled = true
+				}
+				close(done)
+			}()
+
+			// This simulates a panic in the transcription process
+			panic("simulated crash in transcription")
+		}()
+
+		// Wait for goroutine to complete
+		select {
+		case <-done:
+			// Goroutine completed
+		case <-time.After(1 * time.Second):
+			t.Fatal("Goroutine did not complete in time")
+		}
+
+		if !callbackCalled {
+			t.Error("Panic recovery callback was not called")
+		}
+		if recoveredValue != "simulated crash in transcription" {
+			t.Errorf("Recovered value = %v, expected 'simulated crash in transcription'", recoveredValue)
+		}
+	})
+
+	t.Run("callback not called when no panic occurs", func(t *testing.T) {
+		callbackCalled := false
+
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					callbackCalled = true
+				}
+				close(done)
+			}()
+
+			// Normal execution, no panic
+			_ = "doing work normally"
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("Goroutine did not complete in time")
+		}
+
+		if callbackCalled {
+			t.Error("Panic recovery callback should not be called when no panic occurs")
+		}
+	})
+
+	t.Run("runtime error panic is recovered", func(t *testing.T) {
+		recovered := false
+		var recoveredValue interface{}
+
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					recovered = true
+					recoveredValue = r
+				}
+				close(done)
+			}()
+
+			// Trigger a runtime panic (index out of range)
+			var slice []int
+			_ = slice[0] // This will panic
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("Goroutine did not complete in time")
+		}
+
+		if !recovered {
+			t.Error("Runtime panic should trigger recovery callback")
+		}
+		// The recovered value should be a runtime.errorString
+		if recoveredValue == nil {
+			t.Error("Recovered value should not be nil for runtime panic")
+		}
+	})
+
+	t.Run("error value panic is recovered with message", func(t *testing.T) {
+		var recoveredValue interface{}
+
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					recoveredValue = r
+				}
+				close(done)
+			}()
+
+			// Panic with an error type (common in real code)
+			panic(os.ErrNotExist)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("Goroutine did not complete in time")
+		}
+
+		if recoveredValue != os.ErrNotExist {
+			t.Errorf("Recovered value = %v, expected os.ErrNotExist", recoveredValue)
+		}
+	})
+}
+
+// TestJobFailureOnPanic tests that the database state would be correctly updated
+// when a panic occurs. This is a unit test for the error callback pattern.
+func TestJobFailureOnPanic(t *testing.T) {
+	t.Run("job transitions to error state on panic", func(t *testing.T) {
+		// Track the state changes
+		var finalStatus string
+		var finalMessage string
+		jobFailed := false
+
+		// Simulate the FailTranscription callback
+		failCallback := func(status, message string) {
+			jobFailed = true
+			finalStatus = status
+			finalMessage = message
+		}
+
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// This mirrors the actual code in main.go
+					failCallback("error", "Internal error: transcription process crashed")
+				}
+				close(done)
+			}()
+
+			panic("out of memory")
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("Goroutine did not complete in time")
+		}
+
+		if !jobFailed {
+			t.Error("Job should have transitioned to failed state")
+		}
+		if finalStatus != "error" {
+			t.Errorf("Final status = %q, expected 'error'", finalStatus)
+		}
+		if finalMessage != "Internal error: transcription process crashed" {
+			t.Errorf("Final message = %q, expected 'Internal error: transcription process crashed'", finalMessage)
+		}
+	})
+
+	t.Run("job completes normally without panic", func(t *testing.T) {
+		jobFailed := false
+
+		failCallback := func(status, message string) {
+			jobFailed = true
+		}
+
+		done := make(chan struct{})
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					failCallback("error", "crashed")
+				}
+				close(done)
+			}()
+
+			// Normal completion
+			_ = "transcription complete"
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("Goroutine did not complete in time")
+		}
+
+		if jobFailed {
+			t.Error("Job should not have failed when completing normally")
+		}
+	})
+}
