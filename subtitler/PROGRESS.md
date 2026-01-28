@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**321 tasks completed.**
+**322 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 322: Use removeWithLogging Helper for All os.Remove Calls (COMPLETE)**
+- Updated upload error cleanup paths to use removeWithLogging()
+- Updated thumbnail cleanup paths to use removeWithLogging()
+- Updated video deletion paths to use removeWithLogging()
+- 6 os.Remove calls replaced with removeWithLogging() for consistent error logging
+- Cleanup scheduler paths kept with explicit success logging for audit purposes
 
 **Task 321: Check w.Write Errors in Rate Limiter and Download Endpoints (COMPLETE)**
 - Created `httputil.WriteContent()` helper function that logs errors when w.Write() fails

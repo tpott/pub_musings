@@ -3287,7 +3287,7 @@ func main() {
 		written, err := io.Copy(destFile, file)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error copying file", "error", err)
-			os.Remove(destPath) // Clean up partial file
+			removeWithLogging(destPath, "partial file cleanup after copy error")
 			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3305,7 +3305,7 @@ func main() {
 		// Validate the file is actually a valid video (defense-in-depth beyond MIME check)
 		if err := audio.ValidateVideoFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
-			os.Remove(destPath) // Clean up invalid file
+			removeWithLogging(destPath, "invalid video file cleanup")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "File is not a valid video. Please upload a valid video file.",
@@ -3324,9 +3324,9 @@ func main() {
 			encPath, _, err := multiEnc.EncryptFile(thumbPath)
 			if err != nil {
 				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
-				os.Remove(thumbPath) // Clean up unencrypted thumbnail
+				removeWithLogging(thumbPath, "unencrypted thumbnail cleanup after encryption error")
 			} else {
-				os.Remove(thumbPath) // Clean up unencrypted thumbnail
+				removeWithLogging(thumbPath, "unencrypted thumbnail cleanup after successful encryption")
 				encThumbPath = &encPath
 				logging.InfoContext(r.Context(), "Generated and encrypted thumbnail", "thumb_path", encPath)
 			}
@@ -5273,29 +5273,17 @@ func main() {
 
 		// Delete the video file from disk
 		if deletedFiles != nil && deletedFiles.FilePath != "" {
-			if err := os.Remove(deletedFiles.FilePath); err != nil {
-				if !os.IsNotExist(err) {
-					logging.ErrorContext(r.Context(), "Error deleting video file", "path", deletedFiles.FilePath, "error", err)
-				}
-			}
+			removeWithLogging(deletedFiles.FilePath, "video file deletion")
 		}
 
 		// Delete the thumbnail file from disk
 		if deletedFiles != nil && deletedFiles.ThumbnailPath != nil && *deletedFiles.ThumbnailPath != "" {
-			if err := os.Remove(*deletedFiles.ThumbnailPath); err != nil {
-				if !os.IsNotExist(err) {
-					logging.ErrorContext(r.Context(), "Error deleting thumbnail file", "path", *deletedFiles.ThumbnailPath, "error", err)
-				}
-			}
+			removeWithLogging(*deletedFiles.ThumbnailPath, "thumbnail file deletion")
 		}
 
 		// Delete the burn output file from disk
 		if deletedFiles != nil && deletedFiles.BurnOutputPath != nil && *deletedFiles.BurnOutputPath != "" {
-			if err := os.Remove(*deletedFiles.BurnOutputPath); err != nil {
-				if !os.IsNotExist(err) {
-					logging.ErrorContext(r.Context(), "Error deleting burn output file", "path", *deletedFiles.BurnOutputPath, "error", err)
-				}
-			}
+			removeWithLogging(*deletedFiles.BurnOutputPath, "burn output file deletion")
 		}
 
 		// Log security event for video deletion
