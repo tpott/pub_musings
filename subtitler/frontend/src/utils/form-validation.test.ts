@@ -23,6 +23,8 @@ describe('form-validation utility', () => {
 			},
 			addEventListener: vi.fn(),
 			removeEventListener: vi.fn(),
+			setAttribute: vi.fn(),
+			removeAttribute: vi.fn(),
 		} as unknown as HTMLInputElement;
 
 		// Create mock error element
@@ -405,6 +407,8 @@ describe('form-validation utility', () => {
 					if (event === 'input') inputHandler = handler as () => void;
 				}),
 				removeEventListener: vi.fn(),
+				setAttribute: vi.fn(),
+				removeAttribute: vi.fn(),
 			} as unknown as HTMLInputElement;
 
 			const testErrorEl = {
@@ -441,6 +445,8 @@ describe('form-validation utility', () => {
 					if (event === 'input') inputHandler = handler as () => void;
 				}),
 				removeEventListener: vi.fn(),
+				setAttribute: vi.fn(),
+				removeAttribute: vi.fn(),
 			} as unknown as HTMLInputElement;
 
 			const testErrorEl = {

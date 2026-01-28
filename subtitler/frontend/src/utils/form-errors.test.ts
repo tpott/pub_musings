@@ -20,8 +20,18 @@ class MockClassList {
 
 // Create mock HTMLElement-like objects
 function createMockInput(): HTMLInputElement {
+	const attributes = new Map<string, string>();
 	return {
 		classList: new MockClassList(),
+		setAttribute(name: string, value: string) {
+			attributes.set(name, value);
+		},
+		getAttribute(name: string): string | null {
+			return attributes.get(name) ?? null;
+		},
+		removeAttribute(name: string) {
+			attributes.delete(name);
+		},
 	} as unknown as HTMLInputElement;
 }
 
@@ -49,6 +59,12 @@ describe('form-errors utility', () => {
 			expect(mockInput.classList.contains('input-error')).toBe(false);
 		});
 
+		it('should remove aria-invalid attribute from input', () => {
+			mockInput.setAttribute('aria-invalid', 'true');
+			clearFieldError(mockInput, mockErrorEl);
+			expect(mockInput.getAttribute('aria-invalid')).toBe(null);
+		});
+
 		it('should hide error element', () => {
 			mockErrorEl.style.display = 'block';
 			clearFieldError(mockInput, mockErrorEl);
@@ -71,6 +87,11 @@ describe('form-errors utility', () => {
 		it('should add input-error class to input', () => {
 			showFieldError(mockInput, mockErrorEl, 'Error');
 			expect(mockInput.classList.contains('input-error')).toBe(true);
+		});
+
+		it('should set aria-invalid attribute on input', () => {
+			showFieldError(mockInput, mockErrorEl, 'Error');
+			expect(mockInput.getAttribute('aria-invalid')).toBe('true');
 		});
 
 		it('should set error element text content', () => {
@@ -101,11 +122,13 @@ describe('form-errors utility', () => {
 		it('should properly reset state after show then clear', () => {
 			showFieldError(mockInput, mockErrorEl, 'Error occurred');
 			expect(mockInput.classList.contains('input-error')).toBe(true);
+			expect(mockInput.getAttribute('aria-invalid')).toBe('true');
 			expect(mockErrorEl.textContent).toBe('Error occurred');
 			expect(mockErrorEl.style.display).toBe('block');
 
 			clearFieldError(mockInput, mockErrorEl);
 			expect(mockInput.classList.contains('input-error')).toBe(false);
+			expect(mockInput.getAttribute('aria-invalid')).toBe(null);
 			expect(mockErrorEl.textContent).toBe('');
 			expect(mockErrorEl.style.display).toBe('none');
 		});

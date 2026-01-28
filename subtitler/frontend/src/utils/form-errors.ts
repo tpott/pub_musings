@@ -15,6 +15,7 @@ export function clearFieldError(
 	errorEl: HTMLElement
 ): void {
 	input.classList.remove('input-error');
+	input.removeAttribute('aria-invalid');
 	errorEl.style.display = 'none';
 	errorEl.textContent = '';
 }
@@ -31,6 +32,7 @@ export function showFieldError(
 	message: string
 ): void {
 	input.classList.add('input-error');
+	input.setAttribute('aria-invalid', 'true');
 	errorEl.textContent = message;
 	errorEl.style.display = 'block';
 }
