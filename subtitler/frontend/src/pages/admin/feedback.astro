@@ -1,0 +1,636 @@
+---
+import DevConsoleForwarder from '../../components/DevConsoleForwarder.astro';
+import ThemeInit from '../../components/ThemeInit.astro';
+import Navigation from '../../components/Navigation.astro';
+import FeedbackButton from '../../components/FeedbackButton.astro';
+import '../../styles/theme.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Admin: Feedback - Subtitler</title>
+		<style>
+			.container {
+				max-width: 1000px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+			.header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 2rem;
+				flex-wrap: wrap;
+				gap: 1rem;
+			}
+			.header-left {
+				display: flex;
+				align-items: center;
+				gap: 1rem;
+			}
+			.back-link {
+				text-decoration: none;
+				color: var(--text-color);
+				font-size: 1.5rem;
+			}
+			.back-link:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			h1 {
+				font-size: 2rem;
+				font-weight: 600;
+			}
+			.admin-badge {
+				display: inline-block;
+				background-color: var(--badge-admin-bg, #ffebee);
+				color: var(--badge-admin-text, #c62828);
+				padding: 0.25rem 0.5rem;
+				border-radius: 4px;
+				font-size: 0.75rem;
+				font-weight: 600;
+				text-transform: uppercase;
+			}
+			:global(.dark) .admin-badge {
+				background-color: var(--badge-admin-bg-dark, #4a1c1c);
+				color: var(--badge-admin-text-dark, #ef9a9a);
+			}
+			.filters {
+				display: flex;
+				gap: 1rem;
+				margin-bottom: 1.5rem;
+				flex-wrap: wrap;
+			}
+			.filter-group {
+				display: flex;
+				flex-direction: column;
+				gap: 0.25rem;
+			}
+			.filter-label {
+				font-size: 0.75rem;
+				color: var(--text-secondary);
+				text-transform: uppercase;
+			}
+			.filter-select {
+				padding: 0.5rem;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				font-size: 0.875rem;
+			}
+			.filter-select:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.loading {
+				text-align: center;
+				padding: 3rem;
+				color: var(--text-secondary);
+			}
+			.error {
+				text-align: center;
+				padding: 2rem;
+				background-color: var(--error-bg);
+				border: 1px solid var(--error-border);
+				color: var(--error-color);
+				border-radius: 8px;
+			}
+			.access-denied {
+				text-align: center;
+				padding: 4rem 2rem;
+				background-color: var(--secondary-bg);
+				border-radius: 12px;
+				border: 1px solid var(--error-border);
+			}
+			.access-denied-icon {
+				font-size: 3rem;
+				margin-bottom: 1rem;
+			}
+			.access-denied-title {
+				font-size: 1.5rem;
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+				color: var(--error-color);
+			}
+			.access-denied-text {
+				color: var(--text-secondary);
+			}
+			.empty-state {
+				text-align: center;
+				padding: 4rem 2rem;
+				background-color: var(--secondary-bg);
+				border-radius: 12px;
+				border: 2px dashed var(--border-color);
+			}
+			.empty-icon {
+				font-size: 3rem;
+				margin-bottom: 1rem;
+			}
+			.empty-text {
+				font-size: 1.25rem;
+				color: var(--text-secondary);
+			}
+			.feedback-list {
+				display: flex;
+				flex-direction: column;
+				gap: 1rem;
+			}
+			.feedback-card {
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 8px;
+				padding: 1.25rem;
+				transition: box-shadow 0.2s;
+			}
+			.feedback-card:hover {
+				box-shadow: 0 2px 8px var(--card-shadow);
+			}
+			.feedback-header {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				margin-bottom: 0.75rem;
+				flex-wrap: wrap;
+				gap: 0.5rem;
+			}
+			.feedback-meta {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.5rem;
+				align-items: center;
+			}
+			.type-badge {
+				display: inline-block;
+				padding: 0.2rem 0.5rem;
+				border-radius: 4px;
+				font-size: 0.75rem;
+				font-weight: 500;
+			}
+			.type-general {
+				background-color: var(--badge-info-bg, #e3f2fd);
+				color: var(--badge-info-text, #1565c0);
+			}
+			.type-bug {
+				background-color: var(--error-bg, #ffebee);
+				color: var(--error-color, #c62828);
+			}
+			.type-feature {
+				background-color: var(--success-bg, #e8f5e9);
+				color: var(--success-color, #2e7d32);
+			}
+			:global(.dark) .type-general {
+				background-color: var(--badge-info-bg-dark, #1e3a5f);
+				color: var(--badge-info-text-dark, #90caf9);
+			}
+			:global(.dark) .type-bug {
+				background-color: var(--error-bg-dark, #4a1c1c);
+				color: var(--error-color-dark, #ef9a9a);
+			}
+			:global(.dark) .type-feature {
+				background-color: var(--success-bg-dark, #1b3c1c);
+				color: var(--success-color-dark, #a5d6a7);
+			}
+			.status-badge {
+				display: inline-block;
+				padding: 0.2rem 0.5rem;
+				border-radius: 4px;
+				font-size: 0.75rem;
+				font-weight: 500;
+			}
+			.status-new {
+				background-color: var(--badge-pending-bg, #fff8e1);
+				color: var(--badge-pending-text, #f57f17);
+			}
+			.status-read {
+				background-color: var(--badge-info-bg, #e3f2fd);
+				color: var(--badge-info-text, #1565c0);
+			}
+			.status-resolved {
+				background-color: var(--success-bg, #e8f5e9);
+				color: var(--success-color, #2e7d32);
+			}
+			:global(.dark) .status-new {
+				background-color: var(--badge-pending-bg-dark, #4a3c00);
+				color: var(--badge-pending-text-dark, #ffd54f);
+			}
+			:global(.dark) .status-read {
+				background-color: var(--badge-info-bg-dark, #1e3a5f);
+				color: var(--badge-info-text-dark, #90caf9);
+			}
+			:global(.dark) .status-resolved {
+				background-color: var(--success-bg-dark, #1b3c1c);
+				color: var(--success-color-dark, #a5d6a7);
+			}
+			.rating {
+				display: flex;
+				gap: 0.125rem;
+			}
+			.star {
+				color: var(--star-color, #ffc107);
+			}
+			.star-empty {
+				color: var(--text-secondary);
+			}
+			.feedback-date {
+				font-size: 0.75rem;
+				color: var(--text-secondary);
+			}
+			.feedback-actions {
+				display: flex;
+				gap: 0.5rem;
+			}
+			.status-select {
+				padding: 0.25rem 0.5rem;
+				border: 1px solid var(--border-color);
+				border-radius: 4px;
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				font-size: 0.75rem;
+			}
+			.status-select:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.feedback-text {
+				font-size: 0.95rem;
+				line-height: 1.6;
+				margin-bottom: 0.75rem;
+				white-space: pre-wrap;
+				word-break: break-word;
+			}
+			.feedback-context {
+				font-size: 0.75rem;
+				color: var(--text-secondary);
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.5rem 1rem;
+			}
+			.context-item {
+				display: flex;
+				align-items: center;
+				gap: 0.25rem;
+			}
+			.context-label {
+				font-weight: 500;
+			}
+			.pagination {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				gap: 0.5rem;
+				margin-top: 1.5rem;
+				padding: 1rem;
+			}
+			.pagination-btn {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.5rem 1rem;
+				border: 1px solid var(--border-color);
+				background-color: var(--bg-color);
+				color: var(--text-color);
+				border-radius: 4px;
+				font-size: 0.875rem;
+				cursor: pointer;
+				transition: background-color 0.2s, border-color 0.2s;
+			}
+			.pagination-btn:hover:not(:disabled) {
+				background-color: var(--border-color);
+			}
+			.pagination-btn:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+			.pagination-btn:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.pagination-info {
+				color: var(--text-secondary);
+				font-size: 0.875rem;
+			}
+			@media (max-width: 600px) {
+				.container {
+					padding: 1rem;
+				}
+				h1 {
+					font-size: 1.5rem;
+				}
+				.filters {
+					flex-direction: column;
+				}
+				.feedback-header {
+					flex-direction: column;
+				}
+				.feedback-actions {
+					width: 100%;
+				}
+				.status-select {
+					flex: 1;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<Navigation showSettings={true} />
+		<div class="container">
+			<div class="header">
+				<div class="header-left">
+					<a href="/" class="back-link" aria-label="Back to home">←</a>
+					<h1>Feedback</h1>
+					<span class="admin-badge">Admin</span>
+				</div>
+			</div>
+
+			<div id="accessDenied" class="access-denied" style="display: none;">
+				<div class="access-denied-icon">🔒</div>
+				<div class="access-denied-title">Access Denied</div>
+				<p class="access-denied-text">You must be an admin to view this page.</p>
+			</div>
+
+			<div id="mainContent" style="display: none;">
+				<div class="filters">
+					<div class="filter-group">
+						<label class="filter-label" for="statusFilter">Status</label>
+						<select id="statusFilter" class="filter-select">
+							<option value="">All</option>
+							<option value="new">New</option>
+							<option value="read">Read</option>
+							<option value="resolved">Resolved</option>
+						</select>
+					</div>
+					<div class="filter-group">
+						<label class="filter-label" for="typeFilter">Type</label>
+						<select id="typeFilter" class="filter-select">
+							<option value="">All</option>
+							<option value="general">General</option>
+							<option value="bug">Bug</option>
+							<option value="feature">Feature</option>
+						</select>
+					</div>
+				</div>
+
+				<div id="loading" class="loading">Loading feedback...</div>
+				<div id="error" class="error" style="display: none;"></div>
+				<div id="emptyState" class="empty-state" style="display: none;">
+					<div class="empty-icon">📭</div>
+					<p class="empty-text">No feedback found</p>
+				</div>
+				<div id="feedbackList" class="feedback-list"></div>
+				<div id="pagination" class="pagination" style="display: none;">
+					<button id="prevBtn" class="pagination-btn" aria-label="Previous page">← Previous</button>
+					<span id="pageInfo" class="pagination-info"></span>
+					<button id="nextBtn" class="pagination-btn" aria-label="Next page">Next →</button>
+				</div>
+			</div>
+		</div>
+		<FeedbackButton />
+
+		<script>
+			import { checkAuthAndUpdateNav, type User } from '../../utils/nav-auth';
+			import { csrfFetch } from '../../utils/csrf';
+			import { escapeHtml } from '../../utils/html';
+
+			interface Feedback {
+				id: string;
+				user_id?: string;
+				session_id?: string;
+				video_id?: string;
+				page_url: string;
+				text: string;
+				rating?: number;
+				type: string;
+				browser_info: string;
+				created_at: string;
+				status: string;
+			}
+
+			interface FeedbackListResponse {
+				feedback: Feedback[];
+				total: number;
+				limit: number;
+				offset: number;
+			}
+
+			const accessDenied = document.getElementById('accessDenied') as HTMLDivElement;
+			const mainContent = document.getElementById('mainContent') as HTMLDivElement;
+			const loadingEl = document.getElementById('loading') as HTMLDivElement;
+			const errorEl = document.getElementById('error') as HTMLDivElement;
+			const emptyState = document.getElementById('emptyState') as HTMLDivElement;
+			const feedbackList = document.getElementById('feedbackList') as HTMLDivElement;
+			const pagination = document.getElementById('pagination') as HTMLDivElement;
+			const prevBtn = document.getElementById('prevBtn') as HTMLButtonElement;
+			const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
+			const pageInfo = document.getElementById('pageInfo') as HTMLSpanElement;
+			const statusFilter = document.getElementById('statusFilter') as HTMLSelectElement;
+			const typeFilter = document.getElementById('typeFilter') as HTMLSelectElement;
+
+			let currentOffset = 0;
+			const limit = 20;
+			let totalFeedback = 0;
+			let isAdmin = false;
+
+			// Check auth and admin status
+			async function init() {
+				const result = await checkAuthAndUpdateNav({
+					onAuthenticated: (user: User) => {
+						if (user.role === 'admin') {
+							isAdmin = true;
+							mainContent.style.display = 'block';
+							loadFeedback();
+						} else {
+							accessDenied.style.display = 'block';
+						}
+					},
+					onUnauthenticated: () => {
+						accessDenied.style.display = 'block';
+					},
+				});
+			}
+
+			// Load feedback from API
+			async function loadFeedback() {
+				loadingEl.style.display = 'block';
+				errorEl.style.display = 'none';
+				emptyState.style.display = 'none';
+				feedbackList.innerHTML = '';
+				pagination.style.display = 'none';
+
+				const status = statusFilter.value;
+				const type = typeFilter.value;
+
+				const params = new URLSearchParams();
+				if (status) params.append('status', status);
+				if (type) params.append('type', type);
+				params.append('limit', limit.toString());
+				params.append('offset', currentOffset.toString());
+
+				try {
+					const response = await fetch(`/api/admin/feedback?${params.toString()}`);
+					if (!response.ok) {
+						if (response.status === 403) {
+							accessDenied.style.display = 'block';
+							mainContent.style.display = 'none';
+							return;
+						}
+						throw new Error('Failed to load feedback');
+					}
+
+					const data: FeedbackListResponse = await response.json();
+					totalFeedback = data.total;
+
+					loadingEl.style.display = 'none';
+
+					if (data.feedback.length === 0) {
+						emptyState.style.display = 'block';
+					} else {
+						renderFeedback(data.feedback);
+						updatePagination();
+					}
+				} catch (err) {
+					loadingEl.style.display = 'none';
+					errorEl.style.display = 'block';
+					errorEl.textContent = err instanceof Error ? err.message : 'An error occurred';
+				}
+			}
+
+			// Render feedback cards
+			function renderFeedback(items: Feedback[]) {
+				feedbackList.innerHTML = items.map((item) => {
+					const typeClass = `type-${item.type}`;
+					const statusClass = `status-${item.status}`;
+					const date = new Date(item.created_at).toLocaleString();
+					const stars = item.rating ? renderStars(item.rating) : '';
+
+					return `
+						<div class="feedback-card" data-id="${escapeHtml(item.id)}">
+							<div class="feedback-header">
+								<div class="feedback-meta">
+									<span class="type-badge ${typeClass}">${escapeHtml(item.type)}</span>
+									<span class="status-badge ${statusClass}">${escapeHtml(item.status)}</span>
+									${stars ? `<span class="rating">${stars}</span>` : ''}
+									<span class="feedback-date">${escapeHtml(date)}</span>
+								</div>
+								<div class="feedback-actions">
+									<select class="status-select" data-id="${escapeHtml(item.id)}" aria-label="Update status">
+										<option value="new" ${item.status === 'new' ? 'selected' : ''}>New</option>
+										<option value="read" ${item.status === 'read' ? 'selected' : ''}>Read</option>
+										<option value="resolved" ${item.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+									</select>
+								</div>
+							</div>
+							<div class="feedback-text">${escapeHtml(item.text)}</div>
+							<div class="feedback-context">
+								<span class="context-item"><span class="context-label">Page:</span> ${escapeHtml(item.page_url)}</span>
+								${item.video_id ? `<span class="context-item"><span class="context-label">Video:</span> ${escapeHtml(item.video_id)}</span>` : ''}
+								${item.user_id ? `<span class="context-item"><span class="context-label">User:</span> ${escapeHtml(item.user_id.substring(0, 8))}...</span>` : '<span class="context-item"><span class="context-label">User:</span> Anonymous</span>'}
+							</div>
+						</div>
+					`;
+				}).join('');
+
+				// Add event listeners for status selects using event delegation
+				feedbackList.addEventListener('change', handleStatusChange);
+			}
+
+			// Render star rating
+			function renderStars(rating: number): string {
+				let stars = '';
+				for (let i = 1; i <= 5; i++) {
+					if (i <= rating) {
+						stars += '<span class="star">★</span>';
+					} else {
+						stars += '<span class="star-empty">☆</span>';
+					}
+				}
+				return stars;
+			}
+
+			// Handle status change
+			async function handleStatusChange(e: Event) {
+				const target = e.target as HTMLSelectElement;
+				if (!target.classList.contains('status-select')) return;
+
+				const feedbackId = target.dataset.id;
+				const newStatus = target.value;
+
+				try {
+					const response = await csrfFetch(`/api/admin/feedback/${feedbackId}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ status: newStatus }),
+					});
+
+					if (!response.ok) {
+						throw new Error('Failed to update status');
+					}
+
+					// Update the badge
+					const card = target.closest('.feedback-card');
+					if (card) {
+						const badge = card.querySelector('.status-badge');
+						if (badge) {
+							badge.className = `status-badge status-${newStatus}`;
+							badge.textContent = newStatus;
+						}
+					}
+				} catch (err) {
+					console.error('Failed to update feedback status:', err);
+					alert('Failed to update status. Please try again.');
+					// Reload to reset
+					loadFeedback();
+				}
+			}
+
+			// Update pagination controls
+			function updatePagination() {
+				const totalPages = Math.ceil(totalFeedback / limit);
+				const currentPage = Math.floor(currentOffset / limit) + 1;
+
+				if (totalPages > 1) {
+					pagination.style.display = 'flex';
+					pageInfo.textContent = `Page ${currentPage} of ${totalPages} (${totalFeedback} total)`;
+					prevBtn.disabled = currentOffset === 0;
+					nextBtn.disabled = currentOffset + limit >= totalFeedback;
+				} else {
+					pagination.style.display = 'none';
+				}
+			}
+
+			// Event listeners
+			statusFilter.addEventListener('change', () => {
+				currentOffset = 0;
+				loadFeedback();
+			});
+
+			typeFilter.addEventListener('change', () => {
+				currentOffset = 0;
+				loadFeedback();
+			});
+
+			prevBtn.addEventListener('click', () => {
+				if (currentOffset > 0) {
+					currentOffset = Math.max(0, currentOffset - limit);
+					loadFeedback();
+				}
+			});
+
+			nextBtn.addEventListener('click', () => {
+				if (currentOffset + limit < totalFeedback) {
+					currentOffset += limit;
+					loadFeedback();
+				}
+			});
+
+			// Initialize
+			init();
+		</script>
+	</body>
+</html>

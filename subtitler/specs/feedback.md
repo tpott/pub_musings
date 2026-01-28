@@ -148,10 +148,70 @@ Import `FeedbackButton.astro` before `</body>` in:
 - Successful submission shows confirmation
 - Keyboard navigation (Escape to close)
 
+## Admin Dashboard (Implemented)
+
+### Admin API Endpoints
+
+**GET /api/admin/feedback** - List feedback with filters
+
+Query Parameters:
+- `status`: Filter by status (new, read, resolved)
+- `type`: Filter by feedback type (general, bug, feature)
+- `limit`: Max items per page (default 50, max 100)
+- `offset`: Pagination offset
+
+Response:
+```json
+{
+  "feedback": [...],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**GET /api/admin/feedback/{id}** - Get feedback by ID
+
+**PATCH /api/admin/feedback/{id}** - Update feedback status
+
+Request:
+```json
+{
+  "status": "read"  // "new", "read", or "resolved"
+}
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "id": "feedback_id",
+  "updated": "read"
+}
+```
+
+### Frontend Admin Page
+
+**Location:** `frontend/src/pages/admin/feedback.astro`
+
+**Features:**
+- Admin-only access (checks user.role === 'admin')
+- Filter dropdowns for status and type
+- Paginated list of feedback items
+- Inline status change via dropdown per item
+- Shows feedback text, type badge, status badge, rating stars, date
+- Context info: page URL, video ID, user ID (truncated)
+
+### Security
+
+- All admin endpoints require authentication
+- Admin role verified before processing requests
+- `AdminFeedbackUpdated` security event logged on status changes
+- Non-admin users see "Access Denied" message
+
 ## Future Enhancements
 
-1. **Admin Dashboard** - View and manage feedback (separate task)
-2. **Email Notifications** - Notify admin of new feedback
-3. **Screenshot Capture** - Optional screenshot attachment
-4. **Recent Actions Log** - Track last N user actions for context
-5. **Feedback Response** - Allow admins to respond to users
+1. **Email Notifications** - Notify admin of new feedback
+2. **Screenshot Capture** - Optional screenshot attachment
+3. **Recent Actions Log** - Track last N user actions for context
+4. **Feedback Response** - Allow admins to respond to users

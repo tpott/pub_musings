@@ -90,6 +90,9 @@ const (
 	EventMaintenanceFailed    = "admin.maintenance.failed"
 	EventCleanupStarted       = "admin.cleanup.started"
 	EventCleanupCompleted     = "admin.cleanup.completed"
+
+	// Admin operations - feedback management
+	EventAdminFeedbackUpdated = "admin.feedback.updated"
 )
 
 // LogSecurityEvent logs a security event with standard fields.
@@ -366,4 +369,9 @@ func CleanupCompleted(videosDeleted int, sessionsDeleted, loginAttemptsDeleted i
 		"login_attempts_deleted", loginAttemptsDeleted,
 		"upload_sessions_deleted", uploadSessionsDeleted,
 		"orphan_chunks_deleted", orphanChunksDeleted)
+}
+
+// AdminFeedbackUpdated logs when an admin updates feedback status.
+func AdminFeedbackUpdated(ctx context.Context, ip, adminUserID, feedbackID, newStatus string) {
+	LogSecurityEvent(ctx, EventAdminFeedbackUpdated, ip, "admin_user_id", adminUserID, "feedback_id", feedbackID, "new_status", newStatus)
 }

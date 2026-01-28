@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**242 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**243 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -221,7 +221,19 @@ Deep code review using exploration agents identified areas for improvement:
   - Added GET /api/videos/{id}/embedded-subtitles/{track} endpoint
   - Frontend shows "Use embedded subtitles" notice with track selection
   - Loads extracted subtitles into editor, replacing Whisper transcription
-- Task 240: Add admin dashboard for feedback viewing
+- ✅ Task 240: Admin dashboard for feedback viewing
+  - Backend: Added admin-only API endpoints at /api/admin/feedback
+    - GET /api/admin/feedback: List feedback with filters (status, type, pagination)
+    - GET /api/admin/feedback/{id}: Get feedback by ID
+    - PATCH /api/admin/feedback/{id}: Update feedback status (new/read/resolved)
+  - Frontend: Created /admin/feedback page with:
+    - Status and type filter dropdowns
+    - Feedback list with type badges, status badges, ratings, dates
+    - Inline status change dropdowns per feedback item
+    - Pagination controls
+    - Admin-only access with role check
+  - Security: Admin role required for all endpoints, security event logging
+  - Added 15 backend tests for admin feedback endpoints
 
 **UX:**
 - ✅ Task 242: Added on-screen speed indicator for [ and ] keyboard shortcuts

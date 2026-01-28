@@ -1400,6 +1400,208 @@ func main() {
 		})
 	}))
 
+	// Admin: List feedback (admin only)
+	mux.HandleFunc("GET /api/admin/feedback", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check authentication
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			return
+		}
+
+		// Check admin role
+		if !user.IsAdmin() {
+			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/api/admin/feedback")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			return
+		}
+
+		// Parse query parameters
+		status := r.URL.Query().Get("status")
+		feedbackType := r.URL.Query().Get("type")
+		limitStr := r.URL.Query().Get("limit")
+		offsetStr := r.URL.Query().Get("offset")
+
+		limit := 50
+		if limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+				limit = l
+			}
+		}
+
+		offset := 0
+		if offsetStr != "" {
+			if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+				offset = o
+			}
+		}
+
+		// List feedback
+		feedbackList, total, err := database.ListFeedback(status, feedbackType, limit, offset)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Failed to list feedback", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to list feedback")
+			return
+		}
+
+		logging.InfoContext(r.Context(), "Admin listed feedback",
+			"user_id", user.ID,
+			"status_filter", status,
+			"type_filter", feedbackType,
+			"total", total,
+		)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"feedback": feedbackList,
+			"total":    total,
+			"limit":    limit,
+			"offset":   offset,
+		})
+	}))
+
+	// Admin: Get feedback by ID (admin only)
+	mux.HandleFunc("GET /api/admin/feedback/{id}", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check authentication
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			return
+		}
+
+		// Check admin role
+		if !user.IsAdmin() {
+			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/api/admin/feedback/{id}")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			return
+		}
+
+		// Validate ID format
+		feedbackID := r.PathValue("id")
+		if err := validation.ValidateHexID(feedbackID); err != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid feedback ID format")
+			return
+		}
+
+		// Get feedback
+		feedback, err := database.GetFeedback(feedbackID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Failed to get feedback", "error", err, "feedback_id", feedbackID)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get feedback")
+			return
+		}
+
+		if feedback == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Feedback not found")
+			return
+		}
+
+		logging.InfoContext(r.Context(), "Admin viewed feedback",
+			"user_id", user.ID,
+			"feedback_id", feedbackID,
+		)
+
+		json.NewEncoder(w).Encode(feedback)
+	}))
+
+	// Admin: Update feedback status (admin only)
+	mux.HandleFunc("PATCH /api/admin/feedback/{id}", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check authentication
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(database, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			return
+		}
+
+		// Check admin role
+		if !user.IsAdmin() {
+			security.AccessDeniedNotAdmin(r.Context(), ratelimit.GetClientIP(r), user.ID, "/api/admin/feedback/{id}")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			return
+		}
+
+		// Validate ID format
+		feedbackID := r.PathValue("id")
+		if err := validation.ValidateHexID(feedbackID); err != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid feedback ID format")
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Status string `json:"status"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Validate status
+		validStatuses := map[string]bool{
+			db.FeedbackStatusNew:      true,
+			db.FeedbackStatusRead:     true,
+			db.FeedbackStatusResolved: true,
+		}
+		if !validStatuses[req.Status] {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid status. Must be: new, read, or resolved")
+			return
+		}
+
+		// Update status
+		if err := database.UpdateFeedbackStatus(feedbackID, req.Status); err != nil {
+			logging.ErrorContext(r.Context(), "Failed to update feedback status", "error", err, "feedback_id", feedbackID)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to update feedback status")
+			return
+		}
+
+		// Log security event for admin action
+		security.AdminFeedbackUpdated(r.Context(), ratelimit.GetClientIP(r), user.ID, feedbackID, req.Status)
+
+		logging.InfoContext(r.Context(), "Admin updated feedback status",
+			"user_id", user.ID,
+			"feedback_id", feedbackID,
+			"new_status", req.Status,
+		)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ok",
+			"id":      feedbackID,
+			"updated": req.Status,
+		})
+	}))
+
 	// CAPTCHA config endpoint (returns site key if CAPTCHA is enabled)
 	mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

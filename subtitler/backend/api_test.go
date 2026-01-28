@@ -315,6 +315,189 @@ func (ts *testServer) registerHandlers() {
 		})
 	})
 
+	// Admin: List feedback (admin only)
+	ts.mux.HandleFunc("GET /api/admin/feedback", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check authentication
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(ts.db, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			return
+		}
+
+		// Check admin role
+		if !user.IsAdmin() {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			return
+		}
+
+		// Parse query parameters
+		status := r.URL.Query().Get("status")
+		feedbackType := r.URL.Query().Get("type")
+		limitStr := r.URL.Query().Get("limit")
+		offsetStr := r.URL.Query().Get("offset")
+
+		limit := 50
+		if limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+				limit = l
+			}
+		}
+
+		offset := 0
+		if offsetStr != "" {
+			if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+				offset = o
+			}
+		}
+
+		// List feedback
+		feedbackList, total, err := ts.db.ListFeedback(status, feedbackType, limit, offset)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to list feedback"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"feedback": feedbackList,
+			"total":    total,
+			"limit":    limit,
+			"offset":   offset,
+		})
+	})
+
+	// Admin: Get feedback by ID (admin only)
+	ts.mux.HandleFunc("GET /api/admin/feedback/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check authentication
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(ts.db, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			return
+		}
+
+		// Check admin role
+		if !user.IsAdmin() {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			return
+		}
+
+		// Validate ID format
+		feedbackID := r.PathValue("id")
+		if err := validation.ValidateHexID(feedbackID); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid feedback ID format"})
+			return
+		}
+
+		// Get feedback
+		feedback, err := ts.db.GetFeedback(feedbackID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get feedback"})
+			return
+		}
+
+		if feedback == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Feedback not found"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(feedback)
+	})
+
+	// Admin: Update feedback status (admin only)
+	ts.mux.HandleFunc("PATCH /api/admin/feedback/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Check authentication
+		token := auth.GetTokenFromRequest(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		user, _, err := auth.ValidateSession(ts.db, token)
+		if err != nil || user == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			return
+		}
+
+		// Check admin role
+		if !user.IsAdmin() {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Admin access required"})
+			return
+		}
+
+		// Validate ID format
+		feedbackID := r.PathValue("id")
+		if err := validation.ValidateHexID(feedbackID); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid feedback ID format"})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Status string `json:"status"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate status
+		validStatuses := map[string]bool{
+			db.FeedbackStatusNew:      true,
+			db.FeedbackStatusRead:     true,
+			db.FeedbackStatusResolved: true,
+		}
+		if !validStatuses[req.Status] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid status. Must be: new, read, or resolved"})
+			return
+		}
+
+		// Update status
+		if err := ts.db.UpdateFeedbackStatus(feedbackID, req.Status); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update feedback status"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ok",
+			"id":      feedbackID,
+			"updated": req.Status,
+		})
+	})
+
 	// Auth: Register (rate limited)
 	ts.mux.HandleFunc("POST /api/auth/register", ts.authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -9364,5 +9547,432 @@ func TestLanguageHintsEndpointSpanishFilename(t *testing.T) {
 	// Verify language name is set
 	if len(result.Hints) > 0 && result.Hints[0].LanguageName != "Spanish" {
 		t.Errorf("Expected language name 'Spanish', got '%s'", result.Hints[0].LanguageName)
+	}
+}
+
+// ========== Admin Feedback Tests ==========
+
+func TestAdminFeedbackListUnauthenticated(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	resp := ts.doRequest("GET", "/api/admin/feedback", nil, "")
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status 401 for unauthenticated user, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAdminFeedbackListNonAdmin(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a regular user (not admin)
+	_, token := ts.createTestUserWithID(t, "regularuser@example.com", "Password123!")
+
+	resp := ts.doRequest("GET", "/api/admin/feedback", nil, token)
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 for non-admin user, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Admin access required" {
+		t.Errorf("Expected 'Admin access required' error, got: %v", result["error"])
+	}
+}
+
+func TestAdminFeedbackListSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// First create some feedback
+	body := map[string]interface{}{
+		"text":     "Test feedback 1",
+		"type":     "general",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	body["text"] = "Test feedback 2"
+	body["type"] = "bug"
+	resp = ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	// Now list feedback as admin
+	resp = ts.doRequest("GET", "/api/admin/feedback", nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for admin user, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Feedback []db.Feedback `json:"feedback"`
+		Total    int           `json:"total"`
+		Limit    int           `json:"limit"`
+		Offset   int           `json:"offset"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result.Total != 2 {
+		t.Errorf("Expected 2 feedback items, got %d", result.Total)
+	}
+}
+
+func TestAdminFeedbackListWithFilters(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create feedback with different types
+	body := map[string]interface{}{
+		"text":     "General feedback",
+		"type":     "general",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	body["text"] = "Bug report"
+	body["type"] = "bug"
+	resp = ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	// Filter by type
+	resp = ts.doRequest("GET", "/api/admin/feedback?type=bug", nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Feedback []db.Feedback `json:"feedback"`
+		Total    int           `json:"total"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result.Total != 1 {
+		t.Errorf("Expected 1 bug feedback, got %d", result.Total)
+	}
+
+	if len(result.Feedback) > 0 && result.Feedback[0].Type != "bug" {
+		t.Errorf("Expected bug type, got '%s'", result.Feedback[0].Type)
+	}
+}
+
+func TestAdminFeedbackGetByIDSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create a feedback item
+	body := map[string]interface{}{
+		"text":     "Test feedback for get by ID",
+		"type":     "feature",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	var createResult map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&createResult)
+	feedbackID := createResult["id"].(string)
+
+	// Get feedback by ID as admin
+	resp = ts.doRequest("GET", "/api/admin/feedback/"+feedbackID, nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var feedback db.Feedback
+	if err := json.NewDecoder(resp.Body).Decode(&feedback); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if feedback.ID != feedbackID {
+		t.Errorf("Expected feedback ID '%s', got '%s'", feedbackID, feedback.ID)
+	}
+
+	if feedback.Text != "Test feedback for get by ID" {
+		t.Errorf("Expected text 'Test feedback for get by ID', got '%s'", feedback.Text)
+	}
+}
+
+func TestAdminFeedbackGetByIDNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Try to get a non-existent feedback
+	resp := ts.doRequest("GET", "/api/admin/feedback/"+testGenerateID(), nil, token)
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAdminFeedbackGetByIDInvalidFormat(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Try to get feedback with invalid ID format
+	resp := ts.doRequest("GET", "/api/admin/feedback/invalid-id", nil, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAdminFeedbackUpdateStatusSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create a feedback item
+	body := map[string]interface{}{
+		"text":     "Test feedback for status update",
+		"type":     "general",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	var createResult map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&createResult)
+	feedbackID := createResult["id"].(string)
+
+	// Update status to "read"
+	updateBody := map[string]string{"status": "read"}
+	resp = ts.doRequest("PATCH", "/api/admin/feedback/"+feedbackID, updateBody, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["updated"] != "read" {
+		t.Errorf("Expected updated status 'read', got '%v'", result["updated"])
+	}
+
+	// Verify the status was actually updated
+	feedback, err := ts.db.GetFeedback(feedbackID)
+	if err != nil {
+		t.Fatalf("Failed to get feedback: %v", err)
+	}
+	if feedback.Status != "read" {
+		t.Errorf("Expected status 'read' in database, got '%s'", feedback.Status)
+	}
+}
+
+func TestAdminFeedbackUpdateStatusToResolved(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create a feedback item
+	body := map[string]interface{}{
+		"text":     "Test feedback for resolved status",
+		"type":     "bug",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	var createResult map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&createResult)
+	feedbackID := createResult["id"].(string)
+
+	// Update status to "resolved"
+	updateBody := map[string]string{"status": "resolved"}
+	resp = ts.doRequest("PATCH", "/api/admin/feedback/"+feedbackID, updateBody, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Verify the status was updated
+	feedback, err := ts.db.GetFeedback(feedbackID)
+	if err != nil {
+		t.Fatalf("Failed to get feedback: %v", err)
+	}
+	if feedback.Status != "resolved" {
+		t.Errorf("Expected status 'resolved' in database, got '%s'", feedback.Status)
+	}
+}
+
+func TestAdminFeedbackUpdateStatusInvalid(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create a feedback item
+	body := map[string]interface{}{
+		"text":     "Test feedback",
+		"type":     "general",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	var createResult map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&createResult)
+	feedbackID := createResult["id"].(string)
+
+	// Try to update with invalid status
+	updateBody := map[string]string{"status": "invalid_status"}
+	resp = ts.doRequest("PATCH", "/api/admin/feedback/"+feedbackID, updateBody, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Invalid status. Must be: new, read, or resolved" {
+		t.Errorf("Unexpected error message: %s", result["error"])
+	}
+}
+
+func TestAdminFeedbackUpdateStatusNonAdmin(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a regular user (not admin)
+	_, regularToken := ts.createTestUserWithID(t, "regularuser@example.com", "Password123!")
+
+	// Create an admin to make some feedback
+	_, adminToken := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create a feedback item
+	body := map[string]interface{}{
+		"text":     "Test feedback",
+		"type":     "general",
+		"page_url": "http://localhost/test",
+	}
+	resp := ts.doRequest("POST", "/api/feedback", body, adminToken)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+	}
+
+	var createResult map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&createResult)
+	feedbackID := createResult["id"].(string)
+
+	// Try to update as non-admin
+	updateBody := map[string]string{"status": "read"}
+	resp = ts.doRequest("PATCH", "/api/admin/feedback/"+feedbackID, updateBody, regularToken)
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 for non-admin, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAdminFeedbackListPagination(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an admin user
+	_, token := ts.createTestAdminUser(t, "adminuser@example.com", "Password123!")
+
+	// Create 5 feedback items
+	for i := 0; i < 5; i++ {
+		body := map[string]interface{}{
+			"text":     "Test feedback " + strconv.Itoa(i),
+			"type":     "general",
+			"page_url": "http://localhost/test",
+		}
+		resp := ts.doRequest("POST", "/api/feedback", body, "")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("Failed to create test feedback: %s", resp.Body.String())
+		}
+	}
+
+	// Test pagination with limit=2
+	resp := ts.doRequest("GET", "/api/admin/feedback?limit=2&offset=0", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Feedback []db.Feedback `json:"feedback"`
+		Total    int           `json:"total"`
+		Limit    int           `json:"limit"`
+		Offset   int           `json:"offset"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if result.Total != 5 {
+		t.Errorf("Expected total 5, got %d", result.Total)
+	}
+
+	if len(result.Feedback) != 2 {
+		t.Errorf("Expected 2 feedback items in response, got %d", len(result.Feedback))
+	}
+
+	if result.Limit != 2 {
+		t.Errorf("Expected limit 2, got %d", result.Limit)
+	}
+
+	// Test second page
+	resp = ts.doRequest("GET", "/api/admin/feedback?limit=2&offset=2", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if len(result.Feedback) != 2 {
+		t.Errorf("Expected 2 feedback items on second page, got %d", len(result.Feedback))
+	}
+
+	if result.Offset != 2 {
+		t.Errorf("Expected offset 2, got %d", result.Offset)
 	}
 }
