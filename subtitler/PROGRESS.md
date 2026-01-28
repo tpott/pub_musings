@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**240 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**241 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -199,7 +199,11 @@ Deep code review using exploration agents identified areas for improvement:
   - 16 new tests covering size/int validation edge cases
 
 **Backend (Operations):**
-- Task 236: Add security events for admin operations
+- ✅ Task 236: Add security events for admin operations
+  - Added 14 new event types for key rotation, video deletion, maintenance, cleanup
+  - Added 13 convenience functions for easy event logging
+  - Updated DELETE /api/videos/{id}, runCleanup(), runDatabaseMaintenance()
+  - Updated SECURITY_EVENTS.md with comprehensive documentation
 
 **Documentation:**
 - ✅ Task 237: Updated deployment.md - moved chunked uploads from Future to Implemented
