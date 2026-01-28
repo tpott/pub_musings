@@ -3,12 +3,17 @@
 
 let cachedToken: string | null = null;
 
+// Circuit breaker: track consecutive refresh failures
+let consecutiveRefreshFailures = 0;
+const MAX_REFRESH_FAILURES = 2;
+
 // Header name for CSRF token
 export const CSRF_HEADER = 'X-CSRF-Token';
 
 /**
  * Fetch the CSRF token from the backend.
  * The token is cached for subsequent requests.
+ * Resets the circuit breaker on successful fetch.
  */
 export async function fetchCsrfToken(): Promise<string | null> {
 	try {
@@ -16,14 +21,18 @@ export async function fetchCsrfToken(): Promise<string | null> {
 		if (!response.ok) {
 			// Not authenticated or other error
 			cachedToken = null;
+			consecutiveRefreshFailures++;
 			return null;
 		}
 		const data = await response.json();
 		cachedToken = data.csrf_token || null;
+		// Reset circuit breaker on success
+		consecutiveRefreshFailures = 0;
 		return cachedToken;
 	} catch (error) {
 		console.error('Failed to fetch CSRF token:', error);
 		cachedToken = null;
+		consecutiveRefreshFailures++;
 		return null;
 	}
 }
@@ -41,16 +50,20 @@ export async function getCsrfToken(): Promise<string | null> {
 /**
  * Clear the cached CSRF token.
  * Call this on logout or when the session changes.
+ * Also resets the circuit breaker.
  */
 export function clearCsrfToken(): void {
 	cachedToken = null;
+	consecutiveRefreshFailures = 0;
 }
 
 /**
  * Set the CSRF token directly (e.g., when received from login response).
+ * Also resets the circuit breaker.
  */
 export function setCsrfToken(token: string): void {
 	cachedToken = token;
+	consecutiveRefreshFailures = 0;
 }
 
 /**
@@ -100,7 +113,8 @@ export async function csrfFetch(
 	const response = await fetch(url, options);
 
 	// If we get a 403 with CSRF error, try refreshing the token and retry once
-	if (response.status === 403) {
+	// Circuit breaker: skip retry if we've had too many consecutive failures
+	if (response.status === 403 && consecutiveRefreshFailures < MAX_REFRESH_FAILURES) {
 		const data = await response.clone().json().catch(() => ({}));
 		if (data.error && data.error.toLowerCase().includes('csrf')) {
 			// Refresh token and retry

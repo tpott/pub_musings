@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**262 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**263 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**262 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**263 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 262: CSRF retry circuit breaker (2026-01-28)
+
+- ✅ Task 262: Added circuit breaker to CSRF token refresh
+  - Track consecutive refresh failures (max 2 before tripping)
+  - Skip retry on CSRF 403 when circuit breaker is tripped
+  - Reset breaker on successful token fetch, setCsrfToken, or clearCsrfToken
+  - Added 2 new tests for circuit breaker behavior (total tests: 324)
 
 ### Task 264: Session.ts cleanup tests already exist (2026-01-28)
 
