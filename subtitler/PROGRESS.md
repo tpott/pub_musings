@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**306 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**317 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**316 tasks completed.**
+**317 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 314: Add Max Concurrent Upload Sessions Limit (COMPLETE)**
+- Added MAX_UPLOAD_SESSIONS constant (50) to session.ts
+- recordUploadSession() now enforces limit by removing oldest sessions when exceeded
+- Sorted by timestamp to ensure oldest are removed first
+- Added getMaxUploadSessions() export for testing
+- Added 3 new tests verifying limit enforcement
+- Prevents localStorage pollution from many browser tabs
 
 **Task 320: Add Video Size Validation in CreateVideo (COMPLETE)**
 - Added MinVideoSize (1 byte) and MaxVideoSize (10 GB) constants to db package

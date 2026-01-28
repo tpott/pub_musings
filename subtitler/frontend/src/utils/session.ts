@@ -98,14 +98,40 @@ export function hasSessionId(): boolean {
 const UPLOAD_SESSION_PREFIX = 'subtitler:upload_session:';
 const UPLOAD_SESSION_TIMESTAMPS_KEY = 'subtitler:upload_session_timestamps';
 const STALE_SESSION_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
+const MAX_UPLOAD_SESSIONS = 50; // Prevent localStorage pollution from many tabs
+
+/**
+ * Returns the maximum number of concurrent upload sessions allowed.
+ * Exported for testing purposes.
+ */
+export function getMaxUploadSessions(): number {
+	return MAX_UPLOAD_SESSIONS;
+}
 
 /**
  * Records the creation time for an upload session.
  * Call this when storing a new upload session ID.
+ * Enforces a maximum of MAX_UPLOAD_SESSIONS to prevent localStorage pollution.
+ * When the limit is reached, the oldest sessions are removed.
  */
 export function recordUploadSession(sessionKey: string): void {
 	const timestamps = getUploadSessionTimestamps();
 	timestamps[sessionKey] = Date.now();
+
+	// Enforce max sessions limit
+	const sessionKeys = Object.keys(timestamps);
+	if (sessionKeys.length > MAX_UPLOAD_SESSIONS) {
+		// Sort by timestamp (oldest first)
+		const sortedKeys = sessionKeys.sort((a, b) => timestamps[a] - timestamps[b]);
+
+		// Remove oldest sessions until we're at the limit
+		const toRemove = sortedKeys.slice(0, sessionKeys.length - MAX_UPLOAD_SESSIONS);
+		for (const oldKey of toRemove) {
+			localStorage.removeItem(oldKey);
+			delete timestamps[oldKey];
+		}
+	}
+
 	localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
 }
 

@@ -10,6 +10,7 @@ import {
 	recordUploadSession,
 	removeUploadSessionRecord,
 	cleanupStaleUploadSessions,
+	getMaxUploadSessions,
 } from './session';
 
 // Mock localStorage
@@ -259,6 +260,67 @@ describe('session utilities', () => {
 				);
 				expect(timestamps[session1]).toBeDefined();
 				expect(timestamps[session2]).toBeDefined();
+			});
+
+			it('should enforce max sessions limit by removing oldest', () => {
+				const maxSessions = getMaxUploadSessions();
+
+				// Create more sessions than the max
+				const sessions: string[] = [];
+				for (let i = 0; i < maxSessions + 5; i++) {
+					const sessionKey = `subtitler:upload_session:file${i}.mp4:${i}`;
+					sessions.push(sessionKey);
+					// Record session and also store a value for it (like the actual upload would)
+					const store = localStorageMock._getStore();
+					store[sessionKey] = `session-id-${i}`;
+					localStorageMock._setStore(store);
+					recordUploadSession(sessionKey);
+				}
+
+				// Verify we're at the max limit
+				const timestamps = JSON.parse(
+					localStorageMock._getStore()['subtitler:upload_session_timestamps'] || '{}'
+				);
+				expect(Object.keys(timestamps).length).toBe(maxSessions);
+
+				// Verify oldest sessions were removed (first 5)
+				for (let i = 0; i < 5; i++) {
+					expect(timestamps[sessions[i]]).toBeUndefined();
+					expect(localStorageMock._getStore()[sessions[i]]).toBeUndefined();
+				}
+
+				// Verify newest sessions are kept
+				for (let i = 5; i < maxSessions + 5; i++) {
+					expect(timestamps[sessions[i]]).toBeDefined();
+				}
+			});
+
+			it('should not remove sessions when under the limit', () => {
+				const maxSessions = getMaxUploadSessions();
+
+				// Create sessions under the limit
+				const sessions: string[] = [];
+				for (let i = 0; i < maxSessions - 5; i++) {
+					const sessionKey = `subtitler:upload_session:file${i}.mp4:${i}`;
+					sessions.push(sessionKey);
+					recordUploadSession(sessionKey);
+				}
+
+				// Verify all sessions are kept
+				const timestamps = JSON.parse(
+					localStorageMock._getStore()['subtitler:upload_session_timestamps'] || '{}'
+				);
+				expect(Object.keys(timestamps).length).toBe(maxSessions - 5);
+
+				for (const session of sessions) {
+					expect(timestamps[session]).toBeDefined();
+				}
+			});
+		});
+
+		describe('getMaxUploadSessions', () => {
+			it('should return 50', () => {
+				expect(getMaxUploadSessions()).toBe(50);
 			});
 		});
 
