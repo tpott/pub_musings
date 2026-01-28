@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**255 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**256 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**255 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**256 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 258: Aria-live regions for subtitle changes (2026-01-28)
+
+- ✅ Task 258: Added aria-live regions for subtitle segment changes
+  - Added `aria-live="polite"` and `aria-atomic="true"` to current subtitle display in upload.astro
+  - Added `aria-live="polite"` and `aria-atomic="true"` to modal subtitle display in videos.astro
+  - Screen readers now announce subtitle text changes during video playback
+  - Uses `polite` mode so announcements don't interrupt other content
 
 ### Task 255: Styled Dialog Modals (2026-01-28)
 

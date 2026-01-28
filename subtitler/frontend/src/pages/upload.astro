@@ -1341,7 +1341,7 @@ import '../styles/theme.css';
 			<div class="transcription" id="transcription">
 				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
-				<div class="current-subtitle" id="currentSubtitle"></div>
+				<div class="current-subtitle" id="currentSubtitle" aria-live="polite" aria-atomic="true"></div>
 				<div class="edit-actions" id="editActions">
 					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
