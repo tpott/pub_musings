@@ -38,7 +38,7 @@ import '../styles/theme.css';
 				color: var(--text-color);
 				font-size: 1.5rem;
 			}
-			.back-link:focus {
+			.back-link:focus-visible {
 				outline: 2px solid var(--accent-color);
 				outline-offset: 2px;
 			}
@@ -58,6 +58,10 @@ import '../styles/theme.css';
 			}
 			.upload-btn:hover {
 				background-color: var(--accent-hover);
+			}
+			.upload-btn:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
 			}
 			.loading {
 				text-align: center;
@@ -129,6 +133,12 @@ import '../styles/theme.css';
 				font-size: 1.5rem;
 				flex-shrink: 0;
 			}
+			/* Focus indicators for clickable thumbnails */
+			.video-thumbnail:focus-visible,
+			.video-thumbnail-placeholder:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			.video-info {
 				flex: 1;
 				min-width: 0;
@@ -161,6 +171,10 @@ import '../styles/theme.css';
 				font-size: 0.875rem;
 				font-weight: 500;
 				transition: background-color 0.2s;
+			}
+			.btn:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
 			}
 			.btn-primary {
 				background-color: var(--accent-color);
@@ -283,6 +297,10 @@ import '../styles/theme.css';
 			.nav-link:hover {
 				background-color: var(--border-color);
 			}
+			.nav-link:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			.nav-user {
 				color: var(--text-secondary);
 				font-size: 0.9rem;
@@ -300,6 +318,10 @@ import '../styles/theme.css';
 			}
 			.nav-logout:hover {
 				background-color: var(--border-color);
+			}
+			.nav-logout:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
 			}
 			/* Pagination styles */
 			.pagination {
@@ -329,6 +351,10 @@ import '../styles/theme.css';
 			.pagination-btn:disabled {
 				opacity: 0.5;
 				cursor: not-allowed;
+			}
+			.pagination-btn:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
 			}
 			.pagination-info {
 				color: var(--text-secondary);
@@ -484,7 +510,7 @@ import '../styles/theme.css';
 				background-color: var(--border-color);
 				color: var(--text-color);
 			}
-			.modal-close:focus {
+			.modal-close:focus-visible {
 				outline: 2px solid var(--accent-color);
 				outline-offset: 2px;
 			}
@@ -531,7 +557,7 @@ import '../styles/theme.css';
 			.speed-btn:hover {
 				background-color: var(--btn-secondary-hover);
 			}
-			.speed-btn:focus {
+			.speed-btn:focus-visible {
 				outline: 2px solid var(--accent-color);
 				outline-offset: 2px;
 			}
@@ -580,6 +606,10 @@ import '../styles/theme.css';
 				background-color: var(--accent-color);
 				color: #fff;
 			}
+			.speed-option:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: -2px;
+			}
 			.modal-current-subtitle {
 				margin-top: 1rem;
 				padding: 1rem;
@@ -618,6 +648,10 @@ import '../styles/theme.css';
 				background-color: var(--active-segment-bg);
 				border-left: 3px solid var(--accent-color);
 			}
+			.modal-segment:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: -2px;
+			}
 			.modal-segment-time {
 				font-size: 0.75rem;
 				color: var(--text-tertiary);
@@ -646,6 +680,10 @@ import '../styles/theme.css';
 			.modal-download-btn:hover {
 				background-color: var(--accent-hover);
 			}
+			.modal-download-btn:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
 			.modal-download-btn-secondary {
 				background-color: var(--text-secondary);
 			}
@@ -665,6 +703,10 @@ import '../styles/theme.css';
 			}
 			.modal-edit-link:hover {
 				background-color: var(--btn-secondary-hover);
+			}
+			.modal-edit-link:focus-visible {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
 			}
 			.modal-loading {
 				text-align: center;

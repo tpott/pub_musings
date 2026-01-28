@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**225 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
+**226 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -149,7 +149,11 @@ Deep code review using exploration agents identified areas for improvement:
   - Replaced per-element event handlers with event delegation on videoList container
   - Single click/keydown listeners handle all button and thumbnail interactions
   - No more accumulating handlers on each pagination
-- Task 226: Add focus indicators for keyboard navigation elements
+- ✅ Task 226: Added focus indicators for keyboard navigation elements
+  - Added `:focus-visible` styling to all interactive elements in videos.astro
+  - Focus indicators on: thumbnails, modal segments, buttons, pagination, nav links
+  - Uses consistent `outline: 2px solid var(--accent-color); outline-offset: 2px`
+  - Changed `:focus` to `:focus-visible` for better UX (only shows on keyboard nav)
 - Task 230: Add transcription cache cleanup to prevent unbounded growth
 
 **Frontend (Code Quality):**
