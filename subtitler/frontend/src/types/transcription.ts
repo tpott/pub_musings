@@ -61,3 +61,35 @@ export interface UploadSession {
   received_chunks: number[];
   total_chunks: number;
 }
+
+/**
+ * Language hint from video metadata or filename
+ */
+export interface LanguageHint {
+  source: string;        // "metadata" or "filename"
+  language: string;      // ISO 639-1 code
+  language_name: string; // Human-readable name
+  confidence: string;    // "high", "medium", "low"
+  raw_value: string;     // Original value before normalization
+}
+
+/**
+ * Language hints with suggested language
+ */
+export interface LanguageHints {
+  hints: LanguageHint[];
+  suggested_language: string;
+  suggested_confidence: string;
+}
+
+/**
+ * Response from video upload endpoints (both simple and chunked)
+ */
+export interface UploadResponse {
+  status: 'success';
+  upload_id: string;
+  filename: string;
+  size: number;
+  message: string;
+  language_hints?: LanguageHints;
+}

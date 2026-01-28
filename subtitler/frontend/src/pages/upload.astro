@@ -1584,7 +1584,10 @@ import '../styles/theme.css';
 				TranscriptionStatusResponse,
 				AlignmentResponse,
 				BurnStatusResponse,
-				UploadSession
+				UploadSession,
+				LanguageHint,
+				LanguageHints,
+				UploadResponse
 			} from '../types/transcription';
 			import type { PlaybackSpeed } from '../utils/playback-speed';
 			import { getRequiredElement, getOptionalElement } from '../utils/dom';
@@ -1756,20 +1759,6 @@ import '../styles/theme.css';
 
 			// Handle language hints from upload response
 			// This shows detected language hints before transcription starts so user can override
-			interface LanguageHint {
-				source: string;  // "metadata" or "filename"
-				language: string;  // ISO 639-1 code
-				language_name: string;  // Human-readable name
-				confidence: string;  // "high", "medium", "low"
-				raw_value: string;  // Original value before normalization
-			}
-
-			interface LanguageHints {
-				hints: LanguageHint[];
-				suggested_language: string;
-				suggested_confidence: string;
-			}
-
 			function handleLanguageHints(languageHints: LanguageHints | undefined) {
 				if (!languageHints || !languageHints.hints || languageHints.hints.length === 0) {
 					return;
@@ -2166,7 +2155,7 @@ import '../styles/theme.css';
 					}
 				});
 
-				const uploadPromise = new Promise<any>((resolve, reject) => {
+				const uploadPromise = new Promise<UploadResponse>((resolve, reject) => {
 					xhr.onload = () => {
 						if (uploadTimeoutId) {
 							clearTimeout(uploadTimeoutId);
