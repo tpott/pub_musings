@@ -3,6 +3,7 @@ package validation
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -230,4 +231,42 @@ func SanitizeFileExtension(ext string) (string, error) {
 	}
 
 	return ext, nil
+}
+
+// ValidateFilePath validates a file path for security issues.
+// It checks for path traversal patterns (..) and null bytes that could be used
+// for attacks when the path is used in file operations or exec.Command.
+//
+// This function does NOT verify the path exists or is within any specific directory.
+// Use pathvalidator.Validator for constraining paths to specific directories.
+func ValidateFilePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("path is required")
+	}
+
+	// Check for null bytes (can truncate paths in some systems)
+	if strings.Contains(path, "\x00") {
+		return fmt.Errorf("invalid path: contains null byte")
+	}
+
+	// Check for .. path segments (path traversal)
+	// This catches attempts like "../etc/passwd" or "/foo/../bar"
+	parts := strings.Split(path, string(filepath.Separator))
+	for _, part := range parts {
+		if part == ".." {
+			return fmt.Errorf("invalid path: contains path traversal")
+		}
+	}
+
+	// Also check with forward slash for cross-platform (user might provide Unix paths on Windows)
+	if filepath.Separator != '/' {
+		parts = strings.Split(path, "/")
+		for _, part := range parts {
+			if part == ".." {
+				return fmt.Errorf("invalid path: contains path traversal")
+			}
+		}
+	}
+
+	return nil
 }

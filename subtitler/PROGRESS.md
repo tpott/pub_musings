@@ -138,9 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**306 tasks completed.**
+**307 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 307: Validate Whisper Model Path from Environment (COMPLETE)**
+- Added `ValidateFilePath()` function to `backend/validation/validation.go`
+- Checks for path traversal patterns (`..` as path segment) and null bytes
+- Updated `getWhisperModel()` to return `(string, error)` instead of just `string`
+- Validates path with `ValidateFilePath()` before use in `exec.Command`
+- Applies `filepath.Clean()` after validation to normalize the path
+- Updated all callers (3 locations) to handle the error
+- Added 18 test cases covering valid paths, traversal attacks, and null byte injection
+- Defense-in-depth: prevents command injection via malicious WHISPER_MODEL env var
 
 **Task 306: Add Shutdown Context to Transcription/Burn Goroutines (COMPLETE)**
 - Added `isShuttingDown()` helper function to check shutdown context

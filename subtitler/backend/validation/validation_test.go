@@ -347,3 +347,48 @@ func TestSanitizeFileExtension(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateFilePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		// Valid paths
+		{"simple relative path", "models/ggml-medium.bin", false},
+		{"absolute path", "/home/user/models/ggml-medium.bin", false},
+		{"windows style path", "C:\\models\\ggml-medium.bin", false},
+		{"path with spaces", "/home/user/my models/ggml-medium.bin", false},
+		{"current directory", ".", false},
+		{"dot in filename", "model.v3.bin", false},
+		{"double dots in filename", "model..bin", false},  // not traversal since not a segment
+		{"dotdot at start of name", "..model.bin", false}, // not traversal since part of filename
+
+		// Empty path
+		{"empty path", "", true},
+
+		// Path traversal attacks - Unix style
+		{"relative traversal", "../etc/passwd", true},
+		{"double relative traversal", "../../etc/passwd", true},
+		{"mid-path traversal", "/home/user/../../../etc/passwd", true},
+		{"traversal from absolute", "/home/../etc/passwd", true},
+		{"trailing traversal", "/home/user/models/..", true},
+
+		// Path traversal attacks - using forward slashes (works cross-platform)
+		{"forward slash traversal", "C:/../Windows/System32", true},
+
+		// Null byte injection
+		{"null byte in path", "/home/user/models\x00/ggml-medium.bin", true},
+		{"null byte at end", "/home/user/models/ggml-medium.bin\x00", true},
+		{"null byte at start", "\x00/home/user/models/ggml-medium.bin", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFilePath(tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateFilePath(%q) error = %v, wantErr %v", tt.path, err, tt.wantErr)
+			}
+		})
+	}
+}

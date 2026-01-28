@@ -639,14 +639,24 @@ func removeWithLogging(path string, description string) {
 	}
 }
 
-// getWhisperModel returns the whisper model path from env or default
-func getWhisperModel() string {
+// getWhisperModel returns the whisper model path from env or default.
+// Returns an error if the path contains path traversal patterns.
+func getWhisperModel() (string, error) {
 	model := os.Getenv("WHISPER_MODEL")
 	if model == "" {
 		// Default to medium model - adjust path as needed
 		model = os.ExpandEnv("$HOME/Github/whisper.cpp/models/ggml-medium.bin")
 	}
-	return model
+
+	// Validate the path for security issues (path traversal, null bytes)
+	if err := validation.ValidateFilePath(model); err != nil {
+		return "", fmt.Errorf("invalid WHISPER_MODEL path: %w", err)
+	}
+
+	// Clean the path to normalize it
+	model = filepath.Clean(model)
+
+	return model, nil
 }
 
 // getWhisperServerURL returns the whisper-server URL from env or default
@@ -722,7 +732,10 @@ type HealthStatus struct {
 // transcribeAudio runs whisper-cli on the audio file.
 // language is an ISO 639-1 code (e.g., "en", "es") or "auto" for auto-detection.
 func transcribeAudio(audioPath, outputPath, language string) (*WhisperResult, error) {
-	model := getWhisperModel()
+	model, err := getWhisperModel()
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if model exists
 	if _, err := os.Stat(model); os.IsNotExist(err) {
@@ -918,7 +931,11 @@ func transcribe(audioPath, outputPath, language string) (*WhisperResult, error) 
 		logging.Info("Using whisper-server", "url", getWhisperServerURL(), "language", language)
 		return transcribeAudioServer(audioPath, language)
 	}
-	logging.Info("Using whisper-cli", "model", getWhisperModel(), "language", language)
+	model, err := getWhisperModel()
+	if err != nil {
+		return nil, err
+	}
+	logging.Info("Using whisper-cli", "model", model, "language", language)
 	return transcribeAudio(audioPath, outputPath, language)
 }
 
@@ -6324,7 +6341,12 @@ func main() {
 	// Start the database maintenance scheduler (VACUUM + ANALYZE)
 	go startMaintenanceScheduler()
 
-	logging.Info("Backend server starting", "port", port, "whisper_model", getWhisperModel())
+	whisperModel, whisperModelErr := getWhisperModel()
+	if whisperModelErr != nil {
+		logging.Warn("Invalid whisper model path", "error", whisperModelErr)
+		whisperModel = "(invalid)"
+	}
+	logging.Info("Backend server starting", "port", port, "whisper_model", whisperModel)
 
 	// Wrap mux with middleware chain (outermost runs first):
 	// 1. Security headers - add CSP and other security headers
