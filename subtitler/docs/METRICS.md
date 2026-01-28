@@ -309,6 +309,7 @@ Consider scaling when:
 
 ## See Also
 
+- [specs/metrics.md](../specs/metrics.md) - Metrics architecture and design decisions
 - [docs/ENV.md](ENV.md) - Environment variable reference
 - [docs/SECURITY_EVENTS.md](SECURITY_EVENTS.md) - Security event monitoring
 - [docs/RATE_LIMITS.md](RATE_LIMITS.md) - Rate limiting configuration
