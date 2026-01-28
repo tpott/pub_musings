@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**273 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**274 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**273 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**274 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 274: Create DOM query helper (2026-01-28)
+
+- ✅ Task 274: Created utils/dom.ts for type-safe element access
+  - `getRequiredElement(id, type)`: Get single element, throws if missing/wrong type
+  - `getRequiredElements(spec)`: Get multiple elements from spec object
+  - `getOptionalElement(id, type)`: Returns null if not found
+  - `queryRequiredElement(selector, type, parent?)`: Query by CSS selector
+  - `queryAllElements(selector, type, parent?)`: Query multiple by selector
+  - `ElementNotFoundError` class for missing elements
+  - Tests verify module exports and function signatures
 
 ### Task 273: Add RecordUploadFailed metrics (2026-01-28)
 
