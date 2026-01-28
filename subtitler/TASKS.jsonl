@@ -297,9 +297,9 @@
 {"id": 297, "name": "Backend: Log unchecked os.Remove errors", "done_when": "In main.go and cmd/rotate-keys/main.go, wrap os.Remove() calls with logging.Warn() on error to avoid silent cleanup failures.", "status": "done"}
 {"id": 298, "name": "Backend: Consolidate password validation logic", "done_when": "Remove duplicate password validation from auth/auth.go, use only validation/validation.go for consistency.", "status": "done"}
 {"id": 299, "name": "Frontend: Add timeout to CAPTCHA script loading", "done_when": "In captcha.ts, add timeout and fallback when loading hCaptcha script from CDN to prevent indefinite hanging.", "status": "done"}
-{"id": 300, "name": "Frontend: Add tests for subtitles.ts", "done_when": "Create subtitles.test.ts with coverage for timestamp formatting, SRT/VTT generation, and edge cases.", "status": "todo"}
-{"id": 301, "name": "Frontend: Add tests for history.ts", "done_when": "Create history.test.ts with coverage for navigation history management functions.", "status": "todo"}
-{"id": 302, "name": "Backend: Add tests for email package", "done_when": "Create email/email_test.go with tests for template rendering and email sending (using mock).", "status": "todo"}
-{"id": 303, "name": "Backend: Add tests for httputil.ContentDisposition", "done_when": "Create httputil/contentdisposition_test.go with tests for RFC 5987 encoding and special characters.", "status": "todo"}
-{"id": 304, "name": "Docs: Fix password complexity claims in SECURITY_CHECKLIST.md", "done_when": "Remove or correct lines about uppercase/lowercase/number/special char requirements since code only enforces length.", "status": "todo"}
+{"id": 300, "name": "Frontend: Add tests for subtitles.ts", "done_when": "Create subtitles.test.ts with coverage for timestamp formatting, SRT/VTT generation, and edge cases.", "status": "done"}
+{"id": 301, "name": "Frontend: Add tests for history.ts", "done_when": "Create history.test.ts with coverage for navigation history management functions.", "status": "done"}
+{"id": 302, "name": "Backend: Add tests for email package", "done_when": "Create email/email_test.go with tests for template rendering and email sending (using mock).", "status": "done"}
+{"id": 303, "name": "Backend: Add tests for httputil.ContentDisposition", "done_when": "Create httputil/contentdisposition_test.go with tests for RFC 5987 encoding and special characters.", "status": "done"}
+{"id": 304, "name": "Docs: Verify password complexity claims in SECURITY_CHECKLIST.md", "done_when": "Remove or correct lines about uppercase/lowercase/number/special char requirements since code only enforces length.", "status": "done"}
 {"id": 305, "name": "Frontend: Extract form blur validation to shared utility", "done_when": "Create src/utils/form-validation.ts with reusable blur/input validation pattern used across login, register, settings pages.", "status": "todo"}

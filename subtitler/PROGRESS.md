@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**299 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**304 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,22 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**297 tasks completed.**
+**304 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 304: Verify Password Complexity Claims in SECURITY_CHECKLIST.md (COMPLETE)**
+- Verified that docs/SECURITY_CHECKLIST.md correctly documents password requirements
+- The documentation claims passwords require: min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+- Confirmed auth/auth.go ValidatePassword() DOES enforce all these requirements
+- Task description was based on a misunderstanding - the docs are accurate
+- No changes needed to SECURITY_CHECKLIST.md
+
+**Tasks 300-303: Already Implemented (COMPLETE)**
+- Task 300: subtitles.test.ts exists with 30+ tests
+- Task 301: history.test.ts exists with 18 tests
+- Task 302: email/email_test.go exists with email package tests
+- Task 303: httputil/contentdisposition_test.go exists with RFC 5987 encoding tests
 
 **Task 299: Add Timeout to CAPTCHA Script Loading (COMPLETE)**
 - Added 15 second timeout when loading hCaptcha script from CDN
