@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**281 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**287 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,18 +138,33 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**281 tasks completed.** Working through remaining tasks from deep inspection.
+**287 tasks completed.** Working through remaining tasks from deep inspection.
 
-### Task 281: GetExpiredVideos Pagination (2026-01-28)
+### Recent Work (2026-01-28)
 
-- ✅ Task 281: Added pagination to GetExpiredVideos to prevent OOM during cleanup
-  - Created `GetExpiredVideosPaginated(limit, offset)` function in db.go
-  - Created `CountExpiredVideos()` helper function for logging total count
-  - Added `DefaultCleanupBatchSize = 100` constant
-  - Updated `runCleanup()` in main.go to process expired videos in batches
-  - Fetches from offset 0 since videos are deleted as they are processed
-  - Added 7 tests covering pagination, offset, ordering, and counting
-  - Backwards-compatible: `GetExpiredVideos()` still works (calls paginated with no limit)
+**Task 281: GetExpiredVideos Pagination**
+- Added `GetExpiredVideosPaginated(limit, offset)` with `CountExpiredVideos()` helper
+- Updated `runCleanup()` to process in batches of 100 to prevent OOM
+
+**Task 282: Error Context in ListVideosPaginated**
+- Added fmt.Errorf wrapping for all database errors
+
+**Task 283: IsEmailLocked Timestamp Parsing**
+- Created `parseSQLiteTimestamp()` helper for aggregate function results
+- SQLite MIN() returns strings, so sql.NullTime doesn't work directly
+
+**Task 284: Session Listener Memory Leak**
+- Fixed settings.astro to use event delegation for revoke buttons
+
+**Task 285: Clear Cached Modal Segments**
+- videos.astro now clears `cachedModalSegmentElements` on modal close
+
+**Task 286: Deduplicate escapeHtml**
+- Consolidated 3 implementations into one in html.ts
+- Added fallback for non-browser environments (Node.js tests)
+
+**Task 287: dom.ts Tests**
+- Added 15 tests for DOM utility functions with mocked document
 
 ### Task 280: Session Cleanup Error Logging (2026-01-28)
 
