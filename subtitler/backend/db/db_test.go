@@ -2950,3 +2950,103 @@ func TestGetSessionsByUserIDWithLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestListFeedbackLimitValidation(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-feedback-limit-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create some test feedback entries
+	for i := 0; i < 5; i++ {
+		feedback := &Feedback{
+			ID:        fmt.Sprintf("feedback-limit-test-%d", i),
+			PageURL:   "http://test.com",
+			Text:      fmt.Sprintf("Feedback %d", i),
+			Type:      "general",
+			Status:    FeedbackStatusNew,
+			CreatedAt: time.Now(),
+		}
+		if err := db.CreateFeedback(feedback); err != nil {
+			t.Fatalf("Failed to create feedback: %v", err)
+		}
+	}
+
+	t.Run("default limit when zero provided", func(t *testing.T) {
+		feedbackList, total, err := db.ListFeedback("", "", 0, 0)
+		if err != nil {
+			t.Fatalf("ListFeedback failed: %v", err)
+		}
+		if total != 5 {
+			t.Errorf("Expected total 5, got %d", total)
+		}
+		if len(feedbackList) != 5 {
+			t.Errorf("Expected 5 feedback items, got %d", len(feedbackList))
+		}
+	})
+
+	t.Run("default limit when negative provided", func(t *testing.T) {
+		feedbackList, total, err := db.ListFeedback("", "", -10, 0)
+		if err != nil {
+			t.Fatalf("ListFeedback failed: %v", err)
+		}
+		if total != 5 {
+			t.Errorf("Expected total 5, got %d", total)
+		}
+		if len(feedbackList) != 5 {
+			t.Errorf("Expected 5 feedback items, got %d", len(feedbackList))
+		}
+	})
+
+	t.Run("limit capped at MaxFeedbackLimit", func(t *testing.T) {
+		// Request more than max, should be capped
+		feedbackList, _, err := db.ListFeedback("", "", 200, 0)
+		if err != nil {
+			t.Fatalf("ListFeedback failed: %v", err)
+		}
+		// We only have 5 items, so we expect 5 back (but limit was capped to 100)
+		if len(feedbackList) != 5 {
+			t.Errorf("Expected 5 feedback items, got %d", len(feedbackList))
+		}
+	})
+
+	t.Run("negative offset treated as zero", func(t *testing.T) {
+		feedbackList, _, err := db.ListFeedback("", "", 10, -5)
+		if err != nil {
+			t.Fatalf("ListFeedback failed: %v", err)
+		}
+		if len(feedbackList) != 5 {
+			t.Errorf("Expected 5 feedback items, got %d", len(feedbackList))
+		}
+	})
+
+	t.Run("offset works correctly", func(t *testing.T) {
+		feedbackList, total, err := db.ListFeedback("", "", 2, 2)
+		if err != nil {
+			t.Fatalf("ListFeedback failed: %v", err)
+		}
+		if total != 5 {
+			t.Errorf("Expected total 5, got %d", total)
+		}
+		if len(feedbackList) != 2 {
+			t.Errorf("Expected 2 feedback items, got %d", len(feedbackList))
+		}
+	})
+
+	t.Run("MaxFeedbackLimit constant is reasonable", func(t *testing.T) {
+		if MaxFeedbackLimit < 50 {
+			t.Errorf("MaxFeedbackLimit too low: %d", MaxFeedbackLimit)
+		}
+		if MaxFeedbackLimit > 200 {
+			t.Errorf("MaxFeedbackLimit too high: %d", MaxFeedbackLimit)
+		}
+	})
+}

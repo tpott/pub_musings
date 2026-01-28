@@ -2122,8 +2122,21 @@ func (db *DB) GetFeedback(id string) (*Feedback, error) {
 	return feedback, nil
 }
 
+// MaxFeedbackLimit is the maximum number of feedback items to return in a single query
+const MaxFeedbackLimit = 100
+
 // ListFeedback retrieves feedback with optional filters
 func (db *DB) ListFeedback(status string, feedbackType string, limit, offset int) ([]*Feedback, int, error) {
+	// Enforce maximum limit to prevent memory exhaustion
+	if limit <= 0 {
+		limit = 50 // default
+	} else if limit > MaxFeedbackLimit {
+		limit = MaxFeedbackLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	ctx, cancel := db.queryContext()
 	defer cancel()
 
