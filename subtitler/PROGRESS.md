@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**307 tasks completed.**
+**308 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 308: Add Path Validation for Chunk Directories (COMPLETE)**
+- Added `validation.ValidateHexID()` checks for all user-provided uploadSessionID values
+- Chunk upload endpoint (POST /api/upload/chunk): validates form value before file path construction
+- Chunk complete endpoint (POST /api/upload/complete): validates JSON body value before cleanup
+- Upload status endpoint (GET /api/upload/status/{session_id}): validates path parameter
+- Defense-in-depth: prevents path traversal even though session IDs are generated internally
 
 **Task 307: Validate Whisper Model Path from Environment (COMPLETE)**
 - Added `ValidateFilePath()` function to `backend/validation/validation.go`

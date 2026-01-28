@@ -3624,6 +3624,13 @@ func main() {
 			return
 		}
 
+		// Defense-in-depth: validate session ID format before using in file paths
+		if err := validation.ValidateHexID(uploadSessionID); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid upload_session_id format"})
+			return
+		}
+
 		chunkIndex, err := strconv.Atoi(chunkIndexStr)
 		if err != nil || chunkIndex < 0 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -3831,6 +3838,12 @@ func main() {
 
 		if req.UploadSessionID == "" {
 			httputil.RespondError(w, http.StatusBadRequest, "Missing upload_session_id")
+			return
+		}
+
+		// Defense-in-depth: validate session ID format before using in file paths
+		if err := validation.ValidateHexID(req.UploadSessionID); err != nil {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid upload_session_id format")
 			return
 		}
 
@@ -4130,6 +4143,13 @@ func main() {
 		if uploadSessionID == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Session ID required"})
+			return
+		}
+
+		// Defense-in-depth: validate session ID format
+		if err := validation.ValidateHexID(uploadSessionID); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session ID format"})
 			return
 		}
 
