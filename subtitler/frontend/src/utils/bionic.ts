@@ -9,6 +9,8 @@
  * accessibility feature for those who find it subjectively helpful.
  */
 
+import { escapeHtml } from './html';
+
 export interface BionicOptions {
 	/** Percentage of word to bold (0.3-0.5, default 0.4) */
 	fixationPercent?: number;
@@ -164,18 +166,6 @@ export function toBionicSegments(
 	return segments;
 }
 
-/**
- * Imports the escapeHtml function dynamically to avoid circular dependencies.
- * Falls back to a basic implementation if import fails.
- */
-function escapeHtmlBasic(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#x27;');
-}
 
 /**
  * Converts plain text to HTML with bionic reading formatting.
@@ -189,8 +179,8 @@ export function toBionicHTML(text: string, options?: BionicOptions): string {
 	return segments
 		.map((s) =>
 			s.bold
-				? `<strong>${escapeHtmlBasic(s.text)}</strong>`
-				: escapeHtmlBasic(s.text)
+				? `<strong>${escapeHtml(s.text)}</strong>`
+				: escapeHtml(s.text)
 		)
 		.join('');
 }
@@ -210,7 +200,7 @@ export function renderBionicText(
 	const enabled = options?.enabled ?? isBionicEnabled();
 
 	if (!enabled) {
-		return escapeHtmlBasic(text);
+		return escapeHtml(text);
 	}
 
 	const fixation = options?.fixationPercent ?? getBionicFixation();

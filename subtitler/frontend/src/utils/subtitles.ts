@@ -6,6 +6,7 @@
  */
 
 import type { TranscriptionSegment } from '../types/transcription';
+import { escapeHtml } from './html';
 
 /**
  * Format seconds as SRT timestamp (HH:MM:SS,mmm)
@@ -145,17 +146,6 @@ export function downloadVTT(segments: TranscriptionSegment[], baseFilename: stri
 export function downloadJSON(segments: TranscriptionSegment[], baseFilename: string): void {
   const content = generateJSON(segments);
   triggerDownload(content, `${baseFilename}.json`, 'application/json; charset=utf-8');
-}
-
-/**
- * HTML escape helper for safe display
- */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 /**
