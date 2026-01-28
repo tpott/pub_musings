@@ -215,4 +215,53 @@ describe('processing-speed utility', () => {
       expect(remaining).toBeGreaterThan(0);
     });
   });
+
+  describe('localStorage quota exceeded handling', () => {
+    it('should handle QuotaExceededError gracefully when recording', () => {
+      const quotaError = new DOMException('Quota exceeded', 'QuotaExceededError');
+      localStorageMock.setItem = vi.fn(() => {
+        throw quotaError;
+      });
+
+      // Should not throw, just log the error
+      expect(() => recordProcessingTime(60, 30)).not.toThrow();
+    });
+
+    it('should handle QuotaExceededError gracefully when clearing history', () => {
+      const quotaError = new DOMException('Quota exceeded', 'QuotaExceededError');
+      localStorageMock.removeItem = vi.fn(() => {
+        throw quotaError;
+      });
+
+      // Should not throw, just log the error
+      expect(() => clearHistory()).not.toThrow();
+    });
+
+    it('should handle localStorage unavailable for getItem', () => {
+      localStorageMock.getItem = vi.fn(() => {
+        throw new Error('localStorage unavailable');
+      });
+
+      // Should return null gracefully
+      expect(getAverageSpeedRatio()).toBeNull();
+      expect(hasHistoricalData()).toBe(false);
+    });
+
+    it('should not crash when localStorage.removeItem fails during corrupted data cleanup', () => {
+      // Set up corrupted data
+      localStorageMock._setStore({ 'subtitler:processing_speed_history': 'invalid json' });
+
+      // Make removeItem throw when trying to clean up
+      const originalRemoveItem = localStorageMock.removeItem;
+      localStorageMock.removeItem = vi.fn(() => {
+        throw new Error('Cannot remove');
+      });
+
+      // Should still return gracefully without crashing
+      expect(getAverageSpeedRatio()).toBeNull();
+
+      // Restore
+      localStorageMock.removeItem = originalRemoveItem;
+    });
+  });
 });

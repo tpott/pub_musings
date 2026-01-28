@@ -113,36 +113,52 @@ export function getMaxUploadSessions(): number {
  * Call this when storing a new upload session ID.
  * Enforces a maximum of MAX_UPLOAD_SESSIONS to prevent localStorage pollution.
  * When the limit is reached, the oldest sessions are removed.
+ * Handles localStorage quota exceeded errors gracefully.
  */
 export function recordUploadSession(sessionKey: string): void {
-	const timestamps = getUploadSessionTimestamps();
-	timestamps[sessionKey] = Date.now();
+	try {
+		const timestamps = getUploadSessionTimestamps();
+		timestamps[sessionKey] = Date.now();
 
-	// Enforce max sessions limit
-	const sessionKeys = Object.keys(timestamps);
-	if (sessionKeys.length > MAX_UPLOAD_SESSIONS) {
-		// Sort by timestamp (oldest first)
-		const sortedKeys = sessionKeys.sort((a, b) => timestamps[a] - timestamps[b]);
+		// Enforce max sessions limit
+		const sessionKeys = Object.keys(timestamps);
+		if (sessionKeys.length > MAX_UPLOAD_SESSIONS) {
+			// Sort by timestamp (oldest first)
+			const sortedKeys = sessionKeys.sort((a, b) => timestamps[a] - timestamps[b]);
 
-		// Remove oldest sessions until we're at the limit
-		const toRemove = sortedKeys.slice(0, sessionKeys.length - MAX_UPLOAD_SESSIONS);
-		for (const oldKey of toRemove) {
-			localStorage.removeItem(oldKey);
-			delete timestamps[oldKey];
+			// Remove oldest sessions until we're at the limit
+			const toRemove = sortedKeys.slice(0, sessionKeys.length - MAX_UPLOAD_SESSIONS);
+			for (const oldKey of toRemove) {
+				try {
+					localStorage.removeItem(oldKey);
+				} catch {
+					// Ignore removeItem errors
+				}
+				delete timestamps[oldKey];
+			}
 		}
-	}
 
-	localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+		localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+	} catch (e) {
+		// Handle QuotaExceededError or other localStorage errors gracefully
+		console.error('Failed to record upload session:', e);
+	}
 }
 
 /**
  * Removes the timestamp record for an upload session.
  * Call this when an upload completes or is abandoned.
+ * Handles localStorage quota exceeded errors gracefully.
  */
 export function removeUploadSessionRecord(sessionKey: string): void {
-	const timestamps = getUploadSessionTimestamps();
-	delete timestamps[sessionKey];
-	localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+	try {
+		const timestamps = getUploadSessionTimestamps();
+		delete timestamps[sessionKey];
+		localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+	} catch (e) {
+		// Handle QuotaExceededError or other localStorage errors gracefully
+		console.error('Failed to remove upload session record:', e);
+	}
 }
 
 /**
@@ -164,38 +180,56 @@ function getUploadSessionTimestamps(): Record<string, number> {
  * Cleans up stale upload sessions from localStorage.
  * Removes sessions older than 48 hours.
  * Call this on app startup.
+ * Handles localStorage quota exceeded errors gracefully.
  */
 export function cleanupStaleUploadSessions(): void {
-	const now = Date.now();
-	const timestamps = getUploadSessionTimestamps();
-	let hasChanges = false;
+	try {
+		const now = Date.now();
+		const timestamps = getUploadSessionTimestamps();
+		let hasChanges = false;
 
-	// Check each tracked session
-	for (const sessionKey of Object.keys(timestamps)) {
-		const createdAt = timestamps[sessionKey];
-		const ageMs = now - createdAt;
+		// Check each tracked session
+		for (const sessionKey of Object.keys(timestamps)) {
+			const createdAt = timestamps[sessionKey];
+			const ageMs = now - createdAt;
 
-		if (ageMs > STALE_SESSION_THRESHOLD_MS) {
-			// Session is stale, remove it
-			localStorage.removeItem(sessionKey);
-			delete timestamps[sessionKey];
-			hasChanges = true;
+			if (ageMs > STALE_SESSION_THRESHOLD_MS) {
+				// Session is stale, remove it
+				try {
+					localStorage.removeItem(sessionKey);
+				} catch {
+					// Ignore removeItem errors
+				}
+				delete timestamps[sessionKey];
+				hasChanges = true;
+			}
 		}
-	}
 
-	// Also scan for any upload session keys not in our timestamps tracking
-	// (handles sessions created before this feature was added)
-	for (let i = 0; i < localStorage.length; i++) {
-		const key = localStorage.key(i);
-		if (key && key.startsWith(UPLOAD_SESSION_PREFIX) && !(key in timestamps)) {
-			// Untracked session - remove it since we don't know when it was created
-			// This ensures cleanup of legacy sessions
-			localStorage.removeItem(key);
-			hasChanges = true;
+		// Also scan for any upload session keys not in our timestamps tracking
+		// (handles sessions created before this feature was added)
+		try {
+			for (let i = 0; i < localStorage.length; i++) {
+				const key = localStorage.key(i);
+				if (key && key.startsWith(UPLOAD_SESSION_PREFIX) && !(key in timestamps)) {
+					// Untracked session - remove it since we don't know when it was created
+					// This ensures cleanup of legacy sessions
+					try {
+						localStorage.removeItem(key);
+					} catch {
+						// Ignore removeItem errors
+					}
+					hasChanges = true;
+				}
+			}
+		} catch {
+			// Ignore iteration errors
 		}
-	}
 
-	if (hasChanges) {
-		localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+		if (hasChanges) {
+			localStorage.setItem(UPLOAD_SESSION_TIMESTAMPS_KEY, JSON.stringify(timestamps));
+		}
+	} catch (e) {
+		// Handle QuotaExceededError or other localStorage errors gracefully
+		console.error('Failed to cleanup stale upload sessions:', e);
 	}
 }

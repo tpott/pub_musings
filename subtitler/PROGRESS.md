@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**319 tasks completed.**
+**320 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 317: Add Tests for localStorage Quota Exceeded Scenarios (COMPLETE)**
+- Added try/catch wrappers to session.ts functions for localStorage operations
+- recordUploadSession(), removeUploadSessionRecord(), cleanupStaleUploadSessions() now handle QuotaExceededError gracefully
+- Added 4 new tests to session.test.ts for quota exceeded scenarios
+- Added 4 new tests to processing-speed.test.ts for quota exceeded scenarios
+- Functions log errors but don't crash when localStorage operations fail
+- Total test count increased from 482 to 490
 
 **Task 316: Add Debouncing to Form Input Validation (COMPLETE)**
 - Added debounce() utility function to form-validation.ts

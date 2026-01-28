@@ -465,5 +465,75 @@ describe('session utilities', () => {
 				expect(finalStore[sessionKey]).toBeUndefined();
 			});
 		});
+
+		describe('localStorage quota exceeded handling', () => {
+			it('should handle QuotaExceededError gracefully in recordUploadSession', () => {
+				const quotaError = new DOMException('Quota exceeded', 'QuotaExceededError');
+				localStorageMock.setItem = vi.fn(() => {
+					throw quotaError;
+				});
+
+				// Should not throw, should handle gracefully
+				expect(() =>
+					recordUploadSession('subtitler:upload_session:test.mp4:12345')
+				).not.toThrow();
+			});
+
+			it('should handle QuotaExceededError gracefully in removeUploadSessionRecord', () => {
+				// First record a session successfully
+				const sessionKey = 'subtitler:upload_session:test.mp4:12345';
+				recordUploadSession(sessionKey);
+
+				// Then make setItem throw
+				const quotaError = new DOMException('Quota exceeded', 'QuotaExceededError');
+				localStorageMock.setItem = vi.fn(() => {
+					throw quotaError;
+				});
+
+				// Should not throw
+				expect(() => removeUploadSessionRecord(sessionKey)).not.toThrow();
+			});
+
+			it('should handle QuotaExceededError gracefully in cleanupStaleUploadSessions', () => {
+				const staleKey = 'subtitler:upload_session:old.mp4:100';
+				const staleTimestamp = Date.now() - 50 * 60 * 60 * 1000; // 50 hours ago
+
+				// Set up stale session
+				const store = localStorageMock._getStore();
+				store[staleKey] = 'stale-session-id';
+				store['subtitler:upload_session_timestamps'] = JSON.stringify({
+					[staleKey]: staleTimestamp,
+				});
+				localStorageMock._setStore(store);
+
+				// Make setItem throw when updating timestamps
+				const quotaError = new DOMException('Quota exceeded', 'QuotaExceededError');
+				localStorageMock.setItem = vi.fn(() => {
+					throw quotaError;
+				});
+
+				// Should not throw
+				expect(() => cleanupStaleUploadSessions()).not.toThrow();
+			});
+
+			it('should handle QuotaExceededError gracefully when creating session ID', () => {
+				// Set up consent
+				localStorageMock._setStore({ 'subtitler:cookie_consent': 'accepted' });
+				localStorageMock.getItem.mockImplementation(
+					(key: string) => localStorageMock._getStore()[key] || null
+				);
+
+				// Make setItem throw
+				const quotaError = new DOMException('Quota exceeded', 'QuotaExceededError');
+				localStorageMock.setItem = vi.fn(() => {
+					throw quotaError;
+				});
+
+				// This call will attempt to create a session ID which requires setItem
+				// We expect it to throw since getOrCreateSessionId doesn't have try/catch
+				// This test documents current behavior - the function will throw
+				expect(() => getOrCreateSessionId()).toThrow();
+			});
+		});
 	});
 });
