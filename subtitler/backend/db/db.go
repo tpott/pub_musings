@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,9 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// ErrInvalidVideoSize is returned when video size is outside valid bounds.
+var ErrInvalidVideoSize = errors.New("invalid video size")
 
 // DefaultQueryTimeout is the default timeout for database queries.
 // Can be overridden via DB_QUERY_TIMEOUT environment variable.
@@ -24,6 +28,12 @@ const DefaultQueryTimeout = 30 * time.Second
 const (
 	DefaultMaxOpenConns = 10 // Max simultaneous connections
 	DefaultMaxIdleConns = 5  // Max idle connections to retain
+)
+
+// Video size validation bounds
+const (
+	MinVideoSize = 1              // Minimum valid video size (1 byte)
+	MaxVideoSize = 10 * (1 << 30) // Maximum valid video size (10 GB, defensive upper bound)
 )
 
 // PoolConfig holds database connection pool configuration.
@@ -477,6 +487,12 @@ func (db *DB) handleExistingDatabase(migrator *Migrator) error {
 
 // CreateVideo creates a new video record
 func (db *DB) CreateVideo(video *Video) error {
+	// Validate video size is within reasonable bounds
+	if video.Size < MinVideoSize || video.Size > MaxVideoSize {
+		return fmt.Errorf("%w: size %d is outside valid range (%d to %d bytes)",
+			ErrInvalidVideoSize, video.Size, MinVideoSize, MaxVideoSize)
+	}
+
 	ctx, cancel := db.queryContext()
 	defer cancel()
 

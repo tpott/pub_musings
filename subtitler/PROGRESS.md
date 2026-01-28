@@ -138,9 +138,39 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**311 tasks completed.**
+**316 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 320: Add Video Size Validation in CreateVideo (COMPLETE)**
+- Added MinVideoSize (1 byte) and MaxVideoSize (10 GB) constants to db package
+- Added ErrInvalidVideoSize sentinel error for error type checking
+- CreateVideo now validates size is within valid bounds before INSERT
+- Added 6 tests covering valid sizes, zero, negative, and over-max cases
+- Defense-in-depth: prevents invalid data reaching database
+
+**Task 319: Mark video-scroll-fix.md as Resolved (COMPLETE)**
+- Added "Status: Resolved" note at top of specs/video-scroll-fix.md
+- References Task 156 that fixed the issue
+- Spec retained as reference for the bug pattern and solution
+
+**Task 318: Update specs/word-level-highlighting.md Status (COMPLETE)**
+- Added "Status: Not Implemented - Future Enhancement" note at top
+- Clarifies feature is fully designed but not yet built
+
+**Task 313: Add Auto-Revoke for Blob URLs in subtitles.ts (COMPLETE)**
+- createDownloadURL() now auto-revokes blob URLs after 5 minutes as safety net
+- Returns explicit revoke() function for immediate cleanup
+- Timeout is configurable (pass 0 to disable auto-revoke)
+- Prevents memory leaks from orphaned blobs
+- Added 5 tests verifying auto-revoke and manual revoke behavior
+
+**Task 312: Use structuredClone in history.ts (COMPLETE)**
+- Created deepClone() helper that uses structuredClone when available
+- Falls back to JSON.parse(JSON.stringify()) for older browsers
+- Updated 3 locations in history.ts to use deepClone()
+- Added 6 tests covering object cloning, fallback behavior, and edge cases
+- structuredClone handles more edge cases (undefined, circular refs) than JSON
 
 **Task 311: Add Time-Based Rate Limiting to CSRF Token Refresh (COMPLETE)**
 - Added rate limiting to fetchCsrfToken() with 5-second minimum interval

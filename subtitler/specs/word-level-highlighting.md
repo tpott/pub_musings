@@ -1,5 +1,11 @@
 # Word-Level Highlighting Specification
 
+**Status: Not Implemented - Future Enhancement**
+
+This feature is fully designed but not yet built. The specification below documents the planned implementation for karaoke-style word highlighting during video playback.
+
+---
+
 This document outlines a plan for implementing word-level highlighting during video playback, similar to karaoke-style subtitle display where individual words highlight as they are spoken.
 
 ## Overview

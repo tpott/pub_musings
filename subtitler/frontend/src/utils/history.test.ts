@@ -1,5 +1,69 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createHistoryManager, createStatefulHistoryManager } from './history';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createHistoryManager, createStatefulHistoryManager, deepClone } from './history';
+
+describe('deepClone', () => {
+	it('should deep clone simple objects', () => {
+		const original = { a: 1, b: 'test', c: true };
+		const cloned = deepClone(original);
+
+		expect(cloned).toEqual(original);
+		expect(cloned).not.toBe(original);
+	});
+
+	it('should deep clone nested objects', () => {
+		const original = { outer: { inner: { value: 42 } } };
+		const cloned = deepClone(original);
+
+		expect(cloned).toEqual(original);
+		expect(cloned.outer).not.toBe(original.outer);
+		expect(cloned.outer.inner).not.toBe(original.outer.inner);
+	});
+
+	it('should deep clone arrays', () => {
+		const original = [1, 2, { a: 3 }];
+		const cloned = deepClone(original);
+
+		expect(cloned).toEqual(original);
+		expect(cloned).not.toBe(original);
+		expect(cloned[2]).not.toBe(original[2]);
+	});
+
+	it('should prevent modifications to original from affecting clone', () => {
+		const original = { data: [{ id: 1, text: 'hello' }] };
+		const cloned = deepClone(original);
+
+		original.data[0].text = 'modified';
+
+		expect(cloned.data[0].text).toBe('hello');
+	});
+
+	it('should handle null and primitive values', () => {
+		expect(deepClone(null)).toBeNull();
+		expect(deepClone(42)).toBe(42);
+		expect(deepClone('string')).toBe('string');
+		expect(deepClone(true)).toBe(true);
+	});
+
+	it('should fall back to JSON when structuredClone is unavailable', () => {
+		// Save original structuredClone
+		const originalStructuredClone = globalThis.structuredClone;
+
+		// Remove structuredClone to test fallback
+		// @ts-expect-error - intentionally removing for test
+		delete globalThis.structuredClone;
+
+		try {
+			const original = { test: 'value', nested: { arr: [1, 2, 3] } };
+			const cloned = deepClone(original);
+
+			expect(cloned).toEqual(original);
+			expect(cloned).not.toBe(original);
+		} finally {
+			// Restore structuredClone
+			globalThis.structuredClone = originalStructuredClone;
+		}
+	});
+});
 
 interface TestSegment {
 	id: number;

@@ -92,16 +92,53 @@ export function generateJSON(segments: TranscriptionSegment[]): string {
   return JSON.stringify(output, null, 2);
 }
 
+/** Default auto-revoke timeout for blob URLs (5 minutes) */
+const DEFAULT_AUTO_REVOKE_MS = 5 * 60 * 1000;
+
 /**
- * Create a downloadable blob URL from content
- * Returns the URL and a cleanup function
+ * Create a downloadable blob URL from content.
+ * Returns the URL and a cleanup function.
+ *
+ * The URL will be automatically revoked after the specified timeout (default 5 min)
+ * as a safety net to prevent memory leaks from orphaned blobs. Calling revoke()
+ * manually is recommended for immediate cleanup.
+ *
+ * @param content The content to create a blob URL for
+ * @param mimeType The MIME type for the blob
+ * @param autoRevokeMs Auto-revoke timeout in ms (default 5 min, 0 to disable)
  */
-export function createDownloadURL(content: string, mimeType: string): { url: string; revoke: () => void } {
+export function createDownloadURL(
+  content: string,
+  mimeType: string,
+  autoRevokeMs: number = DEFAULT_AUTO_REVOKE_MS
+): { url: string; revoke: () => void } {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
+
+  let isRevoked = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  // Safety net: auto-revoke after timeout if not manually revoked
+  if (autoRevokeMs > 0) {
+    timeoutId = setTimeout(() => {
+      if (!isRevoked) {
+        URL.revokeObjectURL(url);
+        isRevoked = true;
+      }
+    }, autoRevokeMs);
+  }
+
   return {
     url,
-    revoke: () => URL.revokeObjectURL(url)
+    revoke: () => {
+      if (!isRevoked) {
+        URL.revokeObjectURL(url);
+        isRevoked = true;
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
   };
 }
 

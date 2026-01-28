@@ -1,5 +1,11 @@
 # Video Scroll Fix Specification
 
+**Status: Resolved** (Task 156)
+
+This issue was fixed in Task 156. The spec is retained as a reference for the bug pattern and solution.
+
+---
+
 ## Problem
 
 When watching a video, the page scrolls down causing the video to go out of view. This is the **THIRD** time this issue has been reported.

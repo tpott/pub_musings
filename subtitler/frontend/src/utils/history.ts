@@ -3,6 +3,21 @@
  * Generic implementation that can work with any state type.
  */
 
+/**
+ * Deep clone an object, using structuredClone when available
+ * and falling back to JSON for older browsers.
+ *
+ * Note: structuredClone handles more edge cases (undefined, circular refs)
+ * but JSON fallback is sufficient for simple data structures like segments.
+ */
+export function deepClone<T>(value: T): T {
+	if (typeof structuredClone === 'function') {
+		return structuredClone(value);
+	}
+	// Fallback for older browsers
+	return JSON.parse(JSON.stringify(value));
+}
+
 export interface HistoryManager<T> {
 	push(state: T): void;
 	undo(): T | null;
@@ -30,7 +45,7 @@ export function createHistoryManager<T>(maxSize: number = 50): HistoryManager<T>
 		 */
 		push(state: T): void {
 			// Deep copy the state to prevent reference issues
-			const snapshot = JSON.parse(JSON.stringify(state));
+			const snapshot = deepClone(state);
 			undoStack.push(snapshot);
 
 			// Limit history size
@@ -96,7 +111,7 @@ export function createStatefulHistoryManager<T>(maxSize: number = 50): HistoryMa
 
 	return {
 		push(state: T): void {
-			const snapshot = JSON.parse(JSON.stringify(state));
+			const snapshot = deepClone(state);
 			undoStack.push(snapshot);
 			if (undoStack.length > maxSize) {
 				undoStack.shift();
@@ -105,7 +120,7 @@ export function createStatefulHistoryManager<T>(maxSize: number = 50): HistoryMa
 		},
 
 		pushToRedo(state: T): void {
-			const snapshot = JSON.parse(JSON.stringify(state));
+			const snapshot = deepClone(state);
 			redoStack.push(snapshot);
 		},
 

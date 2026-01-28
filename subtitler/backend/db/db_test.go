@@ -3,8 +3,10 @@ package db
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,6 +94,92 @@ func TestGetVideoNotFound(t *testing.T) {
 	}
 	if retrieved != nil {
 		t.Error("Expected nil for nonexistent video")
+	}
+}
+
+func TestCreateVideoSizeValidation(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	tests := []struct {
+		name      string
+		size      int64
+		wantErr   bool
+		errString string
+	}{
+		{
+			name:    "valid size - 1 byte",
+			size:    1,
+			wantErr: false,
+		},
+		{
+			name:    "valid size - typical video",
+			size:    100 * 1024 * 1024, // 100 MB
+			wantErr: false,
+		},
+		{
+			name:    "valid size - at max boundary",
+			size:    MaxVideoSize,
+			wantErr: false,
+		},
+		{
+			name:      "invalid size - zero",
+			size:      0,
+			wantErr:   true,
+			errString: "invalid video size",
+		},
+		{
+			name:      "invalid size - negative",
+			size:      -1,
+			wantErr:   true,
+			errString: "invalid video size",
+		},
+		{
+			name:      "invalid size - over max",
+			size:      MaxVideoSize + 1,
+			wantErr:   true,
+			errString: "invalid video size",
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			video := &Video{
+				ID:          fmt.Sprintf("test-video-size-%d", i),
+				Filename:    "test.mp4",
+				Size:        tt.size,
+				ContentType: "video/mp4",
+				FilePath:    fmt.Sprintf("/uploads/test-video-size-%d.mp4", i),
+				CreatedAt:   time.Now(),
+			}
+
+			err := db.CreateVideo(video)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error for size %d, got nil", tt.size)
+				} else if tt.errString != "" && !strings.Contains(err.Error(), tt.errString) {
+					t.Errorf("Error %q should contain %q", err.Error(), tt.errString)
+				}
+				// Also check error type
+				if !errors.Is(err, ErrInvalidVideoSize) {
+					t.Errorf("Error should wrap ErrInvalidVideoSize, got: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for size %d: %v", tt.size, err)
+				}
+			}
+		})
 	}
 }
 

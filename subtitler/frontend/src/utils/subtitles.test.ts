@@ -192,6 +192,14 @@ describe('Subtitle utilities', () => {
   });
 
   describe('createDownloadURL', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('creates a blob URL', () => {
       const { url, revoke } = createDownloadURL('test content', 'text/plain');
       expect(url).toMatch(/^blob:/);
@@ -202,6 +210,69 @@ describe('Subtitle utilities', () => {
       const { url, revoke } = createDownloadURL('test content', 'text/plain');
       expect(typeof revoke).toBe('function');
       revoke();
+    });
+
+    it('auto-revokes after default timeout (5 minutes)', () => {
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL');
+      const { url } = createDownloadURL('test content', 'text/plain');
+
+      // Should not have revoked yet
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+
+      // Advance time past 5 minutes
+      vi.advanceTimersByTime(5 * 60 * 1000);
+
+      // Should have auto-revoked
+      expect(revokeObjectURL).toHaveBeenCalledWith(url);
+    });
+
+    it('allows custom auto-revoke timeout', () => {
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL');
+      const { url } = createDownloadURL('test content', 'text/plain', 1000);
+
+      vi.advanceTimersByTime(500);
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(600);
+      expect(revokeObjectURL).toHaveBeenCalledWith(url);
+    });
+
+    it('cancels auto-revoke when manually revoked', () => {
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL');
+      const { url, revoke } = createDownloadURL('test content', 'text/plain', 1000);
+
+      // Manually revoke before timeout
+      revoke();
+      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith(url);
+
+      // Advance past timeout
+      vi.advanceTimersByTime(2000);
+
+      // Should not have revoked again
+      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+    });
+
+    it('only revokes once even if revoke called multiple times', () => {
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL');
+      const { revoke } = createDownloadURL('test content', 'text/plain');
+
+      revoke();
+      revoke();
+      revoke();
+
+      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+    });
+
+    it('disables auto-revoke when timeout is 0', () => {
+      const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL');
+      createDownloadURL('test content', 'text/plain', 0);
+
+      // Advance time well past what would be the default timeout
+      vi.advanceTimersByTime(10 * 60 * 1000);
+
+      // Should never auto-revoke
+      expect(revokeObjectURL).not.toHaveBeenCalled();
     });
   });
 
