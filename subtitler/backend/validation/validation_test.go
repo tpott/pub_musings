@@ -295,3 +295,55 @@ func TestValidateHexID(t *testing.T) {
 		})
 	}
 }
+
+func TestSanitizeFileExtension(t *testing.T) {
+	tests := []struct {
+		name    string
+		ext     string
+		want    string
+		wantErr bool
+	}{
+		// Valid extensions
+		{"empty defaults to .mp4", "", ".mp4", false},
+		{"valid .mp4", ".mp4", ".mp4", false},
+		{"valid .webm", ".webm", ".webm", false},
+		{"valid .avi", ".avi", ".avi", false},
+		{"valid .mov", ".mov", ".mov", false},
+		{"valid .mkv", ".mkv", ".mkv", false},
+		{"valid uppercase .MP4", ".MP4", ".MP4", false},
+
+		// Path traversal attacks
+		{"forward slash", "./etc/passwd", "", true},
+		{"backslash", ".\\etc\\passwd", "", true},
+		{"path traversal with ..", "./../../../etc/passwd", "", true},
+		{"double dots", "..mp4", "", true},
+		{"unix path traversal", ".mp4/../../../etc/passwd", "", true},
+		{"windows path traversal", ".mp4\\..\\..\\windows\\system32", "", true},
+
+		// Null byte injection
+		{"null byte at start", "\x00.mp4", "", true},
+		{"null byte in middle", ".mp\x004", "", true},
+		{"null byte at end", ".mp4\x00", "", true},
+
+		// Invalid format
+		{"missing leading dot", "mp4", "", true},
+		{"just text no dot", "video", "", true},
+
+		// Length check
+		{"max valid length", ".12345678901234567890", "", true}, // 21 chars > 20
+		{"exactly 20 chars", ".1234567890123456789", ".1234567890123456789", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SanitizeFileExtension(tt.ext)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SanitizeFileExtension(%q) error = %v, wantErr %v", tt.ext, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("SanitizeFileExtension(%q) = %q, want %q", tt.ext, got, tt.want)
+			}
+		})
+	}
+}

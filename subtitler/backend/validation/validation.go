@@ -191,3 +191,43 @@ func ValidateHexID(id string) error {
 	}
 	return nil
 }
+
+// SanitizeFileExtension validates and sanitizes a file extension extracted from a filename.
+// It rejects extensions containing path separators (/, \) or null bytes which could be
+// used for path traversal attacks. Returns the sanitized extension or an error.
+//
+// The extension should include the leading dot (e.g., ".mp4").
+// If the extension is empty, it returns ".mp4" as a safe default.
+func SanitizeFileExtension(ext string) (string, error) {
+	// Default to .mp4 for empty extensions
+	if ext == "" {
+		return ".mp4", nil
+	}
+
+	// Check for null bytes (can truncate paths in some systems)
+	if strings.ContainsAny(ext, "\x00") {
+		return "", fmt.Errorf("invalid file extension: contains null byte")
+	}
+
+	// Check for path separators (path traversal attempt)
+	if strings.ContainsAny(ext, "/\\") {
+		return "", fmt.Errorf("invalid file extension: contains path separator")
+	}
+
+	// Check for parent directory traversal
+	if strings.Contains(ext, "..") {
+		return "", fmt.Errorf("invalid file extension: contains path traversal")
+	}
+
+	// Ensure extension starts with a dot
+	if !strings.HasPrefix(ext, ".") {
+		return "", fmt.Errorf("invalid file extension: must start with dot")
+	}
+
+	// Length check - extensions shouldn't be excessively long
+	if len(ext) > 20 {
+		return "", fmt.Errorf("invalid file extension: too long (max 20 characters)")
+	}
+
+	return ext, nil
+}

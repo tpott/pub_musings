@@ -3027,10 +3027,16 @@ func main() {
 			return
 		}
 
-		// Get file extension from original filename
+		// Get file extension from original filename and sanitize it
 		ext := filepath.Ext(header.Filename)
-		if ext == "" {
-			ext = ".mp4" // default extension
+		ext, err = validation.SanitizeFileExtension(ext)
+		if err != nil {
+			logging.WarnContext(r.Context(), "Invalid file extension", "filename", header.Filename, "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid file extension",
+			})
+			return
 		}
 
 		// Create destination file
@@ -3658,10 +3664,16 @@ func main() {
 			return
 		}
 
-		// Get file extension
+		// Get file extension and sanitize it
 		ext := filepath.Ext(session.Filename)
-		if ext == "" {
-			ext = ".mp4"
+		ext, err = validation.SanitizeFileExtension(ext)
+		if err != nil {
+			logging.WarnContext(r.Context(), "Invalid file extension", "filename", session.Filename, "error", err)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid file extension",
+			})
+			return
 		}
 
 		// Reassemble chunks into final file

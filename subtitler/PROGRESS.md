@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**225 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**231 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**230 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
+**231 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; remaining tasks (227-243) focus on refinements.
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -164,7 +164,11 @@ Deep code review using exploration agents identified areas for improvement:
 - Task 229: Add aria-describedby for form error associations
 
 **Backend (Security/Performance):**
-- Task 231: Sanitize file extensions in path construction
+- ✅ Task 231: Sanitize file extensions in path construction
+  - Created `validation.SanitizeFileExtension()` to validate file extensions
+  - Rejects null bytes, path separators, `..` sequences, too-long extensions
+  - Applied to both simple upload and chunked upload finalize handlers
+  - 20 unit tests covering all malicious extension patterns
 - Task 232: Configure SQLite connection pool limits
 - Task 233: Add session listing pagination/limit
 - Task 234: Add panic recovery to WithTransaction
