@@ -1990,7 +1990,8 @@ import '../styles/theme.css';
 				// Check file size (500 MB max)
 				const maxSize = 500 * 1024 * 1024;
 				if (file.size > maxSize) {
-					showStatus('File too large. Maximum size is 500 MB.', 'error');
+					const actualSizeMB = (file.size / 1024 / 1024).toFixed(1);
+					showStatus(`File too large: ${actualSizeMB} MB. Maximum allowed size is 500 MB.`, 'error');
 					return;
 				}
 

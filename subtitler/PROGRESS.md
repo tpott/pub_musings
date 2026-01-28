@@ -138,7 +138,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**227 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
+**228 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 18 remaining tasks (226-243).
 
 ### Tasks 225-243: Deep Inspection Findings (2026-01-27)
 
@@ -182,7 +182,7 @@ Deep code review using exploration agents identified areas for improvement:
 
 **UX:**
 - Task 242: Show on-screen indicator for playback speed changes
-- Task 243: Show actual file size in upload error messages
+- ✅ Task 243: Improved file size error message to show actual vs max (e.g., "750.5 MB. Maximum allowed size is 500 MB")
 
 ### Recently Completed (2026-01-27)
 - Task 218: Feature - Improve language auto-detection
