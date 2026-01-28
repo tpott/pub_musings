@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**293 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**294 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**293 tasks completed.** Working through remaining tasks from deep inspection.
+**294 tasks completed.** Working through remaining tasks from deep inspection.
 
 ### Recent Work (2026-01-28)
+
+**Task 293: Fetch Timeout Utility**
+- Created `src/utils/fetch-timeout.ts` with AbortController-based timeout handling
+- Exports: `fetchWithTimeout()`, `FetchTimeoutError`, `isTimeoutError()`, `createTimeoutController()`
+- Default 30-second timeout, configurable per request
+- Properly chains abort signals for existing controllers
+- Added 29 unit tests in fetch-timeout.test.ts
 
 **Task 292: MaxBytesReader for JSON Endpoints**
 - Added decodeJSONBody() helper function with 1MB limit
