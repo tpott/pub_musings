@@ -5,6 +5,7 @@ sites:
     branch: trunk
     repository: tpott/pub_musings
     commands:
+      - "git checkout trunk"
       - "git pull origin trunk"
       - ". ~/.nvm/nvm.sh && nvm use"
       - "npm ci"
