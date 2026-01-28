@@ -24,12 +24,24 @@ export async function fetchCsrfToken(): Promise<string | null> {
 			consecutiveRefreshFailures++;
 			return null;
 		}
-		const data = await response.json();
+
+		// Parse JSON with separate error handling for better diagnostics
+		let data: { csrf_token?: string };
+		try {
+			data = await response.json();
+		} catch (parseError) {
+			console.error('Failed to parse CSRF token response:', parseError);
+			cachedToken = null;
+			consecutiveRefreshFailures++;
+			return null;
+		}
+
 		cachedToken = data.csrf_token || null;
 		// Reset circuit breaker on success
 		consecutiveRefreshFailures = 0;
 		return cachedToken;
 	} catch (error) {
+		// Network error or other fetch failure
 		console.error('Failed to fetch CSRF token:', error);
 		cachedToken = null;
 		consecutiveRefreshFailures++;

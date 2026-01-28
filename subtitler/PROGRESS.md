@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**289 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**290 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**289 tasks completed.** Working through remaining tasks from deep inspection.
+**290 tasks completed.** Working through remaining tasks from deep inspection.
 
 ### Recent Work (2026-01-28)
+
+**Task 290: CSRF JSON Parse Error Handling**
+- Added separate try-catch for response.json() in fetchCsrfToken()
+- Better error messages distinguishing parse errors from network errors
+- Added 2 new tests for JSON parse failure and missing csrf_token field
 
 **Task 289: Form Error Handling Utility**
 - Created src/utils/form-errors.ts with clearFieldError() and showFieldError()

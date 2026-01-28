@@ -51,6 +51,28 @@ describe('CSRF utility', () => {
 			const token = await fetchCsrfToken();
 			expect(token).toBeNull();
 		});
+
+		it('should return null on JSON parse error', async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => {
+					throw new SyntaxError('Unexpected token');
+				},
+			});
+
+			const token = await fetchCsrfToken();
+			expect(token).toBeNull();
+		});
+
+		it('should handle response with missing csrf_token field', async () => {
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({}),
+			});
+
+			const token = await fetchCsrfToken();
+			expect(token).toBeNull();
+		});
 	});
 
 	describe('getCsrfToken', () => {
