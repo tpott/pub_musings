@@ -302,4 +302,4 @@
 {"id": 302, "name": "Backend: Add tests for email package", "done_when": "Create email/email_test.go with tests for template rendering and email sending (using mock).", "status": "done"}
 {"id": 303, "name": "Backend: Add tests for httputil.ContentDisposition", "done_when": "Create httputil/contentdisposition_test.go with tests for RFC 5987 encoding and special characters.", "status": "done"}
 {"id": 304, "name": "Docs: Verify password complexity claims in SECURITY_CHECKLIST.md", "done_when": "Remove or correct lines about uppercase/lowercase/number/special char requirements since code only enforces length.", "status": "done"}
-{"id": 305, "name": "Frontend: Extract form blur validation to shared utility", "done_when": "Create src/utils/form-validation.ts with reusable blur/input validation pattern used across login, register, settings pages.", "status": "todo"}
+{"id": 305, "name": "Frontend: Extract form blur validation to shared utility", "done_when": "Create src/utils/form-validation.ts with reusable blur/input validation pattern used across login, register, settings pages.", "status": "done"}

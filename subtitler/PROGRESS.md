@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**304 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**305 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,25 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**304 tasks completed.**
+**305 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 305: Extract Form Blur Validation to Shared Utility (COMPLETE)**
+- Created `src/utils/form-validation.ts` with reusable validation pattern
+- `setupBlurValidation()`: Attaches blur and input event listeners
+- `setupBlurValidations()`: Set up multiple fields at once
+- `createPasswordMatchValidator()`: Creates confirm password validator
+- `createOptionalValidator()`: Wraps validator to skip empty values
+- Added 20 unit tests in form-validation.test.ts
+- Updated 5 pages to use the new utility:
+  - login.astro: email, password, TOTP, magic link email
+  - register.astro: email, password, confirm password
+  - settings.astro: verify code, disable password/code, regen password/code
+  - forgot-password.astro: email
+  - reset-password.astro: password, confirm password
+- Reduces ~150 lines of duplicated blur/input validation code
+- Total frontend tests: 436 -> 456
 
 **Task 304: Verify Password Complexity Claims in SECURITY_CHECKLIST.md (COMPLETE)**
 - Verified that docs/SECURITY_CHECKLIST.md correctly documents password requirements

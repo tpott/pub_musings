@@ -878,6 +878,7 @@ import '../styles/theme.css';
 			import { csrfFetch } from '../utils/csrf';
 			import { escapeHtml } from '../utils/html';
 			import { clearFieldError, showFieldError } from '../utils/form-errors';
+			import { setupBlurValidation } from '../utils/form-validation';
 			import {
 				isBionicEnabled,
 				getBionicFixation,
@@ -1014,57 +1015,15 @@ import '../styles/theme.css';
 			});
 
 			// Add blur validation for verify code
-			verifyCode.addEventListener('blur', () => {
-				const error = validateTotpCode(verifyCode.value);
-				if (error) {
-					showFieldError(verifyCode, verifyCodeError, error);
-				} else {
-					clearFieldError(verifyCode, verifyCodeError);
-				}
-			});
-			verifyCode.addEventListener('input', () => clearFieldError(verifyCode, verifyCodeError));
+			setupBlurValidation({ input: verifyCode, errorEl: verifyCodeError, validate: validateTotpCode });
 
 			// Add blur validation for disable form
-			disablePassword.addEventListener('blur', () => {
-				const error = validatePassword(disablePassword.value);
-				if (error) {
-					showFieldError(disablePassword, disablePasswordError, error);
-				} else {
-					clearFieldError(disablePassword, disablePasswordError);
-				}
-			});
-			disablePassword.addEventListener('input', () => clearFieldError(disablePassword, disablePasswordError));
-
-			disableCode.addEventListener('blur', () => {
-				const error = validateTotpCode(disableCode.value);
-				if (error) {
-					showFieldError(disableCode, disableCodeError, error);
-				} else {
-					clearFieldError(disableCode, disableCodeError);
-				}
-			});
-			disableCode.addEventListener('input', () => clearFieldError(disableCode, disableCodeError));
+			setupBlurValidation({ input: disablePassword, errorEl: disablePasswordError, validate: validatePassword });
+			setupBlurValidation({ input: disableCode, errorEl: disableCodeError, validate: validateTotpCode });
 
 			// Add blur validation for regen form
-			regenPassword.addEventListener('blur', () => {
-				const error = validatePassword(regenPassword.value);
-				if (error) {
-					showFieldError(regenPassword, regenPasswordError, error);
-				} else {
-					clearFieldError(regenPassword, regenPasswordError);
-				}
-			});
-			regenPassword.addEventListener('input', () => clearFieldError(regenPassword, regenPasswordError));
-
-			regenCode.addEventListener('blur', () => {
-				const error = validateTotpCode(regenCode.value);
-				if (error) {
-					showFieldError(regenCode, regenCodeError, error);
-				} else {
-					clearFieldError(regenCode, regenCodeError);
-				}
-			});
-			regenCode.addEventListener('input', () => clearFieldError(regenCode, regenCodeError));
+			setupBlurValidation({ input: regenPassword, errorEl: regenPasswordError, validate: validatePassword });
+			setupBlurValidation({ input: regenCode, errorEl: regenCodeError, validate: validateTotpCode });
 
 			function showError(message: string) {
 				errorMessage.textContent = message;

@@ -394,6 +394,7 @@ import '../styles/theme.css';
 			import { validateEmail, validatePassword, validateTotpCode } from '../utils/validation';
 			import { getCaptchaConfig, renderCaptcha, getCaptchaToken, resetCaptcha } from '../utils/captcha';
 			import { clearFieldError, showFieldError } from '../utils/form-errors';
+			import { setupBlurValidation, createOptionalValidator } from '../utils/form-validation';
 
 			const form = document.getElementById('loginForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
@@ -441,40 +442,15 @@ import '../styles/theme.css';
 			}
 			initCaptcha();
 
-			// Add blur validation
-			emailInput.addEventListener('blur', () => {
-				const error = validateEmail(emailInput.value);
-				if (error) {
-					showFieldError(emailInput, emailError, error);
-				} else {
-					clearFieldError(emailInput, emailError);
-				}
+			// Add blur validation using shared utility
+			setupBlurValidation({ input: emailInput, errorEl: emailError, validate: validateEmail });
+			setupBlurValidation({ input: passwordInput, errorEl: passwordError, validate: validatePassword });
+			setupBlurValidation({
+				input: totpInput,
+				errorEl: totpError,
+				validate: createOptionalValidator(validateTotpCode),
+				condition: () => totpRequired
 			});
-
-			passwordInput.addEventListener('blur', () => {
-				const error = validatePassword(passwordInput.value);
-				if (error) {
-					showFieldError(passwordInput, passwordError, error);
-				} else {
-					clearFieldError(passwordInput, passwordError);
-				}
-			});
-
-			totpInput.addEventListener('blur', () => {
-				if (totpRequired && totpInput.value) {
-					const error = validateTotpCode(totpInput.value);
-					if (error) {
-						showFieldError(totpInput, totpError, error);
-					} else {
-						clearFieldError(totpInput, totpError);
-					}
-				}
-			});
-
-			// Clear errors on input
-			emailInput.addEventListener('input', () => clearFieldError(emailInput, emailError));
-			passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
-			totpInput.addEventListener('input', () => clearFieldError(totpInput, totpError));
 
 			function showError(message: string) {
 				errorDiv.textContent = message;
@@ -729,16 +705,8 @@ import '../styles/theme.css';
 			const magicEmailError = document.getElementById('magicEmailError') as HTMLElement;
 			const magicLinkBtn = document.getElementById('magicLinkBtn') as HTMLButtonElement;
 
-			magicEmailInput.addEventListener('blur', () => {
-				const error = validateEmail(magicEmailInput.value);
-				if (error) {
-					showFieldError(magicEmailInput, magicEmailError, error);
-				} else {
-					clearFieldError(magicEmailInput, magicEmailError);
-				}
-			});
-
-			magicEmailInput.addEventListener('input', () => clearFieldError(magicEmailInput, magicEmailError));
+			// Add blur validation using shared utility
+			setupBlurValidation({ input: magicEmailInput, errorEl: magicEmailError, validate: validateEmail });
 
 			magicLinkForm.addEventListener('submit', async (e) => {
 				e.preventDefault();

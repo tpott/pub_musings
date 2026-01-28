@@ -272,6 +272,7 @@ import '../styles/theme.css';
 			import { validateEmail, validatePassword } from '../utils/validation';
 			import { getCaptchaConfig, renderCaptcha, getCaptchaToken, resetCaptcha } from '../utils/captcha';
 			import { clearFieldError, showFieldError } from '../utils/form-errors';
+			import { setupBlurValidation, createPasswordMatchValidator } from '../utils/form-validation';
 
 			const form = document.getElementById('registerForm') as HTMLFormElement;
 			const errorDiv = document.getElementById('error') as HTMLElement;
@@ -311,37 +312,14 @@ import '../styles/theme.css';
 			}
 			initCaptcha();
 
-			// Add blur validation
-			emailInput.addEventListener('blur', () => {
-				const error = validateEmail(emailInput.value);
-				if (error) {
-					showFieldError(emailInput, emailError, error);
-				} else {
-					clearFieldError(emailInput, emailError);
-				}
+			// Add blur validation using shared utility
+			setupBlurValidation({ input: emailInput, errorEl: emailError, validate: validateEmail });
+			setupBlurValidation({ input: passwordInput, errorEl: passwordError, validate: validatePassword });
+			setupBlurValidation({
+				input: confirmPasswordInput,
+				errorEl: confirmPasswordError,
+				validate: createPasswordMatchValidator(passwordInput)
 			});
-
-			passwordInput.addEventListener('blur', () => {
-				const error = validatePassword(passwordInput.value);
-				if (error) {
-					showFieldError(passwordInput, passwordError, error);
-				} else {
-					clearFieldError(passwordInput, passwordError);
-				}
-			});
-
-			confirmPasswordInput.addEventListener('blur', () => {
-				if (confirmPasswordInput.value && confirmPasswordInput.value !== passwordInput.value) {
-					showFieldError(confirmPasswordInput, confirmPasswordError, 'Passwords do not match');
-				} else {
-					clearFieldError(confirmPasswordInput, confirmPasswordError);
-				}
-			});
-
-			// Clear errors on input
-			emailInput.addEventListener('input', () => clearFieldError(emailInput, emailError));
-			passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
-			confirmPasswordInput.addEventListener('input', () => clearFieldError(confirmPasswordInput, confirmPasswordError));
 
 			function showError(message: string) {
 				errorDiv.textContent = message;
