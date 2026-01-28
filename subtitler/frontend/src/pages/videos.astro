@@ -937,6 +937,7 @@ import '../styles/theme.css';
 
 			async function reprocessVideo(videoId: string, button: HTMLButtonElement) {
 				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
 				button.textContent = 'Retrying...';
 
 				try {
@@ -953,6 +954,7 @@ import '../styles/theme.css';
 					if (!response.ok) {
 						await showAlert(`Failed to retry: ${data.error || 'Unknown error'}`, 'error');
 						button.disabled = false;
+						button.removeAttribute('aria-busy');
 						button.textContent = 'Retry';
 						return;
 					}
@@ -962,6 +964,7 @@ import '../styles/theme.css';
 				} catch (err) {
 					await showAlert(`Failed to retry: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
 					button.disabled = false;
+					button.removeAttribute('aria-busy');
 					button.textContent = 'Retry';
 				}
 			}
@@ -977,6 +980,7 @@ import '../styles/theme.css';
 				}
 
 				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
 				button.textContent = 'Deleting...';
 
 				try {
@@ -993,6 +997,7 @@ import '../styles/theme.css';
 					if (!response.ok) {
 						await showAlert(`Failed to delete: ${data.error || 'Unknown error'}`, 'error');
 						button.disabled = false;
+						button.removeAttribute('aria-busy');
 						button.textContent = 'Delete';
 						return;
 					}
@@ -1157,8 +1162,9 @@ import '../styles/theme.css';
 				if (!videoId) return;
 
 				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
 				const originalText = button.textContent;
-				button.textContent = '...';
+				button.textContent = 'Loading...';
 
 				try {
 					const segments = await getSubtitleSegments(videoId);
@@ -1178,6 +1184,7 @@ import '../styles/theme.css';
 					await showAlert(`Error: ${err instanceof Error ? err.message : 'Failed to download'}`, 'error');
 				} finally {
 					button.disabled = false;
+					button.removeAttribute('aria-busy');
 					button.textContent = originalText;
 				}
 			}

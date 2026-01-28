@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**256 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**257 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**256 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**257 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 257: Loading states with meaningful messages (2026-01-28)
+
+- ✅ Task 257: Added meaningful loading states with aria-busy attributes
+  - Changed download button loading from `'...'` to `'Loading...'`
+  - Added `aria-busy="true"` during async operations for download, delete, and retry buttons
+  - Screen readers now properly announce that buttons are processing
 
 ### Task 258: Aria-live regions for subtitle changes (2026-01-28)
 
