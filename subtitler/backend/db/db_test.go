@@ -1736,6 +1736,70 @@ func TestWithTransactionUsesContext(t *testing.T) {
 	}
 }
 
+func TestWithTransactionPanicRecovery(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-tx-panic-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "panic-test-user",
+		Email:        "panictest@example.com",
+		PasswordHash: "hash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Verify user exists
+	originalUser, err := db.GetUserByID(user.ID)
+	if err != nil || originalUser == nil {
+		t.Fatalf("User should exist before transaction")
+	}
+
+	// Execute transaction that panics after making a change
+	panicMsg := "test panic in transaction"
+	func() {
+		defer func() {
+			p := recover()
+			if p == nil {
+				t.Fatal("Expected panic to be re-raised")
+			}
+			if p != panicMsg {
+				t.Errorf("Expected panic message '%s', got '%v'", panicMsg, p)
+			}
+		}()
+
+		_ = db.WithTransaction(func(tx *Tx) error {
+			// Make a change
+			_, err := tx.tx.Exec(`UPDATE users SET email = 'panic-changed@example.com' WHERE id = ?`, user.ID)
+			if err != nil {
+				return err
+			}
+			// Panic after the change
+			panic(panicMsg)
+		})
+	}()
+
+	// Verify the change was rolled back
+	unchangedUser, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("Failed to get user after panic: %v", err)
+	}
+	if unchangedUser.Email != "panictest@example.com" {
+		t.Errorf("Expected email to be rolled back to 'panictest@example.com', got '%s' (rollback on panic failed)", unchangedUser.Email)
+	}
+}
+
 func TestEnableTOTPWithRecoveryCodes(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.db")
 	if err != nil {

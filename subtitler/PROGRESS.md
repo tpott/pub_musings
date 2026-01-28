@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**233 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**234 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -179,7 +179,10 @@ Deep code review using exploration agents identified areas for improvement:
   - Modified `GetSessionsByUserID()` to use the limit by default
   - Added `GetSessionsByUserIDWithLimit()` for custom limit queries
   - 6 unit tests covering limit behavior and edge cases
-- Task 234: Add panic recovery to WithTransaction
+- ✅ Task 234: Add panic recovery to WithTransaction
+  - Added `defer recover()` to `WithTransaction()` to catch panics
+  - Rolls back transaction before re-panicking to preserve stack trace
+  - Test verifies database changes are rolled back when transaction panics
 - Task 235: Validate environment variable ranges
 
 **Backend (Operations):**

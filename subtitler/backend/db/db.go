@@ -318,8 +318,10 @@ type Tx struct {
 // WithTransaction executes the given function within a database transaction.
 // If the function returns an error, the transaction is rolled back.
 // If the function succeeds, the transaction is committed.
+// If the function panics, the transaction is rolled back and the panic is re-raised
+// to preserve the original stack trace.
 // The transaction uses a context with timeout (default 30s) to prevent indefinite hangs.
-func (db *DB) WithTransaction(fn func(*Tx) error) error {
+func (db *DB) WithTransaction(fn func(*Tx) error) (err error) {
 	ctx, cancel := db.queryContext()
 	defer cancel()
 
@@ -327,6 +329,16 @@ func (db *DB) WithTransaction(fn func(*Tx) error) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
+	// Ensure transaction is rolled back on panic
+	defer func() {
+		if p := recover(); p != nil {
+			// Attempt to rollback - best effort, don't override panic
+			_ = tx.Rollback()
+			// Re-panic to preserve the original stack trace
+			panic(p)
+		}
+	}()
 
 	txWrapper := &Tx{tx: tx}
 	if err := fn(txWrapper); err != nil {
