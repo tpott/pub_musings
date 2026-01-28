@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**287 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**289 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**287 tasks completed.** Working through remaining tasks from deep inspection.
+**289 tasks completed.** Working through remaining tasks from deep inspection.
 
 ### Recent Work (2026-01-28)
+
+**Task 289: Form Error Handling Utility**
+- Created src/utils/form-errors.ts with clearFieldError() and showFieldError()
+- Removed duplicate implementations from 5 astro files (login, register, settings, forgot-password, reset-password)
+- Added 10 unit tests in form-errors.test.ts
+
+**Task 288: Session Loading Timeout**
+- Added AbortController with 30 second timeout to `loadSessions()` in settings.astro
+- Shows "Request timed out. Please try again." message on timeout
+- Prevents UI hanging on slow networks
 
 **Task 281: GetExpiredVideos Pagination**
 - Added `GetExpiredVideosPaginated(limit, offset)` with `CountExpiredVideos()` helper
