@@ -860,10 +860,11 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 			}
 			return nil, fmt.Errorf("whisper-server request failed after %d attempts: %v", maxRetries, err)
 		}
-		defer resp.Body.Close()
 
 		// Read response with size limit to prevent memory exhaustion from malformed responses
 		respBody, err = io.ReadAll(io.LimitReader(resp.Body, maxWhisperResponseSize))
+		// Close response body immediately after reading to prevent leaks on retries
+		resp.Body.Close()
 		if err != nil {
 			lastErr = err
 			if attempt < maxRetries-1 {
