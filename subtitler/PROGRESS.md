@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**241 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**242 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -216,7 +216,11 @@ Deep code review using exploration agents identified areas for improvement:
   - Covers advanced features and security capabilities
 
 **Features:**
-- Task 239: Implement embedded subtitle extraction (Phase 2)
+- ✅ Task 239: Implemented embedded subtitle extraction (Phase 2)
+  - Added ExtractSubtitleTrack() function using ffmpeg
+  - Added GET /api/videos/{id}/embedded-subtitles/{track} endpoint
+  - Frontend shows "Use embedded subtitles" notice with track selection
+  - Loads extracted subtitles into editor, replacing Whisper transcription
 - Task 240: Add admin dashboard for feedback viewing
 
 **UX:**
