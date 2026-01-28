@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**270 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**271 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**270 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**271 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 271: Create specs/error-handling.md (2026-01-28)
+
+- ✅ Task 271: Created error handling specification document
+  - Documents the `backend/errmsg` package and its usage
+  - Explains verbose mode controlled by `LOG_VERBOSE` env var
+  - Lists all user-friendly error message constants
+  - Provides usage guidelines (when to use vs not use)
+  - Documents sensitive information patterns to protect
+  - Includes testing examples for production error verification
 
 ### Task 270: Add arrow key navigation to speed dropdown (2026-01-28)
 
