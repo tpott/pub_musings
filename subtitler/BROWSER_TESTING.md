@@ -353,6 +353,50 @@ module.exports = defineConfig({
 });
 ```
 
+## Current E2E Test Coverage
+
+The following E2E test files provide comprehensive coverage of critical user flows:
+
+### Upload Flow (`e2e/upload-flow.spec.ts`)
+
+| Test Scenario | Description |
+|---------------|-------------|
+| Display upload page correctly | Verifies page title, heading, dropzone visibility |
+| Accept video file via file input | Tests file selection triggers upload |
+| Full upload-to-download flow | Complete flow: upload → transcribe → edit → download |
+| Video preview area | Verifies preview elements are present |
+| Transcription section | Verifies transcription UI elements |
+| Paste transcript section | Tests lyrics/transcript paste UI |
+| Script conversion options | Verifies language/script conversion UI |
+| Download format buttons | Verifies SRT/VTT/JSON download buttons |
+| Burn subtitles button | Verifies burn subtitles functionality |
+| Only accept video files | Validates accept="video/*" attribute |
+| Dropzone responds to drag events | Tests drag-and-drop interactivity |
+| Video stays visible during segment navigation | Regression test for scroll behavior |
+| Video stays visible during playback | Regression test for auto-scroll |
+| Re-transcribe with language change | Tests force re-transcription |
+| Confirmation for auto language | Tests warning dialog |
+
+### Chunked Upload (`e2e/chunked-upload.spec.ts`)
+
+| Test Scenario | Description |
+|---------------|-------------|
+| Initiate chunked upload for >50MB files | Tests chunked upload API initialization |
+| Show chunk progress during upload | Verifies progress updates during chunked upload |
+| Handle chunk upload failure gracefully | Tests error handling for failed chunks |
+| Store session ID in localStorage | Tests upload resumability |
+| Send correct init request format | Validates API request structure |
+
+### Other E2E Tests
+
+| File | Coverage |
+|------|----------|
+| `e2e/home.spec.ts` | Homepage display and navigation |
+| `e2e/auth.spec.ts` | Login, registration, logout flows |
+| `e2e/videos.spec.ts` | Video listing and management |
+| `e2e/subtitle-download.spec.ts` | Subtitle download formats |
+| `e2e/capture-design.spec.ts` | Design capture utilities |
+
 ## Quick Reference
 
 | Command | Description |
