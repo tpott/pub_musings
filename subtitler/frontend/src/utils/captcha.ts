@@ -5,6 +5,9 @@ export interface CaptchaConfig {
 	site_key: string;
 }
 
+// Timeout for loading hCaptcha script from CDN
+const HCAPTCHA_LOAD_TIMEOUT_MS = 15000;
+
 let captchaConfig: CaptchaConfig | null = null;
 let hcaptchaLoaded = false;
 let hcaptchaLoadPromise: Promise<void> | null = null;
@@ -30,7 +33,15 @@ export async function getCaptchaConfig(): Promise<CaptchaConfig> {
 	}
 }
 
-// Load the hCaptcha script dynamically
+// Custom error class for script load timeout
+export class CaptchaLoadTimeoutError extends Error {
+	constructor(message: string = 'hCaptcha script load timed out') {
+		super(message);
+		this.name = 'CaptchaLoadTimeoutError';
+	}
+}
+
+// Load the hCaptcha script dynamically with timeout
 function loadHCaptchaScript(): Promise<void> {
 	if (hcaptchaLoadPromise) {
 		return hcaptchaLoadPromise;
@@ -46,12 +57,21 @@ function loadHCaptchaScript(): Promise<void> {
 		script.async = true;
 		script.defer = true;
 
+		// Timeout to prevent indefinite waiting
+		const timeoutId = setTimeout(() => {
+			hcaptchaLoadPromise = null;
+			script.remove();
+			reject(new CaptchaLoadTimeoutError());
+		}, HCAPTCHA_LOAD_TIMEOUT_MS);
+
 		script.onload = () => {
+			clearTimeout(timeoutId);
 			hcaptchaLoaded = true;
 			resolve();
 		};
 
 		script.onerror = () => {
+			clearTimeout(timeoutId);
 			hcaptchaLoadPromise = null;
 			reject(new Error('Failed to load hCaptcha script'));
 		};

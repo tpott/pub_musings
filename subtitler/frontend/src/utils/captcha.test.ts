@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getCaptchaConfig, getCaptchaToken, resetCaptcha } from './captcha';
+import { getCaptchaConfig, getCaptchaToken, resetCaptcha, CaptchaLoadTimeoutError } from './captcha';
 
 describe('CAPTCHA utility', () => {
 	beforeEach(() => {
@@ -52,4 +52,22 @@ describe('CAPTCHA utility', () => {
 	// Note: getCaptchaToken and resetCaptcha tests require a browser environment
 	// with the hcaptcha script loaded. These are better tested via E2E tests.
 	// The core logic is simple: check if hcaptcha global exists and call its methods.
+
+	describe('CaptchaLoadTimeoutError', () => {
+		it('should be a named error class', () => {
+			const error = new CaptchaLoadTimeoutError();
+			expect(error.name).toBe('CaptchaLoadTimeoutError');
+			expect(error.message).toBe('hCaptcha script load timed out');
+		});
+
+		it('should accept custom message', () => {
+			const error = new CaptchaLoadTimeoutError('Custom timeout message');
+			expect(error.message).toBe('Custom timeout message');
+		});
+
+		it('should be an instance of Error', () => {
+			const error = new CaptchaLoadTimeoutError();
+			expect(error).toBeInstanceOf(Error);
+		});
+	});
 });

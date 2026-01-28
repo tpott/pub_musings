@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**298 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**299 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -141,6 +141,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 **297 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 299: Add Timeout to CAPTCHA Script Loading (COMPLETE)**
+- Added 15 second timeout when loading hCaptcha script from CDN
+- Created `CaptchaLoadTimeoutError` class for specific error handling
+- Clears pending promise and removes script on timeout
+- Prevents indefinite hanging if CDN is slow/unreachable
+- Added 3 unit tests for the error class
 
 **Task 298: Consolidate Password Validation Logic (COMPLETE)**
 - auth.ValidatePassword() now calls validation.ValidatePassword() for length checks
