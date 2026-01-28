@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**269 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**270 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**269 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**270 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 270: Add arrow key navigation to speed dropdown (2026-01-28)
+
+- ✅ Task 270: Added keyboard navigation to speed dropdown menu
+  - Updated `speed-control.ts` with arrow key navigation (Up/Down to move, Enter/Space to select)
+  - Escape closes menu, Tab closes and moves to next element
+  - Added `focusedIndex` state tracking for keyboard focus
+  - Added `.focused` CSS class to both upload.astro and videos.astro
+  - Focus automatically moves to active speed option when menu opens
+  - Tests updated to document keyboard navigation behavior
 
 ### Task 269: Add composite index for login_attempts (2026-01-28)
 

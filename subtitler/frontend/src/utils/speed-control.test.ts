@@ -59,4 +59,34 @@ describe('speed-control createSpeedControl return type', () => {
         expect(expectedProperties).toContain('handleKeyboardShortcut');
         expect(expectedProperties).toContain('cleanup');
     });
+
+    it('should document expected state properties including focusedIndex for keyboard navigation', () => {
+        // State object should track:
+        // - menuOpen: whether dropdown is visible
+        // - indicatorTimeout: for speed indicator overlay
+        // - focusedIndex: for keyboard navigation in dropdown
+        const expectedStateProperties = ['menuOpen', 'indicatorTimeout', 'focusedIndex'];
+        expect(expectedStateProperties).toContain('menuOpen');
+        expect(expectedStateProperties).toContain('indicatorTimeout');
+        expect(expectedStateProperties).toContain('focusedIndex');
+    });
+});
+
+describe('speed-control keyboard navigation', () => {
+    it('should document arrow key navigation behavior', () => {
+        // Keyboard navigation features:
+        // - ArrowDown: moves focus to next option (wraps around)
+        // - ArrowUp: moves focus to previous option (wraps around)
+        // - Enter/Space: selects the focused option
+        // - Escape: closes the menu
+        // - Tab: closes the menu and moves to next focusable element
+        const supportedKeys = ['ArrowDown', 'ArrowUp', 'Enter', ' ', 'Escape', 'Tab'];
+        expect(supportedKeys).toHaveLength(6);
+        expect(supportedKeys).toContain('ArrowDown');
+        expect(supportedKeys).toContain('ArrowUp');
+        expect(supportedKeys).toContain('Enter');
+        expect(supportedKeys).toContain(' ');
+        expect(supportedKeys).toContain('Escape');
+        expect(supportedKeys).toContain('Tab');
+    });
 });

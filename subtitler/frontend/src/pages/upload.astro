@@ -211,12 +211,22 @@ import '../styles/theme.css';
 			.speed-option:last-child {
 				border-radius: 0 0 6px 6px;
 			}
-			.speed-option:hover {
+			.speed-option:hover,
+			.speed-option.focused {
 				background-color: var(--hover-bg);
+			}
+			.speed-option:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: -2px;
 			}
 			.speed-option.active {
 				background-color: var(--accent-color);
 				color: #fff;
+			}
+			.speed-option.active.focused {
+				background-color: var(--accent-color);
+				outline: 2px solid #fff;
+				outline-offset: -2px;
 			}
 			.transcription {
 				margin-top: 2rem;

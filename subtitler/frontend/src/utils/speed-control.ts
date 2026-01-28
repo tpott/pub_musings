@@ -21,6 +21,7 @@ export interface SpeedControlElements {
 export interface SpeedControlState {
     menuOpen: boolean;
     indicatorTimeout: number | null;
+    focusedIndex: number;
 }
 
 /**
@@ -41,12 +42,34 @@ export function createSpeedControl(elements: SpeedControlElements): {
 
     const state: SpeedControlState = {
         menuOpen: false,
-        indicatorTimeout: null
+        indicatorTimeout: null,
+        focusedIndex: -1
     };
 
     // AbortController for cleanup
     const abortController = new AbortController();
     const signal = abortController.signal;
+
+    /**
+     * Get all speed option elements
+     */
+    function getOptions(): HTMLElement[] {
+        return Array.from(speedOptions.querySelectorAll('.speed-option')) as HTMLElement[];
+    }
+
+    /**
+     * Update focus styling on options
+     */
+    function updateFocus(index: number) {
+        const options = getOptions();
+        options.forEach((opt, i) => {
+            opt.classList.toggle('focused', i === index);
+            opt.setAttribute('tabindex', i === index ? '0' : '-1');
+        });
+        if (index >= 0 && index < options.length) {
+            options[index].focus();
+        }
+    }
 
     /**
      * Update the speed button and options UI to reflect current speed
@@ -84,6 +107,16 @@ export function createSpeedControl(elements: SpeedControlElements): {
         state.menuOpen = !state.menuOpen;
         speedOptions.style.display = state.menuOpen ? 'block' : 'none';
         speedBtn.setAttribute('aria-expanded', state.menuOpen.toString());
+
+        if (state.menuOpen) {
+            // Find the currently active option and focus it
+            const options = getOptions();
+            const activeIndex = options.findIndex(opt => opt.classList.contains('active'));
+            state.focusedIndex = activeIndex >= 0 ? activeIndex : 0;
+            updateFocus(state.focusedIndex);
+        } else {
+            state.focusedIndex = -1;
+        }
     }
 
     /**
@@ -93,6 +126,8 @@ export function createSpeedControl(elements: SpeedControlElements): {
         state.menuOpen = false;
         speedOptions.style.display = 'none';
         speedBtn.setAttribute('aria-expanded', 'false');
+        state.focusedIndex = -1;
+        speedBtn.focus(); // Return focus to button
     }
 
     /**
@@ -153,6 +188,58 @@ export function createSpeedControl(elements: SpeedControlElements): {
                 const speed = parseFloat(option.dataset.speed || '1');
                 if (PLAYBACK_SPEEDS.includes(speed as PlaybackSpeed)) {
                     handleSpeedChange(speed as PlaybackSpeed);
+                }
+            }
+        }, { signal });
+
+        // Keyboard navigation handler for the dropdown menu
+        speedOptions.addEventListener('keydown', (e) => {
+            const options = getOptions();
+            if (options.length === 0) return;
+
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    state.focusedIndex = (state.focusedIndex + 1) % options.length;
+                    updateFocus(state.focusedIndex);
+                    break;
+
+                case 'ArrowUp':
+                    e.preventDefault();
+                    state.focusedIndex = (state.focusedIndex - 1 + options.length) % options.length;
+                    updateFocus(state.focusedIndex);
+                    break;
+
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    if (state.focusedIndex >= 0 && state.focusedIndex < options.length) {
+                        const option = options[state.focusedIndex];
+                        const speed = parseFloat(option.dataset.speed || '1');
+                        if (PLAYBACK_SPEEDS.includes(speed as PlaybackSpeed)) {
+                            handleSpeedChange(speed as PlaybackSpeed);
+                        }
+                    }
+                    break;
+
+                case 'Escape':
+                    e.preventDefault();
+                    closeMenu();
+                    break;
+
+                case 'Tab':
+                    // Close menu on Tab to allow natural focus flow
+                    closeMenu();
+                    break;
+            }
+        }, { signal });
+
+        // Also allow keyboard navigation when speed button has focus
+        speedBtn.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!state.menuOpen) {
+                    toggleMenu();
                 }
             }
         }, { signal });
