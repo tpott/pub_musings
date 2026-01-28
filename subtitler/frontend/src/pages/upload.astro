@@ -943,6 +943,15 @@ import '../styles/theme.css';
 				font-weight: 500;
 				color: var(--text-color);
 			}
+			.detected-language .detected-value.confidence-high {
+				color: var(--success-color, #22c55e);
+			}
+			.detected-language .detected-value.confidence-medium {
+				color: var(--warning-color, #f59e0b);
+			}
+			.detected-language .detected-value.confidence-low {
+				color: var(--text-secondary);
+			}
 			.retranscribe-btn {
 				padding: 0.5rem 1rem;
 				background-color: var(--accent-color);
@@ -1693,6 +1702,67 @@ import '../styles/theme.css';
 			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY);
 			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY);
 
+			// Handle language hints from upload response
+			// This shows detected language hints before transcription starts so user can override
+			interface LanguageHint {
+				source: string;  // "metadata" or "filename"
+				language: string;  // ISO 639-1 code
+				language_name: string;  // Human-readable name
+				confidence: string;  // "high", "medium", "low"
+				raw_value: string;  // Original value before normalization
+			}
+
+			interface LanguageHints {
+				hints: LanguageHint[];
+				suggested_language: string;
+				suggested_confidence: string;
+			}
+
+			function handleLanguageHints(languageHints: LanguageHints | undefined) {
+				if (!languageHints || !languageHints.hints || languageHints.hints.length === 0) {
+					return;
+				}
+
+				// Show the language section
+				languageSection.style.display = 'block';
+
+				// Get the suggested language
+				const suggestedLang = languageHints.suggested_language;
+				const confidence = languageHints.suggested_confidence;
+
+				if (suggestedLang) {
+					// Pre-select the suggested language in the dropdown
+					// Only if user hasn't already selected a specific language
+					const currentSelection = transcriptionLanguageSelect.value;
+					if (currentSelection === 'auto') {
+						// Check if the language is available in the dropdown
+						const langOption = transcriptionLanguageSelect.querySelector(`option[value="${suggestedLang}"]`) as HTMLOptionElement | null;
+						if (langOption) {
+							transcriptionLanguageSelect.value = suggestedLang;
+						}
+					}
+
+					// Build the source info text
+					const sources = languageHints.hints.map(h => h.source).join(', ');
+					const displayName = languageDisplayNames[suggestedLang] || languageHints.hints[0]?.language_name || suggestedLang.toUpperCase();
+
+					// Show the detected language indicator with confidence
+					let confidenceClass = '';
+					if (confidence === 'high') {
+						confidenceClass = 'confidence-high';
+					} else if (confidence === 'medium') {
+						confidenceClass = 'confidence-medium';
+					} else {
+						confidenceClass = 'confidence-low';
+					}
+
+					detectedLanguageValue.textContent = displayName;
+					detectedLanguageValue.className = `detected-value ${confidenceClass}`;
+					detectedLanguageValue.title = `Detected from ${sources} (${confidence} confidence)`;
+					detectedLanguage.style.display = 'block';
+				}
+			}
+
 			// Clean up stale upload sessions on page load
 			cleanupStaleUploadSessions();
 
@@ -2097,6 +2167,11 @@ import '../styles/theme.css';
 				hideProgress();
 				showStatus(`Upload complete! Starting transcription...`, 'success');
 
+				// Handle language hints from upload response (if any)
+				if (result.language_hints) {
+					handleLanguageHints(result.language_hints);
+				}
+
 				// Store upload ID and start transcription
 				currentUploadId = result.upload_id;
 				startTranscription(result.upload_id);
@@ -2275,6 +2350,11 @@ import '../styles/theme.css';
 
 				hideProgress();
 				showStatus(`Upload complete! Starting transcription...`, 'success');
+
+				// Handle language hints from upload response (if any)
+				if (result.language_hints) {
+					handleLanguageHints(result.language_hints);
+				}
 
 				// Store upload ID and start transcription
 				currentUploadId = result.upload_id;

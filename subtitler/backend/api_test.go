@@ -27,6 +27,7 @@ import (
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/errmsg"
 	"github.com/trevor/subtitler/backend/httputil"
+	"github.com/trevor/subtitler/backend/language"
 	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
 	"github.com/trevor/subtitler/backend/ratelimit"
@@ -1490,6 +1491,29 @@ func (ts *testServer) registerHandlers() {
 		// Serve the file
 		http.ServeFile(w, r, thumbPath)
 	}))
+
+	// Get language hints for a video
+	ts.mux.HandleFunc("GET /api/videos/{id}/language-hints", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
+			return
+		}
+
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "Database error")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		// Run language detection (no decryption needed in tests, just use filename)
+		result := language.Detect("", video.Filename)
+		json.NewEncoder(w).Encode(result)
+	})
 
 	// Download SRT file
 	ts.mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
@@ -9156,5 +9180,189 @@ func TestFeedbackSubmitDefaultType(t *testing.T) {
 
 	if feedback.Type != "general" {
 		t.Errorf("Expected default type 'general', got '%s'", feedback.Type)
+	}
+}
+
+// Language hints endpoint tests
+
+func TestLanguageHintsEndpointVideoNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Request language hints for non-existent video
+	resp := ts.doRequest("GET", "/api/videos/"+testGenerateID()+"/language-hints", nil, "")
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if result["error"] != "Video not found" {
+		t.Errorf("Expected 'Video not found' error, got: %v", result["error"])
+	}
+}
+
+func TestLanguageHintsEndpointInvalidID(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Request with invalid ID format
+	resp := ts.doRequest("GET", "/api/videos/invalid-id/language-hints", nil, "")
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestLanguageHintsEndpointFilenameDetection(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test video with language in filename
+	sessionID := "test-session-123"
+	video := &db.Video{
+		ID:          testGenerateID(),
+		Filename:    "movie.en.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    filepath.Join(ts.uploadDir, "test.mp4"),
+		SessionID:   &sessionID,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create test video: %v", err)
+	}
+
+	// Request language hints
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Hints []struct {
+			Source       string `json:"source"`
+			Language     string `json:"language"`
+			LanguageName string `json:"language_name"`
+			Confidence   string `json:"confidence"`
+			RawValue     string `json:"raw_value"`
+		} `json:"hints"`
+		SuggestedLanguage   string `json:"suggested_language"`
+		SuggestedConfidence string `json:"suggested_confidence"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if len(result.Hints) == 0 {
+		t.Error("Expected at least one language hint")
+	}
+
+	// Should detect English from filename pattern "movie.en.mp4"
+	if result.SuggestedLanguage != "en" {
+		t.Errorf("Expected suggested language 'en', got '%s'", result.SuggestedLanguage)
+	}
+
+	if result.SuggestedConfidence != "high" {
+		t.Errorf("Expected high confidence for ISO code before extension, got '%s'", result.SuggestedConfidence)
+	}
+}
+
+func TestLanguageHintsEndpointNoHints(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test video with no language indicators
+	sessionID := "test-session-456"
+	video := &db.Video{
+		ID:          testGenerateID(),
+		Filename:    "random_video.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    filepath.Join(ts.uploadDir, "test.mp4"),
+		SessionID:   &sessionID,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create test video: %v", err)
+	}
+
+	// Request language hints
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Hints               []interface{} `json:"hints"`
+		SuggestedLanguage   string        `json:"suggested_language"`
+		SuggestedConfidence string        `json:"suggested_confidence"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Should return empty hints when no language detected
+	if len(result.Hints) != 0 {
+		t.Errorf("Expected no hints, got %d", len(result.Hints))
+	}
+
+	if result.SuggestedLanguage != "" {
+		t.Errorf("Expected empty suggested language, got '%s'", result.SuggestedLanguage)
+	}
+}
+
+func TestLanguageHintsEndpointSpanishFilename(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a test video with Spanish language in filename
+	sessionID := "test-session-789"
+	video := &db.Video{
+		ID:          testGenerateID(),
+		Filename:    "pelicula_spanish.mp4",
+		Size:        1024,
+		ContentType: "video/mp4",
+		FilePath:    filepath.Join(ts.uploadDir, "test.mp4"),
+		SessionID:   &sessionID,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := ts.db.CreateVideo(video); err != nil {
+		t.Fatalf("Failed to create test video: %v", err)
+	}
+
+	// Request language hints
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Hints []struct {
+			Language     string `json:"language"`
+			LanguageName string `json:"language_name"`
+		} `json:"hints"`
+		SuggestedLanguage string `json:"suggested_language"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	// Should detect Spanish from filename
+	if result.SuggestedLanguage != "es" {
+		t.Errorf("Expected suggested language 'es', got '%s'", result.SuggestedLanguage)
+	}
+
+	// Verify language name is set
+	if len(result.Hints) > 0 && result.Hints[0].LanguageName != "Spanish" {
+		t.Errorf("Expected language name 'Spanish', got '%s'", result.Hints[0].LanguageName)
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/trevor/subtitler/backend/email"
 	"github.com/trevor/subtitler/backend/errmsg"
 	"github.com/trevor/subtitler/backend/httputil"
+	"github.com/trevor/subtitler/backend/language"
 	"github.com/trevor/subtitler/backend/logging"
 	"github.com/trevor/subtitler/backend/metrics"
 	"github.com/trevor/subtitler/backend/pathvalidator"
@@ -3108,6 +3109,15 @@ func main() {
 			}
 		}
 
+		// Detect language hints from video metadata and filename (before encryption)
+		languageHints := language.Detect(destPath, header.Filename)
+		if languageHints != nil && len(languageHints.Hints) > 0 {
+			logging.InfoContext(r.Context(), "Detected language hints",
+				"suggested_language", languageHints.SuggestedLanguage,
+				"confidence", languageHints.SuggestedConfidence,
+				"hint_count", len(languageHints.Hints))
+		}
+
 		// Encrypt the file at rest with current key version
 		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
@@ -3183,14 +3193,19 @@ func main() {
 		metrics.RecordUploadSuccess()
 		metrics.RecordUploadBytes(written)
 
-		// Return success with upload ID
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		// Return success with upload ID and language hints
+		response := map[string]interface{}{
 			"status":    "success",
 			"upload_id": uploadID,
 			"filename":  header.Filename,
 			"size":      written,
 			"message":   fmt.Sprintf("File uploaded successfully (%d bytes)", written),
-		})
+		}
+		// Include language hints if any were detected
+		if languageHints != nil && len(languageHints.Hints) > 0 {
+			response["language_hints"] = languageHints
+		}
+		json.NewEncoder(w).Encode(response)
 	}))
 
 	// Initialize chunked upload session (rate limited: 10/min per IP)
@@ -3740,6 +3755,15 @@ func main() {
 			}
 		}
 
+		// Detect language hints from video metadata and filename (before encryption)
+		languageHints := language.Detect(destPath, session.Filename)
+		if languageHints != nil && len(languageHints.Hints) > 0 {
+			logging.InfoContext(r.Context(), "Detected language hints",
+				"suggested_language", languageHints.SuggestedLanguage,
+				"confidence", languageHints.SuggestedConfidence,
+				"hint_count", len(languageHints.Hints))
+		}
+
 		// Encrypt the file with current key version
 		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
@@ -3816,13 +3840,19 @@ func main() {
 			"filename", session.Filename,
 			"size", totalWritten)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		// Return success with language hints
+		response := map[string]interface{}{
 			"status":    "success",
 			"upload_id": uploadID,
 			"filename":  session.Filename,
 			"size":      totalWritten,
 			"message":   fmt.Sprintf("File uploaded successfully (%d bytes)", totalWritten),
-		})
+		}
+		// Include language hints if any were detected
+		if languageHints != nil && len(languageHints.Hints) > 0 {
+			response["language_hints"] = languageHints
+		}
+		json.NewEncoder(w).Encode(response)
 	}))
 
 	// Get chunked upload status (rate limited: 30/min per IP)
@@ -5215,6 +5245,54 @@ func main() {
 		// Serve the file
 		http.ServeFile(w, r, thumbPath)
 	}))
+
+	// Get language detection hints for a video
+	// This analyzes video metadata (ffprobe) and filename patterns to suggest the spoken language
+	mux.HandleFunc("GET /api/videos/{id}/language-hints", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
+			return
+		}
+
+		// Get video from database
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video for language hints", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Database error")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		// Get the decrypted video file path for metadata analysis
+		// We need the actual file to run ffprobe
+		var videoPath string
+		if video.FilePath != "" {
+			if strings.HasSuffix(video.FilePath, ".age") {
+				// Decrypt temporarily for analysis
+				decryptedPath, err := multiEnc.DecryptToTempFile(video.FilePath, video.KeyVersion)
+				if err != nil {
+					logging.ErrorContext(r.Context(), "Failed to decrypt video for language analysis", "error", err)
+					// Fall back to filename-only detection
+					result := language.Detect("", video.Filename)
+					json.NewEncoder(w).Encode(result)
+					return
+				}
+				defer os.Remove(decryptedPath)
+				videoPath = decryptedPath
+			} else {
+				videoPath = video.FilePath
+			}
+		}
+
+		// Run language detection
+		result := language.Detect(videoPath, video.Filename)
+
+		json.NewEncoder(w).Encode(result)
+	})
 
 	// Start burning subtitles into video (rate limited: 2/min per IP)
 	// Mode: "burn" (default) hardcodes subtitles into video frames

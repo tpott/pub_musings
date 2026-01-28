@@ -138,9 +138,19 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**223 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**224 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
 
 ### Recently Completed (2026-01-27)
+- Task 218: Feature - Improve language auto-detection
+  - Created `backend/language` package with comprehensive language detection
+  - Implements `DetectFromMetadata()` using ffprobe to extract audio track language tags
+  - Implements `DetectFromFilename()` using regex patterns (ISO codes, language names)
+  - Added `GET /api/videos/{id}/language-hints` endpoint
+  - Language hints returned in upload response (simple and chunked)
+  - Frontend displays hints before transcription with confidence indicators
+  - 136+ tests covering language detection and API endpoints
+  - See: `specs/language-detection.md`
+
 - Task 213: Feature - Implement user feedback system
   - Created `specs/feedback.md` with design document
   - Database migration 007 adds `feedback` table
