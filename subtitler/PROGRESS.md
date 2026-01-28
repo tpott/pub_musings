@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**223 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**224 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -138,7 +138,44 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**224 tasks completed.** Fifth deep inspection (2026-01-27) identified improvements; user feedback filed 14 new tasks (211-224).
+**224 tasks completed.** Sixth deep inspection (2026-01-27) identified improvements; filed 19 new tasks (225-243).
+
+### Tasks 225-243: Deep Inspection Findings (2026-01-27)
+
+Deep code review using exploration agents identified areas for improvement:
+
+**Frontend (Memory/Performance):**
+- Task 225: Fix memory leak in videos.astro pagination handlers
+- Task 226: Add focus indicators for keyboard navigation elements
+- Task 230: Add transcription cache cleanup to prevent unbounded growth
+
+**Frontend (Code Quality):**
+- Task 227: Extract navigation component to reduce duplication (~150 lines)
+- Task 228: Extract auth check logic to shared utility (~160 lines)
+- Task 229: Add aria-describedby for form error associations
+
+**Backend (Security/Performance):**
+- Task 231: Sanitize file extensions in path construction
+- Task 232: Configure SQLite connection pool limits
+- Task 233: Add session listing pagination/limit
+- Task 234: Add panic recovery to WithTransaction
+- Task 235: Validate environment variable ranges
+
+**Backend (Operations):**
+- Task 236: Add security events for admin operations
+
+**Documentation:**
+- Task 237: Update deployment.md to remove chunked uploads from Future
+- Task 238: Create specs/metrics.md for Prometheus metrics system
+- Task 241: Add recent features to README.md
+
+**Features:**
+- Task 239: Implement embedded subtitle extraction (Phase 2)
+- Task 240: Add admin dashboard for feedback viewing
+
+**UX:**
+- Task 242: Show on-screen indicator for playback speed changes
+- Task 243: Show actual file size in upload error messages
 
 ### Recently Completed (2026-01-27)
 - Task 218: Feature - Improve language auto-detection

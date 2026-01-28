@@ -808,3 +808,24 @@ This is an information disclosure vulnerability - production error messages shou
 **Solution:** Changed from `downloadSRT()/downloadVTT()/downloadJSON()` functions to `openSRT()/openVTT()/openJSON()` which open content in new browser tabs using `window.open()` with blob URLs.
 
 **Lesson:** Understand user intent before implementing. "View subtitles" ≠ "Download subtitles". The user wanted to preview/copy subtitle content in browser, not download files.
+
+---
+
+### 2026-01-27: Automated deep inspections identify technical debt
+
+**Problem:** With 224 tasks completed, all explicit work is done. How to find improvement opportunities?
+
+**Solution:** Used parallel exploration agents to analyze:
+1. **Frontend code** - Found memory leaks (event handlers not removed on pagination), ~300 lines of duplicated code (nav bars, auth checks), missing accessibility (aria-describedby for form errors)
+2. **Backend code** - Found file extension sanitization gap, missing session pagination limits, no panic recovery in WithTransaction
+3. **Specs vs implementation** - deployment.md still lists chunked uploads as "Future" (already implemented), missing specs for metrics/logging/migrations
+4. **Documentation** - ENV.md missing some rate limit variables, RATE_LIMITS.md doesn't mention USER_RATE_LIMIT
+
+Filed 19 new improvement tasks (225-243) covering security, performance, code quality, and documentation.
+
+**Lesson:**
+1. When out of explicit tasks, do systematic code review with multiple perspectives
+2. Memory leaks from event listeners are common - especially in pagination where list is re-rendered
+3. Navigation/auth code duplication across pages indicates need for shared components
+4. Specs can drift from implementation - periodic audits catch this
+5. Parallel exploration agents can cover more ground faster than sequential analysis
