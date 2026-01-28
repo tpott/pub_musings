@@ -530,6 +530,151 @@ func TestGetExpiredVideos(t *testing.T) {
 	}
 }
 
+func TestGetExpiredVideosPaginated(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create 5 expired anonymous videos
+	for i := 0; i < 5; i++ {
+		video := &Video{
+			ID:          fmt.Sprintf("expired-%d", i),
+			Filename:    fmt.Sprintf("expired-%d.mp4", i),
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    fmt.Sprintf("/uploads/expired-%d.mp4", i),
+			CreatedAt:   time.Now().Add(-50*time.Hour - time.Duration(i)*time.Hour), // Stagger times for consistent ordering
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create expired video %d: %v", i, err)
+		}
+	}
+
+	// Test pagination with limit
+	t.Run("limit 2", func(t *testing.T) {
+		expired, err := db.GetExpiredVideosPaginated(2, 0)
+		if err != nil {
+			t.Fatalf("Failed to get expired videos: %v", err)
+		}
+		if len(expired) != 2 {
+			t.Errorf("Expected 2 expired videos, got %d", len(expired))
+		}
+	})
+
+	t.Run("limit 3 offset 2", func(t *testing.T) {
+		expired, err := db.GetExpiredVideosPaginated(3, 2)
+		if err != nil {
+			t.Fatalf("Failed to get expired videos: %v", err)
+		}
+		if len(expired) != 3 {
+			t.Errorf("Expected 3 expired videos, got %d", len(expired))
+		}
+	})
+
+	t.Run("offset beyond data", func(t *testing.T) {
+		expired, err := db.GetExpiredVideosPaginated(10, 100)
+		if err != nil {
+			t.Fatalf("Failed to get expired videos: %v", err)
+		}
+		if len(expired) != 0 {
+			t.Errorf("Expected 0 expired videos with large offset, got %d", len(expired))
+		}
+	})
+
+	t.Run("no limit returns all", func(t *testing.T) {
+		expired, err := db.GetExpiredVideosPaginated(0, 0)
+		if err != nil {
+			t.Fatalf("Failed to get expired videos: %v", err)
+		}
+		if len(expired) != 5 {
+			t.Errorf("Expected 5 expired videos with no limit, got %d", len(expired))
+		}
+	})
+
+	t.Run("ordering by created_at ASC", func(t *testing.T) {
+		expired, err := db.GetExpiredVideosPaginated(5, 0)
+		if err != nil {
+			t.Fatalf("Failed to get expired videos: %v", err)
+		}
+		// Oldest first (highest -time offset, so expired-4 should be first)
+		if expired[0].ID != "expired-4" {
+			t.Errorf("Expected oldest video (expired-4) first, got %s", expired[0].ID)
+		}
+	})
+}
+
+func TestCountExpiredVideos(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Initially no expired videos
+	count, err := db.CountExpiredVideos()
+	if err != nil {
+		t.Fatalf("Failed to count expired videos: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 expired videos initially, got %d", count)
+	}
+
+	// Create 3 expired anonymous videos
+	for i := 0; i < 3; i++ {
+		video := &Video{
+			ID:          fmt.Sprintf("expired-count-%d", i),
+			Filename:    fmt.Sprintf("expired-%d.mp4", i),
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    fmt.Sprintf("/uploads/expired-%d.mp4", i),
+			CreatedAt:   time.Now().Add(-50 * time.Hour),
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create expired video %d: %v", i, err)
+		}
+	}
+
+	// Create 2 fresh videos (should not be counted)
+	for i := 0; i < 2; i++ {
+		video := &Video{
+			ID:          fmt.Sprintf("fresh-count-%d", i),
+			Filename:    fmt.Sprintf("fresh-%d.mp4", i),
+			Size:        1024,
+			ContentType: "video/mp4",
+			FilePath:    fmt.Sprintf("/uploads/fresh-%d.mp4", i),
+			CreatedAt:   time.Now().Add(-1 * time.Hour),
+		}
+		if err := db.CreateVideo(video); err != nil {
+			t.Fatalf("Failed to create fresh video %d: %v", i, err)
+		}
+	}
+
+	// Should count only expired videos
+	count, err = db.CountExpiredVideos()
+	if err != nil {
+		t.Fatalf("Failed to count expired videos: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("Expected 3 expired videos, got %d", count)
+	}
+}
+
 func TestDeleteVideo(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.db")
 	if err != nil {

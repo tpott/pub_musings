@@ -912,23 +912,46 @@ func (db *DB) DisableTOTP(userID string) error {
 	return nil
 }
 
+// DefaultCleanupBatchSize is the default number of expired videos to process in each batch
+const DefaultCleanupBatchSize = 100
+
 // GetExpiredVideos returns videos that have exceeded their retention period.
 // Anonymous videos (no user_id) expire after 48 hours.
 // Registered user videos expire after 90 days.
+// Deprecated: Use GetExpiredVideosPaginated for large datasets to prevent OOM.
 func (db *DB) GetExpiredVideos() ([]Video, error) {
+	return db.GetExpiredVideosPaginated(0, 0) // No limit for backwards compatibility
+}
+
+// GetExpiredVideosPaginated returns a batch of expired videos with pagination.
+// Use limit=0 for no limit (not recommended for large datasets).
+// Anonymous videos expire after 48 hours, registered videos after 90 days.
+func (db *DB) GetExpiredVideosPaginated(limit, offset int) ([]Video, error) {
 	now := time.Now()
 	anonymousExpiry := now.Add(-48 * time.Hour)
 	registeredExpiry := now.Add(-90 * 24 * time.Hour)
 
-	rows, err := db.conn.Query(`
+	query := `
 		SELECT id, filename, size, content_type, file_path, thumbnail_path, key_version, created_at, user_id, session_id
 		FROM videos
 		WHERE (user_id IS NULL AND created_at < ?)
 		   OR (user_id IS NOT NULL AND created_at < ?)
-	`, anonymousExpiry, registeredExpiry)
+		ORDER BY created_at ASC`
 
+	args := []interface{}{anonymousExpiry, registeredExpiry}
+
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+		if offset > 0 {
+			query += " OFFSET ?"
+			args = append(args, offset)
+		}
+	}
+
+	rows, err := db.conn.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query expired videos: %w", err)
 	}
 	defer rows.Close()
 
@@ -936,12 +959,37 @@ func (db *DB) GetExpiredVideos() ([]Video, error) {
 	for rows.Next() {
 		var v Video
 		if err := rows.Scan(&v.ID, &v.Filename, &v.Size, &v.ContentType, &v.FilePath, &v.ThumbnailPath, &v.KeyVersion, &v.CreatedAt, &v.UserID, &v.SessionID); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan expired video: %w", err)
 		}
 		videos = append(videos, v)
 	}
 
-	return videos, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating expired videos: %w", err)
+	}
+
+	return videos, nil
+}
+
+// CountExpiredVideos returns the total count of expired videos.
+func (db *DB) CountExpiredVideos() (int, error) {
+	now := time.Now()
+	anonymousExpiry := now.Add(-48 * time.Hour)
+	registeredExpiry := now.Add(-90 * 24 * time.Hour)
+
+	var count int
+	err := db.conn.QueryRow(`
+		SELECT COUNT(*)
+		FROM videos
+		WHERE (user_id IS NULL AND created_at < ?)
+		   OR (user_id IS NOT NULL AND created_at < ?)
+	`, anonymousExpiry, registeredExpiry).Scan(&count)
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to count expired videos: %w", err)
+	}
+
+	return count, nil
 }
 
 // UpdateSegments updates the segments for a transcription

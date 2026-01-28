@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**280 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**281 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**280 tasks completed.** All tasks completed. Next: deep inspection for new tasks.
+**281 tasks completed.** Working through remaining tasks from deep inspection.
+
+### Task 281: GetExpiredVideos Pagination (2026-01-28)
+
+- ✅ Task 281: Added pagination to GetExpiredVideos to prevent OOM during cleanup
+  - Created `GetExpiredVideosPaginated(limit, offset)` function in db.go
+  - Created `CountExpiredVideos()` helper function for logging total count
+  - Added `DefaultCleanupBatchSize = 100` constant
+  - Updated `runCleanup()` in main.go to process expired videos in batches
+  - Fetches from offset 0 since videos are deleted as they are processed
+  - Added 7 tests covering pagination, offset, ordering, and counting
+  - Backwards-compatible: `GetExpiredVideos()` still works (calls paginated with no limit)
 
 ### Task 280: Session Cleanup Error Logging (2026-01-28)
 

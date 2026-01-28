@@ -6329,74 +6329,92 @@ func runCleanup() {
 	security.CleanupStarted()
 	logging.Info("Running cleanup for expired videos")
 
-	expiredVideos, err := database.GetExpiredVideos()
+	// Get total count of expired videos for logging
+	totalExpired, err := database.CountExpiredVideos()
 	if err != nil {
-		logging.Error("Error getting expired videos", "error", err)
+		logging.Error("Error counting expired videos", "error", err)
 		return
 	}
 
-	if len(expiredVideos) == 0 {
+	if totalExpired == 0 {
 		logging.Debug("No expired videos to clean up")
+	} else {
+		logging.Info("Found expired videos to clean up", "count", totalExpired)
 	}
 
-	logging.Info("Found expired videos to clean up", "count", len(expiredVideos))
-
+	// Process expired videos in batches to prevent OOM
 	deletedCount := 0
-	for _, video := range expiredVideos {
-		// Delete from database and get file paths
-		deletedFiles, err := database.DeleteVideo(video.ID)
+	batchSize := db.DefaultCleanupBatchSize
+	for {
+		// Always fetch from offset 0 since we delete as we go
+		expiredVideos, err := database.GetExpiredVideosPaginated(batchSize, 0)
 		if err != nil {
-			logging.Error("Error deleting video from database", "video_id", video.ID, "error", err)
-			continue
+			logging.Error("Error getting expired videos batch", "error", err)
+			break
 		}
 
-		// Delete the video file from disk
-		if deletedFiles != nil && deletedFiles.FilePath != "" {
-			if err := os.Remove(deletedFiles.FilePath); err != nil {
-				if !os.IsNotExist(err) {
-					logging.Error("Error deleting video file", "path", deletedFiles.FilePath, "error", err)
-				}
-			} else {
-				logging.Debug("Deleted video file", "path", deletedFiles.FilePath)
+		if len(expiredVideos) == 0 {
+			break // No more expired videos
+		}
+
+		logging.Debug("Processing expired videos batch", "batch_size", len(expiredVideos))
+
+		for _, video := range expiredVideos {
+			// Delete from database and get file paths
+			deletedFiles, err := database.DeleteVideo(video.ID)
+			if err != nil {
+				logging.Error("Error deleting video from database", "video_id", video.ID, "error", err)
+				continue
 			}
-		}
 
-		// Delete the thumbnail file from disk
-		if deletedFiles != nil && deletedFiles.ThumbnailPath != nil && *deletedFiles.ThumbnailPath != "" {
-			if err := os.Remove(*deletedFiles.ThumbnailPath); err != nil {
-				if !os.IsNotExist(err) {
-					logging.Error("Error deleting thumbnail file", "path", *deletedFiles.ThumbnailPath, "error", err)
+			// Delete the video file from disk
+			if deletedFiles != nil && deletedFiles.FilePath != "" {
+				if err := os.Remove(deletedFiles.FilePath); err != nil {
+					if !os.IsNotExist(err) {
+						logging.Error("Error deleting video file", "path", deletedFiles.FilePath, "error", err)
+					}
+				} else {
+					logging.Debug("Deleted video file", "path", deletedFiles.FilePath)
 				}
-			} else {
-				logging.Debug("Deleted thumbnail file", "path", *deletedFiles.ThumbnailPath)
 			}
-		}
 
-		// Delete the burn output file from disk
-		if deletedFiles != nil && deletedFiles.BurnOutputPath != nil && *deletedFiles.BurnOutputPath != "" {
-			if err := os.Remove(*deletedFiles.BurnOutputPath); err != nil {
-				if !os.IsNotExist(err) {
-					logging.Error("Error deleting burn output file", "path", *deletedFiles.BurnOutputPath, "error", err)
+			// Delete the thumbnail file from disk
+			if deletedFiles != nil && deletedFiles.ThumbnailPath != nil && *deletedFiles.ThumbnailPath != "" {
+				if err := os.Remove(*deletedFiles.ThumbnailPath); err != nil {
+					if !os.IsNotExist(err) {
+						logging.Error("Error deleting thumbnail file", "path", *deletedFiles.ThumbnailPath, "error", err)
+					}
+				} else {
+					logging.Debug("Deleted thumbnail file", "path", *deletedFiles.ThumbnailPath)
 				}
-			} else {
-				logging.Debug("Deleted burn output file", "path", *deletedFiles.BurnOutputPath)
 			}
-		}
 
-		// Log security event for system video deletion
-		isAnonymous := video.UserID == nil
-		retentionHours := 2160 // 90 days for registered users
-		if isAnonymous {
-			retentionHours = 48
-		}
-		security.VideoDeletedBySystem(video.ID, video.Filename, isAnonymous, retentionHours)
+			// Delete the burn output file from disk
+			if deletedFiles != nil && deletedFiles.BurnOutputPath != nil && *deletedFiles.BurnOutputPath != "" {
+				if err := os.Remove(*deletedFiles.BurnOutputPath); err != nil {
+					if !os.IsNotExist(err) {
+						logging.Error("Error deleting burn output file", "path", *deletedFiles.BurnOutputPath, "error", err)
+					}
+				} else {
+					logging.Debug("Deleted burn output file", "path", *deletedFiles.BurnOutputPath)
+				}
+			}
 
-		deletedCount++
-		logging.Info("Cleaned up expired video",
-			"video_id", video.ID,
-			"has_user", video.UserID != nil,
-			"created_at", video.CreatedAt.Format(time.RFC3339))
-	}
+			// Log security event for system video deletion
+			isAnonymous := video.UserID == nil
+			retentionHours := 2160 // 90 days for registered users
+			if isAnonymous {
+				retentionHours = 48
+			}
+			security.VideoDeletedBySystem(video.ID, video.Filename, isAnonymous, retentionHours)
+
+			deletedCount++
+			logging.Info("Cleaned up expired video",
+				"video_id", video.ID,
+				"has_user", video.UserID != nil,
+				"created_at", video.CreatedAt.Format(time.RFC3339))
+		}
+	} // End batch processing loop
 
 	// Also clean up expired sessions
 	sessionCount, err := database.DeleteExpiredSessions()
