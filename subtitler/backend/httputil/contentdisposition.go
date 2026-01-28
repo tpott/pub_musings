@@ -8,17 +8,39 @@ import (
 	"net/url"
 	"strings"
 	"unicode"
+
+	"github.com/trevor/subtitler/backend/logging"
 )
+
+// RespondJSON writes a JSON response with the given status code and data.
+// Logs an error if JSON encoding fails but does not change the HTTP response
+// since headers may have already been sent.
+func RespondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		logging.Error("failed to encode JSON response",
+			"error", err.Error(),
+			"status_code", statusCode,
+		)
+	}
+}
 
 // RespondError writes a JSON error response with the given status code and message.
 // Sets Content-Type header to application/json before writing.
-// This helper reduces duplicate code across API handlers.
+// Logs an error if JSON encoding fails.
 func RespondError(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"error": message,
-	})
+	}); err != nil {
+		logging.Error("failed to encode error response",
+			"error", err.Error(),
+			"status_code", statusCode,
+			"message", message,
+		)
+	}
 }
 
 // RespondErrorf writes a JSON error response using a formatted message.

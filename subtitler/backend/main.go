@@ -1192,10 +1192,10 @@ func main() {
 
 		if user != nil {
 			// Authenticated: return full response
-			json.NewEncoder(w).Encode(status)
+			httputil.RespondJSON(w, http.StatusOK, status)
 		} else {
 			// Unauthenticated: return minimal response
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusOK, map[string]string{
 				"status": status.Status,
 			})
 		}
@@ -1394,7 +1394,7 @@ func main() {
 			"authenticated", userID != nil,
 		)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"status": "ok",
 			"id":     feedbackID,
 		})
@@ -1462,7 +1462,7 @@ func main() {
 			"total", total,
 		)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"feedback": feedbackList,
 			"total":    total,
 			"limit":    limit,
@@ -1522,7 +1522,7 @@ func main() {
 			"feedback_id", feedbackID,
 		)
 
-		json.NewEncoder(w).Encode(feedback)
+		httputil.RespondJSON(w, http.StatusOK, feedback)
 	}))
 
 	// Admin: Update feedback status (admin only)
@@ -1595,7 +1595,7 @@ func main() {
 			"new_status", req.Status,
 		)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":  "ok",
 			"id":      feedbackID,
 			"updated": req.Status,
@@ -1604,8 +1604,7 @@ func main() {
 
 	// CAPTCHA config endpoint (returns site key if CAPTCHA is enabled)
 	mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"enabled":  captchaVerifier.IsEnabled(),
 			"site_key": os.Getenv("CAPTCHA_SITE_KEY"),
 		})
@@ -1738,8 +1737,7 @@ func main() {
 
 		clientIP := ratelimit.GetClientIP(r)
 		security.Registration(r.Context(), clientIP, user.ID, user.Email)
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusCreated, map[string]interface{}{
 			"message":            "Account created. Please check your email to verify your account.",
 			"email_verification": true,
 			"user": map[string]interface{}{
@@ -1903,7 +1901,7 @@ func main() {
 
 		security.LoginSuccess(r.Context(), clientIP, user.ID, user.Email, userAgent)
 		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID, userAgent)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"user": map[string]interface{}{
 				"id":           user.ID,
 				"email":        user.Email,
@@ -2002,7 +2000,7 @@ func main() {
 		// Generate CSRF token from session token
 		csrfToken := csrf.GenerateToken(sessionToken)
 
-		json.NewEncoder(w).Encode(map[string]string{
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{
 			"csrf_token": csrfToken,
 		})
 	})
@@ -3000,7 +2998,7 @@ func main() {
 		auth.SetSessionCookie(w, session.Token, session.ExpiresAt)
 
 		logging.InfoContext(r.Context(), "Magic link login successful", "user_id", user.ID)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"message": "Login successful",
 			"user": map[string]interface{}{
 				"id":    user.ID,
@@ -3065,7 +3063,7 @@ func main() {
 		}
 
 		logging.InfoContext(r.Context(), "Email verified", "user_id", verifyToken.UserID)
-		json.NewEncoder(w).Encode(map[string]string{
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{
 			"message": "Email verified successfully. You can now log in.",
 		})
 	}))
