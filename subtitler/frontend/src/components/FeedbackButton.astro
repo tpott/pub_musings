@@ -367,6 +367,7 @@
 <script>
 	import { csrfFetch, getCsrfToken } from '../utils/csrf';
 	import { getSessionId } from '../utils/session';
+	import { showAlert } from '../utils/dialog';
 
 	const feedbackBtn = document.getElementById('feedbackBtn') as HTMLButtonElement;
 	const feedbackModal = document.getElementById('feedbackModal') as HTMLElement;
@@ -499,13 +500,12 @@
 				}, 2500);
 			} else {
 				const data = await response.json();
-				alert(data.error || 'Failed to send feedback. Please try again.');
+				await showAlert(data.error || 'Failed to send feedback. Please try again.', 'error');
 				submitBtn.disabled = false;
 				submitBtn.textContent = 'Send Feedback';
 			}
 		} catch (err) {
-			console.error('Feedback error:', err);
-			alert('Error sending feedback. Please check your connection and try again.');
+			await showAlert('Error sending feedback. Please check your connection and try again.', 'error');
 			submitBtn.disabled = false;
 			submitBtn.textContent = 'Send Feedback';
 		}
