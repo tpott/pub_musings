@@ -5,6 +5,7 @@ import { getCollection, type CollectionEntry } from 'astro:content';
 type BlogPost = CollectionEntry<'blog'>;
 
 const posts = (await getCollection('blog'))
+  .filter((post: BlogPost) => !post.data.draft)
   .sort((a: BlogPost, b: BlogPost) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
 ---
 

@@ -40,6 +40,20 @@ npm run test:all
 - `tests/` - Unit and E2E tests
 - `public/` - Static assets
 
+## Drafts
+
+To create a blog post that is committed to git but hidden from the published site, add `draft: true` to the frontmatter:
+
+```markdown
+---
+title: "My Work-In-Progress Post"
+pubDate: 2026-01-28
+draft: true
+---
+```
+
+Draft posts are excluded from the blog listing and no route is generated for them during build. To publish, remove the `draft` field or set it to `false`.
+
 ## Features
 
 - Static site generation with Astro
