@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**263 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**264 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**263 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**264 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 261: Replace any types with proper interfaces (2026-01-28)
+
+- ✅ Task 261: Replaced `any` types in upload.astro with proper TypeScript interfaces
+  - Added `UploadSession` interface to types/transcription.ts
+  - Changed `uploadSession: any` to `uploadSession: UploadSession | null`
+  - Changed `speed as any` to `speed as PlaybackSpeed`
+  - Build passes, type safety improved
 
 ### Task 262: CSRF retry circuit breaker (2026-01-28)
 

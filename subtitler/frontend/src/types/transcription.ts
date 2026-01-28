@@ -50,3 +50,14 @@ export interface BurnStatusResponse {
   message?: string;
   progress?: number;
 }
+
+/**
+ * Upload session for chunked uploads
+ */
+export interface UploadSession {
+  upload_session_id: string;
+  status: 'in_progress' | 'complete';
+  progress: number;
+  received_chunks: number[];
+  total_chunks: number;
+}

@@ -1573,8 +1573,10 @@ import '../styles/theme.css';
 				TranscriptionResult,
 				TranscriptionStatusResponse,
 				AlignmentResponse,
-				BurnStatusResponse
+				BurnStatusResponse,
+				UploadSession
 			} from '../types/transcription';
+			import type { PlaybackSpeed } from '../utils/playback-speed';
 
 			const dropzone = document.getElementById('dropzone') as HTMLElement;
 			const fileInput = document.getElementById('fileInput') as HTMLInputElement;
@@ -2237,7 +2239,7 @@ import '../styles/theme.css';
 			async function uploadFileChunked(file: File) {
 				const sessionKey = `${UPLOAD_SESSION_PREFIX}${file.name}:${file.size}`;
 				let sessionId = localStorage.getItem(sessionKey);
-				let uploadSession: any = null;
+				let uploadSession: UploadSession | null = null;
 				let receivedChunks: number[] = [];
 
 				// Check for resumable session
@@ -3495,8 +3497,8 @@ import '../styles/theme.css';
 				const target = e.target as HTMLElement;
 				if (target.classList.contains('speed-option')) {
 					const speed = parseFloat(target.dataset.speed || '1');
-					if (PLAYBACK_SPEEDS.includes(speed as any)) {
-						setPlaybackSpeed(previewVideo, speed as any);
+					if (PLAYBACK_SPEEDS.includes(speed as PlaybackSpeed)) {
+						setPlaybackSpeed(previewVideo, speed as PlaybackSpeed);
 						updateSpeedUI(speed);
 					}
 					closeSpeedMenu();
