@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**271 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**272 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,7 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**271 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+**272 tasks completed.** User feedback addressed (2026-01-28): bionic reading fix, playback speed update, dark mode improvements, subtitle viewer scroll fix, SRT/VTT/JSON viewer update.
+
+### Task 272: Create specs/path-security.md (2026-01-28)
+
+- ✅ Task 272: Created path security specification document
+  - Documents the `backend/pathvalidator` package and its usage
+  - Explains threat model (traversal attacks, symlinks, null bytes)
+  - Details the critical order: check BEFORE filepath.Clean()
+  - Documents all functions: ValidatePath, SafeJoin, ValidateAndResolve
+  - Includes usage patterns for uploads and downloads
+  - Lists allowed directories (uploads/, data/, data/keys/)
 
 ### Task 271: Create specs/error-handling.md (2026-01-28)
 
