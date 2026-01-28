@@ -3261,7 +3261,10 @@ func main() {
 			})
 			return
 		}
-		destFile.Close() // Close before encrypting
+		// Close before encrypting - log any close error but continue since data is written
+		if err := destFile.Close(); err != nil {
+			logging.WarnContext(r.Context(), "Error closing destination file", "path", destPath, "error", err)
+		}
 
 		logging.InfoContext(r.Context(), "Uploaded file", "filename", header.Filename, "bytes", written, "dest_path", destPath)
 
@@ -3716,7 +3719,10 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
 			return
 		}
-		destFile.Close()
+		// Close after writing - log any error but continue since data is written
+		if err := destFile.Close(); err != nil {
+			logging.WarnContext(r.Context(), "Error closing chunk destination file", "path", chunkPath, "error", err)
+		}
 
 		// Validate chunk size (allow up to expected size; last chunk may be smaller)
 		if written > expectedSize {
@@ -3894,7 +3900,9 @@ func main() {
 		for _, chunk := range chunks {
 			chunkFile, err := os.Open(chunk.ChunkPath)
 			if err != nil {
-				destFile.Close()
+				if closeErr := destFile.Close(); closeErr != nil {
+					logging.WarnContext(r.Context(), "Error closing dest file after chunk open failure", "error", closeErr)
+				}
 				os.Remove(destPath)
 				logging.ErrorContext(r.Context(), "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
 				metrics.RecordUploadFailed()
@@ -3903,9 +3911,13 @@ func main() {
 				return
 			}
 			written, err := io.Copy(destFile, chunkFile)
-			chunkFile.Close()
+			if closeErr := chunkFile.Close(); closeErr != nil {
+				logging.WarnContext(r.Context(), "Error closing chunk file", "chunk_index", chunk.ChunkIndex, "error", closeErr)
+			}
 			if err != nil {
-				destFile.Close()
+				if closeErr := destFile.Close(); closeErr != nil {
+					logging.WarnContext(r.Context(), "Error closing dest file after copy failure", "error", closeErr)
+				}
 				os.Remove(destPath)
 				logging.ErrorContext(r.Context(), "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
 				metrics.RecordUploadFailed()
@@ -3915,7 +3927,10 @@ func main() {
 			}
 			totalWritten += written
 		}
-		destFile.Close()
+		// Close assembled file - log any error but continue since data is written
+		if err := destFile.Close(); err != nil {
+			logging.WarnContext(r.Context(), "Error closing assembled file", "path", destPath, "error", err)
+		}
 
 		logging.InfoContext(r.Context(), "Reassembled chunks", "upload_id", uploadID, "total_bytes", totalWritten)
 
