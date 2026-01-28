@@ -710,6 +710,47 @@ CAPTCHA_SITE_KEY=your-hcaptcha-site-key
 CAPTCHA_SECRET_KEY=your-hcaptcha-secret-key
 ```
 
+### Performance Tuning
+
+Adjust these settings based on your server capacity and usage patterns:
+
+```bash
+# High-traffic server tuning
+# Database connections
+DB_MAX_OPEN_CONNS=50          # Increase from default 25 for high traffic
+DB_MAX_IDLE_CONNS=20          # Keep connections ready for burst traffic
+DB_MAINTENANCE_INTERVAL=6h    # More frequent cleanup on busy servers
+
+# Rate limits for high-capacity server
+AUTH_RATE_LIMIT=20/min        # Increase for large user base
+UPLOAD_RATE_LIMIT=30/min      # Increase if server can handle more uploads
+TRANSCRIBE_RATE_LIMIT=10/min  # Depends on whisper-server capacity
+BURN_RATE_LIMIT=5/min         # CPU-intensive; adjust based on cores
+
+# Whisper configuration
+WHISPER_THREADS=8             # Match to CPU cores (default: 4)
+WHISPER_TIMEOUT=45m           # Increase for very long videos
+
+# Chunked uploads for large files
+CHUNK_SIZE=100M               # Increase from 50M for faster upload on good connections
+UPLOAD_SESSION_EXPIRY=48h     # Longer sessions for very large uploads
+
+# Debugging (enable if investigating issues)
+LOG_LEVEL=debug               # Enable for troubleshooting
+LOG_SLOW_QUERIES=true         # Enable to identify slow database queries
+SLOW_QUERY_THRESHOLD_MS=50    # Queries slower than this are logged
+```
+
+**Key tuning considerations:**
+
+1. **Database connections**: Increase `DB_MAX_OPEN_CONNS` if you see connection pool exhaustion. Each transcription worker can hold a connection.
+
+2. **Rate limits**: Balance between preventing abuse and allowing legitimate heavy usage. Monitor 429 responses to detect if limits are too strict.
+
+3. **Whisper threads**: Set to number of CPU cores available to the whisper-server. More threads = faster transcription but higher CPU usage.
+
+4. **Chunk size**: Larger chunks mean fewer round-trips for big files, but require more memory per concurrent upload.
+
 ## See Also
 
 - [../backend/README.md](../backend/README.md) - Backend overview with quick reference

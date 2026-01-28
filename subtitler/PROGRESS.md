@@ -138,11 +138,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**329 tasks completed.**
+**330 tasks completed.**
 
 ### Recent Work (2026-01-28)
 
-**Tasks 327-329: Documentation and Type Improvements (COMPLETE)**
+**Tasks 327-330: Documentation and Type Improvements (COMPLETE)**
+- Task 330: Added Performance Tuning configuration section to ENV.md
+  - Database connection pool tuning
+  - Rate limit tuning for high-traffic servers
+  - Whisper and chunked upload tuning recommendations
 - Task 329: Added FEEDBACK_RATE_LIMIT to docs/ENV.md with full documentation
   - LOG_SLOW_QUERIES and SLOW_QUERY_THRESHOLD_MS already documented
   - Updated Quick Reference table
