@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"filippo.io/age"
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 // MultiKeyEncryptor manages multiple encryption keys for key rotation support.
@@ -333,7 +334,11 @@ func (m *MultiKeyEncryptor) ReencryptFile(encPath string, oldVersion int) (strin
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to decrypt with old key: %w", err)
 	}
-	defer os.Remove(tempPath)
+	defer func() {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove temp file during re-encryption cleanup", "path", tempPath, "error", removeErr)
+		}
+	}()
 
 	// Encrypt with new key
 	newPath, err := newEnc.EncryptFile(tempPath)

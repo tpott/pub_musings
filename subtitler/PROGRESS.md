@@ -138,9 +138,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**309 tasks completed.**
+**310 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 310: Log os.Remove Errors in Crypto Package (COMPLETE)**
+- Updated crypto.go to import logging package
+- Added logging.Warn for os.Remove failures in EncryptFile (3 locations)
+- Added logging.Warn for os.Remove failures in DecryptToFile
+- Added logging.Warn for os.Remove failures in DecryptToTempFile
+- Updated multi.go with same pattern for re-encryption temp file cleanup
+- Errors only logged when not os.IsNotExist (file already gone is OK)
+- Consistent with removeWithLogging pattern in main.go
 
 **Task 309: Add Chunk Index Upper Bound Validation (COMPLETE)**
 - Added early upper bound check in `/api/upload/chunk` endpoint (main.go line 3641-3648)

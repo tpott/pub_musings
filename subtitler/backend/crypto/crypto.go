@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"filippo.io/age"
+	"github.com/trevor/subtitler/backend/logging"
 )
 
 // encryptionEnabled controls whether encryption is active.
@@ -178,17 +179,23 @@ func (e *Encryptor) EncryptFile(srcPath string) (string, error) {
 	w, err := age.Encrypt(dst, e.recipient)
 	e.mu.RUnlock()
 	if err != nil {
-		os.Remove(dstPath)
+		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
+		}
 		return "", fmt.Errorf("failed to create encrypt writer: %w", err)
 	}
 
 	if _, err := io.Copy(w, src); err != nil {
-		os.Remove(dstPath)
+		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
+		}
 		return "", fmt.Errorf("failed to encrypt file: %w", err)
 	}
 
 	if err := w.Close(); err != nil {
-		os.Remove(dstPath)
+		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
+		}
 		return "", fmt.Errorf("failed to finalize encryption: %w", err)
 	}
 
@@ -240,7 +247,9 @@ func (e *Encryptor) DecryptToFile(encPath, dstPath string) error {
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, reader); err != nil {
-		os.Remove(dstPath)
+		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove partial decrypted file", "path", dstPath, "error", removeErr)
+		}
 		return fmt.Errorf("failed to write decrypted data: %w", err)
 	}
 
@@ -266,7 +275,9 @@ func (e *Encryptor) DecryptToTempFile(encPath string) (string, error) {
 	tmpFile.Close()
 
 	if err := e.DecryptToFile(encPath, tmpPath); err != nil {
-		os.Remove(tmpPath)
+		if removeErr := os.Remove(tmpPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove temp file during decrypt cleanup", "path", tmpPath, "error", removeErr)
+		}
 		return "", err
 	}
 
