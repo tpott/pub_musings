@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**296 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**297 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ## Feature Summary
 
@@ -138,9 +138,17 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**296 tasks completed.**
+**297 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 297: Log Unchecked os.Remove Errors (COMPLETE)**
+- Created `removeWithLogging()` helper function in main.go
+- Updated all unchecked `os.Remove()` calls in main.go to use the helper
+- Updated cmd/rotate-keys/main.go to log errors on cleanup file removals
+- Each removal now logs a warning with description, path, and error if it fails
+- `os.IsNotExist` errors are ignored (file already gone is fine for cleanup)
+- Prevents silent cleanup failures that could lead to disk space issues
 
 **Task 296: Database Query Context Timeouts (COMPLETE)**
 - Added context timeouts to ALL remaining database functions in db/db.go

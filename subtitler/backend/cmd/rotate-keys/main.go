@@ -229,7 +229,9 @@ func cmdReencrypt(keysDir, dbPath string) {
 		if err := database.UpdateVideoKeyVersion(video.ID, newVersion, newPath); err != nil {
 			fmt.Printf("Error updating database for %s: %v\n", video.ID, err)
 			// Try to clean up new file since DB update failed
-			os.Remove(newPath)
+			if err := os.Remove(newPath); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Warning: could not clean up new file %s: %v\n", newPath, err)
+			}
 			errorCount++
 			continue
 		}
@@ -248,9 +250,13 @@ func cmdReencrypt(keysDir, dbPath string) {
 				} else {
 					if err := database.UpdateVideoThumbnailKeyVersion(video.ID, newThumbPath); err != nil {
 						fmt.Printf("Warning: could not update thumbnail path for %s: %v\n", video.ID, err)
-						os.Remove(newThumbPath)
+						if err := os.Remove(newThumbPath); err != nil && !os.IsNotExist(err) {
+							fmt.Fprintf(os.Stderr, "Warning: could not clean up new thumbnail %s: %v\n", newThumbPath, err)
+						}
 					} else {
-						os.Remove(*video.ThumbnailPath)
+						if err := os.Remove(*video.ThumbnailPath); err != nil && !os.IsNotExist(err) {
+							fmt.Fprintf(os.Stderr, "Warning: could not delete old thumbnail %s: %v\n", *video.ThumbnailPath, err)
+						}
 					}
 				}
 			}

@@ -617,6 +617,17 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) boo
 	return true
 }
 
+// removeWithLogging removes a file and logs a warning if the removal fails.
+// This is used for cleanup operations where failure is not critical but should be logged.
+func removeWithLogging(path string, description string) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		logging.Warn("Failed to remove file",
+			"description", description,
+			"path", path,
+			"error", err)
+	}
+}
+
 // getWhisperModel returns the whisper model path from env or default
 func getWhisperModel() string {
 	model := os.Getenv("WHISPER_MODEL")
@@ -3324,7 +3335,7 @@ func main() {
 		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
-			os.Remove(destPath)
+			removeWithLogging(destPath, "unencrypted upload after encryption failure")
 			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -3334,7 +3345,7 @@ func main() {
 		}
 
 		// Remove the unencrypted file
-		os.Remove(destPath)
+		removeWithLogging(destPath, "unencrypted upload after successful encryption")
 		logging.InfoContext(r.Context(), "Encrypted file", "src_path", destPath, "enc_path", encPath, "key_version", keyVersion)
 
 		// Save video to database with encrypted file path and key version
@@ -3359,9 +3370,9 @@ func main() {
 		}
 		if err := database.CreateVideo(video); err != nil {
 			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
-			os.Remove(encPath) // Clean up encrypted file
+			removeWithLogging(encPath, "encrypted file after DB save failure")
 			if encThumbPath != nil {
-				os.Remove(*encThumbPath) // Clean up encrypted thumbnail
+				removeWithLogging(*encThumbPath, "encrypted thumbnail after DB save failure")
 			}
 			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
@@ -3375,7 +3386,7 @@ func main() {
 		transcriptionID, err := generateID()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
-			os.Remove(encPath) // Clean up encrypted file
+			removeWithLogging(encPath, "encrypted file after transcription ID generation failure")
 			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
@@ -3707,7 +3718,7 @@ func main() {
 
 		written, err := io.Copy(destFile, chunkFile)
 		if err != nil {
-			os.Remove(chunkPath)
+			removeWithLogging(chunkPath, "partial chunk after write failure")
 			logging.ErrorContext(r.Context(), "Error writing chunk file", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
@@ -3720,7 +3731,7 @@ func main() {
 
 		// Validate chunk size (allow up to expected size; last chunk may be smaller)
 		if written > expectedSize {
-			os.Remove(chunkPath)
+			removeWithLogging(chunkPath, "oversized chunk")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": fmt.Sprintf("Chunk too large. Expected max %d bytes, got %d", expectedSize, written),
@@ -3731,7 +3742,7 @@ func main() {
 		// Record chunk in database
 		chunkID, err := generateID()
 		if err != nil {
-			os.Remove(chunkPath)
+			removeWithLogging(chunkPath, "chunk after ID generation failure")
 			logging.ErrorContext(r.Context(), "Error generating chunk ID", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate chunk ID"})
@@ -3747,7 +3758,7 @@ func main() {
 			CreatedAt:       time.Now(),
 		}
 		if err := database.CreateUploadChunk(chunk); err != nil {
-			os.Remove(chunkPath)
+			removeWithLogging(chunkPath, "chunk after DB record failure")
 			logging.ErrorContext(r.Context(), "Error saving chunk record", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record chunk"})
@@ -3896,7 +3907,7 @@ func main() {
 				if closeErr := destFile.Close(); closeErr != nil {
 					logging.WarnContext(r.Context(), "Error closing dest file after chunk open failure", "error", closeErr)
 				}
-				os.Remove(destPath)
+				removeWithLogging(destPath, "partial assembled file after chunk open failure")
 				logging.ErrorContext(r.Context(), "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
 				metrics.RecordUploadFailed()
 				w.WriteHeader(http.StatusInternalServerError)
@@ -3911,7 +3922,7 @@ func main() {
 				if closeErr := destFile.Close(); closeErr != nil {
 					logging.WarnContext(r.Context(), "Error closing dest file after copy failure", "error", closeErr)
 				}
-				os.Remove(destPath)
+				removeWithLogging(destPath, "partial assembled file after copy failure")
 				logging.ErrorContext(r.Context(), "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
 				metrics.RecordUploadFailed()
 				w.WriteHeader(http.StatusInternalServerError)
@@ -3930,7 +3941,7 @@ func main() {
 		// Validate magic bytes (file signature) - defense against MIME spoofing
 		if err := audio.ValidateMagicBytesFromFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Invalid magic bytes for reassembled file", "path", destPath, "error", err)
-			os.Remove(destPath)
+			removeWithLogging(destPath, "assembled file with invalid magic bytes")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "File content does not match a valid video format. The file may be corrupted.",
@@ -3941,7 +3952,7 @@ func main() {
 		// Validate the assembled file with ffprobe
 		if err := audio.ValidateVideoFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
-			os.Remove(destPath)
+			removeWithLogging(destPath, "assembled file that failed video validation")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Assembled file is not a valid video. Please try uploading again.",
@@ -3958,9 +3969,9 @@ func main() {
 			encPath, _, err := multiEnc.EncryptFile(thumbPath)
 			if err != nil {
 				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
-				os.Remove(thumbPath)
+				removeWithLogging(thumbPath, "unencrypted thumbnail after encryption failure")
 			} else {
-				os.Remove(thumbPath)
+				removeWithLogging(thumbPath, "unencrypted thumbnail after successful encryption")
 				encThumbPath = &encPath
 			}
 		}
@@ -3994,13 +4005,13 @@ func main() {
 		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
-			os.Remove(destPath)
+			removeWithLogging(destPath, "unencrypted assembled file after encryption failure")
 			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to encrypt file"})
 			return
 		}
-		os.Remove(destPath)
+		removeWithLogging(destPath, "unencrypted assembled file after successful encryption")
 
 		// Save video to database with key version
 		video := &db.Video{
@@ -4018,9 +4029,9 @@ func main() {
 		}
 		if err := database.CreateVideo(video); err != nil {
 			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
-			os.Remove(encPath)
+			removeWithLogging(encPath, "encrypted file after DB save failure")
 			if encThumbPath != nil {
-				os.Remove(*encThumbPath)
+				removeWithLogging(*encThumbPath, "encrypted thumbnail after DB save failure")
 			}
 			metrics.RecordUploadFailed()
 			w.WriteHeader(http.StatusInternalServerError)
@@ -4054,9 +4065,9 @@ func main() {
 		// Clean up chunk files
 		chunksDir := filepath.Join(uploadDir, "chunks", req.UploadSessionID)
 		for _, chunk := range chunks {
-			os.Remove(chunk.ChunkPath)
+			removeWithLogging(chunk.ChunkPath, "uploaded chunk after successful assembly")
 		}
-		os.Remove(chunksDir)
+		removeWithLogging(chunksDir, "empty chunks directory after cleanup")
 
 		// Record metrics
 		metrics.RecordUploadSuccess()
@@ -6429,11 +6440,11 @@ func runCleanup() {
 			}
 			// Delete chunk files
 			for _, path := range chunkPaths {
-				os.Remove(path)
+				removeWithLogging(path, "expired upload session chunk")
 			}
 			// Try to remove the chunks directory
 			chunksDir := filepath.Join(uploadDir, "chunks", session.ID)
-			os.Remove(chunksDir)
+			removeWithLogging(chunksDir, "expired upload session chunks directory")
 			uploadSessionDeleteCount++
 		}
 		if uploadSessionDeleteCount > 0 {
