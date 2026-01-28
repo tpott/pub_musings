@@ -758,14 +758,30 @@ func (db *DB) GetSessionByToken(token string) (*Session, error) {
 	return session, nil
 }
 
-// GetSessionsByUserID retrieves all active sessions for a user
+// MaxSessionsPerUser is the maximum number of sessions returned per user.
+// This prevents memory issues for users with many sessions.
+const MaxSessionsPerUser = 100
+
+// GetSessionsByUserID retrieves active sessions for a user, limited to MaxSessionsPerUser.
+// Sessions are ordered by creation date (newest first).
 func (db *DB) GetSessionsByUserID(userID string) ([]Session, error) {
+	return db.GetSessionsByUserIDWithLimit(userID, MaxSessionsPerUser)
+}
+
+// GetSessionsByUserIDWithLimit retrieves active sessions for a user with a custom limit.
+// If limit is 0 or negative, MaxSessionsPerUser is used.
+func (db *DB) GetSessionsByUserIDWithLimit(userID string, limit int) ([]Session, error) {
+	if limit <= 0 {
+		limit = MaxSessionsPerUser
+	}
+
 	rows, err := db.conn.Query(`
 		SELECT id, user_id, token, ip_address, user_agent, expires_at, created_at
 		FROM sessions
 		WHERE user_id = ? AND expires_at > ?
 		ORDER BY created_at DESC
-	`, userID, time.Now())
+		LIMIT ?
+	`, userID, time.Now(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions for user: %w", err)
 	}

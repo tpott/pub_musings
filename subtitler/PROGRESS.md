@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**232 tasks completed** as of 2026-01-27. All core features implemented and tested.
+**233 tasks completed** as of 2026-01-27. All core features implemented and tested.
 
 ## Feature Summary
 
@@ -174,7 +174,11 @@ Deep code review using exploration agents identified areas for improvement:
   - Created `db.PoolConfig` struct and `db.OpenWithConfig()` function
   - Updated main.go to read pool config from environment and log values at startup
   - Documented in docs/ENV.md with tuning guidance
-- Task 233: Add session listing pagination/limit
+- ✅ Task 233: Add session listing pagination/limit
+  - Added `MaxSessionsPerUser = 100` constant to limit session query results
+  - Modified `GetSessionsByUserID()` to use the limit by default
+  - Added `GetSessionsByUserIDWithLimit()` for custom limit queries
+  - 6 unit tests covering limit behavior and edge cases
 - Task 234: Add panic recovery to WithTransaction
 - Task 235: Validate environment variable ranges
 

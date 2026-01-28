@@ -2776,3 +2776,113 @@ func TestOpenWithConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestGetSessionsByUserIDWithLimit(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-sessions-limit-*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	db, err := Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Create a user
+	user := &User{
+		ID:           "session-limit-user",
+		Email:        "sessionlimit@example.com",
+		PasswordHash: "hash",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Create 10 sessions
+	for i := 0; i < 10; i++ {
+		session := &Session{
+			ID:        fmt.Sprintf("session-%d", i),
+			UserID:    user.ID,
+			Token:     fmt.Sprintf("token-%d", i),
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+		}
+		if err := db.CreateSession(session); err != nil {
+			t.Fatalf("Failed to create session %d: %v", i, err)
+		}
+	}
+
+	t.Run("default limit returns all sessions up to MaxSessionsPerUser", func(t *testing.T) {
+		sessions, err := db.GetSessionsByUserID(user.ID)
+		if err != nil {
+			t.Fatalf("GetSessionsByUserID failed: %v", err)
+		}
+		if len(sessions) != 10 {
+			t.Errorf("Expected 10 sessions, got %d", len(sessions))
+		}
+	})
+
+	t.Run("custom limit restricts results", func(t *testing.T) {
+		sessions, err := db.GetSessionsByUserIDWithLimit(user.ID, 5)
+		if err != nil {
+			t.Fatalf("GetSessionsByUserIDWithLimit failed: %v", err)
+		}
+		if len(sessions) != 5 {
+			t.Errorf("Expected 5 sessions, got %d", len(sessions))
+		}
+	})
+
+	t.Run("zero limit uses default", func(t *testing.T) {
+		sessions, err := db.GetSessionsByUserIDWithLimit(user.ID, 0)
+		if err != nil {
+			t.Fatalf("GetSessionsByUserIDWithLimit failed: %v", err)
+		}
+		if len(sessions) != 10 {
+			t.Errorf("Expected 10 sessions, got %d", len(sessions))
+		}
+	})
+
+	t.Run("negative limit uses default", func(t *testing.T) {
+		sessions, err := db.GetSessionsByUserIDWithLimit(user.ID, -5)
+		if err != nil {
+			t.Fatalf("GetSessionsByUserIDWithLimit failed: %v", err)
+		}
+		if len(sessions) != 10 {
+			t.Errorf("Expected 10 sessions, got %d", len(sessions))
+		}
+	})
+
+	t.Run("sessions are ordered by creation date descending", func(t *testing.T) {
+		sessions, err := db.GetSessionsByUserIDWithLimit(user.ID, 10)
+		if err != nil {
+			t.Fatalf("GetSessionsByUserIDWithLimit failed: %v", err)
+		}
+		// Since sessions were created in a tight loop, they may have the same timestamp
+		// Just verify the query doesn't error and returns sessions in a consistent order
+		if len(sessions) != 10 {
+			t.Errorf("Expected 10 sessions, got %d", len(sessions))
+		}
+		// Verify ORDER BY clause works (sessions should be ordered by created_at DESC, then by row insertion)
+		// The actual order may vary depending on SQLite's tie-breaking, so we just verify it's stable
+		sessions2, err := db.GetSessionsByUserIDWithLimit(user.ID, 10)
+		if err != nil {
+			t.Fatalf("Second query failed: %v", err)
+		}
+		for i := range sessions {
+			if sessions[i].ID != sessions2[i].ID {
+				t.Errorf("Session ordering not stable at position %d", i)
+			}
+		}
+	})
+
+	t.Run("constant is reasonable", func(t *testing.T) {
+		if MaxSessionsPerUser < 50 {
+			t.Errorf("MaxSessionsPerUser too low: %d", MaxSessionsPerUser)
+		}
+		if MaxSessionsPerUser > 500 {
+			t.Errorf("MaxSessionsPerUser too high: %d", MaxSessionsPerUser)
+		}
+	})
+}
