@@ -53,6 +53,7 @@ All scripts are in the `scripts/` directory:
 | `verify-all.sh` | Run lint + backend + frontend tests |
 | `pre-commit` | Git pre-commit hook (lint + unit + E2E tests) |
 | `fetch-feedback.py` | Fetch new user feedback from prod to FEEDBACK.md |
+| `query-security-events.py` | Filter/analyze security events from journalctl |
 
 ## Dependency Policy
 

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**388 tasks completed** as of 2026-01-29. All core features implemented and tested. 7 tasks pending.
+**389 tasks completed** as of 2026-01-29. All core features implemented and tested. 6 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (~6200 lines in main.go), 578 tests across 26 files
@@ -61,6 +61,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 389: Create Python security events query tool (2026-01-29)
+- Created `scripts/query-security-events.py` for filtering/analyzing security events
+- Parses slog logfmt output from journalctl stdin
+- Filters: `--event` (prefix match), `--ip`, `--user` (email/user_id), `--level`, `--since`/`--until`
+- Output: `--format short|raw`, `--count-by FIELD` for aggregation, `--tail N`
+- Documented in `docs/SECURITY_EVENTS.md` with usage examples
 
 ### Task 394: Add --auto-fetch-feedback-script CLI arg to ralph.py (2026-01-29)
 - Added `--auto-fetch-feedback-script <path>` CLI argument to `ralph.py`
@@ -119,7 +126,6 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | 384 | Add decision tracking process to LEARNINGS.md |
 | 386 | Move deps.md to docs/, create docs/README.md |
 | 388 | Research doc sync linting for docs/ files |
-| 389 | Create Python security events query tool |
 
 ## Key Files
 
@@ -138,6 +144,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | Rate limits | `docs/RATE_LIMITS.md` |
 | Security checklist | `docs/SECURITY_CHECKLIST.md` |
 | Security events | `docs/SECURITY_EVENTS.md` |
+| Security query tool | `scripts/query-security-events.py` |
 | Prometheus metrics | `docs/METRICS.md` |
 | Test documentation | `TESTING.md`, `BROWSER_TESTING.md` |
 | Learnings | `LEARNINGS.md` |

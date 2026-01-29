@@ -223,6 +223,76 @@ journalctl -u subtitler | grep -E "session\.(created|revoked|expired)" | \
   grep "user_id=abc123"
 ```
 
+### Query Tool (`scripts/query-security-events.py`)
+
+A dedicated Python script for filtering and analyzing security events. Parses the
+slog logfmt output and supports filtering by event type, IP, user, date range, and
+log level. Pipe journalctl output into it.
+
+**View all security events today:**
+```bash
+journalctl -u subtitler --since today | ./scripts/query-security-events.py
+```
+
+**Filter failed logins:**
+```bash
+journalctl -u subtitler | ./scripts/query-security-events.py --event auth.login.failed
+```
+
+**Events from a specific IP:**
+```bash
+journalctl -u subtitler --since "1 hour ago" | ./scripts/query-security-events.py --ip 192.168.1.100
+```
+
+**All events for a user (by email or user_id):**
+```bash
+journalctl -u subtitler | ./scripts/query-security-events.py --user user@example.com
+journalctl -u subtitler | ./scripts/query-security-events.py --user abc123-def456
+```
+
+**Warnings only in a date range:**
+```bash
+journalctl -u subtitler | ./scripts/query-security-events.py --level WARN --since 2024-01-01 --until 2024-01-31
+```
+
+**Count events by type:**
+```bash
+journalctl -u subtitler --since today | ./scripts/query-security-events.py --count-by event
+```
+```
+ Count  event
+ -----  ------------------------------
+    42  auth.login.success
+    12  auth.login.failed.password
+     3  ratelimit.exceeded
+     2  auth.account.locked
+     1  access.denied.not_admin
+
+Total: 60 events
+```
+
+**Count events by IP (top offenders):**
+```bash
+journalctl -u subtitler --since "1 hour ago" | ./scripts/query-security-events.py --level WARN --count-by ip
+```
+
+**Show last 10 events:**
+```bash
+journalctl -u subtitler | ./scripts/query-security-events.py --tail 10
+```
+
+**Raw logfmt output (for piping to other tools):**
+```bash
+journalctl -u subtitler | ./scripts/query-security-events.py --event auth.login.failed --format raw
+```
+
+**Combined filters (AND logic):**
+```bash
+journalctl -u subtitler | ./scripts/query-security-events.py --event auth --level WARN --ip 192.168.1.2
+```
+
+Run `./scripts/query-security-events.py --help` for full usage.
+
 ### Prometheus Alert Rules
 
 Save as `/etc/prometheus/rules/subtitler_security.yml`:
