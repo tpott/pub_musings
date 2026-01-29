@@ -999,7 +999,7 @@ import '../styles/theme.css';
 				});
 			});
 
-			// Handle keyboard navigation for tabs
+			// Handle keyboard navigation for tabs (WAI-ARIA tabs pattern)
 			tabButtons.forEach((btn, index) => {
 				btn.addEventListener('keydown', (e) => {
 					let nextIndex = index;
@@ -1007,6 +1007,10 @@ import '../styles/theme.css';
 						nextIndex = (index + 1) % tabButtons.length;
 					} else if (e.key === 'ArrowLeft') {
 						nextIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+					} else if (e.key === 'Home') {
+						nextIndex = 0;
+					} else if (e.key === 'End') {
+						nextIndex = tabButtons.length - 1;
 					} else {
 						return;
 					}
