@@ -556,6 +556,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Splitting large Astro pages: state objects + callbacks pattern
+
+**Problem:** upload.astro was 3844 lines with tightly-coupled script code. Functions referenced dozens of DOM elements and shared mutable state, making extraction difficult.
+
+**Solution:** Used "state objects + callbacks" pattern: each extracted module defines interfaces for mutable state (`*State`), DOM element refs (`*Elements`), and page interaction callbacks (`*Callbacks`). Factory functions (`create*State()`) initialize state. The page creates state objects and passes them to module functions. CSS extracted to a separate `.css` file imported via Astro frontmatter (becomes global but only loads on that page).
+
+**Lesson:** For large Astro pages, extract logic into utility `.ts` files with explicit state/element/callback interfaces. This decouples modules from DOM without needing a framework. Astro `<style>` is scoped; imported `.css` is global — fine for page-level components where class names are specific enough. The script section is usually the biggest win; CSS extraction is secondary.
+
+---
+
 ### Frontend file size linting: shell script beats ESLint
 
 **Problem:** Needed file size enforcement for Astro/TS files (matching backend's golangci-lint file-length-limit). Three options evaluated: (1) ESLint with eslint-plugin-astro + `max-lines` rule, (2) Biome linter, (3) simple shell script with `wc -l`.

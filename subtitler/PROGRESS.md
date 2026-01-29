@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**392 tasks completed** as of 2026-01-29. All core features implemented and tested. 4 tasks pending.
+**393 tasks completed** as of 2026-01-29. All core features implemented and tested. 3 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,18 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 396: Split upload.astro into smaller files (2026-01-29)
+- Split `upload.astro` from 3844 lines to 975 lines (75% reduction)
+- Extracted 5 TypeScript utility modules using state objects + callbacks pattern:
+  - `upload-constants.ts` (100 lines): Language maps, localStorage keys, upload config
+  - `upload-file.ts` (352 lines): File upload with chunked resume support
+  - `transcription-polling.ts` (217 lines): Polling, ETA, SRT parsing, time formatting
+  - `segment-editor.ts` (510 lines): Editing, undo/redo, feedback, rendering
+  - `subtitle-sync.ts` (497 lines): Video sync, speed controls, burn, keyboard shortcuts
+- Extracted CSS to `styles/upload.css` (1256 lines) imported via Astro frontmatter
+- Fixed bug: `updateUnsavedIndicator()` call replaced with correct `markUnsaved()` pattern
+- All 1076+ tests pass, file size lint clean (upload.astro no longer in warnings)
 
 ### Task 379: Frontend file size linting (2026-01-29)
 - Researched options: ESLint+eslint-plugin-astro (4+ deps for 1 rule), Biome (no .astro support), shell script (zero deps)
@@ -147,7 +159,6 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 |----|------|
 | 384 | Add decision tracking process to LEARNINGS.md |
 | 388 | Research doc sync linting for docs/ files |
-| 396 | Split upload.astro into smaller files |
 
 ## Key Files
 

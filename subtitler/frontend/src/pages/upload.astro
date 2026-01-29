@@ -5,6 +5,7 @@ import Navigation from '../components/Navigation.astro';
 import CookieConsent from '../components/CookieConsent.astro';
 import FeedbackButton from '../components/FeedbackButton.astro';
 import '../styles/theme.css';
+import '../styles/upload.css';
 ---
 
 <html lang="en">
@@ -16,1259 +17,6 @@ import '../styles/theme.css';
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Upload - Subtitler</title>
-		<style>
-			.container {
-				max-width: 800px;
-				margin: 0 auto;
-				padding: 2rem;
-			}
-			.header {
-				display: flex;
-				align-items: center;
-				gap: 1rem;
-				margin-bottom: 2rem;
-			}
-			.back-link {
-				text-decoration: none;
-				color: var(--text-color);
-				font-size: 1.5rem;
-			}
-			.back-link:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: 2px;
-			}
-			h1 {
-				font-size: 2rem;
-				font-weight: 600;
-			}
-			.dropzone {
-				background-color: var(--secondary-bg);
-				border: 2px dashed var(--border-color);
-				border-radius: 12px;
-				padding: 4rem 2rem;
-				text-align: center;
-				cursor: pointer;
-				transition: border-color 0.2s, background-color 0.2s;
-			}
-			.dropzone:hover,
-			.dropzone.dragover {
-				border-color: var(--accent-color);
-				background-color: var(--dropzone-hover-bg);
-			}
-			.dropzone-icon {
-				font-size: 3rem;
-				margin-bottom: 1rem;
-			}
-			.dropzone-text {
-				font-size: 1.25rem;
-				color: var(--text-secondary);
-				margin-bottom: 0.5rem;
-			}
-			.dropzone-hint {
-				font-size: 0.875rem;
-				color: var(--text-tertiary);
-			}
-			.file-input {
-				display: none;
-			}
-			.status {
-				margin-top: 2rem;
-				padding: 1rem;
-				background-color: var(--secondary-bg);
-				border-radius: 8px;
-				display: none;
-			}
-			.status.visible {
-				display: block;
-			}
-			.status.error {
-				background-color: var(--error-bg);
-				border: 1px solid var(--error-border);
-				color: var(--error-color);
-			}
-			.status.success {
-				background-color: var(--success-bg);
-				border: 1px solid var(--success-border);
-				color: var(--success-color);
-			}
-			.progress-bar {
-				width: 100%;
-				height: 8px;
-				background-color: var(--border-color);
-				border-radius: 4px;
-				margin-top: 0.5rem;
-				overflow: hidden;
-			}
-			.progress-bar-fill {
-				height: 100%;
-				background-color: var(--accent-color);
-				width: 0%;
-				transition: width 0.3s ease;
-			}
-			.video-preview {
-				margin-top: 2rem;
-				display: none;
-			}
-			.video-preview.visible {
-				display: block;
-			}
-			.video-preview video {
-				max-width: 100%;
-				border-radius: 8px;
-			}
-			.video-preview-container {
-				position: relative;
-				display: inline-block;
-				width: 100%;
-			}
-			/* Speed indicator overlay */
-			.speed-indicator {
-				position: absolute;
-				top: 50%;
-				left: 50%;
-				transform: translate(-50%, -50%);
-				background-color: rgba(0, 0, 0, 0.75);
-				color: white;
-				padding: 0.75rem 1.5rem;
-				border-radius: 8px;
-				font-size: 1.5rem;
-				font-weight: 600;
-				opacity: 0;
-				pointer-events: none;
-				transition: opacity 0.2s ease;
-				z-index: 10;
-			}
-			.speed-indicator.visible {
-				opacity: 1;
-			}
-			/* Playback speed control - overlay on video */
-			.speed-dropdown-overlay {
-				position: absolute;
-				bottom: 50px;
-				right: 10px;
-				z-index: 10;
-			}
-			.speed-btn {
-				padding: 0.4rem 0.75rem;
-				background-color: rgba(0, 0, 0, 0.7);
-				color: white;
-				border: none;
-				border-radius: 4px;
-				font-size: 0.85rem;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-				min-width: 50px;
-				text-align: center;
-			}
-			.speed-btn:hover {
-				background-color: rgba(0, 0, 0, 0.85);
-			}
-			.speed-btn:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: 2px;
-			}
-			.speed-btn.active {
-				background-color: var(--accent-color);
-				color: #fff;
-				border-color: var(--accent-color);
-			}
-			.speed-dropdown {
-				position: relative;
-				display: inline-block;
-			}
-			.speed-options {
-				position: absolute;
-				bottom: 100%;
-				left: 0;
-				margin-bottom: 4px;
-				background-color: var(--secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-				display: none;
-				z-index: 100;
-				min-width: 80px;
-			}
-			.speed-options.visible {
-				display: block;
-			}
-			.speed-option {
-				display: block;
-				width: 100%;
-				padding: 0.5rem 0.75rem;
-				background: none;
-				border: none;
-				text-align: left;
-				font-size: 0.85rem;
-				color: var(--text-color);
-				cursor: pointer;
-				transition: background-color 0.15s;
-			}
-			.speed-option:first-child {
-				border-radius: 6px 6px 0 0;
-			}
-			.speed-option:last-child {
-				border-radius: 0 0 6px 6px;
-			}
-			.speed-option:hover,
-			.speed-option.focused {
-				background-color: var(--hover-bg);
-			}
-			.speed-option:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: -2px;
-			}
-			.speed-option.active {
-				background-color: var(--accent-color);
-				color: #fff;
-			}
-			.speed-option.active.focused {
-				background-color: var(--accent-color);
-				outline: 2px solid #fff;
-				outline-offset: -2px;
-			}
-			.transcription {
-				margin-top: 2rem;
-				padding: 1.5rem;
-				background-color: var(--secondary-bg);
-				border-radius: 8px;
-				display: none;
-			}
-			.transcription.visible {
-				display: block;
-			}
-			.transcription h2 {
-				font-size: 1.25rem;
-				margin-bottom: 1rem;
-			}
-			.transcription-status {
-				color: var(--text-secondary);
-				margin-bottom: 1rem;
-			}
-			.segments {
-				max-height: 400px;
-				overflow-y: auto;
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-			}
-			.segment {
-				padding: 0.75rem 1rem;
-				border-bottom: 1px solid var(--border-color);
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.segment:hover {
-				background-color: var(--hover-bg);
-			}
-			.segment:last-child {
-				border-bottom: none;
-			}
-			.segment.active {
-				background-color: var(--active-segment-bg);
-				border-left: 3px solid var(--accent-color);
-			}
-			.segment-time {
-				font-size: 0.75rem;
-				color: var(--text-tertiary);
-				font-family: monospace;
-				margin-bottom: 0.25rem;
-			}
-			.segment-text {
-				font-size: 0.95rem;
-			}
-			.current-subtitle {
-				margin-top: 1rem;
-				padding: 1rem;
-				background-color: var(--subtitle-bg);
-				color: var(--subtitle-text);
-				border-radius: 8px;
-				font-size: 1.25rem;
-				text-align: center;
-				min-height: 3.5rem;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-			}
-			.download-btn {
-				display: inline-block;
-				margin-top: 1rem;
-				padding: 0.75rem 1.5rem;
-				background-color: var(--accent-color);
-				color: #fff;
-				text-decoration: none;
-				border-radius: 6px;
-				font-weight: 500;
-				transition: background-color 0.2s;
-			}
-			.download-btn:hover {
-				background-color: var(--accent-hover);
-			}
-			.download-btn-secondary {
-				padding: 0.75rem 1rem;
-				background-color: var(--text-secondary);
-				font-size: 0.875rem;
-			}
-			.download-btn-secondary:hover {
-				background-color: var(--text-color);
-			}
-			.download-group {
-				display: flex;
-				gap: 0.5rem;
-				align-items: center;
-			}
-			.actions {
-				margin-top: 1rem;
-				display: flex;
-				gap: 1rem;
-				flex-wrap: wrap;
-				align-items: center;
-			}
-			/* Embedded subtitles notice */
-			.embedded-subtitles-notice {
-				margin-top: 1rem;
-				padding: 1rem;
-				background-color: var(--input-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				display: flex;
-				flex-wrap: wrap;
-				gap: 1rem;
-				align-items: center;
-			}
-			.notice-content {
-				display: flex;
-				gap: 0.75rem;
-				align-items: flex-start;
-				flex: 1;
-				min-width: 200px;
-			}
-			.notice-icon {
-				width: 20px;
-				height: 20px;
-				flex-shrink: 0;
-				color: var(--accent-color);
-			}
-			.notice-text {
-				display: flex;
-				flex-direction: column;
-				gap: 0.25rem;
-			}
-			.notice-text strong {
-				font-weight: 600;
-			}
-			.notice-text span {
-				font-size: 0.9rem;
-				color: var(--text-muted);
-			}
-			.track-select {
-				padding: 0.5rem 0.75rem;
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				background-color: var(--bg-color);
-				color: var(--text-color);
-				font-size: 0.9rem;
-				cursor: pointer;
-			}
-			.use-embedded-btn {
-				padding: 0.5rem 1rem;
-				background-color: var(--accent-color);
-				color: #fff;
-				border: none;
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.use-embedded-btn:hover {
-				background-color: var(--accent-color-hover);
-			}
-			.full-text, .full-text-inner {
-				margin-top: 0;
-				padding: 1rem;
-				background-color: var(--bg-color);
-				border-radius: 4px;
-				font-size: 0.95rem;
-				line-height: 1.8;
-			}
-			/* Edit mode styles */
-			.edit-btn {
-				display: inline-block;
-				padding: 0.5rem 1rem;
-				background-color: var(--btn-secondary-bg);
-				color: var(--text-color);
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.edit-btn:hover {
-				background-color: var(--btn-secondary-hover);
-			}
-			.edit-btn.active {
-				background-color: var(--accent-color);
-				color: #fff;
-				border-color: var(--accent-color);
-			}
-			.view-btn {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.4rem;
-				padding: 0.5rem 1rem;
-				background-color: var(--btn-success-color);
-				color: #fff;
-				border: none;
-				border-radius: 6px;
-				font-weight: 500;
-				text-decoration: none;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.view-btn:hover {
-				background-color: var(--btn-success-hover);
-			}
-			.view-btn svg {
-				width: 16px;
-				height: 16px;
-			}
-			.save-btn {
-				display: inline-block;
-				padding: 0.5rem 1rem;
-				background-color: var(--btn-success-color);
-				color: #fff;
-				border: none;
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.save-btn:hover {
-				background-color: var(--btn-success-hover);
-			}
-			.save-btn:disabled {
-				background-color: var(--text-tertiary);
-				cursor: not-allowed;
-			}
-			.cancel-btn {
-				display: inline-block;
-				padding: 0.5rem 1rem;
-				background-color: var(--btn-secondary-bg);
-				color: var(--text-color);
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.cancel-btn:hover {
-				background-color: var(--btn-secondary-hover);
-			}
-			.undo-redo-btn {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				padding: 0.5rem 0.75rem;
-				background-color: var(--btn-secondary-bg);
-				color: var(--text-color);
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s, opacity 0.2s;
-				min-width: 40px;
-			}
-			.undo-redo-btn:hover:not(:disabled) {
-				background-color: var(--btn-secondary-hover);
-			}
-			.undo-redo-btn:disabled {
-				opacity: 0.4;
-				cursor: not-allowed;
-			}
-			.undo-redo-btn svg {
-				width: 16px;
-				height: 16px;
-			}
-			.undo-redo-separator {
-				width: 1px;
-				height: 24px;
-				background-color: var(--border-color);
-				margin: 0 0.25rem;
-			}
-			.edit-actions {
-				display: none;
-				gap: 0.5rem;
-				margin-bottom: 1rem;
-				align-items: center;
-			}
-			.edit-actions.visible {
-				display: flex;
-			}
-			.segment-edit {
-				display: none;
-				gap: 0.5rem;
-				margin-top: 0.5rem;
-			}
-			.segment.editing .segment-edit {
-				display: flex;
-				flex-direction: column;
-			}
-			.segment.editing .segment-text {
-				display: none;
-			}
-			.segment.editing .segment-time {
-				display: none;
-			}
-			.segment-edit textarea {
-				width: 100%;
-				min-height: 60px;
-				padding: 0.5rem;
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-family: inherit;
-				font-size: 0.95rem;
-				resize: vertical;
-			}
-			.segment-edit textarea:focus {
-				outline: none;
-				border-color: var(--accent-color);
-			}
-			.time-inputs {
-				display: flex;
-				gap: 0.5rem;
-				align-items: center;
-			}
-			.time-inputs label {
-				font-size: 0.75rem;
-				color: var(--text-secondary);
-			}
-			.time-inputs input {
-				width: 100px;
-				padding: 0.25rem 0.5rem;
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-family: monospace;
-				font-size: 0.8rem;
-			}
-			.time-inputs input:focus {
-				outline: none;
-				border-color: var(--accent-color);
-			}
-			.time-inputs input.error {
-				border-color: var(--error-color);
-				background-color: var(--error-bg);
-			}
-			.time-error {
-				color: var(--error-color);
-				font-size: 0.75rem;
-				margin-top: 0.25rem;
-				display: none;
-			}
-			.time-error.visible {
-				display: block;
-			}
-			.segment-actions {
-				display: flex;
-				gap: 0.5rem;
-				margin-top: 0.5rem;
-			}
-			.segment-delete-btn {
-				padding: 0.25rem 0.5rem;
-				background-color: var(--delete-btn-bg);
-				color: var(--delete-btn-text);
-				border: 1px solid var(--delete-btn-border);
-				border-radius: 4px;
-				font-size: 0.75rem;
-				cursor: pointer;
-			}
-			.segment-delete-btn:hover {
-				background-color: var(--delete-btn-hover);
-			}
-			/* Subtitle feedback buttons (shown below the current subtitle display) */
-			.subtitle-feedback {
-				display: flex;
-				gap: 0.25rem;
-				margin-top: 0.5rem;
-				justify-content: center;
-			}
-			.feedback-btn {
-				padding: 0.2rem 0.4rem;
-				background-color: var(--btn-secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-size: 0.7rem;
-				cursor: pointer;
-				transition: all 0.2s;
-				display: flex;
-				align-items: center;
-				gap: 0.2rem;
-			}
-			.feedback-btn:hover {
-				background-color: var(--btn-secondary-hover);
-			}
-			.feedback-btn.active {
-				background-color: var(--accent-color);
-				color: white;
-				border-color: var(--accent-color);
-			}
-			.feedback-btn.good.active {
-				background-color: #22c55e;
-				border-color: #22c55e;
-			}
-			.feedback-btn.misaligned.active {
-				background-color: #f59e0b;
-				border-color: #f59e0b;
-			}
-			.feedback-btn.missing.active {
-				background-color: #ef4444;
-				border-color: #ef4444;
-			}
-			.feedback-btn .emoji {
-				font-size: 0.85rem;
-			}
-			.add-segment-btn {
-				display: none;
-				width: 100%;
-				padding: 0.75rem;
-				background-color: var(--btn-secondary-bg);
-				border: 2px dashed var(--border-color);
-				border-radius: 4px;
-				color: var(--text-secondary);
-				cursor: pointer;
-				font-size: 0.9rem;
-				margin-top: 0.5rem;
-			}
-			.add-segment-btn:hover {
-				background-color: var(--btn-secondary-hover);
-				border-color: var(--text-tertiary);
-			}
-			.add-segment-btn.visible {
-				display: block;
-			}
-			.unsaved-indicator {
-				display: none;
-				color: var(--warning-color);
-				font-size: 0.8rem;
-				margin-left: 0.5rem;
-			}
-			.unsaved-indicator.visible {
-				display: inline;
-			}
-			/* Paste transcript section */
-			/* Collapsible section styles */
-			.collapsible-section {
-				margin-top: 1rem;
-				background-color: var(--secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 8px;
-				overflow: hidden;
-			}
-			.collapsible-header {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				padding: 0.75rem 1rem;
-				cursor: pointer;
-				user-select: none;
-				background-color: var(--secondary-bg);
-				transition: background-color 0.2s;
-			}
-			.collapsible-header:hover {
-				background-color: var(--hover-bg);
-			}
-			.collapsible-header h3 {
-				font-size: 0.95rem;
-				margin: 0;
-				font-weight: 500;
-			}
-			.collapsible-icon {
-				font-size: 0.75rem;
-				transition: transform 0.2s;
-				color: var(--text-secondary);
-			}
-			.collapsible-section.collapsed .collapsible-icon {
-				transform: rotate(-90deg);
-			}
-			.collapsible-content {
-				padding: 0 1rem 1rem;
-				transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-				overflow: hidden;
-			}
-			.collapsible-section.collapsed .collapsible-content {
-				max-height: 0;
-				padding-top: 0;
-				padding-bottom: 0;
-			}
-			/* Paste transcript collapsible section content */
-			#pasteTranscriptContent textarea {
-				width: 100%;
-				min-height: 120px;
-				padding: 0.75rem;
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-family: inherit;
-				font-size: 0.9rem;
-				resize: vertical;
-				margin-bottom: 0.75rem;
-			}
-			#pasteTranscriptContent textarea:focus {
-				outline: none;
-				border-color: var(--accent-color);
-			}
-			.lyrics-mode-toggle {
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-				margin-bottom: 0.75rem;
-			}
-			.toggle-switch {
-				position: relative;
-				width: 44px;
-				height: 24px;
-			}
-			.toggle-switch input {
-				opacity: 0;
-				width: 0;
-				height: 0;
-			}
-			.toggle-slider {
-				position: absolute;
-				cursor: pointer;
-				top: 0;
-				left: 0;
-				right: 0;
-				bottom: 0;
-				background-color: var(--toggle-bg);
-				transition: 0.3s;
-				border-radius: 24px;
-			}
-			.toggle-slider:before {
-				position: absolute;
-				content: "";
-				height: 18px;
-				width: 18px;
-				left: 3px;
-				bottom: 3px;
-				background-color: var(--toggle-knob);
-				transition: 0.3s;
-				border-radius: 50%;
-			}
-			.toggle-switch input:checked + .toggle-slider {
-				background-color: var(--accent-color);
-			}
-			.toggle-switch input:checked + .toggle-slider:before {
-				transform: translateX(20px);
-			}
-			.toggle-label {
-				font-size: 0.9rem;
-				color: var(--text-color);
-			}
-			.tooltip-container {
-				position: relative;
-				display: inline-block;
-				margin-left: 0.25rem;
-			}
-			.tooltip-icon {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				width: 16px;
-				height: 16px;
-				border-radius: 50%;
-				background-color: var(--border-color);
-				color: var(--text-secondary);
-				font-size: 11px;
-				cursor: help;
-			}
-			.tooltip-text {
-				visibility: hidden;
-				position: absolute;
-				z-index: 10;
-				width: 280px;
-				background-color: var(--tooltip-bg);
-				color: var(--tooltip-text);
-				text-align: left;
-				padding: 0.75rem;
-				border-radius: 6px;
-				font-size: 0.8rem;
-				line-height: 1.4;
-				bottom: 125%;
-				left: 50%;
-				transform: translateX(-50%);
-				opacity: 0;
-				transition: opacity 0.2s;
-			}
-			.tooltip-text::after {
-				content: "";
-				position: absolute;
-				top: 100%;
-				left: 50%;
-				margin-left: -5px;
-				border-width: 5px;
-				border-style: solid;
-				border-color: var(--tooltip-bg) transparent transparent transparent;
-			}
-			.tooltip-container:hover .tooltip-text {
-				visibility: visible;
-				opacity: 1;
-			}
-			.align-btn {
-				display: inline-block;
-				padding: 0.5rem 1rem;
-				background-color: var(--accent-color);
-				color: #fff;
-				border: none;
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.align-btn:hover {
-				background-color: var(--accent-hover);
-			}
-			.align-btn:disabled {
-				background-color: var(--text-tertiary);
-				cursor: not-allowed;
-			}
-			.align-status {
-				margin-top: 0.5rem;
-				font-size: 0.85rem;
-				color: var(--text-secondary);
-			}
-			.align-status.success {
-				color: var(--success-color);
-			}
-			.align-status.error {
-				color: var(--error-color);
-			}
-			/* Script conversion selection */
-			.script-conversion-section {
-				margin-top: 0.75rem;
-				padding: 0.75rem;
-				background-color: var(--script-section-bg);
-				border: 1px solid var(--script-section-border);
-				border-radius: 6px;
-			}
-			.script-conversion-header {
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-				margin-bottom: 0.5rem;
-			}
-			.script-conversion-header input[type="checkbox"] {
-				width: 16px;
-				height: 16px;
-			}
-			.script-conversion-header label {
-				font-size: 0.9rem;
-				font-weight: 500;
-			}
-			.script-selectors {
-				display: flex;
-				gap: 1rem;
-				margin-top: 0.5rem;
-			}
-			.script-selectors.hidden {
-				display: none;
-			}
-			.selector-group {
-				flex: 1;
-			}
-			.selector-group label {
-				display: block;
-				font-size: 0.8rem;
-				color: var(--script-label-color);
-				margin-bottom: 0.25rem;
-			}
-			.selector-group select {
-				width: 100%;
-				padding: 0.5rem;
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-size: 0.9rem;
-				background-color: var(--secondary-bg);
-				color: var(--text-color);
-			}
-			.selector-group select:focus {
-				outline: none;
-				border-color: var(--accent-color);
-			}
-			.script-conversion-hint {
-				font-size: 0.75rem;
-				color: var(--script-label-color);
-				margin-top: 0.5rem;
-			}
-			/* Burn subtitles button */
-			.burn-btn {
-				display: inline-block;
-				padding: 0.75rem 1.5rem;
-				background-color: var(--btn-teal-color);
-				color: #fff;
-				border: none;
-				border-radius: 6px;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.burn-btn:hover {
-				background-color: var(--btn-teal-hover);
-			}
-			.burn-btn:disabled {
-				background-color: var(--text-tertiary);
-				cursor: not-allowed;
-			}
-			.burn-status {
-				display: none;
-				margin-top: 1rem;
-				padding: 1rem;
-				background-color: var(--secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 8px;
-			}
-			.burn-status.visible {
-				display: block;
-			}
-			.burn-status.complete {
-				background-color: var(--success-bg);
-				border-color: var(--success-border);
-			}
-			.burn-status.error {
-				background-color: var(--error-bg);
-				border-color: var(--error-border);
-			}
-			.burn-eta {
-				font-size: 0.9rem;
-				color: var(--muted-text);
-				margin-top: 0.5rem;
-				margin-bottom: 0.5rem;
-			}
-			/* Language selector styles */
-			.language-section {
-				margin-bottom: 1rem;
-				padding: 1rem;
-				background-color: var(--secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 8px;
-			}
-			.language-section-header {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 1rem;
-				flex-wrap: wrap;
-			}
-			.language-label {
-				font-size: 0.9rem;
-				color: var(--text-secondary);
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-			}
-			.language-select {
-				padding: 0.5rem 0.75rem;
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				font-size: 0.9rem;
-				background-color: var(--bg-color);
-				color: var(--text-color);
-				min-width: 200px;
-			}
-			.language-select:focus {
-				outline: none;
-				border-color: var(--accent-color);
-			}
-			.detected-language {
-				font-size: 0.85rem;
-				color: var(--text-secondary);
-				margin-top: 0.5rem;
-			}
-			.detected-language .detected-value {
-				font-weight: 500;
-				color: var(--text-color);
-			}
-			.detected-language .detected-value.confidence-high {
-				color: var(--success-color, #22c55e);
-			}
-			.detected-language .detected-value.confidence-medium {
-				color: var(--warning-color, #f59e0b);
-			}
-			.detected-language .detected-value.confidence-low {
-				color: var(--text-secondary);
-			}
-			.retranscribe-btn {
-				padding: 0.5rem 1rem;
-				background-color: var(--accent-color);
-				color: white;
-				border: none;
-				border-radius: 6px;
-				font-size: 0.85rem;
-				cursor: pointer;
-				transition: background-color 0.2s;
-			}
-			.retranscribe-btn:hover {
-				background-color: var(--accent-hover);
-			}
-			.retranscribe-btn:disabled {
-				background-color: var(--text-tertiary);
-				cursor: not-allowed;
-			}
-			.download-burned-btn {
-				display: inline-block;
-				margin-top: 0.5rem;
-				padding: 0.5rem 1rem;
-				background-color: var(--btn-teal-color);
-				color: #fff;
-				text-decoration: none;
-				border-radius: 6px;
-				font-weight: 500;
-				font-size: 0.9rem;
-				transition: background-color 0.2s;
-			}
-			.download-burned-btn:hover {
-				background-color: var(--btn-teal-hover);
-			}
-			/* Keyboard shortcuts help button */
-			.keyboard-help-btn {
-				background: none;
-				border: 1px solid var(--border-color);
-				color: var(--text-secondary);
-				padding: 0.5rem 1rem;
-				border-radius: 6px;
-				font-size: 0.85rem;
-				cursor: pointer;
-				transition: all 0.2s;
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-			}
-			.keyboard-help-btn:hover {
-				background-color: var(--border-color);
-				color: var(--text-color);
-			}
-			.keyboard-help-btn:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: 2px;
-			}
-			.keyboard-help-btn svg {
-				width: 16px;
-				height: 16px;
-			}
-			/* Keyboard shortcuts modal */
-			.modal-overlay {
-				display: none;
-				position: fixed;
-				top: 0;
-				left: 0;
-				right: 0;
-				bottom: 0;
-				background-color: rgba(0, 0, 0, 0.6);
-				z-index: 1000;
-				padding: 2rem;
-				overflow-y: auto;
-			}
-			.modal-overlay.visible {
-				display: flex;
-				align-items: flex-start;
-				justify-content: center;
-			}
-			.modal-content {
-				background-color: var(--bg-color);
-				border-radius: 12px;
-				max-width: 500px;
-				width: 100%;
-				margin-top: 2rem;
-				box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-			}
-			.modal-header {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				padding: 1rem 1.5rem;
-				border-bottom: 1px solid var(--border-color);
-			}
-			.modal-title {
-				font-size: 1.25rem;
-				font-weight: 600;
-				margin: 0;
-			}
-			.modal-close {
-				background: none;
-				border: none;
-				font-size: 1.5rem;
-				cursor: pointer;
-				color: var(--text-secondary);
-				padding: 0.25rem;
-				border-radius: 4px;
-				line-height: 1;
-			}
-			.modal-close:hover {
-				background-color: var(--border-color);
-				color: var(--text-color);
-			}
-			.modal-close:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: 2px;
-			}
-			.modal-body {
-				padding: 1.5rem;
-			}
-			.shortcut-section {
-				margin-bottom: 1.5rem;
-			}
-			.shortcut-section:last-child {
-				margin-bottom: 0;
-			}
-			.shortcut-section-title {
-				font-size: 0.85rem;
-				font-weight: 600;
-				color: var(--text-secondary);
-				text-transform: uppercase;
-				letter-spacing: 0.05em;
-				margin-bottom: 0.75rem;
-			}
-			.shortcut-list {
-				list-style: none;
-				padding: 0;
-				margin: 0;
-			}
-			.shortcut-item {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 0.5rem 0;
-				border-bottom: 1px solid var(--border-color);
-			}
-			.shortcut-item:last-child {
-				border-bottom: none;
-			}
-			.shortcut-keys {
-				display: flex;
-				gap: 0.25rem;
-			}
-			.shortcut-key {
-				display: inline-block;
-				padding: 0.25rem 0.5rem;
-				background-color: var(--secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 4px;
-				font-family: monospace;
-				font-size: 0.85rem;
-				min-width: 1.5rem;
-				text-align: center;
-			}
-			.shortcut-description {
-				color: var(--text-color);
-				font-size: 0.9rem;
-			}
-			.shortcut-note {
-				margin-top: 1rem;
-				padding: 0.75rem;
-				background-color: var(--secondary-bg);
-				border-radius: 6px;
-				font-size: 0.85rem;
-				color: var(--text-secondary);
-			}
-			/* Mobile responsive styles */
-			@media (max-width: 480px) {
-				.container {
-					padding: 1rem;
-				}
-				.header {
-					margin-bottom: 1.5rem;
-				}
-				h1 {
-					font-size: 1.5rem;
-				}
-				.dropzone {
-					padding: 2rem 1rem;
-				}
-				.dropzone-icon {
-					font-size: 2rem;
-				}
-				.dropzone-text {
-					font-size: 1rem;
-				}
-				.dropzone-hint {
-					font-size: 0.75rem;
-				}
-				.transcription {
-					padding: 1rem;
-				}
-				.transcription h2 {
-					font-size: 1.1rem;
-				}
-				.current-subtitle {
-					font-size: 1rem;
-					min-height: 3rem;
-					padding: 0.75rem;
-				}
-				.segment {
-					padding: 0.5rem 0.75rem;
-				}
-				.segment-text {
-					font-size: 0.9rem;
-				}
-				.actions {
-					flex-direction: column;
-					gap: 0.75rem;
-				}
-				.download-group {
-					flex-wrap: wrap;
-					width: 100%;
-				}
-				.download-btn {
-					flex: 1;
-					min-width: 80px;
-					text-align: center;
-					min-height: 44px;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-				}
-				.edit-btn, .burn-btn {
-					width: 100%;
-					min-height: 44px;
-				}
-				#pasteTranscriptContent textarea {
-					min-height: 100px;
-				}
-				.script-selectors {
-					flex-direction: column;
-					gap: 0.75rem;
-				}
-				.time-inputs {
-					flex-wrap: wrap;
-				}
-				.time-inputs input {
-					width: 90px;
-				}
-				.edit-actions {
-					flex-wrap: wrap;
-				}
-				.save-btn, .cancel-btn {
-					flex: 1;
-					min-height: 44px;
-				}
-				.tooltip-text {
-					width: 200px;
-					font-size: 0.75rem;
-				}
-			}
-			@media (max-width: 375px) {
-				h1 {
-					font-size: 1.25rem;
-				}
-				.container {
-					padding: 0.75rem;
-				}
-				.download-group {
-					flex-direction: column;
-				}
-				.download-btn {
-					width: 100%;
-				}
-			}
-		</style>
 	</head>
 	<body>
 		<Navigation showSettings={true} />
@@ -1561,56 +309,69 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
-			import { csrfFetch, getCsrfToken, CSRF_HEADER } from '../utils/csrf';
-			import { getOrCreateSessionId, cleanupStaleUploadSessions, recordUploadSession, removeUploadSessionRecord } from '../utils/session';
-			import { parseTimeString } from '../utils/validation';
+			import { csrfFetch } from '../utils/csrf';
+			import { cleanupStaleUploadSessions } from '../utils/session';
 			import { escapeHtml } from '../utils/html';
-			import { renderBionicText, isBionicEnabled } from '../utils/bionic';
-			import {
-				recordProcessingTime,
-				estimateTimeRemaining,
-				formatTimeRemaining,
-				hasHistoricalData
-			} from '../utils/processing-speed';
-			import {
-				openSRT,
-				openVTT,
-				openJSON
-			} from '../utils/subtitles';
-			import {
-				PLAYBACK_SPEEDS,
-				getSavedSpeed,
-				setPlaybackSpeed,
-				increaseSpeed,
-				decreaseSpeed,
-				formatSpeed
-			} from '../utils/playback-speed';
-			import type {
-				TranscriptionSegment,
-				TranscriptionResult,
-				TranscriptionStatusResponse,
-				AlignmentResponse,
-				BurnStatusResponse,
-				UploadSession,
-				LanguageHint,
-				LanguageHints,
-				UploadResponse
-			} from '../types/transcription';
-			import type { PlaybackSpeed } from '../utils/playback-speed';
-			import { getRequiredElement, getOptionalElement } from '../utils/dom';
+			import { openSRT, openVTT, openJSON } from '../utils/subtitles';
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
+			import { getRequiredElement } from '../utils/dom';
+			import type { TranscriptionResult } from '../types/transcription';
+			import type { LanguageHints } from '../types/transcription';
 
-			// Get all required elements with type checking
+			import {
+				LANGUAGE_DISPLAY_NAMES,
+				LANGUAGE_SCRIPT_MAP,
+				SCRIPT_LANGUAGE_NAMES,
+				PREFERRED_LANGUAGE_KEY,
+				PASTE_COLLAPSED_KEY,
+				FULLTEXT_COLLAPSED_KEY
+			} from '../utils/upload-constants';
+			import {
+				validateFile,
+				uploadFile,
+				createUploadState,
+			} from '../utils/upload-file';
+			import {
+				startTranscription as startTranscriptionPoll,
+				pollTranscriptionStatus,
+				parseSRT,
+				getLanguageDisplayName,
+				createTranscriptionState,
+			} from '../utils/transcription-polling';
+			import {
+				createSegmentEditorState,
+				renderSegments,
+				setupFeedbackHandler,
+				enterEditMode,
+				exitEditMode,
+				saveSegments,
+				addNewSegment,
+				performUndo,
+				performRedo,
+			} from '../utils/segment-editor';
+			import type { SegmentEditorElements } from '../utils/segment-editor';
+			import {
+				setupSubtitleSync,
+				createSubtitleUpdater,
+				setupSpeedControls,
+				createSpeedUIState,
+				setupKeyboardShortcuts,
+				startBurn,
+				createBurnState,
+			} from '../utils/subtitle-sync';
+
+			// --- DOM Elements ---
 			const dropzone = getRequiredElement('dropzone', HTMLElement);
 			const fileInput = getRequiredElement('fileInput', HTMLInputElement);
-			const status = getRequiredElement('status', HTMLElement);
+			const statusEl = getRequiredElement('status', HTMLElement);
 			const statusText = getRequiredElement('statusText', HTMLElement);
 			const videoPreview = getRequiredElement('videoPreview', HTMLElement);
 			const previewVideo = getRequiredElement('previewVideo', HTMLVideoElement);
 			const progressBar = getRequiredElement('progressBar', HTMLElement);
 			const progressFill = getRequiredElement('progressFill', HTMLElement);
-			const transcription = getRequiredElement('transcription', HTMLElement);
+			const transcriptionEl = getRequiredElement('transcription', HTMLElement);
 			const transcriptionStatus = getRequiredElement('transcriptionStatus', HTMLElement);
-			const segments = getRequiredElement('segments', HTMLElement);
+			const segmentsEl = getRequiredElement('segments', HTMLElement);
 			const fullText = getRequiredElement('fullText', HTMLElement);
 			const fullTextSection = getRequiredElement('fullTextSection', HTMLElement);
 			const fullTextHeader = getRequiredElement('fullTextHeader', HTMLElement);
@@ -1634,10 +395,9 @@ import '../styles/theme.css';
 			const addSegmentBtn = getRequiredElement('addSegmentBtn', HTMLButtonElement);
 			const unsavedIndicator = getRequiredElement('unsavedIndicator', HTMLElement);
 			const burnBtn = getRequiredElement('burnBtn', HTMLButtonElement);
-			const burnStatus = getRequiredElement('burnStatus', HTMLElement);
+			const burnStatusEl = getRequiredElement('burnStatus', HTMLElement);
 			const burnStatusText = getRequiredElement('burnStatusText', HTMLElement);
 			const burnEtaText = getRequiredElement('burnEtaText', HTMLElement);
-			const burnProgressBar = getRequiredElement('burnProgressBar', HTMLElement);
 			const burnProgressFill = getRequiredElement('burnProgressFill', HTMLElement);
 			const downloadBurnedBtn = getRequiredElement('downloadBurnedBtn', HTMLAnchorElement);
 			const pasteTranscriptSection = getRequiredElement('pasteTranscriptSection', HTMLElement);
@@ -1664,479 +424,35 @@ import '../styles/theme.css';
 			const speedDropdown = getRequiredElement('speedDropdown', HTMLElement);
 			const speedIndicator = getRequiredElement('speedIndicator', HTMLElement);
 
-			// Language display names for showing detected language
-			const languageDisplayNames: Record<string, string> = {
-				'auto': 'Auto-detect',
-				'en': 'English',
-				'es': 'Spanish',
-				'fr': 'French',
-				'de': 'German',
-				'it': 'Italian',
-				'pt': 'Portuguese',
-				'ru': 'Russian',
-				'zh': 'Chinese',
-				'ja': 'Japanese',
-				'ko': 'Korean',
-				'ar': 'Arabic',
-				'hi': 'Hindi',
-				'nl': 'Dutch',
-				'pl': 'Polish',
-				'tr': 'Turkish',
-				'vi': 'Vietnamese',
-				'th': 'Thai',
-				'id': 'Indonesian',
-				'uk': 'Ukrainian',
-				'sv': 'Swedish',
-				'cs': 'Czech',
-				'el': 'Greek',
-				'he': 'Hebrew',
-				'hu': 'Hungarian',
-				'no': 'Norwegian',
-				'da': 'Danish',
-				'fi': 'Finnish',
-				'ro': 'Romanian',
-				'sk': 'Slovak',
-				'bg': 'Bulgarian',
-				'hr': 'Croatian',
-				'lt': 'Lithuanian',
-				'lv': 'Latvian',
-				'sl': 'Slovenian',
-				'et': 'Estonian',
-				'ms': 'Malay',
-				'tl': 'Filipino',
-				'bn': 'Bengali',
-				'ta': 'Tamil',
-				'te': 'Telugu',
-				'ur': 'Urdu',
-				'fa': 'Persian',
-				'ml': 'Malayalam',
-				'sw': 'Swahili'
+			// --- State ---
+			let isAuthenticated = false;
+			const uploadState = createUploadState();
+			const transcriptionState = createTranscriptionState();
+			const editorState = createSegmentEditorState();
+			const burnState = createBurnState();
+			const speedState = createSpeedUIState();
+			const subtitleSyncState = { active: false };
+
+			const editorEls: SegmentEditorElements = {
+				segments: segmentsEl,
+				fullText,
+				editBtn,
+				undoBtn,
+				redoBtn,
+				saveBtn,
+				editActions,
+				addSegmentBtn,
+				unsavedIndicator,
+				subtitleFeedback,
+				previewVideo,
 			};
 
-			// LocalStorage key for preferred language
-			const PREFERRED_LANGUAGE_KEY = 'subtitler:transcription_language';
-
-			// LocalStorage keys for collapsible section states
-			const PASTE_COLLAPSED_KEY = 'subtitler:paste_transcript_collapsed';
-			const FULLTEXT_COLLAPSED_KEY = 'subtitler:full_text_collapsed';
-
-			// Set up collapsible sections
-			function setupCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
-				// Load saved state from localStorage (default to collapsed for full text, expanded for paste)
-				const savedState = localStorage.getItem(storageKey);
-				const defaultCollapsed = storageKey === FULLTEXT_COLLAPSED_KEY; // Full text starts collapsed
-				const isCollapsed = savedState !== null ? savedState === 'true' : defaultCollapsed;
-
-				if (isCollapsed) {
-					section.classList.add('collapsed');
-					header.setAttribute('aria-expanded', 'false');
-				} else {
-					section.classList.remove('collapsed');
-					header.setAttribute('aria-expanded', 'true');
-				}
-
-				// Toggle on click
-				header.addEventListener('click', () => toggleCollapsible(section, header, storageKey));
-
-				// Toggle on Enter/Space key
-				header.addEventListener('keydown', (e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
-						e.preventDefault();
-						toggleCollapsible(section, header, storageKey);
-					}
-				});
-			}
-
-			function toggleCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
-				const isCurrentlyCollapsed = section.classList.contains('collapsed');
-
-				if (isCurrentlyCollapsed) {
-					section.classList.remove('collapsed');
-					header.setAttribute('aria-expanded', 'true');
-					localStorage.setItem(storageKey, 'false');
-				} else {
-					section.classList.add('collapsed');
-					header.setAttribute('aria-expanded', 'false');
-					localStorage.setItem(storageKey, 'true');
-				}
-			}
-
-			// Initialize collapsible sections
-			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY);
-			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY);
-
-			// Handle language hints from upload response
-			// This shows detected language hints before transcription starts so user can override
-			function handleLanguageHints(languageHints: LanguageHints | undefined) {
-				if (!languageHints || !languageHints.hints || languageHints.hints.length === 0) {
-					return;
-				}
-
-				// Show the language section
-				languageSection.style.display = 'block';
-
-				// Get the suggested language
-				const suggestedLang = languageHints.suggested_language;
-				const confidence = languageHints.suggested_confidence;
-
-				if (suggestedLang) {
-					// Pre-select the suggested language in the dropdown
-					// Only if user hasn't already selected a specific language
-					const currentSelection = transcriptionLanguageSelect.value;
-					if (currentSelection === 'auto') {
-						// Check if the language is available in the dropdown
-						const langOption = transcriptionLanguageSelect.querySelector(`option[value="${suggestedLang}"]`) as HTMLOptionElement | null;
-						if (langOption) {
-							transcriptionLanguageSelect.value = suggestedLang;
-						}
-					}
-
-					// Build the source info text
-					const sources = languageHints.hints.map(h => h.source).join(', ');
-					const displayName = languageDisplayNames[suggestedLang] || languageHints.hints[0]?.language_name || suggestedLang.toUpperCase();
-
-					// Show the detected language indicator with confidence
-					let confidenceClass = '';
-					if (confidence === 'high') {
-						confidenceClass = 'confidence-high';
-					} else if (confidence === 'medium') {
-						confidenceClass = 'confidence-medium';
-					} else {
-						confidenceClass = 'confidence-low';
-					}
-
-					detectedLanguageValue.textContent = displayName;
-					detectedLanguageValue.className = `detected-value ${confidenceClass}`;
-					detectedLanguageValue.title = `Detected from ${sources} (${confidence} confidence)`;
-					detectedLanguage.style.display = 'block';
-				}
-			}
-
-			// Clean up stale upload sessions on page load
-			cleanupStaleUploadSessions();
-
-			let isUploading = false;
-			let currentUploadId: string | null = null;
-			let transcriptionSegments: TranscriptionSegment[] = [];
-			let editedSegments: TranscriptionSegment[] = [];
-			let isEditMode = false;
-			let hasUnsavedChanges = false;
-
-			// Cached segment DOM elements for performance optimization
-			// Avoids querySelectorAll on every timeupdate event (~30/sec)
-			let cachedSegmentElements: HTMLElement[] = [];
-			let lastActiveSegmentIndex = -1;
-
-			// Embedded subtitles tracking
-			interface SubtitleTrack {
-				index: number;
-				language: string;
-				title: string;
-				codec: string;
-				default: boolean;
-				forced: boolean;
-				text_based: boolean;
-			}
-			let embeddedSubtitleTracks: SubtitleTrack[] = [];
-
-			// Segment alignment feedback storage
-			// Feedback types: 'good' (thumbs up), 'misaligned' (timing off), 'missing' (words missing)
-			//
-			// Backend Integration Plan:
-			// To send feedback to the backend, create a POST /api/videos/{id}/feedback endpoint that accepts:
-			// {
-			//   "segments": [
-			//     { "index": 0, "feedback": "good", "start": 0.0, "end": 2.5, "text": "..." },
-			//     { "index": 3, "feedback": "misaligned", "start": 10.0, "end": 12.0, "text": "..." }
-			//   ],
-			//   "submitted_at": "2026-01-27T12:00:00Z"
-			// }
-			// The backend can store this in a feedback table for analytics and model improvement.
-			// Call getAllFeedback() to get all feedback data when the user clicks a "Submit Feedback" button.
-			//
-			type FeedbackType = 'good' | 'misaligned' | 'missing' | null;
-
-			function getFeedbackStorageKey(): string {
-				return `subtitler:feedback:${currentUploadId}`;
-			}
-
-			function getSegmentFeedback(index: number): FeedbackType {
-				if (!currentUploadId) return null;
-				try {
-					const stored = localStorage.getItem(getFeedbackStorageKey());
-					if (stored) {
-						const feedbackMap = JSON.parse(stored) as Record<string, FeedbackType>;
-						return feedbackMap[index.toString()] || null;
-					}
-				} catch (error) {
-					console.error('Failed to parse segment feedback:', error);
-				}
-				return null;
-			}
-
-			function setSegmentFeedback(index: number, feedback: FeedbackType): void {
-				if (!currentUploadId) return;
-				try {
-					const key = getFeedbackStorageKey();
-					const stored = localStorage.getItem(key);
-					const feedbackMap: Record<string, FeedbackType> = stored ? JSON.parse(stored) : {};
-
-					if (feedback === null) {
-						delete feedbackMap[index.toString()];
-					} else {
-						feedbackMap[index.toString()] = feedback;
-					}
-
-					localStorage.setItem(key, JSON.stringify(feedbackMap));
-				} catch (error) {
-					console.error('Failed to save segment feedback:', error);
-				}
-			}
-
-			function getAllFeedback(): Record<string, FeedbackType> {
-				if (!currentUploadId) return {};
-				try {
-					const stored = localStorage.getItem(getFeedbackStorageKey());
-					return stored ? JSON.parse(stored) : {};
-				} catch (error) {
-					console.error('Failed to parse all feedback:', error);
-					return {};
-				}
-			}
-
-			// Track which segment index the feedback buttons refer to
-			let feedbackActiveIndex = -1;
-
-			function updateFeedbackButtons(index: number) {
-				if (index < 0) {
-					subtitleFeedback.style.display = 'none';
-					feedbackActiveIndex = -1;
-					return;
-				}
-				subtitleFeedback.style.display = '';
-				feedbackActiveIndex = index;
-				const feedback = getSegmentFeedback(index);
-				subtitleFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
-					const btnType = btn.getAttribute('data-feedback');
-					btn.classList.toggle('active', btnType === feedback);
-				});
-			}
-
-			// Persistent click handler for subtitle feedback buttons (not per-segment)
-			subtitleFeedback.addEventListener('click', (e) => {
-				const target = (e.target as HTMLElement).closest('.feedback-btn') as HTMLButtonElement | null;
-				if (!target || feedbackActiveIndex < 0) return;
-				const feedbackType = target.getAttribute('data-feedback') as FeedbackType;
-				const currentFeedback = getSegmentFeedback(feedbackActiveIndex);
-
-				// Toggle: if clicking the same feedback, clear it; otherwise set new feedback
-				if (currentFeedback === feedbackType) {
-					setSegmentFeedback(feedbackActiveIndex, null);
-				} else {
-					setSegmentFeedback(feedbackActiveIndex, feedbackType);
-				}
-
-				// Update button states
-				const newFeedback = getSegmentFeedback(feedbackActiveIndex);
-				subtitleFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
-					const btnType = btn.getAttribute('data-feedback');
-					btn.classList.toggle('active', btnType === newFeedback);
-				});
-			});
-
-			// Undo/redo state management
-			const MAX_HISTORY_SIZE = 50;
-			let undoStack: TranscriptionSegment[][] = [];
-			let redoStack: TranscriptionSegment[][] = [];
-
-			// Cleanup management for long-running operations
-			let transcriptionPollTimeout: ReturnType<typeof setTimeout> | null = null;
-			let burnPollTimeout: ReturnType<typeof setTimeout> | null = null;
-			let fetchAbortController: AbortController | null = null;
-
-			// Upload timeout configuration (5 minutes default)
-			const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
-			let currentUploadXhr: XMLHttpRequest | null = null;
-			let uploadTimeoutId: ReturnType<typeof setTimeout> | null = null;
-
-			// Track if subtitle sync is set up
-			let subtitleSyncActive = false;
-
-			// Track video duration and transcription timing for ETA calculation
-			let currentVideoDuration: number = 0;
-			let transcriptionStartTime: number | null = null;
-
-			// Cleanup function to abort pending fetches and clear timeouts
-			function cleanupPendingOperations() {
-				if (transcriptionPollTimeout !== null) {
-					clearTimeout(transcriptionPollTimeout);
-					transcriptionPollTimeout = null;
-				}
-				if (burnPollTimeout !== null) {
-					clearTimeout(burnPollTimeout);
-					burnPollTimeout = null;
-				}
-				if (fetchAbortController) {
-					fetchAbortController.abort();
-					fetchAbortController = null;
-				}
-				if (uploadTimeoutId !== null) {
-					clearTimeout(uploadTimeoutId);
-					uploadTimeoutId = null;
-				}
-				if (currentUploadXhr) {
-					currentUploadXhr.abort();
-					currentUploadXhr = null;
-				}
-			}
-
-			// Cleanup on page unload to prevent memory leaks
-			window.addEventListener('beforeunload', () => {
-				cleanupPendingOperations();
-				// Remove video timeupdate listener if active
-				if (subtitleSyncActive && previewVideo) {
-					previewVideo.removeEventListener('timeupdate', updateCurrentSubtitle);
-					subtitleSyncActive = false;
-				}
-			});
-			// Also cleanup on pagehide (for bfcache-enabled browsers)
-			window.addEventListener('pagehide', cleanupPendingOperations);
-
-			// Language to native script mapping
-			const languageScriptMap: { [key: string]: string[] } = {
-				'hi': ['Devanagari'],
-				'ml': ['Malayalam'],
-				'ta': ['Tamil'],
-				'te': ['Telugu'],
-				'kn': ['Kannada'],
-				'bn': ['Bengali'],
-				'gu': ['Gujarati'],
-				'or': ['Oriya'],
-				'pa': ['Gurmukhi']
-			};
-
-			// Language display names
-			const languageNames: { [key: string]: string } = {
-				'hi': 'Hindi',
-				'ml': 'Malayalam',
-				'ta': 'Tamil',
-				'te': 'Telugu',
-				'kn': 'Kannada',
-				'bn': 'Bengali',
-				'gu': 'Gujarati',
-				'or': 'Oriya',
-				'pa': 'Punjabi'
-			};
-
-			// Update script options based on selected language
-			function updateScriptOptions() {
-				const lang = languageSelect.value;
-				const scripts = languageScriptMap[lang] || ['Devanagari'];
-
-				scriptSelect.innerHTML = scripts.map(s =>
-					`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
-				).join('');
-
-				// Update hint
-				const langName = languageNames[lang] || lang;
-				scriptHint.textContent = `Romanized ${langName} text will be converted to ${scripts[0]} script.`;
-			}
-
-			// Toggle script selectors visibility
-			convertScript.addEventListener('change', () => {
-				if (convertScript.checked) {
-					scriptSelectors.classList.remove('hidden');
-					updateScriptOptions();
-				} else {
-					scriptSelectors.classList.add('hidden');
-					scriptHint.textContent = '';
-				}
-			});
-
-			// Update scripts when language changes
-			languageSelect.addEventListener('change', updateScriptOptions);
-
-			dropzone.addEventListener('click', () => fileInput.click());
-
-			dropzone.addEventListener('dragover', (e) => {
-				e.preventDefault();
-				dropzone.classList.add('dragover');
-			});
-
-			dropzone.addEventListener('dragleave', () => {
-				dropzone.classList.remove('dragover');
-			});
-
-			dropzone.addEventListener('drop', (e) => {
-				e.preventDefault();
-				dropzone.classList.remove('dragover');
-				const files = e.dataTransfer?.files;
-				if (files && files.length > 0) {
-					handleFile(files[0]);
-				}
-			});
-
-			fileInput.addEventListener('change', () => {
-				const files = fileInput.files;
-				if (files && files.length > 0) {
-					handleFile(files[0]);
-				}
-			});
-
-			function handleFile(file: File) {
-				if (isUploading) {
-					showStatus('Upload already in progress', 'error');
-					return;
-				}
-
-				if (!file.type.startsWith('video/')) {
-					showStatus('Please select a video file', 'error');
-					return;
-				}
-
-				// Check file size (500 MB max)
-				const maxSize = 500 * 1024 * 1024;
-				if (file.size > maxSize) {
-					const actualSizeMB = (file.size / 1024 / 1024).toFixed(1);
-					showStatus(`File too large: ${actualSizeMB} MB. Maximum allowed size is 500 MB.`, 'error');
-					return;
-				}
-
-				// Show video preview
-				const url = URL.createObjectURL(file);
-				previewVideo.src = url;
-				videoPreview.classList.add('visible');
-
-				// Capture video duration for ETA calculation
-				previewVideo.addEventListener('loadedmetadata', () => {
-					if (previewVideo.duration && !isNaN(previewVideo.duration) && isFinite(previewVideo.duration)) {
-						currentVideoDuration = previewVideo.duration;
-					}
-				}, { once: true });
-
-				// Show language section and restore preferred language
-				languageSection.style.display = 'block';
-				const savedLanguage = localStorage.getItem(PREFERRED_LANGUAGE_KEY);
-				if (savedLanguage && transcriptionLanguageSelect.querySelector(`option[value="${savedLanguage}"]`)) {
-					transcriptionLanguageSelect.value = savedLanguage;
-				}
-				// Hide re-transcribe button and detected language (will show after transcription)
-				retranscribeBtn.style.display = 'none';
-				detectedLanguage.style.display = 'none';
-
-				showStatus(`Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-
-				// Start upload
-				uploadFile(file);
-			}
-
+			// --- Helper functions ---
 			function showStatus(message: string, type?: 'error' | 'success') {
 				statusText.textContent = message;
-				status.classList.add('visible');
-				status.classList.remove('error', 'success');
-				if (type) {
-					status.classList.add(type);
-				}
+				statusEl.classList.add('visible');
+				statusEl.classList.remove('error', 'success');
+				if (type) statusEl.classList.add(type);
 			}
 
 			function showProgress(percent: number) {
@@ -2149,547 +465,184 @@ import '../styles/theme.css';
 				progressFill.style.width = '0%';
 			}
 
-			// Chunk size for chunked uploads (50 MB)
-			const CHUNK_SIZE = 50 * 1024 * 1024;
+			// --- Collapsible sections ---
+			function setupCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
+				const savedState = localStorage.getItem(storageKey);
+				const defaultCollapsed = storageKey === FULLTEXT_COLLAPSED_KEY;
+				const isCollapsed = savedState !== null ? savedState === 'true' : defaultCollapsed;
 
-			// LocalStorage key for upload session resumability
-			const UPLOAD_SESSION_PREFIX = 'subtitler:upload_session:';
+				if (isCollapsed) {
+					section.classList.add('collapsed');
+					header.setAttribute('aria-expanded', 'false');
+				} else {
+					section.classList.remove('collapsed');
+					header.setAttribute('aria-expanded', 'true');
+				}
 
-			async function uploadFile(file: File) {
-				isUploading = true;
-
-				try {
-					showStatus('Uploading...');
-					showProgress(0);
-
-					// Use chunked upload for files larger than chunk size
-					if (file.size > CHUNK_SIZE) {
-						await uploadFileChunked(file);
+				const toggle = () => {
+					const collapsed = section.classList.contains('collapsed');
+					if (collapsed) {
+						section.classList.remove('collapsed');
+						header.setAttribute('aria-expanded', 'true');
+						localStorage.setItem(storageKey, 'false');
 					} else {
-						await uploadFileSingle(file);
-					}
-				} catch (error) {
-					hideProgress();
-					const errorMessage = error instanceof Error ? error.message : String(error);
-					if (errorMessage === 'Upload cancelled') {
-						// Check if it was due to timeout
-						showStatus('Upload timed out. Please try again with a smaller file or check your connection.', 'error');
-					} else {
-						showStatus(`Upload failed: ${errorMessage}`, 'error');
-					}
-				} finally {
-					isUploading = false;
-					currentUploadXhr = null;
-					if (uploadTimeoutId) {
-						clearTimeout(uploadTimeoutId);
-						uploadTimeoutId = null;
-					}
-				}
-			}
-
-			// Single-file upload for small files
-			async function uploadFileSingle(file: File) {
-				const formData = new FormData();
-				formData.append('video', file);
-
-				// Use XMLHttpRequest for progress tracking
-				const xhr = new XMLHttpRequest();
-				currentUploadXhr = xhr;
-
-				xhr.upload.addEventListener('progress', (e) => {
-					if (e.lengthComputable) {
-						const percent = Math.round((e.loaded / e.total) * 100);
-						showProgress(percent);
-						showStatus(`Uploading... ${percent}%`);
-					}
-				});
-
-				const uploadPromise = new Promise<UploadResponse>((resolve, reject) => {
-					xhr.onload = () => {
-						if (uploadTimeoutId) {
-							clearTimeout(uploadTimeoutId);
-							uploadTimeoutId = null;
-						}
-						currentUploadXhr = null;
-						if (xhr.status >= 200 && xhr.status < 300) {
-							try {
-								resolve(JSON.parse(xhr.responseText));
-							} catch (parseError) {
-								console.error('Failed to parse upload response:', parseError, xhr.responseText);
-								reject(new Error('Invalid JSON response'));
-							}
-						} else {
-							try {
-								const error = JSON.parse(xhr.responseText);
-								reject(new Error(error.error || 'Upload failed'));
-							} catch (parseError) {
-								console.error('Failed to parse upload error response:', parseError, xhr.responseText);
-								reject(new Error(`Upload failed: ${xhr.status}`));
-							}
-						}
-					};
-					xhr.onerror = () => {
-						if (uploadTimeoutId) {
-							clearTimeout(uploadTimeoutId);
-							uploadTimeoutId = null;
-						}
-						currentUploadXhr = null;
-						reject(new Error('Network error'));
-					};
-					xhr.onabort = () => {
-						if (uploadTimeoutId) {
-							clearTimeout(uploadTimeoutId);
-							uploadTimeoutId = null;
-						}
-						currentUploadXhr = null;
-						reject(new Error('Upload cancelled'));
-					};
-				});
-
-				// For anonymous users, include session_id for tracking
-				let uploadUrl = '/api/upload';
-				if (!isAuthenticated) {
-					const sessionId = getOrCreateSessionId();
-					uploadUrl = `/api/upload?session_id=${encodeURIComponent(sessionId)}`;
-				}
-				xhr.open('POST', uploadUrl);
-
-				// Add CSRF token for authenticated users
-				if (isAuthenticated) {
-					const csrfToken = await getCsrfToken();
-					if (csrfToken) {
-						xhr.setRequestHeader(CSRF_HEADER, csrfToken);
-					}
-				}
-
-				// Set up upload timeout (5 minutes)
-				uploadTimeoutId = setTimeout(() => {
-					if (currentUploadXhr) {
-						currentUploadXhr.abort();
-						currentUploadXhr = null;
-					}
-					uploadTimeoutId = null;
-				}, UPLOAD_TIMEOUT_MS);
-
-				xhr.send(formData);
-
-				const result = await uploadPromise;
-				hideProgress();
-				showStatus(`Upload complete! Starting transcription...`, 'success');
-
-				// Handle language hints from upload response (if any)
-				if (result.language_hints) {
-					handleLanguageHints(result.language_hints);
-				}
-
-				// Store upload ID and start transcription
-				currentUploadId = result.upload_id;
-				startTranscription(result.upload_id);
-			}
-
-			// Chunked upload for large files
-			async function uploadFileChunked(file: File) {
-				const sessionKey = `${UPLOAD_SESSION_PREFIX}${file.name}:${file.size}`;
-				let sessionId = localStorage.getItem(sessionKey);
-				let uploadSession: UploadSession | null = null;
-				let receivedChunks: number[] = [];
-
-				// Check for resumable session
-				if (sessionId) {
-					try {
-						const statusUrl = getSessionQueryUrl(`/api/upload/status/${sessionId}`);
-						const statusRes = await fetch(statusUrl);
-						if (statusRes.ok) {
-							uploadSession = await statusRes.json();
-							if (uploadSession.status === 'in_progress') {
-								receivedChunks = uploadSession.received_chunks || [];
-								showStatus(`Resuming upload... ${uploadSession.progress}% complete`);
-								showProgress(uploadSession.progress);
-							} else {
-								// Session expired or completed, start fresh
-								localStorage.removeItem(sessionKey);
-								removeUploadSessionRecord(sessionKey);
-								sessionId = null;
-								uploadSession = null;
-							}
-						} else {
-							// Session not found, start fresh
-							localStorage.removeItem(sessionKey);
-							removeUploadSessionRecord(sessionKey);
-							sessionId = null;
-						}
-					} catch (error) {
-						console.error('Failed to check resumable upload session:', error);
-						localStorage.removeItem(sessionKey);
-						removeUploadSessionRecord(sessionKey);
-						sessionId = null;
-					}
-				}
-
-				// Initialize new upload session if needed
-				if (!sessionId) {
-					const initUrl = getSessionQueryUrl('/api/upload/init');
-					const initRes = await csrfFetch(initUrl, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							filename: file.name,
-							size: file.size,
-							content_type: file.type || 'video/mp4',
-							chunk_size: CHUNK_SIZE
-						})
-					});
-
-					if (!initRes.ok) {
-						const error = await initRes.json().catch(() => ({ error: 'Failed to initialize upload' }));
-						throw new Error(error.error || 'Failed to initialize upload');
-					}
-
-					uploadSession = await initRes.json();
-					sessionId = uploadSession.upload_session_id;
-					localStorage.setItem(sessionKey, sessionId);
-					recordUploadSession(sessionKey);
-					receivedChunks = [];
-				}
-
-				const totalChunks = uploadSession.total_chunks;
-
-				// Upload chunks
-				for (let i = 0; i < totalChunks; i++) {
-					// Skip already uploaded chunks
-					if (receivedChunks.includes(i)) {
-						continue;
-					}
-
-					const start = i * CHUNK_SIZE;
-					const end = Math.min(start + CHUNK_SIZE, file.size);
-					const chunk = file.slice(start, end);
-
-					const formData = new FormData();
-					formData.append('upload_session_id', sessionId!);
-					formData.append('chunk_index', i.toString());
-					formData.append('chunk', chunk);
-
-					// Upload chunk with progress tracking
-					const xhr = new XMLHttpRequest();
-
-					xhr.upload.addEventListener('progress', (e) => {
-						if (e.lengthComputable) {
-							// Calculate overall progress including current chunk progress
-							const chunkProgress = e.loaded / e.total;
-							const overallProgress = ((i + chunkProgress) / totalChunks) * 100;
-							showProgress(Math.round(overallProgress));
-							showStatus(`Uploading chunk ${i + 1}/${totalChunks}... ${Math.round(chunkProgress * 100)}%`);
-						}
-					});
-
-					const chunkUrl = getSessionQueryUrl('/api/upload/chunk');
-
-					// Get CSRF token before entering the Promise (for authenticated users)
-					const chunkCsrfToken = isAuthenticated ? await getCsrfToken() : null;
-
-					// Track current upload for cancellation
-					currentUploadXhr = xhr;
-
-					await new Promise<void>((resolve, reject) => {
-						// Set timeout for this chunk (1 minute per chunk)
-						const chunkTimeout = setTimeout(() => {
-							xhr.abort();
-							reject(new Error(`Chunk ${i} upload timed out`));
-						}, 60 * 1000);
-
-						xhr.onload = () => {
-							clearTimeout(chunkTimeout);
-							currentUploadXhr = null;
-							if (xhr.status >= 200 && xhr.status < 300) {
-								resolve();
-							} else {
-								try {
-									const error = JSON.parse(xhr.responseText);
-									reject(new Error(error.error || `Chunk ${i} upload failed`));
-								} catch (parseError) {
-									console.error('Failed to parse chunk upload error response:', parseError, xhr.responseText);
-									reject(new Error(`Chunk ${i} upload failed: ${xhr.status}`));
-								}
-							}
-						};
-						xhr.onerror = () => {
-							clearTimeout(chunkTimeout);
-							currentUploadXhr = null;
-							reject(new Error(`Network error uploading chunk ${i}`));
-						};
-						xhr.onabort = () => {
-							clearTimeout(chunkTimeout);
-							currentUploadXhr = null;
-							reject(new Error('Upload cancelled'));
-						};
-
-						xhr.open('POST', chunkUrl);
-
-						// Add CSRF token for authenticated users
-						if (chunkCsrfToken) {
-							xhr.setRequestHeader(CSRF_HEADER, chunkCsrfToken);
-						}
-
-						xhr.send(formData);
-					});
-
-					// Update progress after successful chunk
-					const progress = Math.round(((i + 1) / totalChunks) * 100);
-					showProgress(progress);
-					showStatus(`Uploaded chunk ${i + 1}/${totalChunks} (${progress}%)`);
-				}
-
-				// Complete the upload
-				showStatus('Finalizing upload...');
-				const completeUrl = getSessionQueryUrl('/api/upload/complete');
-				const completeRes = await csrfFetch(completeUrl, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ upload_session_id: sessionId })
-				});
-
-				if (!completeRes.ok) {
-					const error = await completeRes.json().catch(() => ({ error: 'Failed to complete upload' }));
-					throw new Error(error.error || 'Failed to complete upload');
-				}
-
-				const result = await completeRes.json();
-
-				// Clean up localStorage
-				localStorage.removeItem(sessionKey);
-				removeUploadSessionRecord(sessionKey);
-
-				hideProgress();
-				showStatus(`Upload complete! Starting transcription...`, 'success');
-
-				// Handle language hints from upload response (if any)
-				if (result.language_hints) {
-					handleLanguageHints(result.language_hints);
-				}
-
-				// Store upload ID and start transcription
-				currentUploadId = result.upload_id;
-				startTranscription(result.upload_id);
-			}
-
-			// Helper to add session_id query param for anonymous users
-			function getSessionQueryUrl(baseUrl: string): string {
-				if (!isAuthenticated) {
-					const sessionId = getOrCreateSessionId();
-					const separator = baseUrl.includes('?') ? '&' : '?';
-					return `${baseUrl}${separator}session_id=${encodeURIComponent(sessionId)}`;
-				}
-				return baseUrl;
-			}
-
-			async function startTranscription(uploadId: string, language?: string, force?: boolean) {
-				transcription.classList.add('visible');
-				transcriptionStatus.textContent = 'Starting transcription...';
-				segments.innerHTML = '';
-				fullText.textContent = '';
-
-				// Record start time for ETA calculation
-				transcriptionStartTime = Date.now();
-
-				// Use provided language or get from selector
-				const selectedLanguage = language || transcriptionLanguageSelect.value;
-
-				// Save preferred language to localStorage
-				if (selectedLanguage && selectedLanguage !== 'auto') {
-					localStorage.setItem(PREFERRED_LANGUAGE_KEY, selectedLanguage);
-				}
-
-				try {
-					// Start transcription with language parameter
-					let transcribeUrl = `/api/transcribe/${uploadId}`;
-					const params: string[] = [];
-					if (selectedLanguage && selectedLanguage !== 'auto') {
-						params.push(`language=${encodeURIComponent(selectedLanguage)}`);
-					}
-					if (force) {
-						params.push('force=true');
-					}
-					if (params.length > 0) {
-						transcribeUrl += '?' + params.join('&');
-					}
-
-					const response = await csrfFetch(transcribeUrl, {
-						method: 'POST',
-					});
-					const result = await response.json();
-
-					// Start polling for status
-					pollTranscriptionStatus(uploadId);
-				} catch (error) {
-					transcriptionStatus.textContent = `Failed to start transcription: ${error}`;
-				}
-			}
-
-			async function pollTranscriptionStatus(uploadId: string) {
-				// Clear any existing poll timeout
-				if (transcriptionPollTimeout !== null) {
-					clearTimeout(transcriptionPollTimeout);
-					transcriptionPollTimeout = null;
-				}
-
-				const poll = async () => {
-					try {
-						// Create a new AbortController for this fetch
-						fetchAbortController = new AbortController();
-						const response = await fetch(`/api/transcribe/${uploadId}`, {
-							signal: fetchAbortController.signal
-						});
-						const result = await response.json();
-
-						if (result.status === 'processing') {
-							let statusMsg = result.message || 'Processing...';
-							if (result.progress) {
-								statusMsg += ` (${result.progress}%)`;
-							}
-
-							// Calculate and show estimated time remaining
-							if (currentVideoDuration > 0 && transcriptionStartTime !== null) {
-								const elapsedSeconds = (Date.now() - transcriptionStartTime) / 1000;
-								const progress = result.progress || 0;
-								const remaining = estimateTimeRemaining(currentVideoDuration, progress, elapsedSeconds);
-								const etaText = formatTimeRemaining(remaining);
-								statusMsg += ` - ${etaText}`;
-							} else if (!hasHistoricalData()) {
-								// No video duration and no history - just show estimating
-								statusMsg += ' - Estimating...';
-							}
-
-							transcriptionStatus.textContent = statusMsg;
-							// Continue polling with tracked timeout
-							transcriptionPollTimeout = setTimeout(poll, 2000);
-						} else if (result.status === 'complete') {
-							transcriptionPollTimeout = null;
-
-							// Record processing time for future estimates
-							if (currentVideoDuration > 0 && transcriptionStartTime !== null) {
-								const processingTime = (Date.now() - transcriptionStartTime) / 1000;
-								recordProcessingTime(currentVideoDuration, processingTime);
-							}
-							// Reset tracking variables
-							transcriptionStartTime = null;
-
-							// Store embedded subtitle tracks if present
-							embeddedSubtitleTracks = result.embedded_subtitles || [];
-
-							transcriptionStatus.textContent = 'Transcription complete!';
-							displayTranscription(result.result);
-						} else if (result.status === 'error') {
-							transcriptionPollTimeout = null;
-							transcriptionStatus.textContent = `Error: ${result.message}`;
-						} else if (result.status === 'pending') {
-							transcriptionStatus.textContent = 'Waiting to start...';
-							transcriptionPollTimeout = setTimeout(poll, 2000);
-						}
-					} catch (error) {
-						// Ignore abort errors (expected during cleanup)
-						if (error instanceof Error && error.name === 'AbortError') {
-							return;
-						}
-						transcriptionPollTimeout = null;
-						transcriptionStatus.textContent = `Polling error: ${error}`;
+						section.classList.add('collapsed');
+						header.setAttribute('aria-expanded', 'false');
+						localStorage.setItem(storageKey, 'true');
 					}
 				};
 
-				poll();
+				header.addEventListener('click', toggle);
+				header.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						toggle();
+					}
+				});
 			}
 
-			function formatTime(seconds: number): string {
-				const hrs = Math.floor(seconds / 3600);
-				const mins = Math.floor((seconds % 3600) / 60);
-				const secs = Math.floor(seconds % 60);
-				const ms = Math.floor((seconds % 1) * 1000);
+			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY);
+			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY);
 
-				if (hrs > 0) {
-					return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+			// --- Language hints ---
+			function handleLanguageHints(languageHints: LanguageHints | undefined) {
+				if (!languageHints || !languageHints.hints || languageHints.hints.length === 0) return;
+				languageSection.style.display = 'block';
+
+				const suggestedLang = languageHints.suggested_language;
+				const confidence = languageHints.suggested_confidence;
+
+				if (suggestedLang) {
+					if (transcriptionLanguageSelect.value === 'auto') {
+						const langOption = transcriptionLanguageSelect.querySelector(`option[value="${suggestedLang}"]`) as HTMLOptionElement | null;
+						if (langOption) transcriptionLanguageSelect.value = suggestedLang;
+					}
+
+					const sources = languageHints.hints.map(h => h.source).join(', ');
+					const displayName = getLanguageDisplayName(suggestedLang, languageHints.hints[0]?.language_name);
+
+					let confidenceClass = confidence === 'high' ? 'confidence-high' : confidence === 'medium' ? 'confidence-medium' : 'confidence-low';
+
+					detectedLanguageValue.textContent = displayName;
+					detectedLanguageValue.className = `detected-value ${confidenceClass}`;
+					detectedLanguageValue.title = `Detected from ${sources} (${confidence} confidence)`;
+					detectedLanguage.style.display = 'block';
 				}
-				return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 			}
 
-			// Format duration for estimated time remaining display (human-readable)
-			function formatDuration(seconds: number): string {
-				if (seconds < 0) seconds = 0;
-				const mins = Math.floor(seconds / 60);
-				const secs = Math.floor(seconds % 60);
-				if (mins > 0) {
-					return `${mins}m ${secs}s`;
+			// --- Script conversion ---
+			function updateScriptOptions() {
+				const lang = languageSelect.value;
+				const scripts = LANGUAGE_SCRIPT_MAP[lang] || ['Devanagari'];
+				scriptSelect.innerHTML = scripts.map(s =>
+					`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
+				).join('');
+				const langName = SCRIPT_LANGUAGE_NAMES[lang] || lang;
+				scriptHint.textContent = `Romanized ${langName} text will be converted to ${scripts[0]} script.`;
+			}
+
+			convertScript.addEventListener('change', () => {
+				if (convertScript.checked) {
+					scriptSelectors.classList.remove('hidden');
+					updateScriptOptions();
+				} else {
+					scriptSelectors.classList.add('hidden');
+					scriptHint.textContent = '';
 				}
-				return `${secs}s`;
+			});
+			languageSelect.addEventListener('change', updateScriptOptions);
+
+			// --- Cleanup ---
+			cleanupStaleUploadSessions();
+
+			function cleanupPendingOperations() {
+				if (transcriptionState.transcriptionPollTimeout !== null) {
+					clearTimeout(transcriptionState.transcriptionPollTimeout);
+					transcriptionState.transcriptionPollTimeout = null;
+				}
+				if (burnState.burnPollTimeout !== null) {
+					clearTimeout(burnState.burnPollTimeout);
+					burnState.burnPollTimeout = null;
+				}
+				if (transcriptionState.fetchAbortController) {
+					transcriptionState.fetchAbortController.abort();
+					transcriptionState.fetchAbortController = null;
+				}
+				if (uploadState.uploadTimeoutId !== null) {
+					clearTimeout(uploadState.uploadTimeoutId);
+					uploadState.uploadTimeoutId = null;
+				}
+				if (uploadState.currentUploadXhr) {
+					uploadState.currentUploadXhr.abort();
+					uploadState.currentUploadXhr = null;
+				}
 			}
 
+			const updateCurrentSubtitle = createSubtitleUpdater(
+				editorState, previewVideo, currentSubtitle, subtitleFeedback, segmentsEl
+			);
+
+			window.addEventListener('beforeunload', (e) => {
+				cleanupPendingOperations();
+				if (subtitleSyncState.active && previewVideo) {
+					previewVideo.removeEventListener('timeupdate', updateCurrentSubtitle);
+					subtitleSyncState.active = false;
+				}
+				if (editorState.hasUnsavedChanges) {
+					e.preventDefault();
+					e.returnValue = '';
+				}
+			});
+			window.addEventListener('pagehide', cleanupPendingOperations);
+
+			// --- Transcription display ---
 			function displayTranscription(result: TranscriptionResult | null) {
 				if (!result) return;
 
-				// Store segments for syncing
-				transcriptionSegments = result.segments || [];
-				editedSegments = JSON.parse(JSON.stringify(transcriptionSegments)); // Deep copy for editing
+				editorState.transcriptionSegments = result.segments || [];
+				editorState.editedSegments = JSON.parse(JSON.stringify(editorState.transcriptionSegments));
 
-				// Display full text
-				if (result.text) {
-					fullText.textContent = result.text;
-				}
+				if (result.text) fullText.textContent = result.text;
 
-				// Display detected language
 				if (result.language) {
-					const displayName = languageDisplayNames[result.language] || result.language.toUpperCase();
-					detectedLanguageValue.textContent = displayName;
+					detectedLanguageValue.textContent = getLanguageDisplayName(result.language);
 					detectedLanguage.style.display = 'block';
-
-					// Show re-transcribe button in case user wants to force a different language
 					retranscribeBtn.style.display = 'inline-block';
 				}
 
-				// Render segments
-				renderSegments();
+				renderSegments(editorState, editorEls);
 
-				// Show download buttons and paste transcript section
-				if (currentUploadId) {
-					// Download buttons use client-side generation - no server request needed
-					// The segments are already loaded, so we generate files in the browser
+				if (editorState.currentUploadId) {
 					actions.style.display = 'flex';
-					// Set View button to navigate to My Videos with this video selected
-					viewBtn.href = `/videos?play=${currentUploadId}`;
-					// Show collapsible sections
+					viewBtn.href = `/videos?play=${editorState.currentUploadId}`;
 					pasteTranscriptSection.style.display = 'block';
 					fullTextSection.style.display = 'block';
 				}
 
-				// Show embedded subtitles notice if tracks were detected
 				showEmbeddedSubtitlesNotice();
 
-				// Load video from server for playback (replacing blob URL)
-				if (currentUploadId) {
-					previewVideo.src = `/api/videos/${currentUploadId}/video`;
+				if (editorState.currentUploadId) {
+					previewVideo.src = `/api/videos/${editorState.currentUploadId}/video`;
 				}
 
-				// Set up video timeupdate handler for subtitle syncing
-				setupSubtitleSync();
+				setupSubtitleSync(previewVideo, updateCurrentSubtitle, subtitleSyncState);
 			}
 
-			// Show embedded subtitles notice if tracks are available
+			// --- Embedded subtitles ---
 			function showEmbeddedSubtitlesNotice() {
-				// Only show if there are text-based tracks we can extract
-				const textTracks = embeddedSubtitleTracks.filter(t => t.text_based);
+				const textTracks = transcriptionState.embeddedSubtitleTracks.filter(t => t.text_based);
 				if (textTracks.length === 0) {
 					embeddedSubtitlesNotice.style.display = 'none';
 					return;
 				}
 
-				// Build track list description
-				const trackList = textTracks.map(t => {
+				embeddedSubtitlesList.textContent = textTracks.map(t => {
 					let label = t.language || 'Unknown';
 					if (t.title) label += ` (${t.title})`;
 					if (t.default) label += ' [default]';
 					return label;
 				}).join(', ');
-				embeddedSubtitlesList.textContent = trackList;
 
-				// Populate dropdown
 				embeddedTrackSelect.innerHTML = '';
 				textTracks.forEach((track, i) => {
 					const option = document.createElement('option');
@@ -2703,55 +656,35 @@ import '../styles/theme.css';
 					embeddedTrackSelect.appendChild(option);
 				});
 
-				// Hide dropdown if only one track
-				if (textTracks.length === 1) {
-					embeddedTrackSelect.style.display = 'none';
-				} else {
-					embeddedTrackSelect.style.display = 'block';
-				}
-
+				embeddedTrackSelect.style.display = textTracks.length === 1 ? 'none' : 'block';
 				embeddedSubtitlesNotice.style.display = 'flex';
 			}
 
-			// Handle "Use Embedded Subtitles" button click
 			useEmbeddedBtn.addEventListener('click', async () => {
-				if (!currentUploadId) return;
-
+				if (!editorState.currentUploadId) return;
 				const trackIndex = parseInt(embeddedTrackSelect.value, 10);
 				useEmbeddedBtn.disabled = true;
 				useEmbeddedBtn.textContent = 'Loading...';
 
 				try {
-					// Fetch the embedded subtitle track as SRT
 					const response = await fetch(
-						`/api/videos/${currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
+						`/api/videos/${editorState.currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
 					);
 					if (!response.ok) {
 						const err = await response.json();
 						throw new Error(err.error || 'Failed to extract subtitles');
 					}
-
 					const srtContent = await response.text();
-
-					// Parse SRT content into segments
 					const parsedSegments = parseSRT(srtContent);
-					if (parsedSegments.length === 0) {
-						throw new Error('No subtitles found in embedded track');
-					}
+					if (parsedSegments.length === 0) throw new Error('No subtitles found in embedded track');
 
-					// Replace current segments with embedded ones
-					transcriptionSegments = parsedSegments;
-					editedSegments = JSON.parse(JSON.stringify(parsedSegments));
-					hasUnsavedChanges = true;
-					updateUnsavedIndicator();
+					editorState.transcriptionSegments = parsedSegments;
+					editorState.editedSegments = JSON.parse(JSON.stringify(parsedSegments));
+					editorState.hasUnsavedChanges = true;
+					unsavedIndicator.classList.add('visible');
 
-					// Re-render segments
-					renderSegments();
-
-					// Update full text
-					const fullTextContent = parsedSegments.map(s => s.text).join(' ');
-					fullText.textContent = fullTextContent;
-
+					renderSegments(editorState, editorEls);
+					fullText.textContent = parsedSegments.map(s => s.text).join(' ');
 					transcriptionStatus.textContent = 'Loaded embedded subtitles! (Unsaved)';
 				} catch (error) {
 					console.error('Failed to load embedded subtitles:', error);
@@ -2762,50 +695,9 @@ import '../styles/theme.css';
 				}
 			});
 
-			// Parse SRT content into TranscriptionSegment array
-			function parseSRT(srtContent: string): TranscriptionSegment[] {
-				const segments: TranscriptionSegment[] = [];
-				const blocks = srtContent.trim().split(/\n\n+/);
-
-				for (const block of blocks) {
-					const lines = block.split('\n');
-					if (lines.length < 3) continue;
-
-					// Parse timestamp line (format: 00:00:00,000 --> 00:00:00,000)
-					const timeLine = lines[1];
-					const timeMatch = timeLine.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
-					if (!timeMatch) continue;
-
-					const startHrs = parseInt(timeMatch[1], 10);
-					const startMins = parseInt(timeMatch[2], 10);
-					const startSecs = parseInt(timeMatch[3], 10);
-					const startMs = parseInt(timeMatch[4], 10);
-					const start = startHrs * 3600 + startMins * 60 + startSecs + startMs / 1000;
-
-					const endHrs = parseInt(timeMatch[5], 10);
-					const endMins = parseInt(timeMatch[6], 10);
-					const endSecs = parseInt(timeMatch[7], 10);
-					const endMs = parseInt(timeMatch[8], 10);
-					const end = endHrs * 3600 + endMins * 60 + endSecs + endMs / 1000;
-
-					// Join remaining lines as text (skip index and timestamp lines)
-					const text = lines.slice(2).join('\n').trim();
-
-					segments.push({
-						id: segments.length,
-						start,
-						end,
-						text
-					});
-				}
-
-				return segments;
-			}
-
-			// Align pasted transcript with transcription timing
+			// --- Transcript alignment ---
 			async function alignTranscript() {
-				if (!currentUploadId) return;
-
+				if (!editorState.currentUploadId) return;
 				const text = pasteText.value.trim();
 				if (!text) {
 					alignStatus.textContent = 'Please paste some text first.';
@@ -2820,48 +712,35 @@ import '../styles/theme.css';
 
 				try {
 					const mode = lyricsMode.checked ? 'lyrics' : 'standard';
-
-					// Build request payload
 					const payload: { text: string; mode: string; convert_to_script?: string; language?: string } = { text, mode };
-
-					// Add script conversion parameters if enabled
 					if (convertScript.checked) {
 						payload.convert_to_script = scriptSelect.value;
 						payload.language = languageSelect.value;
 					}
 
-					const response = await csrfFetch(`/api/transcribe/${currentUploadId}/align`, {
+					const response = await csrfFetch(`/api/transcribe/${editorState.currentUploadId}/align`, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify(payload)
 					});
-
 					const result = await response.json();
+					if (!response.ok) throw new Error(result.error || 'Alignment failed');
 
-					if (!response.ok) {
-						throw new Error(result.error || 'Alignment failed');
-					}
-
-					// Refresh the transcription to show aligned segments
-					const transcriptionResponse = await fetch(`/api/transcribe/${currentUploadId}`);
+					const transcriptionResponse = await fetch(`/api/transcribe/${editorState.currentUploadId}`);
 					const transcriptionResult = await transcriptionResponse.json();
-
 					if (transcriptionResult.status === 'complete' && transcriptionResult.result) {
-						transcriptionSegments = transcriptionResult.result.segments || [];
-						editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
-						fullText.textContent = transcriptionSegments.map((s) => s.text).join(' ');
-						renderSegments();
+						editorState.transcriptionSegments = transcriptionResult.result.segments || [];
+						editorState.editedSegments = JSON.parse(JSON.stringify(editorState.transcriptionSegments));
+						fullText.textContent = editorState.transcriptionSegments.map((s) => s.text).join(' ');
+						renderSegments(editorState, editorEls);
 					}
 
 					const matchPct = result.stats?.match_rate ? Math.round(result.stats.match_rate * 100) : 0;
 					let statusMsg = `Aligned ${result.segments} segments (${matchPct}% match rate, ${result.mode} mode)`;
-					if (result.script_converted) {
-						statusMsg += ` — converted to ${result.target_script}`;
-					}
+					if (result.script_converted) statusMsg += ` — converted to ${result.target_script}`;
 					alignStatus.textContent = statusMsg;
 					alignStatus.className = 'align-status success';
-					pasteText.value = ''; // Clear after successful alignment
-
+					pasteText.value = '';
 				} catch (error) {
 					alignStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
 					alignStatus.className = 'align-status error';
@@ -2870,960 +749,213 @@ import '../styles/theme.css';
 					alignBtn.textContent = 'Align Transcript';
 				}
 			}
-
 			alignBtn.addEventListener('click', alignTranscript);
 
-			function renderSegments() {
-				const segsToRender = isEditMode ? editedSegments : transcriptionSegments;
-				// Only apply bionic reading in view mode (not edit mode)
-				const useBionic = !isEditMode && isBionicEnabled();
+			// --- File upload (drag-and-drop + file input) ---
+			dropzone.addEventListener('click', () => fileInput.click());
+			dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+			dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+			dropzone.addEventListener('drop', (e) => {
+				e.preventDefault();
+				dropzone.classList.remove('dragover');
+				const files = e.dataTransfer?.files;
+				if (files && files.length > 0) handleFile(files[0]);
+			});
+			fileInput.addEventListener('change', () => {
+				const files = fileInput.files;
+				if (files && files.length > 0) handleFile(files[0]);
+			});
 
-				if (segsToRender.length > 0) {
-					segments.innerHTML = segsToRender.map((seg, index) => {
-						// Use bionic text for display, plain escapeHtml for editing
-						const displayText = useBionic ? renderBionicText(seg.text, { enabled: true }) : escapeHtml(seg.text);
-						return `
-						<div class="segment${isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
-							<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
-							<div class="segment-text">${displayText}</div>
-							<div class="segment-edit">
-								<div class="time-inputs">
-									<label>Start:</label>
-									<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" aria-describedby="time-error-start-${index}" />
-									<label>End:</label>
-									<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" aria-describedby="time-error-end-${index}" />
-								</div>
-								<div class="time-error" id="time-error-start-${index}" data-type="start" data-index="${index}" role="alert"></div>
-								<div class="time-error" id="time-error-end-${index}" data-type="end" data-index="${index}" role="alert"></div>
-								<textarea class="segment-textarea" data-index="${index}">${escapeHtml(seg.text)}</textarea>
-								<div class="segment-actions">
-									<button class="segment-delete-btn" data-index="${index}" aria-label="Delete segment ${index + 1}">Delete</button>
-								</div>
-							</div>
-						</div>
-					`}).join('');
+			function handleFile(file: File) {
+				if (uploadState.isUploading) {
+					showStatus('Upload already in progress', 'error');
+					return;
+				}
+				const error = validateFile(file);
+				if (error) {
+					showStatus(error, 'error');
+					return;
+				}
 
-					// Cache segment elements for timeupdate performance
-					cachedSegmentElements = Array.from(segments.querySelectorAll('.segment')) as HTMLElement[];
-					lastActiveSegmentIndex = -1;
+				previewVideo.src = URL.createObjectURL(file);
+				videoPreview.classList.add('visible');
 
-					// Add event handlers
-					if (isEditMode) {
-						setupEditHandlers();
-					} else {
-						setupClickHandlers();
+				previewVideo.addEventListener('loadedmetadata', () => {
+					if (previewVideo.duration && !isNaN(previewVideo.duration) && isFinite(previewVideo.duration)) {
+						transcriptionState.currentVideoDuration = previewVideo.duration;
 					}
+				}, { once: true });
+
+				languageSection.style.display = 'block';
+				const savedLanguage = localStorage.getItem(PREFERRED_LANGUAGE_KEY);
+				if (savedLanguage && transcriptionLanguageSelect.querySelector(`option[value="${savedLanguage}"]`)) {
+					transcriptionLanguageSelect.value = savedLanguage;
 				}
-			}
+				retranscribeBtn.style.display = 'none';
+				detectedLanguage.style.display = 'none';
 
-			function formatTimeForInput(seconds: number): string {
-				const hrs = Math.floor(seconds / 3600);
-				const mins = Math.floor((seconds % 3600) / 60);
-				const secs = Math.floor(seconds % 60);
-				const ms = Math.floor((seconds % 1) * 1000);
-				return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
-			}
-
-			function parseTimeInput(timeStr: string): { seconds: number } | { error: string } {
-				return parseTimeString(timeStr);
-			}
-
-			function setupClickHandlers() {
-				// Segment click to seek video
-				segments.querySelectorAll('.segment').forEach(el => {
-					el.addEventListener('click', () => {
-						const start = parseFloat(el.getAttribute('data-start') || '0');
-						previewVideo.currentTime = start;
-						previewVideo.play().catch(() => {
-							// Suppress play() rejections (e.g. NotAllowedError before user gesture)
-						});
-					});
-				});
-			}
-
-			function setupEditHandlers() {
-				// Text editing - save history on focus (before user starts typing)
-				segments.querySelectorAll('.segment-textarea').forEach((textarea: Element) => {
-					textarea.addEventListener('focus', () => {
-						pushToHistory();
-					});
-					textarea.addEventListener('input', (e) => {
-						const target = e.target as HTMLTextAreaElement;
-						const index = parseInt(target.getAttribute('data-index') || '0', 10);
-						editedSegments[index].text = target.value;
-						markUnsaved();
-					});
-				});
-
-				// Time inputs - save history before change
-				segments.querySelectorAll('.time-input-start').forEach((input: Element) => {
-					input.addEventListener('focus', () => {
-						pushToHistory();
-					});
-					input.addEventListener('change', (e) => {
-						const target = e.target as HTMLInputElement;
-						const index = parseInt(target.getAttribute('data-index') || '0', 10);
-						const errorEl = getOptionalElement(`time-error-start-${index}`, HTMLElement);
-						const parsed = parseTimeInput(target.value);
-
-						if ('error' in parsed) {
-							target.classList.add('error');
-							if (errorEl) {
-								errorEl.textContent = parsed.error;
-								errorEl.classList.add('visible');
-							}
-						} else {
-							target.classList.remove('error');
-							if (errorEl) {
-								errorEl.textContent = '';
-								errorEl.classList.remove('visible');
-							}
-							editedSegments[index].start = parsed.seconds;
-							markUnsaved();
-						}
-					});
-				});
-
-				segments.querySelectorAll('.time-input-end').forEach((input: Element) => {
-					input.addEventListener('focus', () => {
-						pushToHistory();
-					});
-					input.addEventListener('change', (e) => {
-						const target = e.target as HTMLInputElement;
-						const index = parseInt(target.getAttribute('data-index') || '0', 10);
-						const errorEl = getOptionalElement(`time-error-end-${index}`, HTMLElement);
-						const parsed = parseTimeInput(target.value);
-
-						if ('error' in parsed) {
-							target.classList.add('error');
-							if (errorEl) {
-								errorEl.textContent = parsed.error;
-								errorEl.classList.add('visible');
-							}
-						} else {
-							target.classList.remove('error');
-							if (errorEl) {
-								errorEl.textContent = '';
-								errorEl.classList.remove('visible');
-							}
-							editedSegments[index].end = parsed.seconds;
-							markUnsaved();
-						}
-					});
-				});
-
-				// Delete buttons - save history before deletion
-				segments.querySelectorAll('.segment-delete-btn').forEach((btn: Element) => {
-					btn.addEventListener('click', (e) => {
-						e.stopPropagation();
-						pushToHistory();
-						const index = parseInt(btn.getAttribute('data-index') || '0', 10);
-						editedSegments.splice(index, 1);
-						// Re-assign IDs
-						editedSegments.forEach((seg, i) => seg.id = i);
-						markUnsaved();
-						renderSegments();
-					});
-				});
-			}
-
-			function markUnsaved() {
-				hasUnsavedChanges = true;
-				unsavedIndicator.classList.add('visible');
-			}
-
-			function clearUnsaved() {
-				hasUnsavedChanges = false;
-				unsavedIndicator.classList.remove('visible');
-			}
-
-			// Undo/redo helper functions
-			function updateUndoRedoButtons() {
-				undoBtn.disabled = undoStack.length === 0;
-				redoBtn.disabled = redoStack.length === 0;
-			}
-
-			function pushToHistory() {
-				// Deep copy current state
-				const snapshot = JSON.parse(JSON.stringify(editedSegments));
-				undoStack.push(snapshot);
-
-				// Limit history size
-				if (undoStack.length > MAX_HISTORY_SIZE) {
-					undoStack.shift();
-				}
-
-				// Clear redo stack when new edit is made
-				redoStack = [];
-				updateUndoRedoButtons();
-			}
-
-			function performUndo() {
-				if (undoStack.length === 0) return;
-
-				// Save current state to redo stack
-				redoStack.push(JSON.parse(JSON.stringify(editedSegments)));
-
-				// Restore previous state
-				editedSegments = undoStack.pop()!;
-
-				// Re-assign IDs to ensure consistency
-				editedSegments.forEach((seg, i) => seg.id = i);
-
-				updateUndoRedoButtons();
-				renderSegments();
-
-				// Still has unsaved changes if state differs from original
-				if (JSON.stringify(editedSegments) !== JSON.stringify(transcriptionSegments)) {
-					markUnsaved();
-				} else {
-					clearUnsaved();
-				}
-			}
-
-			function performRedo() {
-				if (redoStack.length === 0) return;
-
-				// Save current state to undo stack
-				undoStack.push(JSON.parse(JSON.stringify(editedSegments)));
-
-				// Restore next state
-				editedSegments = redoStack.pop()!;
-
-				// Re-assign IDs to ensure consistency
-				editedSegments.forEach((seg, i) => seg.id = i);
-
-				updateUndoRedoButtons();
-				renderSegments();
-				markUnsaved();
-			}
-
-			function clearHistory() {
-				undoStack = [];
-				redoStack = [];
-				updateUndoRedoButtons();
-			}
-
-			function enterEditMode() {
-				isEditMode = true;
-				editBtn.classList.add('active');
-				editBtn.textContent = 'Editing...';
-				editActions.classList.add('visible');
-				addSegmentBtn.classList.add('visible');
-				fullText.style.display = 'none';
-				subtitleFeedback.style.display = 'none';
-				editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
-				clearHistory(); // Reset undo/redo stacks when entering edit mode
-				renderSegments();
-			}
-
-			function exitEditMode() {
-				isEditMode = false;
-				editBtn.classList.remove('active');
-				editBtn.textContent = 'Edit Subtitles';
-				editActions.classList.remove('visible');
-				addSegmentBtn.classList.remove('visible');
-				fullText.style.display = 'block';
-				clearUnsaved();
-				renderSegments();
-			}
-
-			async function saveSegments() {
-				if (!currentUploadId) return;
-
-				saveBtn.disabled = true;
-				saveBtn.textContent = 'Saving...';
-
-				try {
-					const response = await csrfFetch(`/api/transcribe/${currentUploadId}/segments`, {
-						method: 'PUT',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ segments: editedSegments })
-					});
-
-					const result = await response.json();
-
-					if (!response.ok) {
-						throw new Error(result.error || 'Failed to save');
+				showStatus(`Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+				uploadFile(file, uploadState, {
+					showStatus,
+					showProgress,
+					hideProgress,
+					isAuthenticated: () => isAuthenticated,
+					onUploadComplete: (uploadId, languageHints) => {
+						handleLanguageHints(languageHints);
+						editorState.currentUploadId = uploadId;
+						startTranscription(uploadId);
 					}
-
-					// Update the original segments
-					transcriptionSegments = JSON.parse(JSON.stringify(editedSegments));
-					// Update full text display
-					fullText.textContent = editedSegments.map((s) => s.text).join(' ');
-					clearUnsaved();
-					showStatus('Subtitles saved successfully!', 'success');
-
-					// Exit edit mode after successful save
-					exitEditMode();
-				} catch (error) {
-					showStatus(`Failed to save: ${error instanceof Error ? error.message : error}`, 'error');
-				} finally {
-					saveBtn.disabled = false;
-					saveBtn.textContent = 'Save Changes';
-				}
-			}
-
-			function addNewSegment() {
-				pushToHistory();
-				// Get the last segment's end time or 0
-				const lastSeg = editedSegments[editedSegments.length - 1];
-				const startTime = lastSeg ? lastSeg.end : 0;
-
-				editedSegments.push({
-					id: editedSegments.length,
-					start: startTime,
-					end: startTime + 3, // Default 3 second segment
-					text: ''
 				});
-				markUnsaved();
-				renderSegments();
-
-				// Focus the new segment's textarea
-				const textareas = segments.querySelectorAll('.segment-textarea');
-				const lastTextarea = textareas[textareas.length - 1] as HTMLTextAreaElement;
-				if (lastTextarea) {
-					lastTextarea.focus();
-				}
 			}
 
-			// Set up edit mode event handlers
+			// --- Transcription ---
+			function startTranscription(uploadId: string, language?: string, force?: boolean) {
+				transcriptionEl.classList.add('visible');
+				transcriptionStatus.textContent = 'Starting transcription...';
+				segmentsEl.innerHTML = '';
+				fullText.textContent = '';
+
+				const selectedLanguage = language || transcriptionLanguageSelect.value;
+				if (selectedLanguage && selectedLanguage !== 'auto') {
+					localStorage.setItem(PREFERRED_LANGUAGE_KEY, selectedLanguage);
+				}
+
+				startTranscriptionPoll(uploadId, transcriptionState, {
+					setTranscriptionStatus: (text) => { transcriptionStatus.textContent = text; },
+					displayTranscription,
+				}, selectedLanguage, force);
+			}
+
+			// --- Edit mode event handlers ---
+			setupFeedbackHandler(editorState, subtitleFeedback);
+
 			editBtn.addEventListener('click', () => {
-				if (isEditMode) {
-					if (hasUnsavedChanges) {
-						if (confirm('You have unsaved changes. Discard them?')) {
-							exitEditMode();
-						}
+				if (editorState.isEditMode) {
+					if (editorState.hasUnsavedChanges) {
+						if (confirm('You have unsaved changes. Discard them?')) exitEditMode(editorState, editorEls);
 					} else {
-						exitEditMode();
+						exitEditMode(editorState, editorEls);
 					}
 				} else {
-					enterEditMode();
+					enterEditMode(editorState, editorEls);
 				}
 			});
-
-			saveBtn.addEventListener('click', saveSegments);
-
+			saveBtn.addEventListener('click', () => saveSegments(editorState, editorEls, { showStatus }));
 			cancelBtn.addEventListener('click', () => {
-				if (hasUnsavedChanges) {
-					if (confirm('Discard unsaved changes?')) {
-						exitEditMode();
-					}
+				if (editorState.hasUnsavedChanges) {
+					if (confirm('Discard unsaved changes?')) exitEditMode(editorState, editorEls);
 				} else {
-					exitEditMode();
+					exitEditMode(editorState, editorEls);
 				}
 			});
+			addSegmentBtn.addEventListener('click', () => addNewSegment(editorState, editorEls));
+			undoBtn.addEventListener('click', () => performUndo(editorState, editorEls));
+			redoBtn.addEventListener('click', () => performRedo(editorState, editorEls));
 
-			// Warn user before navigating away with unsaved changes
-			window.addEventListener('beforeunload', (e) => {
-				if (hasUnsavedChanges) {
-					// Modern browsers require both of these for the dialog to appear
-					e.preventDefault();
-					e.returnValue = ''; // Chrome requires returnValue to be set
-				}
-			});
-
-			addSegmentBtn.addEventListener('click', addNewSegment);
-
-			// Undo/redo button event listeners
-			undoBtn.addEventListener('click', performUndo);
-			redoBtn.addEventListener('click', performRedo);
-
-			// Helper to check if focus is in a text input
-			function isTextInputFocused(): boolean {
-				const active = document.activeElement;
-				if (!active) return false;
-				const tag = active.tagName.toLowerCase();
-				return tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable;
-			}
-
-			// Helper to get current segment index based on video time
-			function getCurrentSegmentIndex(): number {
-				const currentTime = previewVideo.currentTime;
-				for (let i = 0; i < transcriptionSegments.length; i++) {
-					const seg = transcriptionSegments[i];
-					if (currentTime >= seg.start && currentTime <= seg.end) {
-						return i;
-					}
-				}
-				// If not in a segment, find the next one
-				for (let i = 0; i < transcriptionSegments.length; i++) {
-					if (transcriptionSegments[i].start > currentTime) {
-						return Math.max(0, i - 1);
-					}
-				}
-				return transcriptionSegments.length - 1;
-			}
-
-			// Scroll element into view within container only (not the whole page)
-			// IMPORTANT: Never use scrollIntoView() - it can scroll the entire page
-			// and cause the video to go out of view. This was reported 3 times!
-			function scrollIntoContainerView(container: HTMLElement, element: HTMLElement) {
-				const containerRect = container.getBoundingClientRect();
-				const elementRect = element.getBoundingClientRect();
-
-				if (elementRect.top < containerRect.top) {
-					container.scrollTop -= (containerRect.top - elementRect.top);
-				} else if (elementRect.bottom > containerRect.bottom) {
-					container.scrollTop += (elementRect.bottom - containerRect.bottom);
-				}
-			}
-
-			// Navigate to segment by index
-			function navigateToSegment(index: number) {
-				if (transcriptionSegments.length === 0) return;
-				const clampedIndex = Math.max(0, Math.min(index, transcriptionSegments.length - 1));
-				const seg = transcriptionSegments[clampedIndex];
-				previewVideo.currentTime = seg.start;
-
-				// Highlight and scroll to segment within container only
-				const segmentElements = segments.querySelectorAll('.segment');
-				segmentElements.forEach((el, idx) => {
-					if (idx === clampedIndex) {
-						el.classList.add('active');
-						scrollIntoContainerView(segments, el as HTMLElement);
-					} else {
-						el.classList.remove('active');
-					}
-				});
-			}
-
-			// Keyboard shortcuts modal handling
-			function openKeyboardModal() {
-				keyboardShortcutsModal.classList.add('visible');
-				modalClose.focus();
-				// Trap focus in modal
-				document.addEventListener('keydown', trapFocus);
-			}
-
-			function closeKeyboardModal() {
-				keyboardShortcutsModal.classList.remove('visible');
-				keyboardHelpBtn.focus();
-				document.removeEventListener('keydown', trapFocus);
-			}
-
-			function trapFocus(e: KeyboardEvent) {
-				if (e.key === 'Escape') {
-					closeKeyboardModal();
-					return;
-				}
-				if (e.key !== 'Tab') return;
-
-				const focusableElements = keyboardShortcutsModal.querySelectorAll(
-					'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-				);
-				const firstElement = focusableElements[0] as HTMLElement;
-				const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
-
-				if (e.shiftKey && document.activeElement === firstElement) {
-					e.preventDefault();
-					lastElement.focus();
-				} else if (!e.shiftKey && document.activeElement === lastElement) {
-					e.preventDefault();
-					firstElement.focus();
-				}
-			}
-
-			keyboardHelpBtn.addEventListener('click', openKeyboardModal);
-			modalClose.addEventListener('click', closeKeyboardModal);
-			keyboardShortcutsModal.addEventListener('click', (e) => {
-				if (e.target === keyboardShortcutsModal) {
-					closeKeyboardModal();
-				}
-			});
-
-			// Global keyboard shortcuts
-			document.addEventListener('keydown', (e) => {
-				// Don't handle shortcuts when modal is open (except Escape)
-				if (keyboardShortcutsModal.classList.contains('visible')) {
-					return;
-				}
-
-				// Undo/redo shortcuts (edit mode only)
-				if (isEditMode) {
-					// Check for Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
-					if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-						e.preventDefault();
-						performUndo();
-						return;
-					}
-					// Check for Ctrl+Shift+Z or Ctrl+Y (Windows/Linux) or Cmd+Shift+Z (Mac)
-					if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
-						e.preventDefault();
-						performRedo();
-						return;
-					}
-				}
-
-				// Tab/Shift+Tab for segment navigation (works in both modes)
-				if (e.key === 'Tab' && transcriptionSegments.length > 0) {
-					// Only intercept if video is visible (transcription is ready)
-					if (!videoPreview.classList.contains('visible')) return;
-
-					e.preventDefault();
-					const currentIndex = getCurrentSegmentIndex();
-					if (e.shiftKey) {
-						// Previous segment
-						navigateToSegment(currentIndex - 1);
-					} else {
-						// Next segment
-						navigateToSegment(currentIndex + 1);
-					}
-					return;
-				}
-
-				// Skip other shortcuts if in a text input
-				if (isTextInputFocused()) return;
-
-				// Video playback shortcuts (only when video is visible)
-				if (!videoPreview.classList.contains('visible')) return;
-
-				switch (e.key) {
-					case ' ':  // Space: Play/Pause
-						e.preventDefault();
-						if (previewVideo.paused) {
-							previewVideo.play().catch(() => {
-								// Suppress play() rejections (e.g. NotAllowedError before user gesture)
-							});
-						} else {
-							previewVideo.pause();
-						}
-						break;
-					case 'ArrowLeft':  // Left arrow: Seek back 5s
-						e.preventDefault();
-						previewVideo.currentTime = Math.max(0, previewVideo.currentTime - 5);
-						break;
-					case 'ArrowRight':  // Right arrow: Seek forward 5s
-						e.preventDefault();
-						previewVideo.currentTime = Math.min(previewVideo.duration, previewVideo.currentTime + 5);
-						break;
-					case 'j':
-					case 'J':  // J: Rewind 10s
-						e.preventDefault();
-						previewVideo.currentTime = Math.max(0, previewVideo.currentTime - 10);
-						break;
-					case 'k':
-					case 'K':  // K: Pause
-						e.preventDefault();
-						previewVideo.pause();
-						break;
-					case 'l':
-					case 'L':  // L: Forward 10s
-						e.preventDefault();
-						previewVideo.currentTime = Math.min(previewVideo.duration, previewVideo.currentTime + 10);
-						break;
-					case '[':  // [: Slower speed
-						e.preventDefault();
-						{
-							const newSpeed = decreaseSpeed(previewVideo.playbackRate);
-							setPlaybackSpeed(previewVideo, newSpeed);
-							updateSpeedUI(newSpeed);
-							showSpeedIndicator(newSpeed);
-						}
-						break;
-					case ']':  // ]: Faster speed
-						e.preventDefault();
-						{
-							const newSpeed = increaseSpeed(previewVideo.playbackRate);
-							setPlaybackSpeed(previewVideo, newSpeed);
-							updateSpeedUI(newSpeed);
-							showSpeedIndicator(newSpeed);
-						}
-						break;
-					case '?':  // ?: Show keyboard shortcuts
-						e.preventDefault();
-						openKeyboardModal();
-						break;
-				}
-			});
-
-			function setupSubtitleSync() {
-				// Remove existing listener if present to avoid duplicates
-				if (subtitleSyncActive) {
-					previewVideo.removeEventListener('timeupdate', updateCurrentSubtitle);
-				}
-				previewVideo.addEventListener('timeupdate', updateCurrentSubtitle);
-				subtitleSyncActive = true;
-			}
-
-			// Playback speed control
-			let speedMenuOpen = false;
-
-			function updateSpeedUI(speed: number) {
-				// Update button text
-				speedBtn.textContent = formatSpeed(speed);
-
-				// Update active state in dropdown
-				speedOptions.querySelectorAll('.speed-option').forEach(option => {
-					const optionSpeed = parseFloat((option as HTMLElement).dataset.speed || '1');
-					if (optionSpeed === speed) {
-						option.classList.add('active');
-					} else {
-						option.classList.remove('active');
-					}
-				});
-			}
-
-			// Speed indicator for keyboard shortcuts
-			let speedIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
-
-			function showSpeedIndicator(speed: number) {
-				speedIndicator.textContent = formatSpeed(speed);
-				speedIndicator.classList.add('visible');
-
-				// Clear any existing timeout
-				if (speedIndicatorTimeout) {
-					clearTimeout(speedIndicatorTimeout);
-				}
-
-				// Hide after 800ms
-				speedIndicatorTimeout = setTimeout(() => {
-					speedIndicator.classList.remove('visible');
-					speedIndicatorTimeout = null;
-				}, 800);
-			}
-
-			function toggleSpeedMenu() {
-				speedMenuOpen = !speedMenuOpen;
-				speedOptions.classList.toggle('visible', speedMenuOpen);
-				speedBtn.setAttribute('aria-expanded', speedMenuOpen.toString());
-			}
-
-			function closeSpeedMenu() {
-				speedMenuOpen = false;
-				speedOptions.classList.remove('visible');
-				speedBtn.setAttribute('aria-expanded', 'false');
-			}
-
-			// Initialize speed from localStorage
-			function initializeSpeed() {
-				const savedSpeed = getSavedSpeed();
-				previewVideo.playbackRate = savedSpeed;
-				updateSpeedUI(savedSpeed);
-			}
-
-			// Speed button click toggles dropdown
-			speedBtn.addEventListener('click', (e) => {
-				e.stopPropagation();
-				toggleSpeedMenu();
-			});
-
-			// Speed option selection
-			speedOptions.addEventListener('click', (e) => {
-				const target = e.target as HTMLElement;
-				if (target.classList.contains('speed-option')) {
-					const speed = parseFloat(target.dataset.speed || '1');
-					if (PLAYBACK_SPEEDS.includes(speed as PlaybackSpeed)) {
-						setPlaybackSpeed(previewVideo, speed as PlaybackSpeed);
-						updateSpeedUI(speed);
-					}
-					closeSpeedMenu();
-				}
-			});
-
-			// Close menu when clicking outside
-			document.addEventListener('click', (e) => {
-				if (speedMenuOpen && !speedDropdown.contains(e.target as Node)) {
-					closeSpeedMenu();
-				}
-			});
-
-			// Close menu on Escape
-			document.addEventListener('keydown', (e) => {
-				if (e.key === 'Escape' && speedMenuOpen) {
-					closeSpeedMenu();
-					speedBtn.focus();
-				}
-			});
-
-			// Initialize speed on page load
-			initializeSpeed();
-
-			function updateCurrentSubtitle() {
-				const currentTime = previewVideo.currentTime;
-
-				// Find the current segment
-				let currentSeg = null;
-				let currentIndex = -1;
-
-				for (let i = 0; i < transcriptionSegments.length; i++) {
-					const seg = transcriptionSegments[i];
-					if (currentTime >= seg.start && currentTime <= seg.end) {
-						currentSeg = seg;
-						currentIndex = i;
-						break;
-					}
-				}
-
-				// Update the current subtitle display with bionic reading if enabled
-				if (currentSeg) {
-					const useBionic = isBionicEnabled();
-					if (useBionic) {
-						currentSubtitle.innerHTML = renderBionicText(currentSeg.text.trim(), { enabled: true });
-					} else {
-						currentSubtitle.textContent = currentSeg.text.trim();
-					}
-				} else {
-					currentSubtitle.textContent = '';
-				}
-
-				// Update active segment highlighting only if changed
-				// Uses cached elements to avoid querySelectorAll on every timeupdate (~30/sec)
-				if (currentIndex !== lastActiveSegmentIndex) {
-					// Remove active from previous segment
-					if (lastActiveSegmentIndex >= 0 && lastActiveSegmentIndex < cachedSegmentElements.length) {
-						cachedSegmentElements[lastActiveSegmentIndex].classList.remove('active');
-					}
-					// Add active to current segment
-					if (currentIndex >= 0 && currentIndex < cachedSegmentElements.length) {
-						cachedSegmentElements[currentIndex].classList.add('active');
-						// Scroll the segment into view within container only (not the whole page)
-						scrollIntoContainerView(segments, cachedSegmentElements[currentIndex]);
-					}
-					lastActiveSegmentIndex = currentIndex;
-
-					// Update feedback buttons for the current segment
-					updateFeedbackButtons(currentIndex);
-				}
-			}
-
-			// Burn subtitles handling
-			let isBurning = false;
-
-			async function startBurn() {
-				if (!currentUploadId || isBurning) return;
-
-				isBurning = true;
-				burnBtn.disabled = true;
-				burnBtn.textContent = 'Burning...';
-				burnStatus.classList.add('visible');
-				burnStatus.classList.remove('complete', 'error');
-				burnStatusText.textContent = 'Starting subtitle burn...';
-				burnEtaText.textContent = 'Calculating time remaining...';
-				burnEtaText.style.display = 'block';
-				burnProgressFill.style.width = '0%';
-				downloadBurnedBtn.style.display = 'none';
-
-				try {
-					const response = await csrfFetch(`/api/videos/${currentUploadId}/burn`, {
-						method: 'POST',
-					});
-					const result = await response.json();
-
-					if (!response.ok) {
-						throw new Error(result.error || 'Failed to start burn');
-					}
-
-					// Start polling for status
-					pollBurnStatus();
-				} catch (error) {
-					burnStatus.classList.add('error');
-					burnStatusText.textContent = `Error: ${error instanceof Error ? error.message : error}`;
-					burnBtn.disabled = false;
-					burnBtn.textContent = 'Burn Subtitles into Video';
-					isBurning = false;
-				}
-			}
-
-			async function pollBurnStatus() {
-				if (!currentUploadId) return;
-
-				// Clear any existing burn poll timeout
-				if (burnPollTimeout !== null) {
-					clearTimeout(burnPollTimeout);
-					burnPollTimeout = null;
-				}
-
-				const poll = async () => {
-					try {
-						// Create a new AbortController for this fetch
-						fetchAbortController = new AbortController();
-						const response = await fetch(`/api/videos/${currentUploadId}/burn`, {
-							signal: fetchAbortController.signal
-						});
-						const result = await response.json();
-
-						burnStatusText.textContent = result.message || 'Processing...';
-						burnProgressFill.style.width = `${result.progress || 0}%`;
-
-						// Display estimated time remaining if available
-						if (result.estimated_remaining_seconds !== undefined && result.estimated_remaining_seconds > 0) {
-							burnEtaText.textContent = `Estimated time remaining: ${formatDuration(result.estimated_remaining_seconds)}`;
-							burnEtaText.style.display = 'block';
-						} else if (result.status === 'processing' && result.progress < 20) {
-							burnEtaText.textContent = 'Calculating time remaining...';
-							burnEtaText.style.display = 'block';
-						} else {
-							burnEtaText.style.display = 'none';
-						}
-
-						if (result.status === 'processing') {
-							burnPollTimeout = setTimeout(poll, 2000);
-						} else if (result.status === 'complete') {
-							burnPollTimeout = null;
-							burnStatus.classList.add('complete');
-							burnStatusText.textContent = 'Subtitles burned successfully!';
-							burnEtaText.style.display = 'none';
-							burnProgressFill.style.width = '100%';
-							downloadBurnedBtn.href = `/api/videos/${currentUploadId}/burned`;
-							downloadBurnedBtn.style.display = 'inline-block';
-							burnBtn.disabled = false;
-							burnBtn.textContent = 'Burn Again';
-							isBurning = false;
-						} else if (result.status === 'error') {
-							burnPollTimeout = null;
-							burnStatus.classList.add('error');
-							burnStatusText.textContent = `Error: ${result.message}`;
-							burnEtaText.style.display = 'none';
-							burnBtn.disabled = false;
-							burnBtn.textContent = 'Retry Burn';
-							isBurning = false;
-						}
-					} catch (error) {
-						// Ignore abort errors (expected during cleanup)
-						if (error instanceof Error && error.name === 'AbortError') {
-							return;
-						}
-						burnPollTimeout = null;
-						burnStatus.classList.add('error');
-						burnStatusText.textContent = `Polling error: ${error}`;
-						burnBtn.disabled = false;
-						burnBtn.textContent = 'Retry Burn';
-						isBurning = false;
-					}
-				};
-
-				poll();
-			}
-
-			burnBtn.addEventListener('click', startBurn);
-
-			// Subtitle buttons - open content in new tabs for viewing
-			// No server request needed since we have the data in memory
+			// --- Subtitle download buttons ---
 			downloadSrt.addEventListener('click', (e) => {
 				e.preventDefault();
-				const segsToView = isEditMode ? editedSegments : transcriptionSegments;
-				if (segsToView.length === 0) {
-					showStatus('No subtitles to view', 'error');
-					return;
-				}
-				openSRT(segsToView);
+				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
+				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
+				openSRT(segs);
 			});
-
 			downloadVtt.addEventListener('click', (e) => {
 				e.preventDefault();
-				const segsToView = isEditMode ? editedSegments : transcriptionSegments;
-				if (segsToView.length === 0) {
-					showStatus('No subtitles to view', 'error');
-					return;
-				}
-				openVTT(segsToView);
+				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
+				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
+				openVTT(segs);
 			});
-
 			downloadJson.addEventListener('click', (e) => {
 				e.preventDefault();
-				const segsToView = isEditMode ? editedSegments : transcriptionSegments;
-				if (segsToView.length === 0) {
-					showStatus('No subtitles to view', 'error');
-					return;
-				}
-				openJSON(segsToView);
+				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
+				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
+				openJSON(segs);
 			});
 
-			// Auth handling
-			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
-			let isAuthenticated = false;
+			// --- Burn subtitles ---
+			burnBtn.addEventListener('click', () => {
+				if (editorState.currentUploadId) {
+					startBurn(editorState.currentUploadId, burnState, {
+						burnBtn, burnStatus: burnStatusEl, burnStatusText, burnEtaText, burnProgressFill, downloadBurnedBtn
+					});
+				}
+			});
 
-			// Re-transcribe with selected language
+			// --- Speed controls and keyboard shortcuts ---
+			setupSpeedControls(previewVideo, speedBtn, speedOptions, speedDropdown, speedState);
+			setupKeyboardShortcuts(editorState, editorEls, {
+				keyboardHelpBtn, keyboardShortcutsModal, modalClose,
+				videoPreview, previewVideo, speedBtn, speedOptions, speedIndicator
+			}, speedState);
+
+			// --- Re-transcribe ---
 			async function retranscribe() {
-				if (!currentUploadId) return;
-
+				if (!editorState.currentUploadId) return;
 				const selectedLanguage = transcriptionLanguageSelect.value;
 				if (selectedLanguage === 'auto') {
-					// Show warning that re-transcribing with auto is redundant
-					if (!confirm('Auto-detect will likely produce the same result. Are you sure you want to re-transcribe?')) {
-						return;
-					}
+					if (!confirm('Auto-detect will likely produce the same result. Are you sure you want to re-transcribe?')) return;
 				}
 
-				// Disable button during re-transcription
 				retranscribeBtn.disabled = true;
 				retranscribeBtn.textContent = 'Re-transcribing...';
 
-				// Clear previous transcription display
-				transcriptionSegments = [];
-				editedSegments = [];
-				segments.innerHTML = '';
+				editorState.transcriptionSegments = [];
+				editorState.editedSegments = [];
+				segmentsEl.innerHTML = '';
 				fullText.textContent = '';
 				currentSubtitle.textContent = '';
 				subtitleFeedback.style.display = 'none';
-				feedbackActiveIndex = -1;
+				editorState.feedbackActiveIndex = -1;
 				actions.style.display = 'none';
 				pasteTranscriptSection.style.display = 'none';
 				fullTextSection.style.display = 'none';
 				detectedLanguage.style.display = 'none';
 
 				try {
-					// Start new transcription with selected language and force=true
-					await startTranscription(currentUploadId, selectedLanguage, true);
+					await startTranscription(editorState.currentUploadId, selectedLanguage, true);
 				} finally {
 					retranscribeBtn.disabled = false;
 					retranscribeBtn.textContent = 'Re-transcribe';
 				}
 			}
-
 			retranscribeBtn.addEventListener('click', retranscribe);
 
-			// Load existing video if ?id= param is present
+			// --- Load existing video ---
 			async function loadExistingVideo() {
 				const urlParams = new URLSearchParams(window.location.search);
 				const videoId = urlParams.get('id');
 				if (!videoId) return;
 
-				currentUploadId = videoId;
+				editorState.currentUploadId = videoId;
 
 				try {
-					// Load video metadata and transcription
 					const response = await fetch(`/api/transcribe/${videoId}`);
 					const result = await response.json();
 
 					if (result.status === 'complete' && result.result) {
-						// Show video preview
 						previewVideo.src = `/api/videos/${videoId}/video`;
 						videoPreview.classList.add('visible');
-
-						// Show language section
 						languageSection.style.display = 'block';
 						retranscribeBtn.style.display = 'inline-block';
-
-						// Display transcription
-						transcription.classList.add('visible');
+						transcriptionEl.classList.add('visible');
 						transcriptionStatus.textContent = 'Transcription complete!';
 						displayTranscription(result.result);
-
-						// Hide dropzone since we're viewing an existing video
 						dropzone.style.display = 'none';
 					} else if (result.status === 'processing' || result.status === 'pending') {
-						// Show video preview
 						previewVideo.src = `/api/videos/${videoId}/video`;
 						videoPreview.classList.add('visible');
-
-						// Show language section
 						languageSection.style.display = 'block';
-
-						// Hide dropzone
 						dropzone.style.display = 'none';
-
-						// Start polling
-						transcription.classList.add('visible');
-						pollTranscriptionStatus(videoId);
+						transcriptionEl.classList.add('visible');
+						pollTranscriptionStatus(videoId, transcriptionState, {
+							setTranscriptionStatus: (text) => { transcriptionStatus.textContent = text; },
+							displayTranscription,
+						});
 					} else if (result.status === 'error') {
-						// Show video preview
 						previewVideo.src = `/api/videos/${videoId}/video`;
 						videoPreview.classList.add('visible');
 						dropzone.style.display = 'none';
-
-						transcription.classList.add('visible');
+						transcriptionEl.classList.add('visible');
 						transcriptionStatus.textContent = `Error: ${result.message || 'Transcription failed'}`;
 					}
 				} catch (err) {
@@ -3831,10 +963,9 @@ import '../styles/theme.css';
 				}
 			}
 
+			// --- Initialize ---
 			checkAuthAndUpdateNav({
-				onAuthenticated: () => {
-					isAuthenticated = true;
-				}
+				onAuthenticated: () => { isAuthenticated = true; }
 			});
 			loadExistingVideo();
 		</script>
