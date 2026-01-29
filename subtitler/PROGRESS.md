@@ -4,18 +4,20 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**353 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**354 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Task 352)
-- Added 9 tests for GET /api/videos/{id}/embedded-subtitles/{track} endpoint
-- Tests cover: valid SRT/VTT extraction, invalid track index (negative, non-numeric, nonexistent), image-based subtitle rejection, access control (wrong user, anonymous with session_id), video not found, no embedded subtitles, invalid format
-- Added test handler to registerHandlers() with mock subtitle content (skips ffmpeg/decryption)
-- Added setVideoEmbeddedSubtitles test helper
+### Recent (Task 349)
+- Migrated all 222 remaining `json.NewEncoder(w).Encode()` calls in main.go to httputil helpers
+- Error responses now use `httputil.RespondError()` / `httputil.RespondErrorf()` (proper Content-Type, error logging)
+- Success responses now use `httputil.RespondJSON()` (proper Content-Type, error logging)
+- Removed 222 `w.WriteHeader()` lines absorbed by httputil helpers
+- Removed 47 orphaned `w.Header().Set("Content-Type", "application/json")` lines (now set by httputil)
+- Zero `json.NewEncoder(w).Encode()` calls remain in main.go; all go through httputil
+- main.go reduced from 6731 to 6203 lines (~530 lines eliminated)
 
-### Previous (Task 358)
-- Audited all 51 HTTP handlers in main.go for Content-Type header ordering
-- Fixed 9 handlers missing `Content-Type: application/json` before WriteHeader: register, login, me, forgot-password, upload/init, upload/complete, transcribe segments, videos list, video delete
-- Added TestContentTypeHeader test verifying Content-Type is set on all previously-affected endpoints
+### Previous (Task 352, 358)
+- Added 9 tests for embedded-subtitles extraction endpoint
+- Audited all 51 HTTP handlers for Content-Type header ordering; fixed 9 handlers
 
 ### Previous (Tasks 349-351)
 - Deep inspection: filed 10 new improvement tasks (349-358) from code quality analysis

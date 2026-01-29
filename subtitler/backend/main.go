@@ -1275,7 +1275,6 @@ func main() {
 	// Unauthenticated: returns only {"status": "ok"} or {"status": "degraded"}
 	// Authenticated: returns full response with all dependency details
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		status := HealthStatus{
 			Status:           "ok",
@@ -1368,7 +1367,6 @@ func main() {
 
 	// Frontend log forwarding endpoint (for dev mode debugging)
 	mux.HandleFunc("POST /api/log", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body
 		var req struct {
@@ -1407,7 +1405,6 @@ func main() {
 
 	// Feedback submission endpoint (rate limited)
 	mux.HandleFunc("POST /api/feedback", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body (limited to 32KB - feedback text is capped at 10KB)
 		var req struct {
@@ -1509,20 +1506,17 @@ func main() {
 
 	// Admin: List feedback (admin only)
 	mux.HandleFunc("GET /api/admin/feedback", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Check authentication
 		token := auth.GetTokenFromRequest(r)
 		if token == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session"})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid session")
 			return
 		}
 
@@ -1579,7 +1573,6 @@ func main() {
 
 	// Admin: Get feedback by ID (admin only)
 	mux.HandleFunc("GET /api/admin/feedback/{id}", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Check authentication
 		token := auth.GetTokenFromRequest(r)
@@ -1631,7 +1624,6 @@ func main() {
 
 	// Admin: Update feedback status (admin only)
 	mux.HandleFunc("PATCH /api/admin/feedback/{id}", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Check authentication
 		token := auth.GetTokenFromRequest(r)
@@ -1712,7 +1704,6 @@ func main() {
 
 	// Auth: Register new user (rate limited)
 	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {
 			Email        string `json:"email"`
@@ -1757,10 +1748,7 @@ func main() {
 			return
 		}
 		if existingUser != nil {
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Email already registered",
-			})
+			httputil.RespondError(w, http.StatusConflict, "Email already registered")
 			return
 		}
 
@@ -1768,10 +1756,7 @@ func main() {
 		hash, err := auth.HashPassword(req.Password)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error hashing password", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Registration failed",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Registration failed")
 			return
 		}
 
@@ -1849,7 +1834,6 @@ func main() {
 	const loginLockDuration = 15 * time.Minute
 
 	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {
 			Email        string `json:"email"`
@@ -1884,8 +1868,7 @@ func main() {
 		if locked {
 			remainingMins := int(time.Until(unlockTime).Minutes()) + 1
 			security.LoginFailedLocked(r.Context(), clientIP, req.Email, remainingMins)
-			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusTooManyRequests, map[string]interface{}{
 				"error":           "Too many failed login attempts. Please try again later.",
 				"retry_after_min": remainingMins,
 			})
@@ -1903,10 +1886,7 @@ func main() {
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting user", "email", req.Email, "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Login failed",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Login failed")
 			return
 		}
 		if user == nil {
@@ -1998,7 +1978,6 @@ func main() {
 
 	// Auth: Logout
 	mux.HandleFunc("POST /api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		clientIP := ratelimit.GetClientIP(r)
 
 		token := auth.GetTokenFromRequest(r)
@@ -2021,14 +2000,11 @@ func main() {
 		}
 		auth.ClearSessionCookie(w)
 
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "Logged out successfully",
-		})
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{"message": "Logged out successfully"})
 	})
 
 	// Auth: Get current user
 	mux.HandleFunc("GET /api/auth/me", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil {
@@ -2042,7 +2018,7 @@ func main() {
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"user": map[string]interface{}{
 				"id":             user.ID,
 				"email":          user.Email,
@@ -2055,7 +2031,6 @@ func main() {
 
 	// Auth: Get CSRF token for current session
 	mux.HandleFunc("GET /api/auth/csrf", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		sessionToken := auth.GetTokenFromRequest(r)
 		if sessionToken == "" {
@@ -2086,7 +2061,6 @@ func main() {
 
 	// Auth: Get all sessions for current user
 	mux.HandleFunc("GET /api/auth/sessions", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		token := auth.GetTokenFromRequest(r)
 		user, currentSession, err := auth.ValidateSession(database, token)
@@ -2122,31 +2096,24 @@ func main() {
 			responseSessions = append(responseSessions, sessionData)
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"sessions": responseSessions,
 		})
 	})
 
 	// Auth: Revoke a specific session
 	mux.HandleFunc("DELETE /api/auth/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		token := auth.GetTokenFromRequest(r)
 		user, currentSession, err := auth.ValidateSession(database, token)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error validating session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to validate session",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to validate session")
 			return
 		}
 
 		if user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
@@ -2182,7 +2149,6 @@ func main() {
 
 	// 2FA: Start TOTP setup - generates a new secret (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/setup", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		clientIP := ratelimit.GetClientIP(r)
 
 		// Require authentication
@@ -2222,15 +2188,12 @@ func main() {
 		qrCode, err := totp.GenerateQRCode(uri)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating QR code", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to generate QR code",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate QR code")
 			return
 		}
 
 		security.TwoFASetupInitiated(r.Context(), clientIP, user.ID, user.Email)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"secret":         secret,
 			"secret_display": totp.FormatSecretForDisplay(secret),
 			"uri":            uri,
@@ -2241,34 +2204,24 @@ func main() {
 
 	// 2FA: Verify TOTP code and enable 2FA (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Require authentication
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		// Check if 2FA is already enabled
 		if user.TOTPEnabled {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "2FA is already enabled",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "2FA is already enabled")
 			return
 		}
 
 		// Check if a secret has been set up
 		if user.TOTPSecret == nil || *user.TOTPSecret == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No TOTP secret found. Please start setup first.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "No TOTP secret found. Please start setup first.")
 			return
 		}
 
@@ -2282,10 +2235,7 @@ func main() {
 
 		// Validate TOTP code length
 		if err := validation.ValidateTOTPCode(req.Code); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -2293,10 +2243,7 @@ func main() {
 		clientIP := ratelimit.GetClientIP(r)
 		if !totp.Validate(*user.TOTPSecret, req.Code) {
 			security.TwoFAVerifyFailed(r.Context(), clientIP, user.ID, user.Email)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid code. Please try again.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid code. Please try again.")
 			return
 		}
 
@@ -2304,10 +2251,7 @@ func main() {
 		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating recovery codes", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to generate recovery codes",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate recovery codes")
 			return
 		}
 
@@ -2317,10 +2261,7 @@ func main() {
 			hash, err := totp.HashCode(code)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Error hashing recovery code", "error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Failed to generate recovery codes",
-				})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate recovery codes")
 				return
 			}
 			codeHashes[i] = hash
@@ -2329,15 +2270,12 @@ func main() {
 		// Enable 2FA and save recovery codes in a single transaction
 		if err := database.EnableTOTPWithRecoveryCodes(user.ID, codeHashes); err != nil {
 			logging.ErrorContext(r.Context(), "Error enabling TOTP with recovery codes", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to enable 2FA",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to enable 2FA")
 			return
 		}
 
 		security.TwoFAEnabled(r.Context(), clientIP, user.ID, user.Email)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"message":        "2FA has been enabled successfully",
 			"totp_enabled":   true,
 			"recovery_codes": recoveryCodes,
@@ -2346,25 +2284,18 @@ func main() {
 
 	// 2FA: Disable TOTP (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/disable", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Require authentication
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		// Check if 2FA is enabled
 		if !user.TOTPEnabled {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "2FA is not enabled",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "2FA is not enabled")
 			return
 		}
 
@@ -2379,19 +2310,13 @@ func main() {
 
 		// Validate TOTP code length
 		if err := validation.ValidateTOTPCode(req.Code); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Verify password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid password",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid password")
 			return
 		}
 
@@ -2399,20 +2324,14 @@ func main() {
 		clientIP := ratelimit.GetClientIP(r)
 		if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.Code) {
 			security.TwoFAVerifyFailed(r.Context(), clientIP, user.ID, user.Email)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid 2FA code",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid 2FA code")
 			return
 		}
 
 		// Disable 2FA
 		if err := database.DisableTOTP(user.ID); err != nil {
 			logging.ErrorContext(r.Context(), "Error disabling TOTP", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to disable 2FA",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to disable 2FA")
 			return
 		}
 
@@ -2423,7 +2342,7 @@ func main() {
 		}
 
 		security.TwoFADisabled(r.Context(), clientIP, user.ID, user.Email, false)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"message":      "2FA has been disabled successfully",
 			"totp_enabled": false,
 		})
@@ -2431,7 +2350,6 @@ func main() {
 
 	// 2FA: Recover account using recovery code (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/recover", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body
 		var req struct {
@@ -2445,28 +2363,19 @@ func main() {
 
 		// Validate required fields
 		if req.Email == "" || req.Password == "" || req.RecoveryCode == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Email, password, and recovery code are required",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Email, password, and recovery code are required")
 			return
 		}
 
 		// Validate email length
 		if err := validation.ValidateEmail(req.Email); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Validate recovery code length
 		if err := validation.ValidateRecoveryCode(req.RecoveryCode); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -2474,35 +2383,23 @@ func main() {
 		user, err := database.GetUserByEmail(req.Email)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting user", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Server error",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Server error")
 			return
 		}
 		if user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid email or password",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid email or password")
 			return
 		}
 
 		// Verify password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid email or password",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid email or password")
 			return
 		}
 
 		// Check if 2FA is enabled
 		if !user.TOTPEnabled {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "2FA is not enabled for this account",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "2FA is not enabled for this account")
 			return
 		}
 
@@ -2510,10 +2407,7 @@ func main() {
 		codes, err := database.GetUnusedRecoveryCodes(user.ID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting recovery codes", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Server error",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Server error")
 			return
 		}
 
@@ -2530,10 +2424,7 @@ func main() {
 		clientIP := ratelimit.GetClientIP(r)
 		if matchedCodeID == "" {
 			security.RecoveryCodeFailed(r.Context(), clientIP, req.Email)
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid recovery code",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid recovery code")
 			return
 		}
 
@@ -2541,20 +2432,14 @@ func main() {
 		success, err := database.UseRecoveryCode(matchedCodeID)
 		if err != nil || !success {
 			logging.ErrorContext(r.Context(), "Error using recovery code", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to use recovery code",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to use recovery code")
 			return
 		}
 
 		// Disable 2FA, delete recovery codes, and clear sessions in a single transaction
 		if err := database.DisableTOTPAndClearSessions(user.ID); err != nil {
 			logging.ErrorContext(r.Context(), "Error disabling TOTP and clearing sessions", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to disable 2FA",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to disable 2FA")
 			return
 		}
 
@@ -2563,10 +2448,7 @@ func main() {
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to create session",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to create session")
 			return
 		}
 
@@ -2579,7 +2461,7 @@ func main() {
 		security.RecoveryCodeUsed(r.Context(), clientIP, user.ID, user.Email)
 		security.TwoFADisabled(r.Context(), clientIP, user.ID, user.Email, true)
 		security.SessionCreated(r.Context(), clientIP, user.ID, session.ID, userAgent)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"message":      "2FA has been disabled. Please set up 2FA again if you want to re-enable it.",
 			"token":        session.Token,
 			"totp_enabled": false,
@@ -2588,25 +2470,18 @@ func main() {
 
 	// 2FA: Regenerate recovery codes (rate limited)
 	mux.HandleFunc("POST /api/auth/totp/codes", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Check if user is authenticated
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil || user == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Authentication required",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Authentication required")
 			return
 		}
 
 		// Check if 2FA is enabled
 		if !user.TOTPEnabled {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "2FA is not enabled",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "2FA is not enabled")
 			return
 		}
 
@@ -2621,28 +2496,19 @@ func main() {
 
 		// Validate TOTP code length
 		if err := validation.ValidateTOTPCode(req.Code); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Verify password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid password",
-			})
+			httputil.RespondError(w, http.StatusUnauthorized, "Invalid password")
 			return
 		}
 
 		// Validate the TOTP code
 		if user.TOTPSecret == nil || !totp.Validate(*user.TOTPSecret, req.Code) {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid 2FA code",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid 2FA code")
 			return
 		}
 
@@ -2650,10 +2516,7 @@ func main() {
 		recoveryCodes, err := totp.GenerateRecoveryCodes(totp.NumCodes)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating recovery codes", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to generate recovery codes",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate recovery codes")
 			return
 		}
 
@@ -2663,10 +2526,7 @@ func main() {
 			hash, err := totp.HashCode(code)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Error hashing recovery code", "error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Failed to generate recovery codes",
-				})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate recovery codes")
 				return
 			}
 			codeHashes[i] = hash
@@ -2674,15 +2534,12 @@ func main() {
 
 		if err := database.SaveRecoveryCodes(user.ID, codeHashes); err != nil {
 			logging.ErrorContext(r.Context(), "Error saving recovery codes", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to save recovery codes",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save recovery codes")
 			return
 		}
 
 		logging.InfoContext(r.Context(), "Regenerated recovery codes", "email", user.Email)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"message":        "Recovery codes regenerated successfully",
 			"recovery_codes": recoveryCodes,
 		})
@@ -2690,7 +2547,6 @@ func main() {
 
 	// Auth: Forgot password - initiates password reset flow (stricter rate limiting)
 	mux.HandleFunc("POST /api/auth/forgot-password", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		// Parse request body (limited to 8KB - just an email)
 		var req struct {
 			Email string `json:"email"`
@@ -2712,9 +2568,7 @@ func main() {
 		// Always return success to prevent email enumeration
 		// Do the actual work in background-ish but keep same timing
 		defer func() {
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "If an account exists with that email, a password reset link has been sent.",
-			})
+			httputil.RespondJSON(w, http.StatusOK, map[string]string{"message": "If an account exists with that email, a password reset link has been sent."})
 		}()
 
 		// Look up user (don't reveal if exists)
@@ -2760,7 +2614,6 @@ func main() {
 
 	// Auth: Reset password - completes password reset with token
 	mux.HandleFunc("POST /api/auth/reset-password", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Parse request body (limited to 64KB - token + password)
 		var req struct {
@@ -2768,28 +2621,19 @@ func main() {
 			Password string `json:"password"`
 		}
 		if err := httputil.DecodeJSONBody(r, w, &req, 64*1024); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid request body",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		// Validate token format
 		if req.Token == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Reset token is required",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Reset token is required")
 			return
 		}
 
 		// Validate password
 		if err := auth.ValidatePassword(req.Password); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -2798,10 +2642,7 @@ func main() {
 		resetToken, err := database.GetPasswordResetToken(tokenHash)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error looking up reset token", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to process reset request",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to process reset request")
 			return
 		}
 
@@ -2809,20 +2650,14 @@ func main() {
 		clientIP := ratelimit.GetClientIP(r)
 		if resetToken == nil {
 			security.PasswordResetFailed(r.Context(), clientIP, "token_not_found")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired reset token",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired reset token")
 			return
 		}
 
 		// Check if token is used or expired
 		if resetToken.Used || time.Now().After(resetToken.ExpiresAt) {
 			security.PasswordResetFailed(r.Context(), clientIP, "token_expired_or_used")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired reset token",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired reset token")
 			return
 		}
 
@@ -2830,10 +2665,7 @@ func main() {
 		passwordHash, err := auth.HashPassword(req.Password)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error hashing new password", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to process reset request",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to process reset request")
 			return
 		}
 
@@ -2844,22 +2676,16 @@ func main() {
 		// - Delete all sessions for user
 		if err := database.CompletePasswordReset(resetToken.UserID, tokenHash, passwordHash); err != nil {
 			logging.ErrorContext(r.Context(), "Error completing password reset", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to update password",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to update password")
 			return
 		}
 
 		security.PasswordResetSuccess(r.Context(), clientIP, resetToken.UserID)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "Password has been reset successfully. Please log in with your new password.",
-		})
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{"message": "Password has been reset successfully. Please log in with your new password."})
 	}))
 
 	// Auth: Request magic link - sends a login link via email (stricter rate limiting)
 	mux.HandleFunc("POST /api/auth/magic-link", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
 			Email string `json:"email"`
@@ -2873,18 +2699,13 @@ func main() {
 
 		// Validate email format
 		if err := auth.ValidateEmail(req.Email); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Always return success to prevent email enumeration
 		defer func() {
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "If an account exists with that email, a login link has been sent.",
-			})
+			httputil.RespondJSON(w, http.StatusOK, map[string]string{"message": "If an account exists with that email, a login link has been sent."})
 		}()
 
 		// Look up user (don't reveal if exists)
@@ -2950,15 +2771,11 @@ func main() {
 
 	// Auth: Verify magic link - logs user in with magic link token
 	mux.HandleFunc("GET /api/auth/magic-link/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Get token from query parameter
 		token := r.URL.Query().Get("token")
 		if token == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Token is required",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Token is required")
 			return
 		}
 
@@ -2967,28 +2784,19 @@ func main() {
 		magicToken, err := database.GetMagicLinkToken(tokenHash)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error looking up magic link token", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to verify magic link",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to verify magic link")
 			return
 		}
 
 		// Check if token exists
 		if magicToken == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired magic link",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired magic link")
 			return
 		}
 
 		// Check if token is used or expired
 		if magicToken.Used || time.Now().After(magicToken.ExpiresAt) {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired magic link",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired magic link")
 			return
 		}
 
@@ -2996,18 +2804,12 @@ func main() {
 		used, err := database.UseMagicLinkToken(tokenHash)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error marking magic link token as used", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to verify magic link",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to verify magic link")
 			return
 		}
 		if !used {
 			// Token was already used or expired
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired magic link",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired magic link")
 			return
 		}
 
@@ -3015,10 +2817,7 @@ func main() {
 		user, err := database.GetUserByID(magicToken.UserID)
 		if err != nil || user == nil {
 			logging.ErrorContext(r.Context(), "Error getting user for magic link", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to complete login",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to complete login")
 			return
 		}
 
@@ -3028,10 +2827,7 @@ func main() {
 		session, err := auth.CreateSession(database, user.ID, clientIP, userAgent)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to create session",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to create session")
 			return
 		}
 
@@ -3053,15 +2849,11 @@ func main() {
 
 	// Auth: Verify email - verifies email address with token
 	mux.HandleFunc("GET /api/auth/verify", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Get token from query parameter
 		token := r.URL.Query().Get("token")
 		if token == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Verification token is required",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Verification token is required")
 			return
 		}
 
@@ -3070,28 +2862,19 @@ func main() {
 		verifyToken, err := database.GetEmailVerificationToken(tokenHash)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error looking up verification token", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to process verification request",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to process verification request")
 			return
 		}
 
 		// Check if token exists and is valid
 		if verifyToken == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired verification token",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired verification token")
 			return
 		}
 
 		// Check if token is used or expired
 		if verifyToken.Used || time.Now().After(verifyToken.ExpiresAt) {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid or expired verification token",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid or expired verification token")
 			return
 		}
 
@@ -3099,10 +2882,7 @@ func main() {
 		success, err := database.UseEmailVerificationToken(tokenHash)
 		if err != nil || !success {
 			logging.ErrorContext(r.Context(), "Error verifying email", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to verify email",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to verify email")
 			return
 		}
 
@@ -3114,7 +2894,6 @@ func main() {
 
 	// Auth: Resend verification email (rate limited)
 	mux.HandleFunc("POST /api/auth/resend-verification", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
 			Email string `json:"email"`
@@ -3128,18 +2907,13 @@ func main() {
 
 		// Validate email format
 		if err := auth.ValidateEmail(req.Email); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Always return success to prevent email enumeration
 		defer func() {
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "If an unverified account exists with that email, a verification link has been sent.",
-			})
+			httputil.RespondJSON(w, http.StatusOK, map[string]string{"message": "If an unverified account exists with that email, a verification link has been sent."})
 		}()
 
 		// Look up user
@@ -3188,7 +2962,6 @@ func main() {
 
 	// Upload endpoint - accepts video files (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
@@ -3203,10 +2976,7 @@ func main() {
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Error counting videos for session", "error", err)
 			} else if count >= 2 {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Anonymous users are limited to 2 uploads. Please register to upload more videos.",
-				})
+				httputil.RespondError(w, http.StatusForbidden, "Anonymous users are limited to 2 uploads. Please register to upload more videos.")
 				return
 			}
 		}
@@ -3218,10 +2988,7 @@ func main() {
 		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 			logging.ErrorContext(r.Context(), "Error parsing form", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File too large or invalid form data",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "File too large or invalid form data")
 			return
 		}
 
@@ -3230,10 +2997,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting form file", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No video file provided",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "No video file provided")
 			return
 		}
 		defer file.Close()
@@ -3241,10 +3005,7 @@ func main() {
 		// Validate file is not empty/zero-size
 		if header.Size == 0 {
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File is empty. Please upload a valid video file.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "File is empty. Please upload a valid video file.")
 			return
 		}
 
@@ -3261,8 +3022,7 @@ func main() {
 			"video/ogg":        true, // .ogv files
 		}
 		if !allowedMIMETypes[contentType] {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
 				"provided_mimetype": contentType,
 			})
@@ -3274,10 +3034,7 @@ func main() {
 		magicBytes := make([]byte, 12)
 		n, err := file.Read(magicBytes)
 		if err != nil || n < 8 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File is too small or could not be read",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "File is too small or could not be read")
 			return
 		}
 		// Seek back to beginning for copy later
@@ -3285,20 +3042,14 @@ func main() {
 			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
 				logging.ErrorContext(r.Context(), "Failed to seek file", "error", err)
 				metrics.RecordUploadFailed()
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Failed to process file",
-				})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to process file")
 				return
 			}
 		}
 		// Validate the magic bytes against known video formats
 		if err := audio.ValidateMagicBytes(bytes.NewReader(magicBytes[:n])); err != nil {
 			logging.WarnContext(r.Context(), "Invalid magic bytes", "mimetype", contentType, "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File content does not match a valid video format. The file may be corrupted or renamed.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "File content does not match a valid video format. The file may be corrupted or renamed.")
 			return
 		}
 
@@ -3307,8 +3058,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating upload ID", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate upload ID")
 			return
 		}
 
@@ -3317,10 +3067,7 @@ func main() {
 		ext, err = validation.SanitizeFileExtension(ext)
 		if err != nil {
 			logging.WarnContext(r.Context(), "Invalid file extension", "filename", header.Filename, "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid file extension",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid file extension")
 			return
 		}
 
@@ -3330,10 +3077,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to save file",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save file")
 			return
 		}
 		defer destFile.Close()
@@ -3414,10 +3158,7 @@ func main() {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			removeWithLogging(destPath, "unencrypted upload after encryption failure")
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to encrypt file",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to encrypt file")
 			return
 		}
 
@@ -3452,10 +3193,7 @@ func main() {
 				removeWithLogging(*encThumbPath, "encrypted thumbnail after DB save failure")
 			}
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to save video record",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save video record")
 			return
 		}
 
@@ -3465,8 +3203,7 @@ func main() {
 			logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
 			removeWithLogging(encPath, "encrypted file after transcription ID generation failure")
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate transcription ID")
 			return
 		}
 		transcription := &db.Transcription{
@@ -3498,12 +3235,11 @@ func main() {
 		if languageHints != nil && len(languageHints.Hints) > 0 {
 			response["language_hints"] = languageHints
 		}
-		json.NewEncoder(w).Encode(response)
+		httputil.RespondJSON(w, http.StatusOK, response)
 	}))
 
 	// Initialize chunked upload session (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload/init", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
@@ -3543,8 +3279,7 @@ func main() {
 			"video/ogg":        true,
 		}
 		if !allowedMIMETypes[req.ContentType] {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
 				"provided_mimetype": req.ContentType,
 			})
@@ -3553,10 +3288,7 @@ func main() {
 
 		// Validate total size
 		if req.Size > maxUploadSize {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("File too large. Maximum size is %d MB", maxUploadSize/(1<<20)),
-			})
+			httputil.RespondErrorf(w, http.StatusBadRequest, "File too large. Maximum size is %d MB", maxUploadSize/(1<<20))
 			return
 		}
 
@@ -3569,10 +3301,7 @@ func main() {
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Error counting videos for session", "error", err)
 			} else if count >= 2 {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Anonymous users are limited to 2 uploads. Please register to upload more videos.",
-				})
+				httputil.RespondError(w, http.StatusForbidden, "Anonymous users are limited to 2 uploads. Please register to upload more videos.")
 				return
 			}
 		}
@@ -3594,8 +3323,7 @@ func main() {
 		uploadSessionID, err := generateID()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating upload session ID", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate session ID"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate session ID")
 			return
 		}
 
@@ -3621,8 +3349,7 @@ func main() {
 
 		if err := database.CreateUploadSession(session); err != nil {
 			logging.ErrorContext(r.Context(), "Error creating upload session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create upload session"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to create upload session")
 			return
 		}
 
@@ -3630,8 +3357,7 @@ func main() {
 		chunksDir := filepath.Join(uploadDir, "chunks", uploadSessionID)
 		if err := os.MkdirAll(chunksDir, 0755); err != nil {
 			logging.ErrorContext(r.Context(), "Error creating chunks directory", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create chunks directory"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to create chunks directory")
 			return
 		}
 
@@ -3642,7 +3368,7 @@ func main() {
 			"chunk_size", requestedChunkSize,
 			"total_chunks", totalChunks)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"upload_session_id": uploadSessionID,
 			"chunk_size":        requestedChunkSize,
 			"total_chunks":      totalChunks,
@@ -3652,7 +3378,6 @@ func main() {
 
 	// Upload a single chunk (rate limited: 60/min per IP)
 	mux.HandleFunc("POST /api/upload/chunk", chunkLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		// Limit chunk size
 		r.Body = http.MaxBytesReader(w, r.Body, chunkSize+10*1024) // chunk + overhead
@@ -3660,8 +3385,7 @@ func main() {
 		// Parse multipart form
 		if err := r.ParseMultipartForm(chunkSize + 10*1024); err != nil {
 			logging.ErrorContext(r.Context(), "Error parsing chunk form", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Chunk too large or invalid form data"})
+			httputil.RespondError(w, http.StatusBadRequest, "Chunk too large or invalid form data")
 			return
 		}
 
@@ -3669,22 +3393,19 @@ func main() {
 		uploadSessionID := r.FormValue("upload_session_id")
 		chunkIndexStr := r.FormValue("chunk_index")
 		if uploadSessionID == "" || chunkIndexStr == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Missing upload_session_id or chunk_index"})
+			httputil.RespondError(w, http.StatusBadRequest, "Missing upload_session_id or chunk_index")
 			return
 		}
 
 		// Defense-in-depth: validate session ID format before using in file paths
 		if err := validation.ValidateHexID(uploadSessionID); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid upload_session_id format"})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid upload_session_id format")
 			return
 		}
 
 		chunkIndex, err := strconv.Atoi(chunkIndexStr)
 		if err != nil || chunkIndex < 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid chunk_index"})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid chunk_index")
 			return
 		}
 
@@ -3692,8 +3413,7 @@ func main() {
 		// Maximum reasonable chunks: 500GB / 50MB = 10,000 chunks
 		const maxChunkIndex = 100000
 		if chunkIndex >= maxChunkIndex {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Chunk index exceeds maximum allowed value"})
+			httputil.RespondError(w, http.StatusBadRequest, "Chunk index exceeds maximum allowed value")
 			return
 		}
 
@@ -3701,27 +3421,23 @@ func main() {
 		session, err := database.GetUploadSession(uploadSessionID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting upload session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get upload session"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get upload session")
 			return
 		}
 		if session == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			httputil.RespondError(w, http.StatusNotFound, "Upload session not found")
 			return
 		}
 
 		// Check session expiration
 		if time.Now().After(session.ExpiresAt) {
-			w.WriteHeader(http.StatusGone)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session has expired"})
+			httputil.RespondError(w, http.StatusGone, "Upload session has expired")
 			return
 		}
 
 		// Check session status
 		if session.Status != "in_progress" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session is not in progress"})
+			httputil.RespondError(w, http.StatusBadRequest, "Upload session is not in progress")
 			return
 		}
 
@@ -3732,22 +3448,19 @@ func main() {
 
 		if session.UserID != nil {
 			if user == nil || *session.UserID != user.ID {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				httputil.RespondError(w, http.StatusForbidden, "Access denied")
 				return
 			}
 		} else if session.SessionID != nil {
 			if requestSessionID == "" || *session.SessionID != requestSessionID {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				httputil.RespondError(w, http.StatusForbidden, "Access denied")
 				return
 			}
 		}
 
 		// Validate chunk index
 		if chunkIndex >= session.TotalChunks {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid chunk index"})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid chunk index")
 			return
 		}
 
@@ -3755,8 +3468,7 @@ func main() {
 		existingChunk, err := database.GetUploadChunk(uploadSessionID, chunkIndex)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error checking existing chunk", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to check chunk status"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to check chunk status")
 			return
 		}
 		if existingChunk != nil {
@@ -3772,7 +3484,7 @@ func main() {
 				chunkCount = 0
 			}
 			progress := int(float64(chunkCount) / float64(session.TotalChunks) * 100)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 				"chunk_index":    chunkIndex,
 				"received_bytes": existingChunk.Size,
 				"total_received": totalReceived,
@@ -3786,8 +3498,7 @@ func main() {
 		chunkFile, _, err := r.FormFile("chunk")
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting chunk file", "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "No chunk data provided"})
+			httputil.RespondError(w, http.StatusBadRequest, "No chunk data provided")
 			return
 		}
 		defer chunkFile.Close()
@@ -3804,8 +3515,7 @@ func main() {
 		destFile, err := os.Create(chunkPath)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating chunk file", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save chunk")
 			return
 		}
 		defer destFile.Close()
@@ -3814,8 +3524,7 @@ func main() {
 		if err != nil {
 			removeWithLogging(chunkPath, "partial chunk after write failure")
 			logging.ErrorContext(r.Context(), "Error writing chunk file", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save chunk"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save chunk")
 			return
 		}
 		// Close after writing - log any error but continue since data is written
@@ -3826,10 +3535,7 @@ func main() {
 		// Validate chunk size (allow up to expected size; last chunk may be smaller)
 		if written > expectedSize {
 			removeWithLogging(chunkPath, "oversized chunk")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("Chunk too large. Expected max %d bytes, got %d", expectedSize, written),
-			})
+			httputil.RespondErrorf(w, http.StatusBadRequest, "Chunk too large. Expected max %d bytes, got %d", expectedSize, written)
 			return
 		}
 
@@ -3838,8 +3544,7 @@ func main() {
 		if err != nil {
 			removeWithLogging(chunkPath, "chunk after ID generation failure")
 			logging.ErrorContext(r.Context(), "Error generating chunk ID", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate chunk ID"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate chunk ID")
 			return
 		}
 
@@ -3854,8 +3559,7 @@ func main() {
 		if err := database.CreateUploadChunk(chunk); err != nil {
 			removeWithLogging(chunkPath, "chunk after DB record failure")
 			logging.ErrorContext(r.Context(), "Error saving chunk record", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record chunk"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to record chunk")
 			return
 		}
 
@@ -3878,7 +3582,7 @@ func main() {
 			"size", written,
 			"progress", progress)
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"chunk_index":    chunkIndex,
 			"received_bytes": written,
 			"total_received": totalReceived,
@@ -3888,7 +3592,6 @@ func main() {
 
 	// Complete chunked upload (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload/complete", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		var req struct {
 			UploadSessionID string `json:"upload_session_id"`
 		}
@@ -3946,15 +3649,11 @@ func main() {
 		chunkCount, err := database.CountUploadChunks(req.UploadSessionID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error counting chunks", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to verify chunks"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to verify chunks")
 			return
 		}
 		if chunkCount != session.TotalChunks {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("Not all chunks received. Expected %d, got %d", session.TotalChunks, chunkCount),
-			})
+			httputil.RespondErrorf(w, http.StatusBadRequest, "Not all chunks received. Expected %d, got %d", session.TotalChunks, chunkCount)
 			return
 		}
 
@@ -3963,8 +3662,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting chunks", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get chunks"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get chunks")
 			return
 		}
 
@@ -3973,8 +3671,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error generating upload ID", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate upload ID"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate upload ID")
 			return
 		}
 
@@ -3983,10 +3680,7 @@ func main() {
 		ext, err = validation.SanitizeFileExtension(ext)
 		if err != nil {
 			logging.WarnContext(r.Context(), "Invalid file extension", "filename", session.Filename, "error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid file extension",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid file extension")
 			return
 		}
 
@@ -3996,8 +3690,7 @@ func main() {
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create destination file"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to create destination file")
 			return
 		}
 
@@ -4011,8 +3704,7 @@ func main() {
 				removeWithLogging(destPath, "partial assembled file after chunk open failure")
 				logging.ErrorContext(r.Context(), "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
 				metrics.RecordUploadFailed()
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read chunk"})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to read chunk")
 				return
 			}
 			written, err := io.Copy(destFile, chunkFile)
@@ -4026,8 +3718,7 @@ func main() {
 				removeWithLogging(destPath, "partial assembled file after copy failure")
 				logging.ErrorContext(r.Context(), "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
 				metrics.RecordUploadFailed()
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to assemble file"})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to assemble file")
 				return
 			}
 			totalWritten += written
@@ -4043,10 +3734,7 @@ func main() {
 		if err := audio.ValidateMagicBytesFromFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Invalid magic bytes for reassembled file", "path", destPath, "error", err)
 			removeWithLogging(destPath, "assembled file with invalid magic bytes")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "File content does not match a valid video format. The file may be corrupted.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "File content does not match a valid video format. The file may be corrupted.")
 			return
 		}
 
@@ -4054,10 +3742,7 @@ func main() {
 		if err := audio.ValidateVideoFile(destPath); err != nil {
 			logging.WarnContext(r.Context(), "Video validation failed", "path", destPath, "error", err)
 			removeWithLogging(destPath, "assembled file that failed video validation")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Assembled file is not a valid video. Please try uploading again.",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "Assembled file is not a valid video. Please try uploading again.")
 			return
 		}
 
@@ -4108,8 +3793,7 @@ func main() {
 			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
 			removeWithLogging(destPath, "unencrypted assembled file after encryption failure")
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to encrypt file"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to encrypt file")
 			return
 		}
 		removeWithLogging(destPath, "unencrypted assembled file after successful encryption")
@@ -4135,8 +3819,7 @@ func main() {
 				removeWithLogging(*encThumbPath, "encrypted thumbnail after DB save failure")
 			}
 			metrics.RecordUploadFailed()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save video record"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save video record")
 			return
 		}
 
@@ -4192,37 +3875,32 @@ func main() {
 		if languageHints != nil && len(languageHints.Hints) > 0 {
 			response["language_hints"] = languageHints
 		}
-		json.NewEncoder(w).Encode(response)
+		httputil.RespondJSON(w, http.StatusOK, response)
 	}))
 
 	// Get chunked upload status (rate limited: 30/min per IP)
 	mux.HandleFunc("GET /api/upload/status/{session_id}", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		uploadSessionID := r.PathValue("session_id")
 		if uploadSessionID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Session ID required"})
+			httputil.RespondError(w, http.StatusBadRequest, "Session ID required")
 			return
 		}
 
 		// Defense-in-depth: validate session ID format
 		if err := validation.ValidateHexID(uploadSessionID); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid session ID format"})
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid session ID format")
 			return
 		}
 
 		session, err := database.GetUploadSession(uploadSessionID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting upload session", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get upload session"})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get upload session")
 			return
 		}
 		if session == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Upload session not found"})
+			httputil.RespondError(w, http.StatusNotFound, "Upload session not found")
 			return
 		}
 
@@ -4233,14 +3911,12 @@ func main() {
 
 		if session.UserID != nil {
 			if user == nil || *session.UserID != user.ID {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				httputil.RespondError(w, http.StatusForbidden, "Access denied")
 				return
 			}
 		} else if session.SessionID != nil {
 			if requestSessionID == "" || *session.SessionID != requestSessionID {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
+				httputil.RespondError(w, http.StatusForbidden, "Access denied")
 				return
 			}
 		}
@@ -4264,7 +3940,7 @@ func main() {
 			status = "expired"
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"upload_session_id": session.ID,
 			"filename":          session.Filename,
 			"total_size":        session.TotalSize,
@@ -4282,7 +3958,6 @@ func main() {
 	// Optional query parameter: language (ISO 639-1 code, e.g., "en", "es", "ja")
 	// If not provided or "auto", whisper will auto-detect the language
 	mux.HandleFunc("POST /api/transcribe/{id}", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
@@ -4296,10 +3971,7 @@ func main() {
 		}
 		// Validate language code length
 		if err := validation.ValidateLanguageCode(language); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -4307,10 +3979,7 @@ func main() {
 		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Video not found for transcription", "error", err, "upload_id", uploadID)
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": errmsg.ForVideoNotFound(err),
-			})
+			httputil.RespondError(w, http.StatusNotFound, errmsg.ForVideoNotFound(err))
 			return
 		}
 		videoPath := video.FilePath
@@ -4326,7 +3995,7 @@ func main() {
 		}
 		if existingTranscription != nil {
 			if existingTranscription.Status == "processing" {
-				json.NewEncoder(w).Encode(map[string]string{
+				httputil.RespondJSON(w, http.StatusOK, map[string]string{
 					"status":  "processing",
 					"message": "Transcription already in progress",
 				})
@@ -4338,7 +4007,7 @@ func main() {
 				languageChanged := language != "auto" && existingTranscription.Language != language
 				if !force && !languageChanged {
 					// Same language, return existing result
-					json.NewEncoder(w).Encode(dbTranscriptionToStatus(existingTranscription))
+					httputil.RespondJSON(w, http.StatusOK, dbTranscriptionToStatus(existingTranscription))
 					return
 				}
 				// Language changed or force requested - proceed with re-transcription
@@ -4355,8 +4024,7 @@ func main() {
 			newTranscriptionID, err := generateID()
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate transcription ID"})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate transcription ID")
 				return
 			}
 			transcription := &db.Transcription{
@@ -4498,7 +4166,7 @@ func main() {
 		}(language, keyVersion)
 
 		// Return immediately with processing status
-		json.NewEncoder(w).Encode(map[string]string{
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{
 			"status":  "processing",
 			"message": "Transcription started",
 		})
@@ -4534,13 +4202,11 @@ func main() {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(status)
+		httputil.RespondJSON(w, http.StatusOK, status)
 	})
 
 	// Update segments for a transcription (edit subtitles)
 	mux.HandleFunc("PUT /api/transcribe/{id}/segments", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -4558,8 +4224,7 @@ func main() {
 			return
 		}
 		if transcription.Status != "complete" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Cannot edit segments - transcription not complete",
 				"status": transcription.Status,
 			})
@@ -4577,25 +4242,16 @@ func main() {
 		// Validate segments
 		for i, seg := range req.Segments {
 			if seg.Start < 0 || seg.End < 0 {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": fmt.Sprintf("Segment %d has invalid timing (negative values)", i),
-				})
+				httputil.RespondErrorf(w, http.StatusBadRequest, "Segment %d has invalid timing (negative values)", i)
 				return
 			}
 			if seg.Start > seg.End {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": fmt.Sprintf("Segment %d: start time cannot be greater than end time", i),
-				})
+				httputil.RespondErrorf(w, http.StatusBadRequest, "Segment %d: start time cannot be greater than end time", i)
 				return
 			}
 			// Validate segment text length
 			if err := validation.ValidateSegmentText(seg.Text); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": fmt.Sprintf("Segment %d: %v", i, err),
-				})
+				httputil.RespondErrorf(w, http.StatusBadRequest, "Segment %d: %v", i, err)
 				return
 			}
 		}
@@ -4603,15 +4259,12 @@ func main() {
 		// Update segments in database
 		if err := database.UpdateSegments(uploadID, req.Segments); err != nil {
 			logging.ErrorContext(r.Context(), "Error updating segments", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to update segments",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to update segments")
 			return
 		}
 
 		logging.InfoContext(r.Context(), "Updated segments", "upload_id", uploadID, "segment_count", len(req.Segments))
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":   "success",
 			"segments": len(req.Segments),
 		})
@@ -4619,7 +4272,6 @@ func main() {
 
 	// Paste-and-match: align user-provided transcript with whisper timing
 	mux.HandleFunc("POST /api/transcribe/{id}/align", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
@@ -4630,22 +4282,15 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription")
 			return
 		}
 		if transcription == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this upload",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found for this upload")
 			return
 		}
 		if transcription.Status != "complete" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Cannot align - transcription not complete",
 				"status": transcription.Status,
 			})
@@ -4665,19 +4310,13 @@ func main() {
 
 		// Validate align text length
 		if err := validation.ValidateAlignText(req.Text); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		// Validate align mode
 		if _, err := validation.ValidateAlignMode(req.Mode); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -4687,16 +4326,14 @@ func main() {
 		if req.ConvertToScript != "" {
 			targetScript = script.Script(req.ConvertToScript)
 			if !script.IsScriptSupported(targetScript) {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				httputil.RespondJSON(w, http.StatusBadRequest, map[string]interface{}{
 					"error":             "Unsupported target script",
 					"supported_scripts": script.SupportedScripts(),
 				})
 				return
 			}
 			if !script.IsLanguageSupported(req.Language) {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				httputil.RespondJSON(w, http.StatusBadRequest, map[string]interface{}{
 					"error":               "Language required for script conversion",
 					"supported_languages": script.SupportedLanguages(),
 				})
@@ -4708,10 +4345,7 @@ func main() {
 		existingSegments, err := transcription.GetSegments()
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting segments", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get existing segments",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get existing segments")
 			return
 		}
 
@@ -4770,10 +4404,7 @@ func main() {
 		// Update segments in database
 		if err := database.UpdateSegments(uploadID, newSegments); err != nil {
 			logging.ErrorContext(r.Context(), "Error updating segments", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to save aligned segments",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save aligned segments")
 			return
 		}
 
@@ -4797,12 +4428,11 @@ func main() {
 				response["conversion_failed_indices"] = failedConversionIndices
 			}
 		}
-		json.NewEncoder(w).Encode(response)
+		httputil.RespondJSON(w, http.StatusOK, response)
 	})
 
 	// Download SRT file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -4811,27 +4441,17 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription")
 			return
 		}
 
 		if transcription == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this upload",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found for this upload")
 			return
 		}
 
 		if transcription.Status != "complete" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Transcription not yet complete",
 				"status": transcription.Status,
 			})
@@ -4853,11 +4473,7 @@ func main() {
 
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No subtitle segments available",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No subtitle segments available")
 			return
 		}
 
@@ -4895,7 +4511,6 @@ func main() {
 
 	// Download VTT file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.vtt", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -4904,27 +4519,17 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription")
 			return
 		}
 
 		if transcription == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this upload",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found for this upload")
 			return
 		}
 
 		if transcription.Status != "complete" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Transcription not yet complete",
 				"status": transcription.Status,
 			})
@@ -4945,11 +4550,7 @@ func main() {
 
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No subtitle segments available",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No subtitle segments available")
 			return
 		}
 
@@ -4985,7 +4586,6 @@ func main() {
 
 	// Download JSON file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -4994,27 +4594,17 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription")
 			return
 		}
 
 		if transcription == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this upload",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found for this upload")
 			return
 		}
 
 		if transcription.Status != "complete" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Transcription not yet complete",
 				"status": transcription.Status,
 			})
@@ -5035,11 +4625,7 @@ func main() {
 
 		segments, err := transcription.GetSegments()
 		if err != nil || len(segments) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No subtitle segments available",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No subtitle segments available")
 			return
 		}
 
@@ -5058,8 +4644,7 @@ func main() {
 		// Set headers for file download
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Content-Disposition", httputil.ContentDisposition(uploadID+".json"))
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		httputil.RespondJSON(w, http.StatusOK, response)
 	})
 
 	// Extract embedded subtitle track from video
@@ -5186,7 +4771,6 @@ func main() {
 
 	// List all videos
 	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
@@ -5270,7 +4854,7 @@ func main() {
 		}
 
 		hasMore := offset+len(result.Videos) < result.TotalCount
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"videos":      videos,
 			"total_count": result.TotalCount,
 			"has_more":    hasMore,
@@ -5279,7 +4863,6 @@ func main() {
 
 	// Delete a video
 	mux.HandleFunc("DELETE /api/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		videoID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
 		if !valid {
 			return
@@ -5347,15 +4930,11 @@ func main() {
 		}
 		security.VideoDeletedByUser(r.Context(), ratelimit.GetClientIP(r), userID, videoID, video.Filename)
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "Video deleted successfully",
-		})
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{"message": "Video deleted successfully"})
 	})
 
 	// Reprocess a failed transcription
 	mux.HandleFunc("POST /api/videos/{id}/reprocess", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
 		if !valid {
@@ -5366,17 +4945,11 @@ func main() {
 		video, err := database.GetVideo(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get video",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
 			return
 		}
 		if video == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Video not found",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
 			return
 		}
 
@@ -5396,10 +4969,7 @@ func main() {
 		}
 
 		if !hasAccess {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "You do not have permission to reprocess this video",
-			})
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to reprocess this video")
 			return
 		}
 
@@ -5407,24 +4977,17 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription status",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription status")
 			return
 		}
 
 		if transcription == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found for this video",
-			})
+			httputil.RespondError(w, http.StatusBadRequest, "No transcription found for this video")
 			return
 		}
 
 		if transcription.Status != "error" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Can only reprocess failed transcriptions",
 				"status": transcription.Status,
 			})
@@ -5554,7 +5117,7 @@ func main() {
 			// Note: audioPath is cleaned up by defer above
 		}(keyVersion)
 
-		json.NewEncoder(w).Encode(map[string]string{
+		httputil.RespondJSON(w, http.StatusOK, map[string]string{
 			"status":  "processing",
 			"message": "Reprocessing started",
 		})
@@ -5562,7 +5125,6 @@ func main() {
 
 	// Serve uploaded video files for playback
 	mux.HandleFunc("GET /api/videos/{id}/video", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -5572,11 +5134,7 @@ func main() {
 		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Video not found for download", "error", err, "upload_id", uploadID)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": errmsg.ForVideoNotFound(err),
-			})
+			httputil.RespondError(w, http.StatusNotFound, errmsg.ForVideoNotFound(err))
 			return
 		}
 
@@ -5595,11 +5153,7 @@ func main() {
 		// This prevents path traversal attacks if the database is compromised
 		if err := pathValidator.ValidateAbsolutePath(videoPath); err != nil {
 			logging.ErrorContext(r.Context(), "Path validation failed for video download", "error", err, "path", videoPath)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Access denied",
-			})
+			httputil.RespondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
 
@@ -5609,11 +5163,7 @@ func main() {
 			decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, video.KeyVersion)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Failed to decrypt video for serving", "error", err)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Failed to decrypt video",
-				})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to decrypt video")
 				return
 			}
 			defer os.Remove(decryptedPath)
@@ -5649,7 +5199,6 @@ func main() {
 
 	// Serve video thumbnail
 	mux.HandleFunc("GET /api/videos/{id}/thumbnail", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -5659,29 +5208,17 @@ func main() {
 		video, err := database.GetVideo(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Database error",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Database error")
 			return
 		}
 		if video == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Video not found",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
 			return
 		}
 
 		// Check if thumbnail exists
 		if video.ThumbnailPath == nil || *video.ThumbnailPath == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Thumbnail not available",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Thumbnail not available")
 			return
 		}
 
@@ -5691,21 +5228,13 @@ func main() {
 		// This prevents path traversal attacks if the database is compromised
 		if err := pathValidator.ValidateAbsolutePath(thumbPath); err != nil {
 			logging.ErrorContext(r.Context(), "Path validation failed for thumbnail download", "error", err, "path", thumbPath)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Access denied",
-			})
+			httputil.RespondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
 
 		// Check if file exists on disk
 		if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Thumbnail file not found",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Thumbnail file not found")
 			return
 		}
 
@@ -5723,11 +5252,7 @@ func main() {
 			decryptedPath, err := multiEnc.DecryptToTempFile(thumbPath, video.KeyVersion)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Failed to decrypt thumbnail for serving", "error", err)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Failed to decrypt thumbnail",
-				})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to decrypt thumbnail")
 				return
 			}
 			defer os.Remove(decryptedPath)
@@ -5763,7 +5288,6 @@ func main() {
 	// Get language detection hints for a video
 	// This analyzes video metadata (ffprobe) and filename patterns to suggest the spoken language
 	mux.HandleFunc("GET /api/videos/{id}/language-hints", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -5792,7 +5316,7 @@ func main() {
 					logging.ErrorContext(r.Context(), "Failed to decrypt video for language analysis", "error", err)
 					// Fall back to filename-only detection
 					result := language.Detect("", video.Filename)
-					json.NewEncoder(w).Encode(result)
+					httputil.RespondJSON(w, http.StatusOK, result)
 					return
 				}
 				defer os.Remove(decryptedPath)
@@ -5805,14 +5329,13 @@ func main() {
 		// Run language detection
 		result := language.Detect(videoPath, video.Filename)
 
-		json.NewEncoder(w).Encode(result)
+		httputil.RespondJSON(w, http.StatusOK, result)
 	})
 
 	// Start burning subtitles into video (rate limited: 2/min per IP)
 	// Mode: "burn" (default) hardcodes subtitles into video frames
 	//       "embed" creates soft subtitle track (much faster, no re-encoding)
 	mux.HandleFunc("POST /api/videos/{id}/burn", burnLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
@@ -5824,10 +5347,7 @@ func main() {
 		burnModeParam := r.URL.Query().Get("mode")
 		burnMode, err := validation.ValidateBurnMode(burnModeParam)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
-			})
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -5835,22 +5355,15 @@ func main() {
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get transcription",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get transcription")
 			return
 		}
 		if transcription == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No transcription found - please transcribe the video first",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No transcription found - please transcribe the video first")
 			return
 		}
 		if transcription.Status != "complete" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":  "Cannot burn subtitles - transcription not complete",
 				"status": transcription.Status,
 			})
@@ -5864,7 +5377,7 @@ func main() {
 		}
 		if existingJob != nil {
 			if existingJob.Status == "processing" {
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 					"status":   "processing",
 					"message":  existingJob.Message,
 					"progress": existingJob.Progress,
@@ -5872,7 +5385,7 @@ func main() {
 				return
 			}
 			if existingJob.Status == "complete" {
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 					"status":   "complete",
 					"message":  existingJob.Message,
 					"progress": 100,
@@ -5885,10 +5398,7 @@ func main() {
 		video, err := getVideoForDecryption(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Video not found for burn", "error", err, "upload_id", uploadID)
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": errmsg.ForVideoNotFound(err),
-			})
+			httputil.RespondError(w, http.StatusNotFound, errmsg.ForVideoNotFound(err))
 			return
 		}
 		videoPath := video.FilePath
@@ -5899,8 +5409,7 @@ func main() {
 			burnJobID, err := generateID()
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Error generating burn job ID", "error", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate burn job ID"})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to generate burn job ID")
 				return
 			}
 			burnJob := &db.BurnJob{
@@ -6123,7 +5632,7 @@ func main() {
 		}(keyVersion, string(burnMode))
 
 		// Return immediately with processing status
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"status":   "processing",
 			"message":  "Subtitle burn started",
 			"progress": 0,
@@ -6132,7 +5641,6 @@ func main() {
 
 	// Get burn job status
 	mux.HandleFunc("GET /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
@@ -6142,18 +5650,12 @@ func main() {
 		job, err := database.GetBurnJob(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting burn job", "error", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get burn job status",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get burn job status")
 			return
 		}
 
 		if job == nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No burn job found for this video",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No burn job found for this video")
 			return
 		}
 
@@ -6186,12 +5688,11 @@ func main() {
 			}
 		}
 
-		json.NewEncoder(w).Encode(response)
+		httputil.RespondJSON(w, http.StatusOK, response)
 	})
 
 	// Download burned video (rate limited: 30/min per IP)
 	mux.HandleFunc("GET /api/videos/{id}/burned", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -6200,27 +5701,17 @@ func main() {
 		job, err := database.GetBurnJob(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting burn job", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to get burn job",
-			})
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get burn job")
 			return
 		}
 
 		if job == nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "No burn job found - start one first with POST /api/videos/{id}/burn",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "No burn job found - start one first with POST /api/videos/{id}/burn")
 			return
 		}
 
 		if job.Status != "complete" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]interface{}{
 				"error":    "Burn job not complete",
 				"status":   job.Status,
 				"message":  job.Message,
@@ -6230,11 +5721,7 @@ func main() {
 		}
 
 		if job.OutputPath == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Burned video file not found",
-			})
+			httputil.RespondError(w, http.StatusNotFound, "Burned video file not found")
 			return
 		}
 
@@ -6242,11 +5729,7 @@ func main() {
 		// This prevents path traversal attacks if the database is compromised
 		if err := pathValidator.ValidateAbsolutePath(job.OutputPath); err != nil {
 			logging.ErrorContext(r.Context(), "Path validation failed for burned video download", "error", err, "path", job.OutputPath)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Access denied",
-			})
+			httputil.RespondError(w, http.StatusForbidden, "Access denied")
 			return
 		}
 
@@ -6261,11 +5744,7 @@ func main() {
 			decryptedPath, err := multiEnc.DecryptToTempFile(job.OutputPath, outputKeyVersion)
 			if err != nil {
 				logging.ErrorContext(r.Context(), "Failed to decrypt burned video", "error", err)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "Failed to decrypt video",
-				})
+				httputil.RespondError(w, http.StatusInternalServerError, "Failed to decrypt video")
 				return
 			}
 			defer os.Remove(decryptedPath)
@@ -6306,7 +5785,6 @@ func main() {
 
 	// Script detection endpoint (rate limited)
 	mux.HandleFunc("POST /api/text/detect-script", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
 			Text string `json:"text"`
@@ -6316,8 +5794,7 @@ func main() {
 		}
 
 		if len(req.Text) > 10240 { // 10KB limit
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Text too long (max 10KB)"})
+			httputil.RespondError(w, http.StatusBadRequest, "Text too long (max 10KB)")
 			return
 		}
 
@@ -6331,7 +5808,7 @@ func main() {
 			confidence = math.Min(float64(len(req.Text))/100.0, 1.0)
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"detected_script":   string(detectedScript),
 			"detected_language": detectedLang,
 			"confidence":        confidence,
@@ -6340,7 +5817,6 @@ func main() {
 
 	// Script conversion endpoint (rate limited)
 	mux.HandleFunc("POST /api/text/convert", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
 		var req struct {
 			Text         string `json:"text"`
@@ -6354,15 +5830,13 @@ func main() {
 
 		// Validate text length (10KB limit)
 		if len(req.Text) > 10240 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Text too long (max 10KB)"})
+			httputil.RespondError(w, http.StatusBadRequest, "Text too long (max 10KB)")
 			return
 		}
 
 		// Validate language
 		if !script.IsLanguageSupported(req.Language) {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]interface{}{
 				"error":               "Unsupported language",
 				"supported_languages": script.SupportedLanguages(),
 			})
@@ -6372,8 +5846,7 @@ func main() {
 		// Validate target script
 		targetScript := script.Script(req.TargetScript)
 		if !script.IsScriptSupported(targetScript) {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			httputil.RespondJSON(w, http.StatusBadRequest, map[string]interface{}{
 				"error":             "Unsupported target script",
 				"supported_scripts": script.SupportedScripts(),
 			})
@@ -6390,12 +5863,11 @@ func main() {
 		converter := script.NewConverter()
 		converted, err := converter.Convert(req.Text, req.Language, targetScript)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Conversion failed: %v", err)})
+			httputil.RespondErrorf(w, http.StatusInternalServerError, "Conversion failed: %v", err)
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"original":      req.Text,
 			"converted":     converted,
 			"source_script": string(sourceScript),

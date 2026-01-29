@@ -16,13 +16,23 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-28: Always use httputil helpers for JSON responses
+
+**Problem:** main.go had 222 direct `json.NewEncoder(w).Encode()` calls mixed with 108 `httputil.RespondJSON/RespondError` calls. The direct calls lacked consistent Content-Type headers, error logging for encoding failures, and required manually managing `w.WriteHeader()` ordering.
+
+**Solution:** Migrated all 222 direct calls to httputil helpers using an automated Python script. The script categorized each call (simple error, error with fmt.Sprintf, error with err.Error(), multi-key map, success response, variable encoding, deferred) and applied the appropriate replacement. Also removed 47 orphaned handler-level `Content-Type: application/json` lines that were now redundant.
+
+**Lesson:** Always use `httputil.RespondError(w, status, msg)`, `httputil.RespondErrorf(w, status, fmt, args...)`, or `httputil.RespondJSON(w, status, data)` for JSON responses. Never use `json.NewEncoder(w).Encode()` directly in handlers. The httputil helpers correctly set Content-Type before WriteHeader and log encoding errors. For bulk migrations, an automated script with pattern categorization is more reliable than manual edits across 200+ call sites.
+
+---
+
 ### 2026-01-28: Go net/http Content-Type must be set before WriteHeader
 
 **Problem:** 9 out of 51 HTTP handlers in main.go called `w.WriteHeader()` then `json.NewEncoder(w).Encode()` without having set `Content-Type: application/json` first. In Go's net/http, headers set after WriteHeader are silently ignored, causing responses to use Go's auto-detected content type instead of explicit `application/json`.
 
 **Solution:** Added `w.Header().Set("Content-Type", "application/json")` as the first line of each affected handler, matching the pattern used by the majority of handlers. The handlers already using `httputil.RespondJSON()`/`httputil.RespondError()` were safe because those helpers set Content-Type internally.
 
-**Lesson:** When creating new HTTP handlers, always set Content-Type as the first line. Or better yet, use the httputil helpers (RespondJSON, RespondError) which handle this correctly. The pattern of setting Content-Type once at the top of the handler covers both success and error paths.
+**Lesson:** When creating new HTTP handlers, use the httputil helpers (RespondJSON, RespondError) which handle Content-Type correctly. After Task 349, all handlers use httputil for JSON responses, making this a non-issue going forward.
 
 ---
 
