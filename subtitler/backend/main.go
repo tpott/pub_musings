@@ -5753,7 +5753,9 @@ func main() {
 			// Note: outputPath (unencrypted file) is cleaned up by defer above
 
 			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion, "mode", mode)
-			database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion)
+			if err := database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion); err != nil {
+				logging.Error("Failed to complete burn job", "video_id", uploadID, "error", err)
+			}
 		}(keyVersion, string(burnMode))
 
 		// Return immediately with processing status

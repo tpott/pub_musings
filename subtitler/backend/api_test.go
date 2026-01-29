@@ -2238,6 +2238,90 @@ func (ts *testServer) registerHandlers() {
 		json.NewEncoder(w).Encode(response)
 	})
 
+	// Start burn job
+	ts.mux.HandleFunc("POST /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Upload ID required"})
+			return
+		}
+
+		// Validate burn mode
+		burnModeParam := r.URL.Query().Get("mode")
+		_, err := validation.ValidateBurnMode(burnModeParam)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Check transcription exists and is complete
+		transcription, err := ts.db.GetTranscription(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get transcription"})
+			return
+		}
+		if transcription == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No transcription found - please transcribe the video first"})
+			return
+		}
+		if transcription.Status != "complete" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":  "Cannot burn subtitles - transcription not complete",
+				"status": transcription.Status,
+			})
+			return
+		}
+
+		// Check if already processing
+		existingJob, _ := ts.db.GetBurnJob(uploadID)
+		if existingJob != nil {
+			if existingJob.Status == "processing" {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"status":   "processing",
+					"message":  existingJob.Message,
+					"progress": existingJob.Progress,
+				})
+				return
+			}
+			if existingJob.Status == "complete" {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"status":   "complete",
+					"message":  existingJob.Message,
+					"progress": 100,
+				})
+				return
+			}
+		}
+
+		// Create burn job (test server doesn't launch goroutine)
+		burnJob := &db.BurnJob{
+			ID:        testGenerateID(),
+			VideoID:   uploadID,
+			Status:    "processing",
+			Message:   "Starting subtitle burn...",
+			Progress:  0,
+			CreatedAt: time.Now(),
+		}
+		if err := ts.db.CreateBurnJob(burnJob); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create burn job"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   "processing",
+			"message":  "Starting subtitle burn...",
+			"progress": 0,
+		})
+	})
+
 	// Upload endpoint with MIME type validation
 	ts.mux.HandleFunc("POST /api/upload", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -5610,6 +5694,189 @@ func TestBurnStatusComplete(t *testing.T) {
 	}
 	if response["status"] != "complete" {
 		t.Errorf("Expected status 'complete', got '%v'", response["status"])
+	}
+}
+
+// TestBurnStartSuccess tests starting a burn job successfully
+func TestBurnStartSuccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create a video with completed transcription
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if response["status"] != "processing" {
+		t.Errorf("Expected status 'processing', got '%v'", response["status"])
+	}
+	if response["message"] != "Starting subtitle burn..." {
+		t.Errorf("Expected message 'Starting subtitle burn...', got '%v'", response["message"])
+	}
+}
+
+// TestBurnStartNoTranscription tests burn request when no transcription exists
+func TestBurnStartNoTranscription(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("Expected status 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestBurnStartIncompleteTranscription tests burn request when transcription is not complete
+func TestBurnStartIncompleteTranscription(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+
+	// Create a pending transcription (not completed)
+	transcription := &db.Transcription{
+		ID:        testGenerateID(),
+		VideoID:   video.ID,
+		Status:    "processing",
+		Message:   "Extracting audio...",
+		Progress:  50,
+		CreatedAt: time.Now(),
+	}
+	if err := ts.db.CreateTranscription(transcription); err != nil {
+		t.Fatalf("Failed to create transcription: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("Expected status 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if response["error"] != "Cannot burn subtitles - transcription not complete" {
+		t.Errorf("Expected transcription not complete error, got '%v'", response["error"])
+	}
+}
+
+// TestBurnStartInvalidMode tests burn request with invalid mode parameter
+func TestBurnStartInvalidMode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?mode=invalid", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("Expected status 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestBurnStartEmbedMode tests burn request with embed mode
+func TestBurnStartEmbedMode(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?mode=embed", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if response["status"] != "processing" {
+		t.Errorf("Expected status 'processing', got '%v'", response["status"])
+	}
+}
+
+// TestBurnStartAlreadyProcessing tests burn request when job is already processing
+func TestBurnStartAlreadyProcessing(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	video := ts.createTestVideo(t, nil, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Create an existing processing burn job
+	burnJob := &db.BurnJob{
+		ID:        testGenerateID(),
+		VideoID:   video.ID,
+		Status:    "processing",
+		Message:   "Burning subtitles...",
+		Progress:  50,
+		CreatedAt: time.Now(),
+	}
+	if err := ts.db.CreateBurnJob(burnJob); err != nil {
+		t.Fatalf("Failed to create burn job: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if response["status"] != "processing" {
+		t.Errorf("Expected status 'processing', got '%v'", response["status"])
+	}
+	if response["message"] != "Burning subtitles..." {
+		t.Errorf("Expected message 'Burning subtitles...', got '%v'", response["message"])
+	}
+	// Should return existing progress, not 0
+	if response["progress"] != float64(50) {
+		t.Errorf("Expected progress 50, got '%v'", response["progress"])
+	}
+}
+
+// TestBurnStartNonexistentVideo tests burn request for a nonexistent video
+func TestBurnStartNonexistentVideo(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	req := httptest.NewRequest("POST", "/api/videos/"+testGenerateID()+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("Expected status 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

@@ -1635,11 +1635,11 @@ import '../styles/theme.css';
 				modalSubtitleSegments = [];
 				cachedModalSegmentElements = []; // Clear cached DOM references to prevent memory leak
 
-				// Restore focus to the trigger element
-				if (modalTriggerElement) {
+				// Restore focus to the trigger element (verify it's still in DOM)
+				if (modalTriggerElement && document.contains(modalTriggerElement)) {
 					modalTriggerElement.focus();
-					modalTriggerElement = null;
 				}
+				modalTriggerElement = null;
 			}
 
 			// Modal subtitle buttons - open content in new tabs for viewing
