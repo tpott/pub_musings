@@ -35,3 +35,50 @@ individual justification. They are managed by `go mod tidy`.
 |---|---|---|---|
 | `@playwright/test` | ^1.57.0 | End-to-end browser testing. Tests full user flows (auth, upload, video management) in Chromium with automatic server startup. | Cypress (slower, heavier), Selenium (more setup, less ergonomic) |
 | `vitest` | ^3.2.0 | Unit testing framework. Fast, Vite-native, supports mocking, fake timers, and TypeScript out of the box. 498 tests across 20 files. | Jest (slower startup, needs extra TS config), Mocha (more boilerplate, no built-in mocking) |
+
+### CDN Scripts
+
+| Dependency | URL | Justification | Alternatives Considered |
+|---|---|---|---|
+| hCaptcha | `https://js.hcaptcha.com/1/api.js?render=explicit` | Client-side CAPTCHA widget for bot protection on registration and login forms. Loaded dynamically only when CAPTCHA is enabled (`CAPTCHA_SITE_KEY` set). Backend verifies tokens via `https://hcaptcha.com/siteverify`. | reCAPTCHA (Google privacy concerns), Turnstile (Cloudflare-only), self-hosted challenge (less effective) |
+
+## System Dependencies
+
+Runtime binaries invoked by the backend via `exec.Command`. See [INSTALL.md](INSTALL.md) for installation instructions.
+
+| Dependency | Required | Used By | Justification | Alternatives Considered |
+|---|---|---|---|---|
+| `ffmpeg` | Yes | `backend/audio/audio.go`, `backend/main.go` | Audio extraction from video, subtitle burning into video, format conversion. Core to transcription and export workflows. | GStreamer (less common, worse CLI), pure Go decoders (incomplete codec support) |
+| `ffprobe` | Yes (ships with ffmpeg) | `backend/audio/audio.go`, `backend/language/language.go` | Video validation, duration detection, embedded subtitle track discovery, audio language metadata extraction. | `mediainfo` (less common), parsing headers manually (fragile) |
+| `whisper-cli` | Yes (CLI mode) | `backend/main.go` | Speech-to-text transcription via whisper.cpp. Spawned per-job. Used when `USE_WHISPER_SERVER=false`. | Cloud STT APIs (cost, privacy), Vosk (lower accuracy), whisper-server (alternative mode) |
+| `whisper-server` | Yes (server mode) | `backend/main.go` | HTTP API for whisper.cpp transcription. Keeps model in memory for faster repeated transcriptions. Used when `USE_WHISPER_SERVER=true`. | whisper-cli (simpler but slower per-job), cloud APIs (cost, privacy) |
+| `sqlite3` | Optional | Admin/backup tasks | CLI for manual database queries, integrity checks, and backups. Not invoked by the application at runtime (Go driver handles all DB access). | Database GUI tools, Go-based backup scripts |
+
+## External Services
+
+Third-party APIs and services the application communicates with at runtime.
+
+| Service | Required | Justification | Alternatives Considered |
+|---|---|---|---|
+| [Resend](https://resend.com) | Optional (email features) | Transactional email delivery for verification, password reset, and magic link emails. Used via `github.com/resend/resend-go/v2` SDK. Disabled when `EMAIL_ENABLED=false`. | SendGrid (heavier SDK), Mailgun (similar), `net/smtp` with own SMTP server (operational overhead) |
+| [hCaptcha](https://www.hcaptcha.com) | Optional (bot protection) | Server-side CAPTCHA token verification. Backend POSTs to `https://hcaptcha.com/siteverify`. Disabled when `CAPTCHA_SITE_KEY`/`CAPTCHA_SECRET_KEY` are not set. | reCAPTCHA (Google privacy concerns), Turnstile (Cloudflare-specific) |
+
+## Deployment Dependencies
+
+Tools used for production deployment but not required for local development. See [specs/deployment.md](specs/deployment.md) and [specs/human_deploy.md](specs/human_deploy.md).
+
+| Dependency | Justification |
+|---|---|
+| [Caddy](https://caddyserver.com) | Reverse proxy serving static frontend and proxying `/api/*` to the Go backend. Automatic TLS, security headers. |
+| [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (`cloudflared`) | Routes external traffic to the application without exposing ports publicly. Free tier limits request bodies to 100MB. |
+| [sops](https://github.com/getsops/sops) | Encrypts/decrypts `secrets.enc.yaml` containing environment variables for deployment. Uses age keys. |
+| [systemd](https://systemd.io) | Service management for backend, Caddy, and cloudflared processes. |
+| [fail2ban](https://www.fail2ban.org) | Intrusion prevention for SSH protection. Recommended in [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md). |
+
+## Build-Time Dependencies
+
+| Dependency | Version | Justification |
+|---|---|---|
+| [Go](https://go.dev) | 1.23+ (toolchain 1.24) | Compiles the backend. CGo required for sqlite3 driver (needs C compiler / `build-essential`). |
+| [Node.js](https://nodejs.org) / npm | 18+ | Builds the frontend (`astro build`), runs dev server, and executes tests. |
+| Noto fonts (optional) | — | Required for burning Indic script subtitles into video. Without them, non-Latin characters render as empty boxes. See [INSTALL.md](INSTALL.md). |

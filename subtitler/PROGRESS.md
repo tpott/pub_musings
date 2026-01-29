@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**385 tasks completed** as of 2026-01-29. All core features implemented and tested. 10 tasks pending.
+**386 tasks completed** as of 2026-01-29. All core features implemented and tested. 9 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (~6200 lines in main.go), 578 tests across 26 files
@@ -62,6 +62,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Recent Work
 
+### Task 387: Add Missing Dependencies to deps.md (2026-01-29)
+- Added CDN Scripts section (hCaptcha widget)
+- Added System Dependencies section (ffmpeg, ffprobe, whisper-cli, whisper-server, sqlite3)
+- Added External Services section (Resend, hCaptcha API)
+- Added Deployment Dependencies section (Caddy, Cloudflare Tunnel, sops, systemd, fail2ban)
+- Added Build-Time Dependencies section (Go, Node.js/npm, Noto fonts)
+
 ### Tasks 376, 380, 381: Documentation Compaction (2026-01-29)
 - PROGRESS.md compacted from 1492 to ~130 lines (kept summary, features, recent work, key files)
 - LEARNINGS.md compacted from 1099 to ~550 lines, sorted by category (Backend, Frontend, Security, Infrastructure, Process)
@@ -97,7 +104,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | 379 | Investigate and add file size linting for frontend |
 | 384 | Add decision tracking process to LEARNINGS.md |
 | 386 | Move deps.md to docs/, create docs/README.md |
-| 387 | Add missing dependencies to deps.md |
+| ~~387~~ | ~~Add missing dependencies to deps.md~~ (done) |
 | 388 | Research doc sync linting for docs/ files |
 | 389 | Create Python security events query tool |
 | 393 | Rewrite fetch-feedback.sh in Python |
