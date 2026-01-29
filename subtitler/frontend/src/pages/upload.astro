@@ -1989,7 +1989,7 @@ import '../styles/theme.css';
 				const scripts = languageScriptMap[lang] || ['Devanagari'];
 
 				scriptSelect.innerHTML = scripts.map(s =>
-					`<option value="${s}">${s}</option>`
+					`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
 				).join('');
 
 				// Update hint
