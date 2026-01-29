@@ -4,10 +4,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**389 tasks completed** as of 2026-01-29. All core features implemented and tested. 6 tasks pending.
+**390 tasks completed** as of 2026-01-29. All core features implemented and tested. 5 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (~6200 lines in main.go), 578 tests across 26 files
+- **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
 - **Frontend:** Astro/TypeScript, 498 tests across 20 files
 - **E2E:** Playwright tests (59 scenarios)
 - **Total:** 1080+ tests, 31 specification documents
@@ -61,6 +61,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 378: Split main.go into smaller files (2026-01-29)
+- Split `backend/main.go` from 6340 lines to 207 lines (9 files total)
+- New files: `config.go` (334), `globals.go` (125), `helpers.go` (704), `scheduler.go` (268), `handlers_system.go` (462), `handlers_auth.go` (1310), `handlers_upload.go` (1546), `handlers_video.go` (1543)
+- Handlers extracted via `registerXxxHandlers(mux)` pattern
+- All 578 backend tests pass, full verification passes
 
 ### Task 389: Create Python security events query tool (2026-01-29)
 - Created `scripts/query-security-events.py` for filtering/analyzing security events
@@ -121,7 +127,6 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | ID | Name |
 |----|------|
 | 377 | Set up golangci-lint with max file length linter |
-| 378 | Split main.go into smaller files |
 | 379 | Investigate and add file size linting for frontend |
 | 384 | Add decision tracking process to LEARNINGS.md |
 | 386 | Move deps.md to docs/, create docs/README.md |

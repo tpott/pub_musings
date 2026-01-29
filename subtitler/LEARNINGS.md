@@ -18,6 +18,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Backend
 
+### Go file splitting: extracting handlers from main()
+
+**Problem:** main.go grew to 6340 lines with all 50 HTTP handlers as inline closures inside main(). The test file api_test.go had a duplicate set of all handlers in its own testServer.registerHandlers() method.
+
+**Solution:** Extract handler closures into `registerXxxHandlers(mux *http.ServeMux)` functions in separate files. Since all handlers use only package-level globals (not local variables from main), they can be moved to any file in `package main` without changes.
+
+**Lesson:** When splitting a Go file within the same package, all unexported identifiers remain accessible across files. Test files that reference unexported functions continue to work. The api_test.go handler duplication is a separate refactoring concern — don't try to fix it in the same task. After splitting, all `go run main.go` references must change to `go run .` (compiles all files in the package).
+
+---
+
 ### Go net/http: Content-Type must be set before WriteHeader
 
 **Problem:** Headers set after `w.WriteHeader()` are silently ignored. 9 handlers had wrong ordering.
@@ -338,9 +348,9 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 **Problem:** `go run main.go` fails in Playwright's webServer config because Go isn't in PATH.
 
-**Solution:** Use full path `/home/trevor/go/bin/go run main.go` in playwright.config.ts.
+**Solution:** Use full path `/home/trevor/go/bin/go run .` in playwright.config.ts. Note: must use `go run .` (not `go run main.go`) since the backend is split into multiple files.
 
-**Lesson:** Playwright webServer commands run in stripped-down environment. Use absolute paths.
+**Lesson:** Playwright webServer commands run in stripped-down environment. Use absolute paths. With multi-file packages, always use `go run .` not `go run main.go`.
 
 ---
 

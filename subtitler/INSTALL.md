@@ -264,7 +264,7 @@ After installing all dependencies:
 ```bash
 # Start backend (terminal 1)
 cd backend
-go run main.go
+go run .
 # Runs on http://localhost:8080
 
 # Start frontend (terminal 2)

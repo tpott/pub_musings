@@ -6,7 +6,7 @@ Go HTTP server for the Subtitler application. Handles video uploads, transcripti
 
 ```bash
 # Run the server
-go run main.go
+go run .
 # Server runs on http://localhost:8080
 ```
 

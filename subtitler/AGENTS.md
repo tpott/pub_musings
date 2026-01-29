@@ -20,7 +20,7 @@ cd frontend && npm test
 ./scripts/test-frontend.sh
 
 # Backend - run Go server
-cd backend && go run main.go
+cd backend && go run .
 # Runs on http://localhost:8080
 
 # Backend Tests

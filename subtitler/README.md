@@ -42,7 +42,7 @@ A web application for generating accurate subtitles for video content.
 
 ```bash
 cd backend
-go run main.go
+go run .
 # Server starts on http://localhost:8080
 ```
 
