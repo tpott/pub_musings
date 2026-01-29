@@ -795,6 +795,7 @@ import '../styles/theme.css';
 			import { showAlert, showConfirm } from '../utils/dialog';
 			import {
 				PLAYBACK_SPEEDS,
+				type PlaybackSpeed,
 				getSavedSpeed,
 				setPlaybackSpeed,
 				increaseSpeed,
@@ -806,7 +807,6 @@ import '../styles/theme.css';
 				VideoListResponseSchema,
 				TranscriptionStatusResponseSchema,
 				safeParse,
-				type Video as ApiVideo
 			} from '../utils/api-schemas';
 			import { getRequiredElement } from '../utils/dom';
 
@@ -818,23 +818,24 @@ import '../styles/theme.css';
 
 			interface SubtitleTrack {
 				index: number;
-				language: string;
-				title: string;
+				language?: string;
+				title?: string;
 				codec: string;
-				default: boolean;
-				forced: boolean;
-				text_based: boolean;
+				default?: boolean;
+				forced?: boolean;
+				text_based?: boolean;
 			}
 
 			interface Video {
 				id: string;
 				filename: string;
 				size: number;
-				content_type: string;
+				content_type?: string;
 				created_at: string;
-				transcription_status: string;
+				transcription_status?: string;
 				user_id?: string;
-				expires_at?: string;
+				session_id?: string;
+				expires_at?: string | null;
 				thumbnail_path?: string;
 				embedded_subtitles?: SubtitleTrack[];
 			}
@@ -886,7 +887,7 @@ import '../styles/theme.css';
 				return `<span class="retention-badge retention-info">${daysRemaining}d remaining</span>`;
 			}
 
-			function getStatusBadge(status: string): string {
+			function getStatusBadge(status: string | undefined): string {
 				const statusLabels: Record<string, string> = {
 					complete: 'Complete',
 					processing: 'Processing',
@@ -894,8 +895,9 @@ import '../styles/theme.css';
 					error: 'Error',
 					none: 'Not Started'
 				};
-				const label = statusLabels[status] || status;
-				return `<span class="status-badge status-${status}">${label}</span>`;
+				const s = status ?? 'none';
+				const label = statusLabels[s] || s;
+				return `<span class="status-badge status-${s}">${label}</span>`;
 			}
 
 			function getEmbeddedSubtitlesBadge(video: Video): string {
@@ -1358,8 +1360,8 @@ import '../styles/theme.css';
 				const target = e.target as HTMLElement;
 				if (target.classList.contains('speed-option')) {
 					const speed = parseFloat(target.dataset.speed || '1');
-					if (PLAYBACK_SPEEDS.includes(speed as any)) {
-						setPlaybackSpeed(modalVideo, speed as any);
+					if (PLAYBACK_SPEEDS.includes(speed as PlaybackSpeed)) {
+						setPlaybackSpeed(modalVideo, speed as PlaybackSpeed);
 						updateModalSpeedUI(speed);
 					}
 					closeModalSpeedMenu();
@@ -1735,8 +1737,7 @@ import '../styles/theme.css';
 						return;
 					}
 
-					// Cast to local Video interface (api schema maps to it)
-					videoList.innerHTML = (data.videos as unknown as Video[]).map(renderVideo).join('');
+					videoList.innerHTML = data.videos.map(renderVideo).join('');
 					videoList.style.display = 'flex';
 					// Event handlers are managed via event delegation on videoList,
 					// so no need to attach per-element handlers on each pagination
