@@ -34,4 +34,4 @@ individual justification. They are managed by `go mod tidy`.
 | Dependency | Version | Justification | Alternatives Considered |
 |---|---|---|---|
 | `@playwright/test` | ^1.57.0 | End-to-end browser testing. Tests full user flows (auth, upload, video management) in Chromium with automatic server startup. | Cypress (slower, heavier), Selenium (more setup, less ergonomic) |
-| `vitest` | ^3.2.0 | Unit testing framework. Fast, Vite-native, supports mocking, fake timers, and TypeScript out of the box. 495 tests across 20 files. | Jest (slower startup, needs extra TS config), Mocha (more boilerplate, no built-in mocking) |
+| `vitest` | ^3.2.0 | Unit testing framework. Fast, Vite-native, supports mocking, fake timers, and TypeScript out of the box. 498 tests across 20 files. | Jest (slower startup, needs extra TS config), Mocha (more boilerplate, no built-in mocking) |

@@ -4,9 +4,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**375 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**376 tasks completed** as of 2026-01-29. All core features implemented and tested. User feedback addressed. 19 new tasks filed from FEEDBACK.md (376-394).
 
-### Recent (Post-task housekeeping)
+### Recent (Task 383, Feedback Processing)
+- Processed FEEDBACK.md: filed 19 new tasks (376-394) covering file size linting, docs cleanup, playback speed fix, Settings visibility, feedback-fetch rewrite, security query tool, and more
+- Task 383: **Restricted playback speeds to 0.8x, 0.9x, 1.0x only** (recurring issue - was repeatedly expanded to 6 speeds against owner wishes)
+  - Updated PLAYBACK_SPEEDS array, HTML buttons in both upload.astro and videos.astro
+  - Updated specs/playback-speed.md with prominent warning against expansion
+  - Added regression tests that explicitly assert forbidden speed values
+  - Added LEARNINGS.md entry about this recurring issue
+  - Frontend tests: 495→498 (3 new regression prevention tests)
+
+### Previous (Post-task housekeeping)
 - Updated TESTING.md backend test count 578→585 and total 1073→1080 (7 new burn tests from Task 374)
 - Fixed lyrics mode toggle accessibility: changed `<span>` to `<label for="lyricsMode">` so screen readers associate text with checkbox
 

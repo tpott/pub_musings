@@ -18,7 +18,7 @@ A web application for generating accurate subtitles for video content.
 - **Lyrics Mode**: Special alignment mode for music videos with known lyrics
 
 ### User Experience
-- **Variable Playback Speed**: Adjust speed from 0.5x to 2x for language learning
+- **Variable Playback Speed**: Adjust speed (0.8x, 0.9x, 1x) for language learning
 - **Bionic Reading Mode**: Bold first portion of words to aid reading speed (configurable in Settings)
 - **Dark Mode**: Toggle between light, dark, and auto (system) themes
 - **Keyboard Shortcuts**: Comprehensive shortcuts for video control and navigation

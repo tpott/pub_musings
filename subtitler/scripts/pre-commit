@@ -9,9 +9,9 @@ set -e
 SCRIPT_DIR="$(dirname "$0")"
 
 # If running as a git hook, SCRIPT_DIR will be .git/hooks
-# Adjust path accordingly
+# Adjust path accordingly - scripts are in subtitler/scripts/
 if [[ "$SCRIPT_DIR" == *".git/hooks"* ]]; then
-    SCRIPT_DIR="$(git rev-parse --show-toplevel)/scripts"
+    SCRIPT_DIR="$(git rev-parse --show-toplevel)/subtitler/scripts"
 fi
 
 echo "Pre-commit verification..."

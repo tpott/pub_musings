@@ -16,6 +16,35 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-29: Pre-commit hook path must account for monorepo structure
+
+**Problem:** `scripts/pre-commit` used `$(git rev-parse --show-toplevel)/scripts` to find lint/test scripts. But the git repo root is `/home/trevor/pub_musings` while scripts are in `/home/trevor/pub_musings/subtitler/scripts/`. The hook couldn't find `lint.sh` and failed every commit.
+
+**Solution:** Changed path to `$(git rev-parse --show-toplevel)/subtitler/scripts`.
+
+**Lesson:** When a project is a subdirectory of a larger git repo (monorepo), `git rev-parse --show-toplevel` returns the parent, not the project root. Always verify script paths work from the actual hook location.
+
+---
+
+### 2026-01-29: CRITICAL - Playback speeds must be 0.8x, 0.9x, 1.0x ONLY
+
+**Problem:** The playback speed options have been expanded from 3 speeds to 6 speeds (0.5x through 2x) multiple times by different Ralph iterations. Each time the owner has reverted it. The root cause is that specs/playback-speed.md previously listed 6 speeds, so agents kept "fixing" the code to match the spec.
+
+**Solution:** Task 383 restricted speeds to [0.8, 0.9, 1.0] in all locations:
+- `playback-speed.ts`: PLAYBACK_SPEEDS array
+- `upload.astro` and `videos.astro`: HTML speed option buttons
+- `specs/playback-speed.md`: Updated with prominent warning
+- Tests: Added explicit regression tests that assert speeds do NOT include 0.5, 0.75, 1.25, 1.5, or 2.0
+
+**Lesson:**
+1. **DO NOT expand playback speeds** beyond 0.8x, 0.9x, 1.0x without explicit owner approval
+2. The owner considers 0.5x quality unacceptable and doesn't want faster-than-normal speeds
+3. When specs and user feedback conflict, user feedback wins
+4. Added regression tests that explicitly check forbidden values to catch future drift
+5. If a "fix" keeps getting reverted, the spec is wrong, not the code
+
+---
+
 ### 2026-01-28: Always use httputil helpers for JSON responses
 
 **Problem:** main.go had 222 direct `json.NewEncoder(w).Encode()` calls mixed with 108 `httputil.RespondJSON/RespondError` calls. The direct calls lacked consistent Content-Type headers, error logging for encoding failures, and required manually managing `w.WriteHeader()` ordering.
@@ -48,9 +77,9 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ### 2026-01-28: HTML hardcoded values must match TypeScript constants
 
-**Problem:** Speed toggle buttons in upload.astro and videos.astro hardcoded `data-speed="0.8"` and `data-speed="0.9"`, but the `PLAYBACK_SPEEDS` array in `playback-speed.ts` only contains `[0.5, 0.75, 1.0, 1.25, 1.5, 2.0]`. The validation `PLAYBACK_SPEEDS.includes(speed)` silently rejected 0.8 and 0.9, making the buttons non-functional.
+**Problem:** Speed toggle buttons in upload.astro and videos.astro hardcoded `data-speed="0.8"` and `data-speed="0.9"`, but the `PLAYBACK_SPEEDS` array had different values. The validation `PLAYBACK_SPEEDS.includes(speed)` silently rejected them, making the buttons non-functional.
 
-**Solution:** Updated HTML buttons to match the spec's 6 speed values. Both files had the same mismatch.
+**Solution:** (SUPERSEDED by 2026-01-29 entry above) The correct speeds are [0.8, 0.9, 1.0] -- both HTML and TypeScript must match these values.
 
 **Lesson:** When HTML options are validated against a TypeScript constant array, always generate the HTML from the same source of truth, or at minimum ensure the values match. Duplicated constants between HTML and TS will drift.
 
