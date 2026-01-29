@@ -4,13 +4,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**342 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**343 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ### Recent (Tasks 339-344)
 - Fixed speed toggle buttons (0.8x/0.9x → spec values 0.5x-2x)
 - Fixed go.mod module path (github.com/trevor → github.com/tpott)
 - Created feedback fetch pipeline (scripts/fetch-feedback.sh, backend `after` param, specs/feedback-fetch.md)
 - Created specs for feedback-fetch and ralph-optimizer
+- Integrated feedback fetch into ralph.py loop (Task 342)
 - Added dependency justification policy to CLAUDE.md and created deps.md (Task 344)
 
 ## Feature Summary
@@ -145,9 +146,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**342 tasks completed.**
+**343 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 342: Integrate Feedback Fetch into Ralph Loop (COMPLETE)**
+- Added `fetch_feedback()` function to ralph.py that calls scripts/fetch-feedback.sh
+- Runs before each iteration in the main loop
+- Graceful degradation: logs warnings on script not found, fetch errors, timeouts (30s)
+- Exit codes handled: 0 (new feedback), 1 (no new feedback), 2 (error)
+- Tested: module import, missing script, missing config, timeout handling
 
 **Task 344: Dependency Justification Policy (COMPLETE)**
 - Added dependency policy section to CLAUDE.md requiring justification for new deps

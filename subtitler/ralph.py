@@ -20,6 +20,7 @@ DEFAULT_MAX_ITERATIONS = 10
 CLAUDE_MODEL = "opus"
 PROMPT_FILE = "RALPH.md"
 STOP_FILE = "STOP_RALPH"
+FETCH_FEEDBACK_SCRIPT = "scripts/fetch-feedback.sh"
 
 
 def generate_ralph_id() -> str:
@@ -108,6 +109,33 @@ def get_timestamp() -> str:
     utc_str = utc_now.strftime("%Y-%m-%d %H:%M:%S UTC")
 
     return f"{local_str} | {utc_str} | {epoch_ms:.3f}"
+
+
+def fetch_feedback(log_file: Path | None) -> None:
+    """Run the feedback fetch script. Logs result but never blocks the loop."""
+    script = Path(FETCH_FEEDBACK_SCRIPT)
+    if not script.exists():
+        log(f"Feedback: {script} not found, skipping", log_file)
+        return
+
+    try:
+        result = subprocess.run(
+            ["bash", str(script)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            log(f"Feedback: {result.stdout.strip()}", log_file)
+        elif result.returncode == 1:
+            log("Feedback: No new feedback", log_file)
+        else:
+            stderr_msg = result.stderr.strip()
+            log(f"Feedback: fetch failed (exit {result.returncode}): {stderr_msg}", log_file)
+    except subprocess.TimeoutExpired:
+        log("Feedback: fetch timed out after 30s", log_file)
+    except Exception as e:
+        log(f"Feedback: fetch error: {e}", log_file)
 
 
 def process_claude_output(
@@ -244,6 +272,9 @@ def main() -> None:
             log_file,
             newline_before=True,
         )
+
+        # Fetch any new user feedback from production
+        fetch_feedback(log_file)
 
         # Read the prompt file
         if not prompt_file.exists():
