@@ -166,7 +166,8 @@ JSON structure stored:
             "title": "English",
             "codec": "subrip",
             "default": true,
-            "forced": false
+            "forced": false,
+            "text_based": true
         }
     ],
     "detected_at": "2026-01-27T12:00:00Z"
@@ -202,7 +203,7 @@ Response now includes:
 ### GET /api/videos/{id}/embedded-subtitles/{track} (Phase 2)
 
 Query parameters:
-- `format`: `srt` (default), `vtt`, `json`
+- `format`: `srt` (default), `vtt`
 
 Response: Subtitle file content with appropriate Content-Type.
 

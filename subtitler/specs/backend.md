@@ -92,7 +92,7 @@ The server binary is at `./build/bin/whisper-server`.
 ./build/bin/whisper-server \
     -m ./models/ggml-large-v3-turbo.bin \
     --host 0.0.0.0 \
-    --port 8050
+    --port 8765
 ```
 
 ### Server Options
@@ -114,7 +114,7 @@ The server binary is at `./build/bin/whisper-server`.
 ### Example Request
 
 ```bash
-curl -X POST http://localhost:8050/inference \
+curl -X POST http://localhost:8765/inference \
     -F "file=@audio.wav" \
     -F "response_format=json"
 ```
@@ -138,7 +138,7 @@ Create `~/Library/LaunchAgents/whisper-server.plist`:
         <string>--host</string>
         <string>0.0.0.0</string>
         <string>--port</string>
-        <string>8050</string>
+        <string>8765</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/trevor/Github/whisper.cpp</string>
@@ -190,7 +190,7 @@ See `cc_plugins/skills/transcribe-srt/SKILL.md` for converting output to SRT for
 
 | Variable | Description |
 |----------|-------------|
-| `WHISPER_SERVER_URL` | URL of remote whisper-server (e.g., `http://192.168.1.100:8050`) |
+| `WHISPER_SERVER_URL` | URL of remote whisper-server (e.g., `http://192.168.1.100:8765`) |
 | `WHISPER_MODEL` | Model to use (default: `large-v3-turbo`) |
 
 ## Core ML Optimization (Optional)
