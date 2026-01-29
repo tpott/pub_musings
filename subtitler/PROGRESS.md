@@ -4,9 +4,21 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**357 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**367 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 353-357)
+### Recent (Tasks 359-368)
+- Deep inspection filed 10 tasks (359-368); all resolved
+- Task 359: Added rate limiting to POST /api/log (30 req/min, configurable via LOG_RATE_LIMIT)
+- Task 360: Consolidated 14 local `decodeJSONBody` calls into `httputil.DecodeJSONBody`
+- Tasks 361-362: Fixed whisper port 8050→8765 in backend.md; removed JSON format from embedded-subtitles spec
+- Task 363: Added `aria-label` to modal subtitle region
+- Task 364: Added 3 cleanup tests for speed-control utility (timeout clearing, idempotent cleanup)
+- Task 365: Verified error variable shadowing already handled (false positive)
+- Task 366: Verified focus trap offsetParent check is sufficient (wontfix)
+- Task 367: Updated deps.md test count from 492 to 495
+- Task 368: Added JSON parse error handling in 3 videos.astro fetch calls
+
+### Previous (Tasks 353-357)
 - Task 357: Created `specs/thumbnails.md` documenting the video thumbnail feature (generation, storage, API, caching, security)
 - Task 356: Verified console-forwarder tests already exist (20 tests covering all criteria)
 - Task 355: Added Home/End key support to settings tab navigation (WAI-ARIA tabs pattern)
