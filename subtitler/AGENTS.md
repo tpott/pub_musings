@@ -69,6 +69,18 @@ Prefer the Go standard library or existing dependencies over new ones.
 Do not add a dependency for functionality that can be achieved with a small
 amount of straightforward code.
 
+## Decision Tracking
+
+When making dependency choices, architectural decisions, or significant design
+trade-offs, add an entry to the **Decisions** section of `LEARNINGS.md` using
+the decision format (Context / Options considered / Decision / Outcome). This
+applies to:
+
+- Adding or replacing dependencies
+- Choosing between implementation approaches
+- Architectural patterns (e.g., state management, file organization)
+- Tool/library selection for new features
+
 ## Pre-commit Hook
 
 To install the pre-commit hook:

@@ -2,8 +2,9 @@
 
 Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
-### Format
+### Formats
 
+**Lessons** (bugs, surprises, workarounds):
 ```
 ### YYYY-MM-DD: Brief title
 
@@ -12,6 +13,19 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 **Solution:** How you fixed it
 
 **Lesson:** What future Ralphs should know
+```
+
+**Decisions** (dependency, architectural, and design choices):
+```
+### YYYY-MM-DD: Brief title
+
+**Context:** What situation required a decision
+
+**Options considered:** What alternatives were evaluated
+
+**Decision:** What was chosen and why
+
+**Outcome:** How it worked out (update later if needed)
 ```
 
 ---
@@ -583,5 +597,79 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 **Solution:** JSONL format with `type` fields (system, assistant, user). Tool calls in `message.content` with `type: "tool_use"`. Token usage split across `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`.
 
 **Lesson:** Sum all three token fields for total input tokens. Agent logs in `$session_id/$agent_id.jsonl` subdirectories.
+
+---
+
+## Decisions
+
+### 2025-01-01: SQLite over PostgreSQL
+
+**Context:** Needed a database for users, sessions, videos, and transcriptions. Single-server deployment, no horizontal scaling requirement.
+
+**Options considered:** (1) PostgreSQL — full-featured RDBMS, overkill for single server; (2) SQLite via `go-sqlite3` — zero-config, file-based, embedded; (3) `modernc.org/sqlite` — pure Go SQLite, no CGo, but slower.
+
+**Decision:** SQLite via `github.com/mattn/go-sqlite3`. Single-server app doesn't need network database. CGo driver is battle-tested and fast. Connection pooling and WAL mode handle concurrent reads well.
+
+**Outcome:** Works well. 9 versioned migrations, no operational overhead. Occasional "database locked" errors addressed with connection pooling and maintenance scheduler. Would only reconsider if multi-server deployment became necessary.
+
+---
+
+### 2025-01-01: Astro over Next.js for frontend
+
+**Context:** Needed a frontend framework for a multi-page web app with server-proxied API.
+
+**Options considered:** (1) Next.js — SSR-focused, heavier, React ecosystem; (2) Astro — static-site generator, component islands, file-based routing, built-in dev proxy; (3) Plain HTML — no component model or dev tooling.
+
+**Decision:** Astro with static output. Pages are server-rendered at build time, interactive behavior via vanilla TypeScript `<script>` tags. No React/Vue/Svelte runtime needed.
+
+**Outcome:** Good fit. Pages are fast (no JS framework runtime). The trade-off is that complex interactivity (like the subtitle editor) requires manual DOM manipulation, which led to large page files. Addressed via the state objects + callbacks extraction pattern (see Splitting large Astro pages entry above).
+
+---
+
+### 2025-01-01: age over NaCl/GPG for file encryption
+
+**Context:** Needed file-at-rest encryption for uploaded media files.
+
+**Options considered:** (1) `filippo.io/age` — modern, simple API, X25519 + ChaCha20-Poly1305; (2) NaCl/libsodium — lower-level, more code; (3) GPG — heavier, worse Go API.
+
+**Decision:** age library. Authored by Filippo Valsorda (Go cryptography maintainer), simple streaming API, well-suited for file encryption.
+
+**Outcome:** Works well. Added key rotation with `MultiKeyEncryptor` and `key_version` tracking per file. CLI tool for re-encryption during rotation.
+
+---
+
+### 2026-01-29: Shell script over ESLint for frontend file size linting
+
+**Context:** Needed file size enforcement for Astro/TS files (matching backend's golangci-lint). Three options evaluated.
+
+**Options considered:** (1) ESLint + `eslint-plugin-astro` + `max-lines` rule — 4+ new dev dependencies for 1 rule; (2) Biome — no .astro file support; (3) Shell script with `wc -l` — zero dependencies.
+
+**Decision:** Shell script (`scripts/lint-frontend-filesize.sh`) with error at 4000 lines, warning at 1000 lines. Integrated into `scripts/lint.sh`.
+
+**Outcome:** Clean, maintainable, zero-dependency. Same "ceiling above current largest" strategy as the backend's golangci-lint config.
+
+---
+
+### 2026-01-29: Python over Bash for fetch-feedback script
+
+**Context:** `fetch-feedback.sh` used curl and jq. Needed to resolve secrets from multiple sources (env vars, `.env` file, `secrets.enc.yaml` via sops).
+
+**Options considered:** (1) Bash with curl/jq — fragile string handling, hard to test; (2) Python with stdlib only — structured, testable, no new dependencies.
+
+**Decision:** Python (`scripts/fetch-feedback.py`) using only `urllib`, `json`, `subprocess`. No pip dependencies.
+
+**Outcome:** More robust, testable (5 tests in `test_ralph.py`), easier to maintain. Secrets resolution is clean with fallback chain.
+
+---
+
+### 2025-01-01: Resend over SendGrid/SMTP for transactional email
+
+**Context:** Needed email delivery for verification, password reset, and magic links.
+
+**Options considered:** (1) Resend — simple API, official Go SDK; (2) SendGrid — heavier SDK; (3) Mailgun — similar to Resend; (4) `net/smtp` with own SMTP server — operational overhead.
+
+**Decision:** Resend. Clean API, official Go SDK (`resend-go/v2`), free tier sufficient for current usage. Disabled when `EMAIL_ENABLED=false`.
+
+**Outcome:** Works well. Conditional enablement means dev/test environments don't need email config.
 
 ---

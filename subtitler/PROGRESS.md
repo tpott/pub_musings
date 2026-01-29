@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**393 tasks completed** as of 2026-01-29. All core features implemented and tested. 3 tasks pending.
+**394 tasks completed** as of 2026-01-29. All core features implemented and tested. 1 task pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 384: Add decision tracking process to LEARNINGS.md (2026-01-29)
+- Added "Decisions" section to LEARNINGS.md with Context/Options/Decision/Outcome format
+- Documented 6 key decisions: SQLite, Astro, age encryption, file size linting, fetch-feedback Python rewrite, Resend email
+- Updated CLAUDE.md with "Decision Tracking" section instructing future Ralphs to document decisions
+- Added decision format template alongside existing lesson format
 
 ### Task 396: Split upload.astro into smaller files (2026-01-29)
 - Split `upload.astro` from 3844 lines to 975 lines (75% reduction)
@@ -157,7 +163,6 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 | ID | Name |
 |----|------|
-| 384 | Add decision tracking process to LEARNINGS.md |
 | 388 | Research doc sync linting for docs/ files |
 
 ## Key Files
