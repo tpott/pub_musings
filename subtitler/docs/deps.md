@@ -1,6 +1,6 @@
 # Dependency Justification
 
-Every dependency must have a justification. See `CLAUDE.md` for the policy.
+Every dependency must have a justification. See `../CLAUDE.md` for the policy.
 
 ## Backend (go.mod)
 
@@ -44,7 +44,7 @@ individual justification. They are managed by `go mod tidy`.
 
 ## System Dependencies
 
-Runtime binaries invoked by the backend via `exec.Command`. See [INSTALL.md](INSTALL.md) for installation instructions.
+Runtime binaries invoked by the backend via `exec.Command`. See [INSTALL.md](../INSTALL.md) for installation instructions.
 
 | Dependency | Required | Used By | Justification | Alternatives Considered |
 |---|---|---|---|---|
@@ -65,7 +65,7 @@ Third-party APIs and services the application communicates with at runtime.
 
 ## Deployment Dependencies
 
-Tools used for production deployment but not required for local development. See [specs/deployment.md](specs/deployment.md) and [specs/human_deploy.md](specs/human_deploy.md).
+Tools used for production deployment but not required for local development. See [specs/deployment.md](../specs/deployment.md) and [specs/human_deploy.md](../specs/human_deploy.md).
 
 | Dependency | Justification |
 |---|---|
@@ -73,7 +73,7 @@ Tools used for production deployment but not required for local development. See
 | [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (`cloudflared`) | Routes external traffic to the application without exposing ports publicly. Free tier limits request bodies to 100MB. |
 | [sops](https://github.com/getsops/sops) | Encrypts/decrypts `secrets.enc.yaml` containing environment variables for deployment. Uses age keys. |
 | [systemd](https://systemd.io) | Service management for backend, Caddy, and cloudflared processes. |
-| [fail2ban](https://www.fail2ban.org) | Intrusion prevention for SSH protection. Recommended in [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md). |
+| [fail2ban](https://www.fail2ban.org) | Intrusion prevention for SSH protection. Recommended in [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md). |
 
 ## Build-Time Dependencies
 
@@ -81,4 +81,10 @@ Tools used for production deployment but not required for local development. See
 |---|---|---|
 | [Go](https://go.dev) | 1.23+ (toolchain 1.24) | Compiles the backend. CGo required for sqlite3 driver (needs C compiler / `build-essential`). |
 | [Node.js](https://nodejs.org) / npm | 18+ | Builds the frontend (`astro build`), runs dev server, and executes tests. |
-| Noto fonts (optional) | — | Required for burning Indic script subtitles into video. Without them, non-Latin characters render as empty boxes. See [INSTALL.md](INSTALL.md). |
+| Noto fonts (optional) | — | Required for burning Indic script subtitles into video. Without them, non-Latin characters render as empty boxes. See [INSTALL.md](../INSTALL.md). |
+
+## Development Tools
+
+| Tool | Version | Justification | Alternatives Considered |
+|---|---|---|---|
+| [golangci-lint](https://golangci-lint.run) | v2.8.0 | Runs `funlen` (function length) and `revive` (`file-length-limit`) linters to enforce size limits on Go functions and files. Prevents unbounded growth after the main.go split. Configured in `backend/.golangci.yml`. | `go vet` only (no length checks), standalone `revive` binary (less linter aggregation), custom shell scripts with `wc -l` (fragile, no per-function granularity) |

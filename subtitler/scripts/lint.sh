@@ -15,7 +15,12 @@ echo "=== Linting Backend ==="
 cd "$PROJECT_ROOT/backend"
 go fmt ./...
 go vet ./...
-echo "Backend linting passed"
+if command -v golangci-lint &> /dev/null; then
+    golangci-lint run ./...
+    echo "Backend linting passed (go fmt + go vet + golangci-lint)"
+else
+    echo "Backend linting passed (go fmt + go vet; install golangci-lint for full linting)"
+fi
 
 echo ""
 echo "=== Building Frontend (includes type checking) ==="

@@ -33,7 +33,7 @@ cd frontend && npm run test:e2e
 # Or use the script:
 ./scripts/test-e2e.sh
 
-# Linting (Go fmt/vet + frontend build)
+# Linting (Go fmt/vet + golangci-lint + frontend build)
 ./scripts/lint.sh
 
 # Full Verification (lint + all unit tests)
@@ -46,7 +46,7 @@ All scripts are in the `scripts/` directory:
 
 | Script | Purpose |
 |--------|---------|
-| `lint.sh` | Run Go fmt/vet and frontend build |
+| `lint.sh` | Run Go fmt/vet, golangci-lint (if installed), and frontend build |
 | `test-backend.sh` | Run backend Go tests |
 | `test-frontend.sh` | Run frontend Vitest tests |
 | `test-e2e.sh` | Run Playwright E2E tests |
@@ -58,7 +58,7 @@ All scripts are in the `scripts/` directory:
 ## Dependency Policy
 
 Every new dependency added to `go.mod` or `package.json` must be justified.
-Before adding a dependency, update `deps.md` with:
+Before adding a dependency, update `docs/deps.md` with:
 
 1. **What** the dependency is (name, version)
 2. **Why** it is needed (what problem it solves)

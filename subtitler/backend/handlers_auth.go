@@ -19,7 +19,7 @@ import (
 	"github.com/tpott/subtitler/backend/validation"
 )
 
-func registerAuthHandlers(mux *http.ServeMux) {
+func registerAuthHandlers(mux *http.ServeMux) { //nolint:funlen // route registration
 	// Auth: Register new user (rate limited)
 	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		// Parse request body (limited to 64KB - auth payloads are small)

@@ -26,7 +26,7 @@ import (
 	"github.com/tpott/subtitler/backend/validation"
 )
 
-func registerUploadHandlers(mux *http.ServeMux) {
+func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route registration
 	// Upload endpoint - accepts video files (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 
@@ -1032,7 +1032,7 @@ func registerUploadHandlers(mux *http.ServeMux) {
 	}))
 }
 
-func registerTranscriptionHandlers(mux *http.ServeMux) {
+func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // route registration
 	// Start transcription for an upload (rate limited: 5/min per IP)
 	// Optional query parameter: language (ISO 639-1 code, e.g., "en", "es", "ja")
 	// If not provided or "auto", whisper will auto-detect the language

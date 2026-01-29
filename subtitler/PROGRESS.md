@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**390 tasks completed** as of 2026-01-29. All core features implemented and tested. 5 tasks pending.
+**391 tasks completed** as of 2026-01-29. All core features implemented and tested. 4 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,16 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 377: Set up golangci-lint with file length linter (2026-01-29)
+- Installed golangci-lint v2.8.0, created `backend/.golangci.yml` (v2 format)
+- Enabled linters: `funlen` (max 150 lines/function), `revive` with `file-length-limit` (max 2600 lines/file)
+- Added `//nolint:funlen` to 5 route-table registration functions (`register*Handlers`)
+- Test files excluded from both linters
+- Updated `scripts/lint.sh` to run golangci-lint when available (graceful fallback)
+- Updated `LINTERS.md` to mark golangci-lint as IN USE
+- Added golangci-lint to `docs/deps.md` Development Tools section
+- All 1076+ tests pass, lint clean
 
 ### Task 378: Split main.go into smaller files (2026-01-29)
 - Split `backend/main.go` from 6340 lines to 207 lines (9 files total)
@@ -126,10 +136,8 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 | ID | Name |
 |----|------|
-| 377 | Set up golangci-lint with max file length linter |
 | 379 | Investigate and add file size linting for frontend |
 | 384 | Add decision tracking process to LEARNINGS.md |
-| 386 | Move deps.md to docs/, create docs/README.md |
 | 388 | Research doc sync linting for docs/ files |
 
 ## Key Files
@@ -153,7 +161,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | Prometheus metrics | `docs/METRICS.md` |
 | Test documentation | `TESTING.md`, `BROWSER_TESTING.md` |
 | Learnings | `LEARNINGS.md` |
-| Dependencies | `deps.md` |
+| Dependencies | `docs/deps.md` |
 
 ## Notes
 

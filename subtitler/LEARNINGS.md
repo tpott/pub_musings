@@ -18,6 +18,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Backend
 
+### golangci-lint v2: severity doesn't affect exit code
+
+**Problem:** Wanted `revive` file-length-limit to produce warnings (not errors) for existing large files. Set `severity: warning` in the revive rule config expecting golangci-lint to exit 0.
+
+**Solution:** golangci-lint treats all issues identically for exit code purposes — severity is purely cosmetic (display only in compatible output formats). Set the file-length limit high enough (2600) that current code passes, and used `//nolint:funlen` directives on route-table registration functions that are structurally large by design.
+
+**Lesson:** Don't rely on golangci-lint severity to control CI pass/fail. Either set limits that accommodate existing code (as a ceiling for growth) or use `//nolint` directives with a reason comment for intentional exceptions. The `--issues-exit-code 0` flag exists but suppresses ALL issues, which defeats the purpose.
+
+---
+
 ### Go file splitting: extracting handlers from main()
 
 **Problem:** main.go grew to 6340 lines with all 50 HTTP handlers as inline closures inside main(). The test file api_test.go had a duplicate set of all handlers in its own testServer.registerHandlers() method.

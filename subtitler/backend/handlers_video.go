@@ -27,7 +27,7 @@ import (
 	"github.com/tpott/subtitler/backend/validation"
 )
 
-func registerVideoHandlers(mux *http.ServeMux) {
+func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route registration
 	// Download SRT file for a transcription
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.srt", func(w http.ResponseWriter, r *http.Request) {
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")

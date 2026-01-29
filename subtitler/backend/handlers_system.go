@@ -17,7 +17,7 @@ import (
 	"github.com/tpott/subtitler/backend/validation"
 )
 
-func registerSystemHandlers(mux *http.ServeMux) {
+func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route registration
 
 	// Health check endpoint
 	// Unauthenticated: returns only {"status": "ok"} or {"status": "degraded"}

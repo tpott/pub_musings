@@ -4,14 +4,14 @@ This guide covers the linting setup for the Subtitler project.
 
 ## Current Linting Setup
 
-The project uses minimal linting to keep the toolchain simple. All linting is handled by `scripts/lint.sh`:
+All linting is handled by `scripts/lint.sh`:
 
 ```bash
 ./scripts/lint.sh
 ```
 
 This runs:
-- **Backend**: `go fmt` and `go vet` for formatting and static analysis
+- **Backend**: `go fmt`, `go vet`, and `golangci-lint` (if installed) for formatting, static analysis, and function/file length checks
 - **Frontend**: `npm run build` (TypeScript compilation catches type errors)
 
 ## Backend (Go)
@@ -34,14 +34,14 @@ cd backend
 go vet ./...
 ```
 
-### golangci-lint (Optional - NOT CURRENTLY USED)
+### golangci-lint
 
-[golangci-lint](https://golangci-lint.run/) is available for more comprehensive linting if needed.
+[golangci-lint](https://golangci-lint.run/) v2 runs additional linters beyond `go vet`.
 
 **Installation:**
 ```bash
 # Linux/macOS (recommended)
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.2
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.8.0
 
 # macOS (Homebrew)
 brew install golangci-lint
@@ -50,10 +50,16 @@ brew install golangci-lint
 **Run linter:**
 ```bash
 cd backend
-golangci-lint run
+golangci-lint run ./...
 ```
 
-**Note:** The project does not currently have a `.golangci.yml` configuration file. Add one if you want to customize linter rules.
+**Configuration:** `backend/.golangci.yml` (v2 format)
+
+**Enabled linters:**
+- **funlen** — Checks function length (max 150 lines). Route-table registration
+  functions (`register*Handlers`) are excluded via `//nolint:funlen`.
+- **revive** with **file-length-limit** — Checks file length (max 2600 lines,
+  excluding comments and blank lines). Test files are excluded.
 
 ## Frontend (TypeScript/Astro)
 
@@ -142,7 +148,7 @@ See `scripts/pre-commit` for details.
 | go fmt | **IN USE** | `go fmt ./...` |
 | go vet | **IN USE** | `go vet ./...` |
 | npm build | **IN USE** | `npm run build` (type checking) |
-| golangci-lint | Optional | `golangci-lint run` |
+| golangci-lint | **IN USE** | `golangci-lint run ./...` |
 | ESLint | Not integrated | (see setup above) |
 | Prettier | Not integrated | (see setup above) |
 | Husky | Not used | (shell script hook instead) |
