@@ -6,7 +6,11 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 **375 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 373-375)
+### Recent (Post-task housekeeping)
+- Updated TESTING.md backend test count 578→585 and total 1073→1080 (7 new burn tests from Task 374)
+- Fixed lyrics mode toggle accessibility: changed `<span>` to `<label for="lyricsMode">` so screen readers associate text with checkbox
+
+### Previous (Tasks 373-375)
 - Deep inspection round 3 filed 3 tasks (373-375); all resolved
 - Task 373: Added error logging to unchecked `CompleteBurnJobWithKeyVersion()` call in burn goroutine
 - Task 374: Added 7 functional tests for POST /api/videos/{id}/burn endpoint (success, no transcription, incomplete, invalid mode, embed mode, already processing, nonexistent video)
