@@ -16,6 +16,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-29: E2E tests need explicit Go path in Playwright config
+
+**Problem:** Playwright's `webServer` config runs `go run main.go` but `go` wasn't in PATH for the child process. The E2E tests failed with "go: not found".
+
+**Solution:** Changed `playwright.config.ts` to use `/home/trevor/go/bin/go run main.go` as the webServer command. Note: this is machine-specific but necessary for the test environment.
+
+**Lesson:** Playwright webServer commands run in a stripped-down environment. Always use absolute paths for tools that aren't guaranteed to be in the system PATH.
+
+---
+
 ### 2026-01-29: Pre-commit hook path must account for monorepo structure
 
 **Problem:** `scripts/pre-commit` used `$(git rev-parse --show-toplevel)/scripts` to find lint/test scripts. But the git repo root is `/home/trevor/pub_musings` while scripts are in `/home/trevor/pub_musings/subtitler/scripts/`. The hook couldn't find `lint.sh` and failed every commit.

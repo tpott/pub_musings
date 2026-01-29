@@ -1,6 +1,6 @@
 #!/bin/bash
 # Git pre-commit hook
-# Runs linting and unit tests before allowing a commit
+# Runs linting, unit tests, and E2E tests before allowing a commit
 #
 # To install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 
@@ -20,9 +20,12 @@ echo ""
 # Run lint check
 "$SCRIPT_DIR/lint.sh"
 
-# Run unit tests (not E2E - those are too slow for pre-commit)
+# Run unit tests
 "$SCRIPT_DIR/test-backend.sh"
 "$SCRIPT_DIR/test-frontend.sh"
+
+# Run E2E tests
+"$SCRIPT_DIR/test-e2e.sh"
 
 echo ""
 echo "Pre-commit checks passed!"
