@@ -584,16 +584,12 @@ import '../styles/theme.css';
 			.segment-delete-btn:hover {
 				background-color: var(--delete-btn-hover);
 			}
-			/* Segment feedback buttons */
-			.segment-feedback {
+			/* Subtitle feedback buttons (shown below the current subtitle display) */
+			.subtitle-feedback {
 				display: flex;
 				gap: 0.25rem;
 				margin-top: 0.5rem;
-				padding-top: 0.5rem;
-				border-top: 1px solid var(--border-color);
-			}
-			.segment.editing .segment-feedback {
-				display: none;
+				justify-content: center;
 			}
 			.feedback-btn {
 				padding: 0.2rem 0.4rem;
@@ -1352,6 +1348,17 @@ import '../styles/theme.css';
 				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
 				<div class="current-subtitle" id="currentSubtitle" aria-live="polite" aria-atomic="true"></div>
+				<div class="subtitle-feedback" id="subtitleFeedback" style="display: none;">
+					<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
+						<span class="emoji">👍</span>
+					</button>
+					<button class="feedback-btn misaligned" data-feedback="misaligned" aria-label="Mark current segment as misaligned" title="Timing is off">
+						<span class="emoji">⏱️</span> Misaligned
+					</button>
+					<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
+						<span class="emoji">❓</span> Missing
+					</button>
+				</div>
 				<div class="edit-actions" id="editActions">
 					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
@@ -1608,6 +1615,7 @@ import '../styles/theme.css';
 			const fullTextSection = getRequiredElement('fullTextSection', HTMLElement);
 			const fullTextHeader = getRequiredElement('fullTextHeader', HTMLElement);
 			const currentSubtitle = getRequiredElement('currentSubtitle', HTMLElement);
+			const subtitleFeedback = getRequiredElement('subtitleFeedback', HTMLElement);
 			const actions = getRequiredElement('actions', HTMLElement);
 			const embeddedSubtitlesNotice = getRequiredElement('embeddedSubtitlesNotice', HTMLElement);
 			const embeddedSubtitlesList = getRequiredElement('embeddedSubtitlesList', HTMLElement);
@@ -1895,6 +1903,46 @@ import '../styles/theme.css';
 					return {};
 				}
 			}
+
+			// Track which segment index the feedback buttons refer to
+			let feedbackActiveIndex = -1;
+
+			function updateFeedbackButtons(index: number) {
+				if (index < 0) {
+					subtitleFeedback.style.display = 'none';
+					feedbackActiveIndex = -1;
+					return;
+				}
+				subtitleFeedback.style.display = '';
+				feedbackActiveIndex = index;
+				const feedback = getSegmentFeedback(index);
+				subtitleFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
+					const btnType = btn.getAttribute('data-feedback');
+					btn.classList.toggle('active', btnType === feedback);
+				});
+			}
+
+			// Persistent click handler for subtitle feedback buttons (not per-segment)
+			subtitleFeedback.addEventListener('click', (e) => {
+				const target = (e.target as HTMLElement).closest('.feedback-btn') as HTMLButtonElement | null;
+				if (!target || feedbackActiveIndex < 0) return;
+				const feedbackType = target.getAttribute('data-feedback') as FeedbackType;
+				const currentFeedback = getSegmentFeedback(feedbackActiveIndex);
+
+				// Toggle: if clicking the same feedback, clear it; otherwise set new feedback
+				if (currentFeedback === feedbackType) {
+					setSegmentFeedback(feedbackActiveIndex, null);
+				} else {
+					setSegmentFeedback(feedbackActiveIndex, feedbackType);
+				}
+
+				// Update button states
+				const newFeedback = getSegmentFeedback(feedbackActiveIndex);
+				subtitleFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
+					const btnType = btn.getAttribute('data-feedback');
+					btn.classList.toggle('active', btnType === newFeedback);
+				});
+			});
 
 			// Undo/redo state management
 			const MAX_HISTORY_SIZE = 50;
@@ -2832,7 +2880,6 @@ import '../styles/theme.css';
 
 				if (segsToRender.length > 0) {
 					segments.innerHTML = segsToRender.map((seg, index) => {
-						const feedback = getSegmentFeedback(index);
 						// Use bionic text for display, plain escapeHtml for editing
 						const displayText = useBionic ? renderBionicText(seg.text, { enabled: true }) : escapeHtml(seg.text);
 						return `
@@ -2852,17 +2899,6 @@ import '../styles/theme.css';
 								<div class="segment-actions">
 									<button class="segment-delete-btn" data-index="${index}" aria-label="Delete segment ${index + 1}">Delete</button>
 								</div>
-							</div>
-							<div class="segment-feedback">
-								<button class="feedback-btn good${feedback === 'good' ? ' active' : ''}" data-feedback="good" data-index="${index}" aria-label="Mark segment ${index + 1} as good alignment" title="Good alignment">
-									<span class="emoji">👍</span>
-								</button>
-								<button class="feedback-btn misaligned${feedback === 'misaligned' ? ' active' : ''}" data-feedback="misaligned" data-index="${index}" aria-label="Mark segment ${index + 1} as misaligned" title="Timing is off">
-									<span class="emoji">⏱️</span> Misaligned
-								</button>
-								<button class="feedback-btn missing${feedback === 'missing' ? ' active' : ''}" data-feedback="missing" data-index="${index}" aria-label="Mark segment ${index + 1} as missing words" title="Words are missing">
-									<span class="emoji">❓</span> Missing
-								</button>
 							</div>
 						</div>
 					`}).join('');
@@ -2895,43 +2931,12 @@ import '../styles/theme.css';
 			function setupClickHandlers() {
 				// Segment click to seek video
 				segments.querySelectorAll('.segment').forEach(el => {
-					el.addEventListener('click', (e) => {
-						// Don't trigger seek if clicking on feedback buttons
-						if ((e.target as HTMLElement).closest('.feedback-btn')) return;
-
+					el.addEventListener('click', () => {
 						const start = parseFloat(el.getAttribute('data-start') || '0');
 						previewVideo.currentTime = start;
 						previewVideo.play().catch(() => {
 							// Suppress play() rejections (e.g. NotAllowedError before user gesture)
 						});
-					});
-				});
-
-				// Feedback button handlers
-				segments.querySelectorAll('.feedback-btn').forEach(btn => {
-					btn.addEventListener('click', (e) => {
-						e.stopPropagation(); // Prevent segment click handler
-						const target = e.currentTarget as HTMLButtonElement;
-						const index = parseInt(target.getAttribute('data-index') || '0', 10);
-						const feedbackType = target.getAttribute('data-feedback') as FeedbackType;
-						const currentFeedback = getSegmentFeedback(index);
-
-						// Toggle: if clicking the same feedback, clear it; otherwise set new feedback
-						if (currentFeedback === feedbackType) {
-							setSegmentFeedback(index, null);
-						} else {
-							setSegmentFeedback(index, feedbackType);
-						}
-
-						// Update button states without re-rendering entire segment list
-						const segmentEl = target.closest('.segment');
-						if (segmentEl) {
-							const newFeedback = getSegmentFeedback(index);
-							segmentEl.querySelectorAll('.feedback-btn').forEach(b => {
-								const btnFeedback = b.getAttribute('data-feedback');
-								b.classList.toggle('active', btnFeedback === newFeedback);
-							});
-						}
 					});
 				});
 			}
@@ -3106,6 +3111,7 @@ import '../styles/theme.css';
 				editActions.classList.add('visible');
 				addSegmentBtn.classList.add('visible');
 				fullText.style.display = 'none';
+				subtitleFeedback.style.display = 'none';
 				editedSegments = JSON.parse(JSON.stringify(transcriptionSegments));
 				clearHistory(); // Reset undo/redo stacks when entering edit mode
 				renderSegments();
@@ -3575,6 +3581,9 @@ import '../styles/theme.css';
 						scrollIntoContainerView(segments, cachedSegmentElements[currentIndex]);
 					}
 					lastActiveSegmentIndex = currentIndex;
+
+					// Update feedback buttons for the current segment
+					updateFeedbackButtons(currentIndex);
 				}
 			}
 
@@ -3747,6 +3756,8 @@ import '../styles/theme.css';
 				segments.innerHTML = '';
 				fullText.textContent = '';
 				currentSubtitle.textContent = '';
+				subtitleFeedback.style.display = 'none';
+				feedbackActiveIndex = -1;
 				actions.style.display = 'none';
 				pasteTranscriptSection.style.display = 'none';
 				fullTextSection.style.display = 'none';

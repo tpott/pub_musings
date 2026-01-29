@@ -4,9 +4,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**380 tasks completed** as of 2026-01-29. All core features implemented and tested. User feedback addressed. 19 new tasks filed from FEEDBACK.md (376-394).
+**381 tasks completed** as of 2026-01-29. All core features implemented and tested. User feedback addressed. 19 new tasks filed from FEEDBACK.md (376-394).
 
-### Recent (Task 395: E2E Test Fixes)
+### Recent (Task 391: Fix Subtitle Feedback Buttons)
+- Moved feedback buttons (thumbsup/misaligned/missing) from every segment to the current subtitle display only
+- Buttons now appear below the `currentSubtitle` div and update when the active segment changes
+- Persistent click handler on the feedback container (not per-segment event listeners)
+- Feedback hidden during edit mode and on re-transcription
+- Backend integration documented as pending (comment in code with planned API shape)
+
+### Previous (Task 395: E2E Test Fixes)
 - Fixed 15 of 16 failing Playwright E2E tests (58 passing, 1 flaky backend-dependent)
 - Root causes found and fixed:
   - Cookie consent banner blocking session_id: Added `acceptCookies()` helper using `page.addInitScript()` to all tests needing sessions
