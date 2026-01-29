@@ -111,9 +111,9 @@ def get_timestamp() -> str:
     return f"{local_str} | {utc_str} | {epoch_ms:.3f}"
 
 
-def fetch_feedback(log_file: Path | None) -> None:
+def fetch_feedback(log_file: Path | None, script_path: Path | None = None) -> None:
     """Run the feedback fetch script. Logs result but never blocks the loop."""
-    script = Path(FETCH_FEEDBACK_SCRIPT)
+    script = script_path if script_path is not None else Path(FETCH_FEEDBACK_SCRIPT)
     if not script.exists():
         log(f"Feedback: {script} not found, skipping", log_file)
         return
@@ -248,6 +248,12 @@ def main() -> None:
         type=Path,
         help="Directory to write logs to (generates ralph-<ID>.log filename)",
     )
+    parser.add_argument(
+        "--auto-fetch-feedback-script",
+        type=Path,
+        default=None,
+        help="Path to feedback fetch script to run before each iteration",
+    )
     args = parser.parse_args()
 
     max_iterations = args.max_iterations
@@ -274,7 +280,7 @@ def main() -> None:
         )
 
         # Fetch any new user feedback from production
-        fetch_feedback(log_file)
+        fetch_feedback(log_file, args.auto_fetch_feedback_script)
 
         # Read the prompt file
         if not prompt_file.exists():

@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from ralph import (
     calculate_sleep_seconds,
+    fetch_feedback,
     generate_ralph_id,
     get_timestamp,
     log,
@@ -232,6 +233,61 @@ class TestCalculateSleepSeconds(unittest.TestCase):
         # Reset at 3am LA time = 11am UTC = 1 hour from now
         result = calculate_sleep_seconds(3, "am", "America/Los_Angeles", now=now)
         self.assertEqual(result, 3600 + 60)
+
+
+class TestFetchFeedback(unittest.TestCase):
+    def test_uses_custom_script_path(self) -> None:
+        """When script_path is provided, it should be used instead of the default."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "custom-feedback.py"
+            script.write_text('import sys; print("custom output"); sys.exit(0)')
+            log_file = Path(tmp_dir) / "test.log"
+            fetch_feedback(log_file, script_path=script)
+            log_content = log_file.read_text()
+            self.assertIn("custom output", log_content)
+
+    def test_custom_script_not_found(self) -> None:
+        """When script_path points to a nonexistent file, should log and skip."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            log_file = Path(tmp_dir) / "test.log"
+            fake_path = Path(tmp_dir) / "does-not-exist.py"
+            fetch_feedback(log_file, script_path=fake_path)
+            log_content = log_file.read_text()
+            self.assertIn("not found, skipping", log_content)
+
+    def test_default_script_when_none(self) -> None:
+        """When script_path is None, should fall back to the default constant."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            log_file = Path(tmp_dir) / "test.log"
+            # The default script likely doesn't exist in the test environment,
+            # so we expect the "not found" message with the default path
+            fetch_feedback(log_file, script_path=None)
+            log_content = log_file.read_text()
+            # Should reference the default script path
+            self.assertIn("Feedback:", log_content)
+
+    def test_custom_script_exit_1_no_feedback(self) -> None:
+        """Exit code 1 means no new feedback."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "no-feedback.py"
+            script.write_text("import sys; sys.exit(1)")
+            log_file = Path(tmp_dir) / "test.log"
+            fetch_feedback(log_file, script_path=script)
+            log_content = log_file.read_text()
+            self.assertIn("No new feedback", log_content)
+
+    def test_custom_script_exit_2_error(self) -> None:
+        """Non-zero, non-1 exit code means error."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "error-feedback.py"
+            script.write_text(
+                'import sys; print("error details", file=sys.stderr); sys.exit(2)'
+            )
+            log_file = Path(tmp_dir) / "test.log"
+            fetch_feedback(log_file, script_path=script)
+            log_content = log_file.read_text()
+            self.assertIn("fetch failed (exit 2)", log_content)
+            self.assertIn("error details", log_content)
 
 
 if __name__ == "__main__":

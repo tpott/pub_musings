@@ -82,7 +82,19 @@ On each run, the script passes `&after=<cursor>` to only get new items. If curso
 
 ## Integration
 
-Ralph calls the script before each iteration via the `fetch_feedback()` function in `ralph.py`:
+Ralph calls the script before each iteration via the `fetch_feedback()` function in `ralph.py`.
+
+The script path is configurable via CLI argument:
+
+```bash
+# Use custom feedback script
+python3 ralph.py --auto-fetch-feedback-script scripts/fetch-feedback.py
+
+# Without the flag, uses the default: scripts/fetch-feedback.py
+python3 ralph.py
+```
+
+The `fetch_feedback()` function runs the script as a subprocess with a 30-second timeout:
 
 ```python
 result = subprocess.run(

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**387 tasks completed** as of 2026-01-29. All core features implemented and tested. 8 tasks pending.
+**388 tasks completed** as of 2026-01-29. All core features implemented and tested. 7 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (~6200 lines in main.go), 578 tests across 26 files
@@ -62,6 +62,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Recent Work
 
+### Task 394: Add --auto-fetch-feedback-script CLI arg to ralph.py (2026-01-29)
+- Added `--auto-fetch-feedback-script <path>` CLI argument to `ralph.py`
+- `fetch_feedback()` now accepts optional `script_path` parameter
+- When flag is omitted, uses default `scripts/fetch-feedback.py`
+- Added 5 tests for the new functionality in `test_ralph.py`
+- Updated `specs/feedback-fetch.md` Integration section
+
 ### Task 393: Rewrite fetch-feedback.sh in Python (2026-01-29)
 - Replaced `scripts/fetch-feedback.sh` with `scripts/fetch-feedback.py`
 - Secrets resolution: env vars > `.env` file > `secrets.enc.yaml` via sops
@@ -113,7 +120,6 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | 386 | Move deps.md to docs/, create docs/README.md |
 | 388 | Research doc sync linting for docs/ files |
 | 389 | Create Python security events query tool |
-| 394 | Add --auto-fetch-feedback-script CLI arg to ralph.py |
 
 ## Key Files
 
