@@ -556,6 +556,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Frontend file size linting: shell script beats ESLint
+
+**Problem:** Needed file size enforcement for Astro/TS files (matching backend's golangci-lint file-length-limit). Three options evaluated: (1) ESLint with eslint-plugin-astro + `max-lines` rule, (2) Biome linter, (3) simple shell script with `wc -l`.
+
+**Solution:** Shell script (`scripts/lint-frontend-filesize.sh`) with two thresholds: error at 4000 lines, warning at 1000 lines. Test files excluded. ESLint was rejected because it requires 4+ new dev dependencies (eslint, eslint-plugin-astro, @typescript-eslint/parser, typescript-eslint) for a single rule (`max-lines`). Biome was rejected because it doesn't support .astro files.
+
+**Lesson:** Follow the dependency policy: don't add heavyweight tools for functionality achievable with a small script. The backend set golangci-lint limits "above current largest" to cap growth — same strategy works for frontend. `wc -l` integrated into `lint.sh` gives the same effect as ESLint's `max-lines` with zero dependencies.
+
+---
+
 ### Claude Code session log structure
 
 **Problem:** Needed to parse Claude Code logs for ralph optimizer.

@@ -29,4 +29,8 @@ npm run build
 echo "Frontend build passed"
 
 echo ""
+echo "=== Checking Frontend File Sizes ==="
+"$SCRIPT_DIR/lint-frontend-filesize.sh"
+
+echo ""
 echo "=== All linting passed ==="

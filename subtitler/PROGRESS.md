@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**391 tasks completed** as of 2026-01-29. All core features implemented and tested. 4 tasks pending.
+**392 tasks completed** as of 2026-01-29. All core features implemented and tested. 4 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,15 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 379: Frontend file size linting (2026-01-29)
+- Researched options: ESLint+eslint-plugin-astro (4+ deps for 1 rule), Biome (no .astro support), shell script (zero deps)
+- Chose shell script approach per dependency policy
+- Created `scripts/lint-frontend-filesize.sh`: error at 4000 lines, warn at 1000 lines, test files excluded
+- Integrated into `scripts/lint.sh` as new "Checking Frontend File Sizes" step
+- 3 files flagged as warnings: upload.astro (3844), videos.astro (1811), settings.astro (1663)
+- Filed Task 396 to split upload.astro
+- Added LEARNINGS.md entry documenting decision rationale
 
 ### Task 377: Set up golangci-lint with file length linter (2026-01-29)
 - Installed golangci-lint v2.8.0, created `backend/.golangci.yml` (v2 format)
@@ -136,9 +145,9 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 | ID | Name |
 |----|------|
-| 379 | Investigate and add file size linting for frontend |
 | 384 | Add decision tracking process to LEARNINGS.md |
 | 388 | Research doc sync linting for docs/ files |
+| 396 | Split upload.astro into smaller files |
 
 ## Key Files
 
