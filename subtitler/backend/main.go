@@ -1712,6 +1712,7 @@ func main() {
 
 	// Auth: Register new user (rate limited)
 	mux.HandleFunc("POST /api/auth/register", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {
 			Email        string `json:"email"`
@@ -1848,6 +1849,7 @@ func main() {
 	const loginLockDuration = 15 * time.Minute
 
 	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {
 			Email        string `json:"email"`
@@ -2026,6 +2028,7 @@ func main() {
 
 	// Auth: Get current user
 	mux.HandleFunc("GET /api/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		token := auth.GetTokenFromRequest(r)
 		user, _, err := auth.ValidateSession(database, token)
 		if err != nil {
@@ -2687,6 +2690,7 @@ func main() {
 
 	// Auth: Forgot password - initiates password reset flow (stricter rate limiting)
 	mux.HandleFunc("POST /api/auth/forgot-password", passwordResetLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		// Parse request body (limited to 8KB - just an email)
 		var req struct {
 			Email string `json:"email"`
@@ -3499,6 +3503,7 @@ func main() {
 
 	// Initialize chunked upload session (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload/init", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
@@ -3883,6 +3888,7 @@ func main() {
 
 	// Complete chunked upload (rate limited: 10/min per IP)
 	mux.HandleFunc("POST /api/upload/complete", uploadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		var req struct {
 			UploadSessionID string `json:"upload_session_id"`
 		}
@@ -4534,6 +4540,7 @@ func main() {
 
 	// Update segments for a transcription (edit subtitles)
 	mux.HandleFunc("PUT /api/transcribe/{id}/segments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
 			return
@@ -5179,6 +5186,7 @@ func main() {
 
 	// List all videos
 	mux.HandleFunc("GET /api/videos", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		// Get authenticated user (if any)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
@@ -5271,6 +5279,7 @@ func main() {
 
 	// Delete a video
 	mux.HandleFunc("DELETE /api/videos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		videoID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
 		if !valid {
 			return

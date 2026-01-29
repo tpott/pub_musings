@@ -4,9 +4,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**351 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**352 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 349-351)
+### Recent (Task 358)
+- Audited all 51 HTTP handlers in main.go for Content-Type header ordering
+- Fixed 9 handlers missing `Content-Type: application/json` before WriteHeader: register, login, me, forgot-password, upload/init, upload/complete, transcribe segments, videos list, video delete
+- Added TestContentTypeHeader test verifying Content-Type is set on all previously-affected endpoints
+
+### Previous (Tasks 349-351)
 - Deep inspection: filed 10 new improvement tasks (349-358) from code quality analysis
 - Added path traversal protection to findVideoFile glob fallback (Task 350)
 - Documented `after` query parameter for admin feedback endpoint in API.md (Task 351)

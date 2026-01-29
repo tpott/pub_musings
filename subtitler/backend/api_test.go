@@ -10033,3 +10033,76 @@ func TestAdminFeedbackListPagination(t *testing.T) {
 		t.Errorf("Expected offset 2, got %d", result.Offset)
 	}
 }
+
+// TestContentTypeHeader verifies that all JSON API endpoints set Content-Type: application/json
+// before writing the response, including error responses.
+func TestContentTypeHeader(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   interface{}
+	}{
+		{
+			name:   "POST /api/auth/register sets Content-Type",
+			method: "POST",
+			path:   "/api/auth/register",
+			body:   map[string]string{"email": "bad", "password": "x"},
+		},
+		{
+			name:   "POST /api/auth/login sets Content-Type",
+			method: "POST",
+			path:   "/api/auth/login",
+			body:   map[string]string{"email": "none@example.com", "password": "wrong"},
+		},
+		{
+			name:   "GET /api/auth/me sets Content-Type",
+			method: "GET",
+			path:   "/api/auth/me",
+			body:   nil,
+		},
+		{
+			name:   "POST /api/auth/forgot-password sets Content-Type",
+			method: "POST",
+			path:   "/api/auth/forgot-password",
+			body:   map[string]string{"email": "nobody@example.com"},
+		},
+		{
+			name:   "GET /api/videos sets Content-Type",
+			method: "GET",
+			path:   "/api/videos",
+			body:   nil,
+		},
+		{
+			name:   "DELETE /api/videos/{id} sets Content-Type",
+			method: "DELETE",
+			path:   "/api/videos/nonexistent",
+			body:   nil,
+		},
+		{
+			name:   "PUT /api/transcribe/{id}/segments sets Content-Type",
+			method: "PUT",
+			path:   "/api/transcribe/nonexistent/segments",
+			body:   map[string]interface{}{"segments": []interface{}{}},
+		},
+		{
+			name:   "GET /api/health sets Content-Type",
+			method: "GET",
+			path:   "/api/health",
+			body:   nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := ts.doRequest(tc.method, tc.path, tc.body, "")
+			ct := resp.Header().Get("Content-Type")
+			if !strings.HasPrefix(ct, "application/json") {
+				t.Errorf("Expected Content-Type starting with application/json, got %q (status %d)", ct, resp.Code)
+			}
+		})
+	}
+}

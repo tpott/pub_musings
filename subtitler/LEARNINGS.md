@@ -16,6 +16,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-28: Go net/http Content-Type must be set before WriteHeader
+
+**Problem:** 9 out of 51 HTTP handlers in main.go called `w.WriteHeader()` then `json.NewEncoder(w).Encode()` without having set `Content-Type: application/json` first. In Go's net/http, headers set after WriteHeader are silently ignored, causing responses to use Go's auto-detected content type instead of explicit `application/json`.
+
+**Solution:** Added `w.Header().Set("Content-Type", "application/json")` as the first line of each affected handler, matching the pattern used by the majority of handlers. The handlers already using `httputil.RespondJSON()`/`httputil.RespondError()` were safe because those helpers set Content-Type internally.
+
+**Lesson:** When creating new HTTP handlers, always set Content-Type as the first line. Or better yet, use the httputil helpers (RespondJSON, RespondError) which handle this correctly. The pattern of setting Content-Type once at the top of the handler covers both success and error paths.
+
+---
+
 ### 2026-01-28: Claude Code session log structure
 
 **Problem:** Needed to parse Claude Code logs for the ralph optimizer tool.
