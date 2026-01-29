@@ -16,6 +16,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-29: Python scripts should defer third-party imports for CLI usability
+
+**Problem:** `evaluate.py` imported `requests` and `yaml` at module level, so even `--help` and `--list` crashed with `ModuleNotFoundError` when deps weren't installed.
+
+**Solution:** Moved `requests`, `yaml`, and `jiwer` imports into a `_ensure_imports()` function called only before evaluation work begins. `--help` and `--list` use only stdlib (`pathlib`, `argparse`).
+
+**Lesson:** For Python CLI tools with optional or heavy dependencies, defer imports so basic subcommands (`--help`, `--list`) work without installing anything. Gate imports behind a function called only in the code paths that need them.
+
+---
+
 ### 2026-01-29: E2E route mocks must include wildcard for query params
 
 **Problem:** Playwright `page.route('**/api/upload/init')` doesn't match `/api/upload/init?session_id=abc123`. Anonymous users get `?session_id=...` appended via `getSessionQueryUrl()`, so mocked routes didn't intercept requests.

@@ -21,8 +21,9 @@ design-analysis/
 frontend/playwright-report/
 frontend/test-results/
 
-# Evaluation framework (generated audio files)
+# Evaluation framework (generated audio files, virtualenv)
 evaluation/audio/
+evaluation/venv/
 
 # Feedback fetch secrets and cursor
 .env.feedback

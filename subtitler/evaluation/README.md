@@ -7,38 +7,48 @@ This directory contains tools for evaluating Whisper transcription accuracy usin
 The evaluation framework:
 1. Generates test audio from seed text files using Piper TTS
 2. Runs transcription against whisper-server
-3. Calculates Word Error Rate (WER) and timing metrics
+3. Calculates Word Error Rate (WER), Character Error Rate (CER), and Real-Time Factor (RTF)
 4. Saves results for comparison
+
+## Prerequisites
+
+- **Python 3.9+**
+- **piper-tts** (system command `piper`) for audio generation
+- **whisper-server** running locally for transcription evaluation
 
 ## Setup
 
-### 1. Install Dependencies
+### 1. Create Virtual Environment
 
 ```bash
 cd evaluation
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 2. Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
 Dependencies:
-- **piper-tts**: Fast, local text-to-speech
+- **piper-tts**: Fast, local text-to-speech (provides the `piper` CLI command)
 - **PyYAML**: YAML parsing for seed files
 - **requests**: HTTP client for whisper-server
-- **jiwer**: Word/Character Error Rate calculation
+- **jiwer**: Word/Character Error Rate calculation (optional, WER/CER skipped if missing)
 
-### 2. Download Piper Voice Model
+### 3. Download Piper Voice Model
 
-Piper needs a voice model. On first run, it will download the default model.
+Piper needs a voice model. The default seed uses `en_US-lessac-medium`.
+On first run, Piper may download the model automatically.
 
-To use a specific voice:
+To download manually:
 ```bash
-# List available voices
-piper --list-voices
-
-# Download specific voice
 piper --model en_US-lessac-medium --download
 ```
 
-### 3. Start whisper-server
+### 4. Start whisper-server
 
 The evaluation script expects whisper-server running on `http://localhost:8765`.
 
@@ -46,6 +56,9 @@ The evaluation script expects whisper-server running on `http://localhost:8765`.
 # Set environment variable if using a different URL
 export WHISPER_URL=http://localhost:8765
 ```
+
+**Note:** `evaluate.py --list` and `evaluate.py --help` work without
+any dependencies installed or whisper-server running.
 
 ## Usage
 
@@ -231,6 +244,16 @@ Generate audio first:
 2. Try a different Piper voice
 3. Check if whisper-server language detection is correct
 4. Verify text doesn't contain unusual characters
+
+## Limitations
+
+- **No timing alignment metrics** - The spec ([evaluation-cleanroom.md](../specs/evaluation-cleanroom.md))
+  describes onset/offset error and early start rate metrics, but these are not yet
+  implemented. Only WER, CER, and RTF are currently measured.
+- **English only** - Only an English seed corpus is provided. The framework supports
+  other languages but no non-English seeds exist yet.
+- **TTS-generated audio** - Evaluation uses synthetic speech, which may not reflect
+  real-world accuracy on natural speech, music vocals, or noisy recordings.
 
 ## See Also
 

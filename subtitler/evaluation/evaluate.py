@@ -24,18 +24,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import requests
-import yaml
-
-# Try to import jiwer for WER calculation
-try:
-    from jiwer import wer, cer
-    HAS_JIWER = True
-except ImportError:
-    HAS_JIWER = False
-    print("Warning: jiwer not installed. Install with: pip install jiwer")
-    print("WER calculation will be skipped.")
-
 
 SCRIPT_DIR = Path(__file__).parent
 SEEDS_DIR = SCRIPT_DIR / "seeds"
@@ -44,6 +32,46 @@ RESULTS_DIR = SCRIPT_DIR / "results"
 
 # Default whisper-server URL
 DEFAULT_WHISPER_URL = os.environ.get("WHISPER_URL", "http://localhost:8765")
+
+# Deferred imports - these are loaded when needed so --help and --list
+# work without installing dependencies.
+requests = None
+yaml = None
+HAS_JIWER = False
+wer = None
+cer = None
+
+
+def _ensure_imports():
+    """Import optional dependencies. Call before any evaluation work."""
+    global requests, yaml, HAS_JIWER, wer, cer
+
+    if requests is not None and yaml is not None:
+        return  # already loaded
+
+    try:
+        import requests as _requests
+        requests = _requests
+    except ImportError:
+        print("Error: requests not installed. Install with: pip install requests")
+        sys.exit(1)
+
+    try:
+        import yaml as _yaml
+        yaml = _yaml
+    except ImportError:
+        print("Error: PyYAML not installed. Install with: pip install PyYAML")
+        sys.exit(1)
+
+    try:
+        from jiwer import wer as _wer, cer as _cer
+        HAS_JIWER = True
+        wer = _wer
+        cer = _cer
+    except ImportError:
+        HAS_JIWER = False
+        print("Warning: jiwer not installed. Install with: pip install jiwer")
+        print("WER/CER calculation will be skipped.")
 
 
 def load_seed(seed_id: str) -> dict:
@@ -229,7 +257,7 @@ def save_results(results: dict, output_path: Optional[Path] = None):
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 
-    # Also create/update latest.json symlink
+    # Also create/update latest.json copy
     latest_path = RESULTS_DIR / "latest.json"
     if latest_path.exists():
         latest_path.unlink()
@@ -295,6 +323,9 @@ def main():
         for seed in seeds:
             print(f"  - {seed}")
         return 0
+
+    # Load dependencies needed for evaluation
+    _ensure_imports()
 
     # Check whisper-server connectivity
     print(f"Checking whisper-server at {args.whisper_url}...")

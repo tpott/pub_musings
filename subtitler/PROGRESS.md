@@ -4,9 +4,22 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**381 tasks completed** as of 2026-01-29. All core features implemented and tested. User feedback addressed. 19 new tasks filed from FEEDBACK.md (376-394).
+**382 tasks completed** as of 2026-01-29. All core features implemented and tested. User feedback addressed. 19 new tasks filed from FEEDBACK.md (376-394).
 
-### Recent (Task 391: Fix Subtitle Feedback Buttons)
+### Recent (Task 390: Verify and Fix Evaluation Scripts)
+- Tested `evaluate.py` and `generate.sh` - both require Python deps not installed system-wide
+- Fixed `evaluate.py` to defer `requests`/`yaml`/`jiwer` imports so `--help` and `--list` work without dependencies
+- Fixed inaccurate comment in `save_results()` (said "symlink" but writes a copy)
+- Updated `evaluation/README.md`:
+  - Changed overview from "timing metrics" to accurate "WER, CER, and RTF"
+  - Added Prerequisites section and venv setup instructions
+  - Added Limitations section documenting: no timing alignment metrics, English only, TTS-only audio
+  - Noted that `--list` and `--help` work without deps
+- Added `evaluation/venv/` to `.gitignore`
+- `generate.sh` correctly reports missing `piper` dependency
+- `evaluate.py` correctly reports missing `requests`/`PyYAML` when trying to evaluate
+
+### Previous (Task 391: Fix Subtitle Feedback Buttons)
 - Moved feedback buttons (thumbsup/misaligned/missing) from every segment to the current subtitle display only
 - Buttons now appear below the `currentSubtitle` div and update when the active segment changes
 - Persistent click handler on the feedback container (not per-segment event listeners)
