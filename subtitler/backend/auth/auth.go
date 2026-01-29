@@ -12,9 +12,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/trevor/subtitler/backend/db"
-	"github.com/trevor/subtitler/backend/logging"
-	"github.com/trevor/subtitler/backend/validation"
+	"github.com/tpott/subtitler/backend/db"
+	"github.com/tpott/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/validation"
 )
 
 // IsHTTPSOnly returns true if HTTPS_ONLY env var is set to a truthy value.

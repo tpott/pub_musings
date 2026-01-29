@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // setupTestLogger creates a test logger that writes to a buffer.

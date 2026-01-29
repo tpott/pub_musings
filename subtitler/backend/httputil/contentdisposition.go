@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // DefaultMaxJSONBodySize is the default maximum size for JSON request bodies (1MB).

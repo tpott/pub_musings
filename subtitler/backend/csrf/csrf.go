@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 const (

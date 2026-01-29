@@ -23,3 +23,9 @@ frontend/test-results/
 
 # Evaluation framework (generated audio files)
 evaluation/audio/
+
+# Feedback fetch secrets and cursor
+.env.feedback
+.feedback-cursor
+.feedback-tmp
+.feedback-cursor-tmp

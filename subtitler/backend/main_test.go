@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trevor/subtitler/backend/db"
+	"github.com/tpott/subtitler/backend/db"
 )
 
 func TestFormatSRTTimestamp(t *testing.T) {

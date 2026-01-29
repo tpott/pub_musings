@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // QueryProfile holds information about a profiled query

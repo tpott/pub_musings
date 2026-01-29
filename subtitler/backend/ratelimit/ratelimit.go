@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // trustProxy indicates whether to trust X-Forwarded-For and X-Real-IP headers.

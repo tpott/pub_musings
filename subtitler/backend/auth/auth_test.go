@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/trevor/subtitler/backend/db"
+	"github.com/tpott/subtitler/backend/db"
 )
 
 func TestHashAndCheckPassword(t *testing.T) {

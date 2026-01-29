@@ -16,6 +16,26 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-28: HTML hardcoded values must match TypeScript constants
+
+**Problem:** Speed toggle buttons in upload.astro and videos.astro hardcoded `data-speed="0.8"` and `data-speed="0.9"`, but the `PLAYBACK_SPEEDS` array in `playback-speed.ts` only contains `[0.5, 0.75, 1.0, 1.25, 1.5, 2.0]`. The validation `PLAYBACK_SPEEDS.includes(speed)` silently rejected 0.8 and 0.9, making the buttons non-functional.
+
+**Solution:** Updated HTML buttons to match the spec's 6 speed values. Both files had the same mismatch.
+
+**Lesson:** When HTML options are validated against a TypeScript constant array, always generate the HTML from the same source of truth, or at minimum ensure the values match. Duplicated constants between HTML and TS will drift.
+
+---
+
+### 2026-01-28: go.mod module path must match GitHub org
+
+**Problem:** `go.mod` declared `github.com/trevor/subtitler/backend` but the repo is under `github.com/tpott/`. All 17 Go files with internal imports used the wrong path.
+
+**Solution:** Global replace of `github.com/trevor/` → `github.com/tpott/` in go.mod and all .go files.
+
+**Lesson:** Check go.mod module path matches the actual GitHub repository owner. This affects all internal imports.
+
+---
+
 ### 2026-01-28: Background goroutines need shutdown context checks
 
 **Problem:** Long-running goroutines (transcription, burn) spawned via `go func()` continued executing during server shutdown. Jobs would get stuck in "processing" state if the server was killed, with no way for them to detect they should exit.

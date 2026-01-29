@@ -13,7 +13,7 @@ package security
 import (
 	"context"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // Event types for consistent event naming

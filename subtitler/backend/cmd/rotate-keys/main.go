@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/trevor/subtitler/backend/crypto"
-	"github.com/trevor/subtitler/backend/db"
+	"github.com/tpott/subtitler/backend/crypto"
+	"github.com/tpott/subtitler/backend/db"
 )
 
 func usage() {

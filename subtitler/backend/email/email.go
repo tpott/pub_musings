@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/resend/resend-go/v2"
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // EmailService defines the interface for sending emails

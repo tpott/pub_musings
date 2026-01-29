@@ -52,6 +52,7 @@ All scripts are in the `scripts/` directory:
 | `test-e2e.sh` | Run Playwright E2E tests |
 | `verify-all.sh` | Run lint + backend + frontend tests |
 | `pre-commit` | Git pre-commit hook (lint + unit tests) |
+| `fetch-feedback.sh` | Fetch new user feedback from prod to FEEDBACK.md |
 
 ## Pre-commit Hook
 

@@ -20,8 +20,8 @@ import (
 	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/trevor/subtitler/backend/db"
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/db"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 func main() {

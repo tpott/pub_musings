@@ -3299,7 +3299,7 @@ func TestListFeedbackLimitValidation(t *testing.T) {
 	}
 
 	t.Run("default limit when zero provided", func(t *testing.T) {
-		feedbackList, total, err := db.ListFeedback("", "", 0, 0)
+		feedbackList, total, err := db.ListFeedback("", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("ListFeedback failed: %v", err)
 		}
@@ -3312,7 +3312,7 @@ func TestListFeedbackLimitValidation(t *testing.T) {
 	})
 
 	t.Run("default limit when negative provided", func(t *testing.T) {
-		feedbackList, total, err := db.ListFeedback("", "", -10, 0)
+		feedbackList, total, err := db.ListFeedback("", "", -10, 0, "")
 		if err != nil {
 			t.Fatalf("ListFeedback failed: %v", err)
 		}
@@ -3326,7 +3326,7 @@ func TestListFeedbackLimitValidation(t *testing.T) {
 
 	t.Run("limit capped at MaxFeedbackLimit", func(t *testing.T) {
 		// Request more than max, should be capped
-		feedbackList, _, err := db.ListFeedback("", "", 200, 0)
+		feedbackList, _, err := db.ListFeedback("", "", 200, 0, "")
 		if err != nil {
 			t.Fatalf("ListFeedback failed: %v", err)
 		}
@@ -3337,7 +3337,7 @@ func TestListFeedbackLimitValidation(t *testing.T) {
 	})
 
 	t.Run("negative offset treated as zero", func(t *testing.T) {
-		feedbackList, _, err := db.ListFeedback("", "", 10, -5)
+		feedbackList, _, err := db.ListFeedback("", "", 10, -5, "")
 		if err != nil {
 			t.Fatalf("ListFeedback failed: %v", err)
 		}
@@ -3347,7 +3347,7 @@ func TestListFeedbackLimitValidation(t *testing.T) {
 	})
 
 	t.Run("offset works correctly", func(t *testing.T) {
-		feedbackList, total, err := db.ListFeedback("", "", 2, 2)
+		feedbackList, total, err := db.ListFeedback("", "", 2, 2, "")
 		if err != nil {
 			t.Fatalf("ListFeedback failed: %v", err)
 		}

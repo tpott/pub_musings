@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // Migration represents a single migration file

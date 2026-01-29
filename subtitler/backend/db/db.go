@@ -2478,8 +2478,9 @@ func (db *DB) GetFeedback(id string) (*Feedback, error) {
 // MaxFeedbackLimit is the maximum number of feedback items to return in a single query
 const MaxFeedbackLimit = 100
 
-// ListFeedback retrieves feedback with optional filters
-func (db *DB) ListFeedback(status string, feedbackType string, limit, offset int) ([]*Feedback, int, error) {
+// ListFeedback retrieves feedback with optional filters.
+// If after is non-empty, only feedback created after that ISO timestamp is returned.
+func (db *DB) ListFeedback(status string, feedbackType string, limit, offset int, after string) ([]*Feedback, int, error) {
 	// Enforce maximum limit to prevent memory exhaustion
 	if limit <= 0 {
 		limit = 50 // default
@@ -2507,6 +2508,11 @@ func (db *DB) ListFeedback(status string, feedbackType string, limit, offset int
 		query += " AND feedback_type = ?"
 		countQuery += " AND feedback_type = ?"
 		args = append(args, feedbackType)
+	}
+	if after != "" {
+		query += " AND created_at > ?"
+		countQuery += " AND created_at > ?"
+		args = append(args, after)
 	}
 
 	// Get total count

@@ -1,4 +1,4 @@
-module github.com/trevor/subtitler/backend
+module github.com/tpott/subtitler/backend
 
 go 1.23.0
 

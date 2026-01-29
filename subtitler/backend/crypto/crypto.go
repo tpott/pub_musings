@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"filippo.io/age"
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // encryptionEnabled controls whether encryption is active.

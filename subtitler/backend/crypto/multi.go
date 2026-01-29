@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"filippo.io/age"
-	"github.com/trevor/subtitler/backend/logging"
+	"github.com/tpott/subtitler/backend/logging"
 )
 
 // MultiKeyEncryptor manages multiple encryption keys for key rotation support.
