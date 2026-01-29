@@ -16,6 +16,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-28: Claude Code session log structure
+
+**Problem:** Needed to parse Claude Code logs for the ralph optimizer tool.
+
+**Solution:** Claude Code session logs are JSONL with `type` fields: `system` (init with session_id, model), `assistant` (messages with content arrays and usage tokens), `user` (tool results). Tool calls are in `message.content` with `type: "tool_use"`. Agent sub-session calls have `parent_tool_use_id` set.
+
+**Lesson:** Token usage is split across `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`. All three must be summed for total input tokens. Agent logs are in `$session_id/$agent_id.jsonl` subdirectories.
+
+---
+
 ### 2026-01-28: HTML hardcoded values must match TypeScript constants
 
 **Problem:** Speed toggle buttons in upload.astro and videos.astro hardcoded `data-speed="0.8"` and `data-speed="0.9"`, but the `PLAYBACK_SPEEDS` array in `playback-speed.ts` only contains `[0.5, 0.75, 1.0, 1.25, 1.5, 2.0]`. The validation `PLAYBACK_SPEEDS.includes(speed)` silently rejected 0.8 and 0.9, making the buttons non-functional.

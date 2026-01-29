@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**343 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**345 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ### Recent (Tasks 339-344)
 - Fixed speed toggle buttons (0.8x/0.9x → spec values 0.5x-2x)
@@ -12,6 +12,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Created feedback fetch pipeline (scripts/fetch-feedback.sh, backend `after` param, specs/feedback-fetch.md)
 - Created specs for feedback-fetch and ralph-optimizer
 - Integrated feedback fetch into ralph.py loop (Task 342)
+- Implemented ralph_optimizer.py with log parsing, cost analysis, and pattern detection (Task 343)
 - Added dependency justification policy to CLAUDE.md and created deps.md (Task 344)
 
 ## Feature Summary
@@ -146,9 +147,18 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**343 tasks completed.**
+**345 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 343: Implement ralph_optimizer.py (COMPLETE)**
+- Created ralph_optimizer.py with 4 components: LogParser, CostAnalyzer, PatternDetector, Reporter
+- Parses ralph logs (iteration headers + JSON), session logs (JSONL), and agent sub-sessions
+- Detects patterns: redundant file reads, late test execution, low-value agent launches
+- Estimates costs using Opus/Haiku pricing for main sessions and agent sub-sessions
+- CLI modes: summary (default), --detailed, --json, --last N
+- Created test_ralph_optimizer.py with 31 unit tests (all pass)
+- Tested against real logs: identifies redundant reads of TASKS.jsonl, main.go, upload.astro
 
 **Task 342: Integrate Feedback Fetch into Ralph Loop (COMPLETE)**
 - Added `fetch_feedback()` function to ralph.py that calls scripts/fetch-feedback.sh
