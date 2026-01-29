@@ -87,8 +87,6 @@ const (
 	defaultWhisperTimeout  = 30 * time.Minute // Timeout for whisper-server requests
 	maxWhisperResponseSize = 100 << 20        // 100 MB max response from whisper-server (prevents memory exhaustion)
 
-	// JSON request body size limit (1 MB is sufficient for all API requests)
-	maxJSONBodySize = 1 << 20 // 1 MB
 )
 
 // Configuration values loaded from environment
@@ -631,24 +629,6 @@ func validatePathID(w http.ResponseWriter, id string, fieldName string) (string,
 		return "", false
 	}
 	return id, true
-}
-
-// decodeJSONBody decodes a JSON request body with a size limit.
-// This prevents memory exhaustion from very large request bodies.
-// Returns true if successful, false if error was written to response.
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
-	// Limit request body size to prevent memory exhaustion
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
-
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
-		if err.Error() == "http: request body too large" {
-			httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
-		} else {
-			httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
-		}
-		return false
-	}
-	return true
 }
 
 // removeWithLogging removes a file and logs a warning if the removal fails.
@@ -1384,7 +1364,12 @@ func main() {
 			Line    int           `json:"line"`    // line number (optional)
 			Column  int           `json:"column"`  // column number (optional)
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -1663,7 +1648,12 @@ func main() {
 		var req struct {
 			Status string `json:"status"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -2236,7 +2226,12 @@ func main() {
 		var req struct {
 			Code string `json:"code"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -2311,7 +2306,12 @@ func main() {
 			Code     string `json:"code"`
 			Password string `json:"password"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -2364,7 +2364,12 @@ func main() {
 			Password     string `json:"password"`
 			RecoveryCode string `json:"recovery_code"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -2497,7 +2502,12 @@ func main() {
 			Code     string `json:"code"`
 			Password string `json:"password"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -2697,7 +2707,12 @@ func main() {
 		var req struct {
 			Email string `json:"email"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -2905,7 +2920,12 @@ func main() {
 		var req struct {
 			Email string `json:"email"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -3258,7 +3278,12 @@ func main() {
 			ContentType string `json:"content_type"`
 			ChunkSize   int64  `json:"chunk_size"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -3602,7 +3627,12 @@ func main() {
 		var req struct {
 			UploadSessionID string `json:"upload_session_id"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -4242,7 +4272,12 @@ func main() {
 		var req struct {
 			Segments []db.Segment `json:"segments"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -4311,7 +4346,12 @@ func main() {
 			ConvertToScript string `json:"convert_to_script"` // Optional: target script (e.g., "Devanagari")
 			Language        string `json:"language"`          // Required if convert_to_script is set
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -5796,7 +5836,12 @@ func main() {
 		var req struct {
 			Text string `json:"text"`
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
@@ -5831,7 +5876,12 @@ func main() {
 			TargetScript string `json:"target_script"`
 			Language     string `json:"language"` // Required for romanized input
 		}
-		if !decodeJSONBody(w, r, &req) {
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
 			return
 		}
 
