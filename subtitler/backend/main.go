@@ -655,6 +655,21 @@ func removeWithLogging(path string, description string) {
 	}
 }
 
+// escapeFFmpegFilterPath escapes special characters in a file path for use
+// inside ffmpeg filter string values (e.g., subtitles='path':force_style='...').
+// FFmpeg filter syntax requires escaping: ' : \ [ ] ; ,
+func escapeFFmpegFilterPath(path string) string {
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`'`, `\'`,
+		`:`, `\:`,
+		`[`, `\[`,
+		`]`, `\]`,
+		`;`, `\;`,
+	)
+	return replacer.Replace(path)
+}
+
 // getWhisperModel returns the whisper model path from env or default.
 // Returns an error if the path contains path traversal patterns.
 func getWhisperModel() (string, error) {
@@ -5992,12 +6007,14 @@ func main() {
 				// of Hindi, Tamil, Telugu and other scripts that require specific fonts
 				subtitleStyle := "FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2"
 				if subtitleFont != "" {
-					subtitleStyle = fmt.Sprintf("FontName=%s,%s", subtitleFont, subtitleStyle)
+					// Escape font name for ffmpeg filter syntax (remove quotes, colons, semicolons)
+					safeFontName := strings.NewReplacer(`'`, ``, `"`, ``, `:`, ``, `;`, ``).Replace(subtitleFont)
+					subtitleStyle = fmt.Sprintf("FontName=%s,%s", safeFontName, subtitleStyle)
 				}
 
 				cmd = exec.Command("ffmpeg",
 					"-i", workingVideoPath,
-					"-vf", fmt.Sprintf("subtitles='%s':force_style='%s'", srtPath, subtitleStyle),
+					"-vf", fmt.Sprintf("subtitles='%s':force_style='%s'", escapeFFmpegFilterPath(srtPath), subtitleStyle),
 					"-c:a", "copy",
 					"-y",
 					outputPath,

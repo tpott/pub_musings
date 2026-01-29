@@ -784,6 +784,32 @@ func TestGenerateID(t *testing.T) {
 	})
 }
 
+func TestEscapeFFmpegFilterPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain path", "/tmp/video.srt", "/tmp/video.srt"},
+		{"path with single quote", "/tmp/it's.srt", `/tmp/it\'s.srt`},
+		{"path with colon", "/tmp/file:name.srt", `/tmp/file\:name.srt`},
+		{"path with backslash", `C:\temp\file.srt`, `C\:\\temp\\file.srt`},
+		{"path with brackets", "/tmp/file[1].srt", `/tmp/file\[1\].srt`},
+		{"path with semicolon", "/tmp/file;rm.srt", `/tmp/file\;rm.srt`},
+		{"path with multiple specials", "/tmp/it's [1]:test.srt", `/tmp/it\'s \[1\]\:test.srt`},
+		{"empty string", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeFFmpegFilterPath(tt.input)
+			if got != tt.expected {
+				t.Errorf("escapeFFmpegFilterPath(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestFindVideoFile(t *testing.T) {
 	// Save and restore global variables
 	origDatabase := database

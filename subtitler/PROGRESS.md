@@ -4,9 +4,9 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**345 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**347 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 339-344)
+### Recent (Tasks 339-348)
 - Fixed speed toggle buttons (0.8x/0.9x → spec values 0.5x-2x)
 - Fixed go.mod module path (github.com/trevor → github.com/tpott)
 - Created feedback fetch pipeline (scripts/fetch-feedback.sh, backend `after` param, specs/feedback-fetch.md)
@@ -14,6 +14,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Integrated feedback fetch into ralph.py loop (Task 342)
 - Implemented ralph_optimizer.py with log parsing, cost analysis, and pattern detection (Task 343)
 - Added dependency justification policy to CLAUDE.md and created deps.md (Task 344)
+- Escaped ffmpeg filter path and font name to prevent syntax injection (Tasks 345, 348)
 
 ## Feature Summary
 
@@ -147,9 +148,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**345 tasks completed.**
+**347 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Tasks 345, 348: FFmpeg Filter Escaping (COMPLETE)**
+- Added escapeFFmpegFilterPath() to escape special chars (quotes, colons, brackets, semicolons, backslashes)
+- Applied to SRT path in subtitle burn filter string
+- Sanitized font name from SUBTITLE_FONT env var (strips quotes, colons, semicolons)
+- Added 8 test cases covering all special character combinations
 
 **Task 343: Implement ralph_optimizer.py (COMPLETE)**
 - Created ralph_optimizer.py with 4 components: LogParser, CostAnalyzer, PatternDetector, Reporter
