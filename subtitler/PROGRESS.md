@@ -4,9 +4,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**348 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**351 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 339-348)
+### Recent (Tasks 349-351)
+- Deep inspection: filed 10 new improvement tasks (349-358) from code quality analysis
+- Added path traversal protection to findVideoFile glob fallback (Task 350)
+- Documented `after` query parameter for admin feedback endpoint in API.md (Task 351)
+
+### Previous (Tasks 339-348)
 - Fixed speed toggle buttons (0.8x/0.9x → spec values 0.5x-2x)
 - Fixed go.mod module path (github.com/trevor → github.com/tpott)
 - Created feedback fetch pipeline (scripts/fetch-feedback.sh, backend `after` param, specs/feedback-fetch.md)

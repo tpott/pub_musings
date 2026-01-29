@@ -2446,6 +2446,7 @@ List all feedback entries (admin only).
 | `type` | string | *(all)* | Filter by type: `general`, `bug`, `feature` |
 | `limit` | int | 50 | Results per page (max 100) |
 | `offset` | int | 0 | Pagination offset |
+| `after` | string | *(none)* | Only return feedback created after this ISO 8601 timestamp (cursor-based pagination) |
 
 **Success Response (200):**
 ```json

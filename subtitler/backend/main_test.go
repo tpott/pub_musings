@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/tpott/subtitler/backend/db"
+	"github.com/tpott/subtitler/backend/pathvalidator"
 )
 
 func TestFormatSRTTimestamp(t *testing.T) {
@@ -968,6 +969,81 @@ func TestFindVideoFile(t *testing.T) {
 		}
 		if foundPath != videoPath {
 			t.Errorf("findVideoFile() = %q, expected %q", foundPath, videoPath)
+		}
+	})
+
+	t.Run("rejects path traversal in upload ID", func(t *testing.T) {
+		// Save and restore globals
+		origDatabase := database
+		origUploadDir := uploadDir
+		defer func() {
+			database = origDatabase
+			uploadDir = origUploadDir
+		}()
+
+		database = nil
+		uploadDir = "/tmp/uploads"
+
+		testCases := []string{
+			"../etc/passwd",
+			"..\\windows\\system32",
+			"foo/../bar",
+			"id\x00inject",
+		}
+
+		for _, id := range testCases {
+			_, err := findVideoFile(id)
+			if err == nil {
+				t.Errorf("findVideoFile(%q) should return error for path traversal attempt", id)
+			}
+			if err != nil && !strings.Contains(err.Error(), "invalid upload ID") {
+				t.Errorf("findVideoFile(%q) error should contain 'invalid upload ID', got: %v", id, err)
+			}
+		}
+	})
+
+	t.Run("validates glob results against pathValidator", func(t *testing.T) {
+		// Save and restore globals
+		origDatabase := database
+		origUploadDir := uploadDir
+		origPathValidator := pathValidator
+		defer func() {
+			database = origDatabase
+			uploadDir = origUploadDir
+			pathValidator = origPathValidator
+		}()
+
+		// Create temp directory for test files
+		tempDir, err := os.MkdirTemp("", "findvideo-pathval-*")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		database = nil
+		uploadDir = filepath.Join(tempDir, "uploads")
+		os.MkdirAll(uploadDir, 0755)
+
+		// Create pathValidator for a DIFFERENT directory (simulates misconfiguration)
+		pathValidator, err = pathvalidator.New(filepath.Join(tempDir, "other"))
+		if err != nil {
+			t.Fatalf("Failed to create pathValidator: %v", err)
+		}
+
+		// Create a test file in uploads dir
+		videoID := "testpathval123456789012"
+		videoPath := filepath.Join(uploadDir, videoID+".mp4")
+		if err := os.WriteFile(videoPath, []byte("test"), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// findVideoFile should reject because glob result is outside validator's base dir
+		_, err = findVideoFile(videoID)
+		if err == nil {
+			t.Error("findVideoFile() should return error when glob result fails path validation")
+		}
+		if err != nil && !strings.Contains(err.Error(), "path validation failed") {
+			t.Errorf("Error should contain 'path validation failed', got: %v", err)
 		}
 	})
 }

@@ -1018,6 +1018,11 @@ func generateVTT(result *WhisperResult) string {
 
 // findVideoFile finds the video file for an upload ID
 func findVideoFile(uploadID string) (string, error) {
+	// Reject IDs containing path separators or traversal characters
+	if strings.ContainsAny(uploadID, "/\\") || strings.Contains(uploadID, "..") || strings.Contains(uploadID, "\x00") {
+		return "", fmt.Errorf("invalid upload ID: %s", uploadID)
+	}
+
 	// First try to get from database
 	if database != nil {
 		video, err := database.GetVideo(uploadID)
@@ -1037,6 +1042,19 @@ func findVideoFile(uploadID string) (string, error) {
 	if len(matches) == 0 {
 		return "", fmt.Errorf("video not found for upload ID: %s", uploadID)
 	}
+
+	// Defense-in-depth: validate glob result is within upload directory
+	if pathValidator != nil {
+		if err := pathValidator.ValidateAbsolutePath(matches[0]); err != nil {
+			logging.Warn("findVideoFile: glob result failed path validation",
+				"path", matches[0],
+				"upload_id", uploadID,
+				"error", err.Error(),
+			)
+			return "", fmt.Errorf("video path validation failed for upload ID: %s", uploadID)
+		}
+	}
+
 	return matches[0], nil
 }
 
