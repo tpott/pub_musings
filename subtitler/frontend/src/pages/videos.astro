@@ -762,7 +762,7 @@ import '../styles/theme.css';
 							<video class="modal-video" id="modalVideo" controls></video>
 							<div class="modal-speed-indicator" id="modalSpeedIndicator" aria-live="polite">1x</div>
 						</div>
-						<div class="modal-current-subtitle" aria-live="polite" aria-atomic="true"><span class="modal-current-subtitle-inner" id="modalCurrentSubtitle"></span></div>
+						<div class="modal-current-subtitle" aria-live="polite" aria-atomic="true" aria-label="Current subtitle text"><span class="modal-current-subtitle-inner" id="modalCurrentSubtitle"></span></div>
 						<div class="modal-segments" id="modalSegments"></div>
 						<div class="modal-actions">
 							<div class="speed-dropdown" id="modalSpeedDropdown">
@@ -1155,7 +1155,15 @@ import '../styles/theme.css';
 
 				// Fetch from server
 				const response = await fetch(`/api/transcribe/${videoId}`);
-				const rawData = await response.json();
+				let rawData;
+				try {
+					rawData = await response.json();
+				} catch (e) {
+					if (e instanceof SyntaxError) {
+						throw new Error('Server returned invalid data');
+					}
+					throw e;
+				}
 
 				if (!response.ok) {
 					throw new Error(rawData.error || 'Failed to load transcription');
@@ -1472,7 +1480,15 @@ import '../styles/theme.css';
 
 					// Load transcription
 					const response = await fetch(`/api/transcribe/${videoId}`);
-					const rawData = await response.json();
+					let rawData;
+					try {
+						rawData = await response.json();
+					} catch (e) {
+						if (e instanceof SyntaxError) {
+							throw new Error('Server returned invalid data');
+						}
+						throw e;
+					}
 
 					if (!response.ok) {
 						throw new Error(rawData.error || 'Failed to load transcription');
@@ -1715,7 +1731,15 @@ import '../styles/theme.css';
 						const errorData = await response.json().catch(() => ({}));
 						throw new Error(errorData.error || `HTTP ${response.status}`);
 					}
-					const rawData = await response.json();
+					let rawData;
+					try {
+						rawData = await response.json();
+					} catch (e) {
+						if (e instanceof SyntaxError) {
+							throw new Error('Server returned invalid data');
+						}
+						throw e;
+					}
 
 					// Validate response structure
 					const data = safeParse(VideoListResponseSchema, rawData);
