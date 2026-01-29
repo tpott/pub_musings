@@ -54,6 +54,19 @@ All scripts are in the `scripts/` directory:
 | `pre-commit` | Git pre-commit hook (lint + unit tests) |
 | `fetch-feedback.sh` | Fetch new user feedback from prod to FEEDBACK.md |
 
+## Dependency Policy
+
+Every new dependency added to `go.mod` or `package.json` must be justified.
+Before adding a dependency, update `deps.md` with:
+
+1. **What** the dependency is (name, version)
+2. **Why** it is needed (what problem it solves)
+3. **Alternatives considered** and why they were rejected
+
+Prefer the Go standard library or existing dependencies over new ones.
+Do not add a dependency for functionality that can be achieved with a small
+amount of straightforward code.
+
 ## Pre-commit Hook
 
 To install the pre-commit hook:

@@ -4,13 +4,14 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**341 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**342 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 339-341)
+### Recent (Tasks 339-344)
 - Fixed speed toggle buttons (0.8x/0.9x → spec values 0.5x-2x)
 - Fixed go.mod module path (github.com/trevor → github.com/tpott)
 - Created feedback fetch pipeline (scripts/fetch-feedback.sh, backend `after` param, specs/feedback-fetch.md)
 - Created specs for feedback-fetch and ralph-optimizer
+- Added dependency justification policy to CLAUDE.md and created deps.md (Task 344)
 
 ## Feature Summary
 
@@ -144,9 +145,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**336 tasks completed.**
+**342 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Task 344: Dependency Justification Policy (COMPLETE)**
+- Added dependency policy section to CLAUDE.md requiring justification for new deps
+- Created deps.md documenting all existing dependencies in go.mod and package.json
+- Each dependency includes: what it is, why it's needed, and alternatives considered
+- Covers 6 direct Go deps and 4 frontend deps (2 runtime, 2 dev)
 
 **Tasks 332-336: Code Quality and Accessibility (COMPLETE)**
 - Task 332: Fixed HTTP response body leak in transcribeAudioServer retry loop
