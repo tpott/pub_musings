@@ -20,7 +20,7 @@ DEFAULT_MAX_ITERATIONS = 10
 CLAUDE_MODEL = "opus"
 PROMPT_FILE = "RALPH.md"
 STOP_FILE = "STOP_RALPH"
-FETCH_FEEDBACK_SCRIPT = "scripts/fetch-feedback.sh"
+FETCH_FEEDBACK_SCRIPT = "scripts/fetch-feedback.py"
 
 
 def generate_ralph_id() -> str:
@@ -120,7 +120,7 @@ def fetch_feedback(log_file: Path | None) -> None:
 
     try:
         result = subprocess.run(
-            ["bash", str(script)],
+            [sys.executable, str(script)],
             capture_output=True,
             text=True,
             timeout=30,

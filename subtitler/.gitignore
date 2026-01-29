@@ -26,7 +26,6 @@ evaluation/audio/
 evaluation/venv/
 
 # Feedback fetch secrets and cursor
+.env
 .env.feedback
 .feedback-cursor
-.feedback-tmp
-.feedback-cursor-tmp

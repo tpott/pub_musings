@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**386 tasks completed** as of 2026-01-29. All core features implemented and tested. 9 tasks pending.
+**387 tasks completed** as of 2026-01-29. All core features implemented and tested. 8 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (~6200 lines in main.go), 578 tests across 26 files
@@ -62,6 +62,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Recent Work
 
+### Task 393: Rewrite fetch-feedback.sh in Python (2026-01-29)
+- Replaced `scripts/fetch-feedback.sh` with `scripts/fetch-feedback.py`
+- Secrets resolution: env vars > `.env` file > `secrets.enc.yaml` via sops
+- Uses only stdlib (`urllib`, `json`, `subprocess`) - no new dependencies
+- `ralph.py` updated to call Python script via `sys.executable`
+- Updated specs/feedback-fetch.md, AGENTS.md, .gitignore
+
 ### Task 387: Add Missing Dependencies to deps.md (2026-01-29)
 - Added CDN Scripts section (hCaptcha widget)
 - Added System Dependencies section (ffmpeg, ffprobe, whisper-cli, whisper-server, sqlite3)
@@ -104,10 +111,8 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | 379 | Investigate and add file size linting for frontend |
 | 384 | Add decision tracking process to LEARNINGS.md |
 | 386 | Move deps.md to docs/, create docs/README.md |
-| ~~387~~ | ~~Add missing dependencies to deps.md~~ (done) |
 | 388 | Research doc sync linting for docs/ files |
 | 389 | Create Python security events query tool |
-| 393 | Rewrite fetch-feedback.sh in Python |
 | 394 | Add --auto-fetch-feedback-script CLI arg to ralph.py |
 
 ## Key Files
