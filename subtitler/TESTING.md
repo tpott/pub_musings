@@ -6,9 +6,9 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 442 tests across 24 test files
-- **Frontend (TypeScript)**: 197 tests across 9 test files
-- **Total**: 639 tests
+- **Backend (Go)**: 578 tests across 26 test files
+- **Frontend (TypeScript)**: 495 tests across 20 test files
+- **Total**: 1,073 tests
 
 ## Backend Tests
 
@@ -53,6 +53,8 @@ go test -run TestAuthLogin -v
 | `db/profiler_test.go` | db | Query performance profiler tests |
 | `email/email_test.go` | email | Email service and Resend API tests |
 | `errmsg/errmsg_test.go` | errmsg | User-friendly error message tests |
+| `httputil/contentdisposition_test.go` | httputil | Content-Disposition header generation tests |
+| `language/language_test.go` | language | ISO 639-2 to ISO 639-1 language code conversion tests |
 | `logging/logging_test.go` | logging | Structured logging tests |
 | `metrics/metrics_test.go` | metrics | Prometheus metrics and path normalization |
 | `pathvalidator/pathvalidator_test.go` | pathvalidator | Path traversal prevention tests |
@@ -115,15 +117,26 @@ npm run test:watch
 
 | File | Description |
 |------|-------------|
-| `src/utils/format.test.ts` | Formatting utilities (bytes, time, dates) |
-| `src/utils/validation.test.ts` | Input validation (email, password, TOTP, files) |
-| `src/utils/console-forwarder.test.ts` | Dev mode console forwarding |
+| `src/utils/api-schemas.test.ts` | API response schema validation and parsing |
+| `src/utils/bionic.test.ts` | Bionic Reading formatting and state management |
 | `src/utils/captcha.test.ts` | hCaptcha integration |
+| `src/utils/console-forwarder.test.ts` | Dev mode console forwarding |
 | `src/utils/csrf.test.ts` | CSRF token handling |
+| `src/utils/dialog.test.ts` | Dialog utility (alerts, confirmations) |
+| `src/utils/dom.test.ts` | DOM utility and element lookup functions |
+| `src/utils/fetch-timeout.test.ts` | Fetch timeout error class and utilities |
+| `src/utils/form-errors.test.ts` | Form field error display and clearing |
+| `src/utils/form-validation.test.ts` | Form validation (blur handlers, password matching) |
+| `src/utils/format.test.ts` | Formatting utilities (bytes, time, dates) |
 | `src/utils/history.test.ts` | Undo/redo history management |
 | `src/utils/html.test.ts` | HTML escaping for XSS prevention |
+| `src/utils/nav-auth.test.ts` | Navigation auth check utilities |
+| `src/utils/playback-speed.test.ts` | Playback speed constants and persistence |
 | `src/utils/processing-speed.test.ts` | Transcription time estimation |
 | `src/utils/session.test.ts` | Session and upload session management |
+| `src/utils/speed-control.test.ts` | Speed control utility and cleanup |
+| `src/utils/subtitles.test.ts` | Subtitle format generation (SRT, VTT, JSON) |
+| `src/utils/validation.test.ts` | Input validation (email, password, TOTP, files) |
 
 ### Test Categories
 
