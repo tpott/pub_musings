@@ -8,6 +8,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEST_VIDEO_PATH = path.join(__dirname, 'fixtures/test-video.mp4');
 
+// Accept cookie consent before tests to prevent the banner from blocking interactions
+async function acceptCookies(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem('subtitler:cookie_consent', 'accepted');
+  });
+}
+
 // Ensure test video fixture exists (generate with ffmpeg if missing)
 // The test video is gitignored (*.mp4) so we generate it on demand
 function ensureTestVideo(): void {
@@ -90,6 +97,7 @@ test.describe('Upload Flow', () => {
   });
 
   test('should accept video file via file input', async ({ page }) => {
+    await acceptCookies(page);
     await page.goto('/upload');
 
     // Upload file
@@ -118,6 +126,7 @@ test.describe('Full Upload-to-Download Flow', () => {
     // Set a longer timeout for this test (transcription can take time)
     test.setTimeout(180000);
 
+    await acceptCookies(page);
     await page.goto('/upload');
 
     // Step 1: Upload the video file
@@ -166,9 +175,9 @@ test.describe('Full Upload-to-Download Flow', () => {
       const downloadSrt = page.locator('#downloadSrt');
       await expect(downloadSrt).toBeVisible();
 
-      // Download SRT should work (will be empty but valid)
+      // Download SRT button should be present (uses client-side viewer)
       const href = await downloadSrt.getAttribute('href');
-      expect(href).toMatch(/\/api\/videos\/[a-zA-Z0-9]+\/subtitles\.srt/);
+      expect(href).toBe('#');
 
       console.log('Test completed successfully (empty transcription case)');
       return;
@@ -222,18 +231,20 @@ test.describe('Full Upload-to-Download Flow', () => {
     const downloadSrt = page.locator('#downloadSrt');
     await expect(downloadSrt).toBeVisible();
 
-    // Verify download link has correct href pattern
+    // Download buttons now use href="#" with client-side JS handlers
     const href = await downloadSrt.getAttribute('href');
-    expect(href).toMatch(/\/api\/videos\/[a-zA-Z0-9]+\/subtitles\.srt/);
+    expect(href).toBe('#');
 
-    // Trigger download and verify response (without actually downloading file)
-    const [downloadPromise] = await Promise.all([
-      page.waitForEvent('download'),
-      downloadSrt.click()
+    // Click SRT button - opens viewer in new tab
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      downloadSrt.click(),
     ]);
 
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/\.srt$/);
+    await popup.waitForLoadState();
+    const popupContent = await popup.content();
+    expect(popupContent).toContain('E2E TEST EDIT');
+    await popup.close();
 
     console.log('Full upload-to-download flow completed successfully!');
   });
@@ -266,7 +277,7 @@ test.describe('Upload Page Elements', () => {
   test('should have paste transcript section', async ({ page }) => {
     await page.goto('/upload');
 
-    const pasteTranscript = page.locator('#pasteTranscript');
+    const pasteTranscript = page.locator('#pasteTranscriptSection');
     const pasteText = page.locator('#pasteText');
     const lyricsMode = page.locator('#lyricsMode');
     const alignBtn = page.locator('#alignBtn');

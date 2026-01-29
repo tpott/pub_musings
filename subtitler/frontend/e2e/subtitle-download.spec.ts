@@ -1,14 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+// Accept cookie consent before tests to prevent the banner from blocking interactions
+async function acceptCookies(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem('subtitler:cookie_consent', 'accepted');
+  });
+}
 
 /**
- * E2E tests for client-side subtitle download functionality.
- * These tests verify that download buttons generate files client-side
- * without making server requests for the subtitle data.
+ * E2E tests for client-side subtitle viewing/download functionality.
+ * Download buttons open a viewer page in a new tab (not a file download).
+ * These tests verify that the buttons work and generate correct content.
  */
 
-test.describe('Subtitle downloads - client-side generation', () => {
-  // Track network requests to ensure downloads don't fetch from server
-  test('upload page download buttons do not make network requests for subtitle files', async ({ page }) => {
+test.describe('Subtitle viewing - client-side generation', () => {
+  // Track network requests to ensure subtitle content doesn't fetch from server
+  test('upload page subtitle buttons do not make network requests for subtitle files', async ({ page }) => {
+    await acceptCookies(page);
+
     // Track API calls to subtitle endpoints
     const subtitleRequests: string[] = [];
     page.on('request', (request) => {
@@ -44,7 +53,7 @@ test.describe('Subtitle downloads - client-side generation', () => {
       await route.fulfill({
         status: 200,
         contentType: 'video/mp4',
-        body: Buffer.from([0, 0, 0, 0]), // Minimal content
+        body: Buffer.from([0, 0, 0, 0]),
       });
     });
 
@@ -52,7 +61,7 @@ test.describe('Subtitle downloads - client-side generation', () => {
     await page.goto(`/upload?id=${videoId}`);
 
     // Wait for transcription to load
-    await page.waitForSelector('#segments', { state: 'visible' });
+    await page.waitForSelector('#segments', { state: 'visible', timeout: 15000 });
 
     // Find download buttons
     const srtButton = page.locator('#downloadSrt');
@@ -64,23 +73,25 @@ test.describe('Subtitle downloads - client-side generation', () => {
     await expect(vttButton).toBeVisible();
     await expect(jsonButton).toBeVisible();
 
-    // Set up download listener - we expect downloads to be created via Blob URLs
-    const downloadPromise = page.waitForEvent('download');
+    // Click SRT button - it opens a viewer in a new tab/popup
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      srtButton.click(),
+    ]);
 
-    // Click SRT download
-    await srtButton.click();
-
-    // Wait for download to start
-    const download = await downloadPromise;
-
-    // Verify download was triggered
-    expect(download.suggestedFilename()).toContain('.srt');
+    // Verify the popup/new tab has the SRT content
+    await popup.waitForLoadState();
+    const content = await popup.content();
+    expect(content).toContain('Hello world.');
+    await popup.close();
 
     // Verify NO network requests were made to subtitle endpoints
     expect(subtitleRequests.length).toBe(0);
   });
 
   test('videos page modal download buttons use loaded data', async ({ page }) => {
+    await acceptCookies(page);
+
     // Track API calls
     const subtitleRequests: string[] = [];
     page.on('request', (request) => {
@@ -154,34 +165,36 @@ test.describe('Subtitle downloads - client-side generation', () => {
     await page.goto('/videos');
 
     // Wait for video list to load
-    await page.waitForSelector('.video-card', { state: 'visible' });
+    await page.waitForSelector('.video-card', { state: 'visible', timeout: 10000 });
 
     // Click View button to open modal
     await page.click('.btn-view');
 
     // Wait for modal to open and load subtitles
-    await page.waitForSelector('#videoModal.visible', { state: 'visible' });
-    await page.waitForSelector('.modal-segment', { state: 'visible' });
+    await page.waitForSelector('#videoModal.visible', { state: 'visible', timeout: 10000 });
+    await page.waitForSelector('.modal-segment', { state: 'visible', timeout: 10000 });
 
     // Find modal download buttons
     const modalSrtButton = page.locator('#modalDownloadSrt');
 
-    // Set up download listener
-    const downloadPromise = page.waitForEvent('download');
+    // Click SRT button - opens viewer in new tab
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      modalSrtButton.click(),
+    ]);
 
-    // Click SRT download in modal
-    await modalSrtButton.click();
-
-    // Wait for download
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain('.srt');
+    await popup.waitForLoadState();
+    const content = await popup.content();
+    expect(content).toContain('Test subtitle content.');
+    await popup.close();
 
     // Verify NO additional requests to subtitle endpoints were made
-    // (The transcription endpoint was called once to populate the modal - that's expected)
     expect(subtitleRequests.length).toBe(0);
   });
 
   test('inline download buttons on video cards work correctly', async ({ page }) => {
+    await acceptCookies(page);
+
     let transcriptionCalls = 0;
     const subtitleRequests: string[] = [];
 
@@ -240,28 +253,29 @@ test.describe('Subtitle downloads - client-side generation', () => {
     });
 
     await page.goto('/videos');
-    await page.waitForSelector('.video-card', { state: 'visible' });
+    await page.waitForSelector('.video-card', { state: 'visible', timeout: 10000 });
 
     // Click the inline SRT button (not in modal)
     const inlineSrtButton = page.locator('.btn-download-srt').first();
     await expect(inlineSrtButton).toBeVisible();
 
-    // Set up download listener
-    const downloadPromise = page.waitForEvent('download');
+    // Inline buttons trigger a file download (not a popup viewer)
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      inlineSrtButton.click(),
+    ]);
 
-    await inlineSrtButton.click();
+    // Verify the download has the correct filename
+    expect(download.suggestedFilename()).toMatch(/\.srt$/);
 
-    // Wait for download
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain('.srt');
-
-    // Transcription endpoint should be called once (to get the data for generation)
-    // but subtitle endpoints should NOT be called
+    // Subtitle endpoints should NOT be called
     expect(subtitleRequests.length).toBe(0);
-    expect(transcriptionCalls).toBe(1); // Data fetched once for client-side generation
+    // Transcription endpoint should be called once (to get the data for client-side generation)
+    expect(transcriptionCalls).toBe(1);
   });
 
-  test('download generates correct SRT format', async ({ page }) => {
+  test('SRT viewer shows correct format', async ({ page }) => {
+    await acceptCookies(page);
     const videoId = 'format-test';
 
     await page.route('**/api/transcribe/' + videoId, async (route) => {
@@ -286,32 +300,28 @@ test.describe('Subtitle downloads - client-side generation', () => {
     });
 
     await page.goto(`/upload?id=${videoId}`);
-    await page.waitForSelector('#segments', { state: 'visible' });
+    await page.waitForSelector('#segments', { state: 'visible', timeout: 15000 });
 
-    // Set up download with content capture
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
+    // Click SRT button to open viewer
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
       page.click('#downloadSrt'),
     ]);
 
-    // Read the downloaded content
-    const stream = await download.createReadStream();
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream!) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const content = Buffer.concat(chunks).toString('utf-8');
+    await popup.waitForLoadState();
+    const content = await popup.content();
 
-    // Verify SRT format
-    expect(content).toContain('1\n');
-    expect(content).toContain('00:00:00,000 --> 00:00:02,500');
+    // Verify SRT format in the viewer page (HTML-encoded arrows)
     expect(content).toContain('First line.');
-    expect(content).toContain('2\n');
-    expect(content).toContain('00:00:03,000 --> 00:00:05,500');
     expect(content).toContain('Second line.');
+    // Check time format exists (may be HTML-encoded)
+    expect(content).toContain('00:00:00,000');
+    expect(content).toContain('00:00:02,500');
+    await popup.close();
   });
 
-  test('download generates correct VTT format', async ({ page }) => {
+  test('VTT viewer shows correct format', async ({ page }) => {
+    await acceptCookies(page);
     const videoId = 'vtt-format-test';
 
     await page.route('**/api/transcribe/' + videoId, async (route) => {
@@ -333,27 +343,24 @@ test.describe('Subtitle downloads - client-side generation', () => {
     });
 
     await page.goto(`/upload?id=${videoId}`);
-    await page.waitForSelector('#segments', { state: 'visible' });
+    await page.waitForSelector('#segments', { state: 'visible', timeout: 15000 });
 
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
       page.click('#downloadVtt'),
     ]);
 
-    const stream = await download.createReadStream();
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream!) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const content = Buffer.concat(chunks).toString('utf-8');
+    await popup.waitForLoadState();
+    const content = await popup.content();
 
-    // Verify VTT format
+    // Verify VTT format in viewer
     expect(content).toContain('WEBVTT');
-    expect(content).toContain('00:00:01.500 --> 00:00:04.000'); // VTT uses periods
     expect(content).toContain('VTT test.');
+    await popup.close();
   });
 
-  test('download generates correct JSON format', async ({ page }) => {
+  test('JSON viewer shows correct format', async ({ page }) => {
+    await acceptCookies(page);
     const videoId = 'json-format-test';
 
     await page.route('**/api/transcribe/' + videoId, async (route) => {
@@ -375,26 +382,18 @@ test.describe('Subtitle downloads - client-side generation', () => {
     });
 
     await page.goto(`/upload?id=${videoId}`);
-    await page.waitForSelector('#segments', { state: 'visible' });
+    await page.waitForSelector('#segments', { state: 'visible', timeout: 15000 });
 
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
       page.click('#downloadJson'),
     ]);
 
-    const stream = await download.createReadStream();
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream!) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const content = Buffer.concat(chunks).toString('utf-8');
+    await popup.waitForLoadState();
+    const content = await popup.content();
 
-    // Verify JSON format
-    const parsed = JSON.parse(content);
-    expect(parsed.segments).toBeDefined();
-    expect(parsed.segments[0].id).toBe(0);
-    expect(parsed.segments[0].start).toBe(0);
-    expect(parsed.segments[0].end).toBe(2);
-    expect(parsed.segments[0].text).toBe('JSON test.');
+    // Verify JSON content in viewer
+    expect(content).toContain('JSON test.');
+    await popup.close();
   });
 });

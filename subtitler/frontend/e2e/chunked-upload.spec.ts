@@ -8,6 +8,13 @@ const __dirname = path.dirname(__filename);
 const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 const LARGE_VIDEO_PATH = path.join(FIXTURES_DIR, 'large-test-video.mp4');
 
+// Accept cookie consent before tests to prevent the banner from blocking interactions
+async function acceptCookies(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem('subtitler:cookie_consent', 'accepted');
+  });
+}
+
 // Create a moderately sized test file that triggers chunked upload (>50MB)
 // We'll create a ~55MB file for testing
 const LARGE_FILE_SIZE = 55 * 1024 * 1024; // 55 MB
@@ -35,11 +42,12 @@ test.describe('Chunked Upload Flow', () => {
   // This test mocks the chunked upload API responses to verify the frontend logic
   // without requiring an actual large file or processing time
   test('should initiate chunked upload for files larger than 50MB', async ({ page }) => {
+    await acceptCookies(page);
     // Track API calls
     const apiCalls: { url: string; method: string; body?: string }[] = [];
 
     // Mock chunked upload endpoints
-    await page.route('**/api/upload/init', async (route: Route) => {
+    await page.route('**/api/upload/init*', async (route: Route) => {
       const request = route.request();
       apiCalls.push({
         url: request.url(),
@@ -67,7 +75,7 @@ test.describe('Chunked Upload Flow', () => {
     });
 
     let chunkUploads = 0;
-    await page.route('**/api/upload/chunk', async (route: Route) => {
+    await page.route('**/api/upload/chunk*', async (route: Route) => {
       const request = route.request();
       chunkUploads++;
 
@@ -89,7 +97,7 @@ test.describe('Chunked Upload Flow', () => {
       });
     });
 
-    await page.route('**/api/upload/complete', async (route: Route) => {
+    await page.route('**/api/upload/complete*', async (route: Route) => {
       const request = route.request();
       apiCalls.push({
         url: request.url(),
@@ -167,11 +175,12 @@ test.describe('Chunked Upload Flow', () => {
   });
 
   test('should show chunk progress during upload', async ({ page }) => {
+    await acceptCookies(page);
     // Track progress updates
     const progressUpdates: string[] = [];
 
     // Mock chunked upload with delayed responses to observe progress
-    await page.route('**/api/upload/init', async (route: Route) => {
+    await page.route('**/api/upload/init*', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -185,7 +194,7 @@ test.describe('Chunked Upload Flow', () => {
     });
 
     let chunkIndex = 0;
-    await page.route('**/api/upload/chunk', async (route: Route) => {
+    await page.route('**/api/upload/chunk*', async (route: Route) => {
       // Add small delay to observe progress
       await new Promise(r => setTimeout(r, 100));
 
@@ -202,7 +211,7 @@ test.describe('Chunked Upload Flow', () => {
       });
     });
 
-    await page.route('**/api/upload/complete', async (route: Route) => {
+    await page.route('**/api/upload/complete*', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -261,8 +270,9 @@ test.describe('Chunked Upload Flow', () => {
   });
 
   test('should handle chunk upload failure gracefully', async ({ page }) => {
+    await acceptCookies(page);
     // Mock init success but chunk failure
-    await page.route('**/api/upload/init', async (route: Route) => {
+    await page.route('**/api/upload/init*', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -275,7 +285,7 @@ test.describe('Chunked Upload Flow', () => {
       });
     });
 
-    await page.route('**/api/upload/chunk', async (route: Route) => {
+    await page.route('**/api/upload/chunk*', async (route: Route) => {
       // Fail the chunk upload
       await route.fulfill({
         status: 500,
@@ -317,8 +327,9 @@ test.describe('Chunked Upload Flow', () => {
   });
 
   test('should store session ID in localStorage for resumability', async ({ page }) => {
+    await acceptCookies(page);
     // Mock chunked upload init
-    await page.route('**/api/upload/init', async (route: Route) => {
+    await page.route('**/api/upload/init*', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -332,7 +343,7 @@ test.describe('Chunked Upload Flow', () => {
     });
 
     // Mock chunk upload with delay
-    await page.route('**/api/upload/chunk', async (route: Route) => {
+    await page.route('**/api/upload/chunk*', async (route: Route) => {
       await new Promise(r => setTimeout(r, 500)); // Delay to give time to check localStorage
       await route.fulfill({
         status: 200,
@@ -391,9 +402,10 @@ test.describe('Chunked Upload Flow', () => {
 
 test.describe('Chunked Upload API Validation', () => {
   test('should send correct init request format', async ({ page }) => {
+    await acceptCookies(page);
     let initRequest: { filename: string; size: number; content_type: string; chunk_size: number } | null = null;
 
-    await page.route('**/api/upload/init', async (route: Route) => {
+    await page.route('**/api/upload/init*', async (route: Route) => {
       const request = route.request();
       initRequest = JSON.parse(request.postData() || '{}');
 
@@ -409,7 +421,7 @@ test.describe('Chunked Upload API Validation', () => {
       });
     });
 
-    await page.route('**/api/upload/chunk', async (route: Route) => {
+    await page.route('**/api/upload/chunk*', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

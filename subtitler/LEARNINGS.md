@@ -16,6 +16,46 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### 2026-01-29: E2E route mocks must include wildcard for query params
+
+**Problem:** Playwright `page.route('**/api/upload/init')` doesn't match `/api/upload/init?session_id=abc123`. Anonymous users get `?session_id=...` appended via `getSessionQueryUrl()`, so mocked routes didn't intercept requests.
+
+**Solution:** Always use `**/api/endpoint*` (trailing `*`) in route patterns to match URLs with query parameters. The `*` matches any characters except `/`, so it handles query strings.
+
+**Lesson:** When writing E2E tests with mocked routes, always add a trailing `*` to route patterns if the frontend might append query parameters (session_id, page, limit, etc.).
+
+---
+
+### 2026-01-29: Zod schema `.optional()` vs `.nullable()` for Go backends
+
+**Problem:** VideoSchema had `thumbnail_path: z.string().optional()` which accepts `undefined` but rejects `null`. Go backend serializes nil `*string` as JSON `null`, causing schema validation failure ("Invalid response format from server").
+
+**Solution:** Changed to `z.string().optional().nullable()` to accept both `undefined` and `null`.
+
+**Lesson:** When writing Zod schemas for Go API responses, use `.nullable()` for any field backed by a Go pointer type (`*string`, `*int`, etc.) since Go's JSON encoding sends `null` for nil pointers, not omitting the field.
+
+---
+
+### 2026-01-29: E2E cookie consent must use `page.addInitScript()`
+
+**Problem:** E2E tests failed because cookie consent banner blocked interactions. Setting localStorage after `page.goto()` was too late - the page JS had already read the value.
+
+**Solution:** Use `page.addInitScript(() => { localStorage.setItem('subtitler:cookie_consent', 'accepted'); })` BEFORE `page.goto()` so the value is set before any page JS runs.
+
+**Lesson:** For localStorage values that affect page initialization, always use `page.addInitScript()` which runs before any page scripts. This is more reliable than setting values after navigation.
+
+---
+
+### 2026-01-29: Videos page inline vs modal download buttons use different patterns
+
+**Problem:** Inline download buttons on video cards use `downloadSRT()` (triggers file download via Blob URL), while modal download buttons use `openSRT()` (opens viewer page in new tab). Tests using `page.waitForEvent('popup')` for inline buttons timed out.
+
+**Solution:** Use `page.waitForEvent('download')` for inline buttons, `page.waitForEvent('popup')` for modal buttons.
+
+**Lesson:** Check which JS function each button calls before writing E2E assertions. File downloads (`<a>` with `download` attribute) emit 'download' events; `window.open()` calls emit 'popup' events.
+
+---
+
 ### 2026-01-29: E2E tests need explicit Go path in Playwright config
 
 **Problem:** Playwright's `webServer` config runs `go run main.go` but `go` wasn't in PATH for the child process. The E2E tests failed with "go: not found".

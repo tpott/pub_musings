@@ -99,7 +99,7 @@ export const VideoSchema = z.object({
 	session_id: z.string().optional(),
 	transcription_status: z.string().optional(),
 	expires_at: z.string().optional().nullable(),
-	thumbnail_path: z.string().optional(),
+	thumbnail_path: z.string().optional().nullable(),
 	embedded_subtitles: z.array(EmbeddedSubtitleTrackSchema).optional(),
 });
 

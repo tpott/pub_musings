@@ -170,7 +170,9 @@ async function capturePage(
   }
 }
 
-test.describe('Design Template Capture', () => {
+// Skip: These tests capture external websites and depend on network access.
+// They are not suitable for pre-commit or CI - run manually when needed.
+test.describe.skip('Design Template Capture', () => {
   let browser: Browser;
 
   test.beforeAll(async () => {
