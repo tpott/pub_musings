@@ -21,6 +21,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | **Script Conversion** | 10 requests | 1 minute | Script detection, Text conversion |
 | **Metrics** | 10 requests | 1 minute | Prometheus metrics endpoint |
 | **Feedback** | 5 requests | 1 minute | User feedback submission and admin management |
+| **Log** | 30 requests | 1 minute | Frontend log forwarding |
 
 ## Endpoints by Category
 
@@ -102,6 +103,14 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | `PATCH /api/admin/feedback/{id}` | Update feedback status (admin only) |
 
 **Note**: All feedback endpoints share the same rate limit. Admin endpoints require admin role authentication. Requires authentication via API key (`X-Metrics-API-Key` header or `api_key` query param) or valid user session.
+
+### Log (30 req/min)
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/log` | Forward frontend console logs to backend |
+
+**Note**: Rate limited to prevent log spam and DoS via unlimited log submissions.
 
 ## Error Response
 
@@ -209,6 +218,7 @@ var burnLimiter = ratelimit.New(2, time.Minute)             // Burn: 2/min
 var scriptLimiter = ratelimit.New(10, time.Minute)          // Script: 10/min
 var metricsLimiter = ratelimit.New(10, time.Minute)         // Metrics: 10/min
 var feedbackLimiter = ratelimit.New(5, time.Minute)         // Feedback: 5/min
+var logLimiter = ratelimit.New(30, time.Minute)             // Log: 30/min
 ```
 
 These values can be adjusted based on server capacity and usage patterns.

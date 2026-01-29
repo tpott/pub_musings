@@ -72,6 +72,8 @@ const (
 	defaultMetricsRateWindow      = time.Minute
 	defaultFeedbackRateLimit      = 5
 	defaultFeedbackRateWindow     = time.Minute
+	defaultLogRateLimit           = 30
+	defaultLogRateWindow          = time.Minute
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
@@ -119,6 +121,8 @@ var (
 	metricsRateWindow      time.Duration
 	feedbackRateLimit      int
 	feedbackRateWindow     time.Duration
+	logRateLimit           int
+	logRateWindow          time.Duration
 
 	// Chunked upload configuration
 	chunkSize     int64
@@ -326,6 +330,7 @@ func initConfig() {
 	userRateLimit, userRateWindow = getEnvRateLimitOrDefault("USER_RATE_LIMIT", defaultUserRateLimit, defaultUserRateWindow)
 	metricsRateLimit, metricsRateWindow = getEnvRateLimitOrDefault("METRICS_RATE_LIMIT", defaultMetricsRateLimit, defaultMetricsRateWindow)
 	feedbackRateLimit, feedbackRateWindow = getEnvRateLimitOrDefault("FEEDBACK_RATE_LIMIT", defaultFeedbackRateLimit, defaultFeedbackRateWindow)
+	logRateLimit, logRateWindow = getEnvRateLimitOrDefault("LOG_RATE_LIMIT", defaultLogRateLimit, defaultLogRateWindow)
 
 	// Chunked upload configuration
 	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)
@@ -402,6 +407,7 @@ var chunkLimiter *ratelimit.Limiter
 var downloadLimiter *ratelimit.Limiter
 var metricsLimiter *ratelimit.Limiter
 var feedbackLimiter *ratelimit.Limiter
+var logLimiter *ratelimit.Limiter
 var userLimiter *ratelimit.UserLimiter
 
 // initRateLimiters creates rate limiters based on configuration
@@ -417,6 +423,7 @@ func initRateLimiters() {
 	downloadLimiter = ratelimit.New(downloadRateLimit, downloadRateWindow)
 	metricsLimiter = ratelimit.New(metricsRateLimit, metricsRateWindow)
 	feedbackLimiter = ratelimit.New(feedbackRateLimit, feedbackRateWindow)
+	logLimiter = ratelimit.New(logRateLimit, logRateWindow)
 	userLimiter = ratelimit.NewUserLimiter(userRateLimit, userRateWindow)
 
 	// Set up rate limit security event logging
@@ -1366,7 +1373,7 @@ func main() {
 	}))
 
 	// Frontend log forwarding endpoint (for dev mode debugging)
-	mux.HandleFunc("POST /api/log", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/log", logLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 
 		// Parse request body
 		var req struct {
@@ -1401,7 +1408,7 @@ func main() {
 		logging.DebugContext(r.Context(), "Frontend log", attrs...)
 
 		httputil.RespondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
+	}))
 
 	// Feedback submission endpoint (rate limited)
 	mux.HandleFunc("POST /api/feedback", feedbackLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
