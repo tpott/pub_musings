@@ -1257,7 +1257,9 @@ import '../styles/theme.css';
 			function activateSegment(segmentEl: HTMLElement) {
 				const start = parseFloat(segmentEl.getAttribute('data-start') || '0');
 				modalVideo.currentTime = start;
-				modalVideo.play();
+				modalVideo.play().catch(() => {
+					// Suppress play() rejections (e.g. NotAllowedError before user gesture)
+				});
 			}
 
 			modalSegments.addEventListener('click', (e) => {

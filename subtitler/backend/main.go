@@ -4076,7 +4076,9 @@ func main() {
 				logging.ErrorContext(r.Context(), "Error creating transcription record", "error", err)
 			}
 		} else {
-			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
+			if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10); err != nil {
+				logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+			}
 		}
 
 		// Process in background (capture language and key version in closure)
@@ -4086,14 +4088,18 @@ func main() {
 				if r := recover(); r != nil {
 					logging.Error("Panic in transcription goroutine", "upload_id", uploadID, "panic", r)
 					metrics.RecordTranscriptionFailed()
-					database.FailTranscription(uploadID, "Internal error: transcription process crashed")
+					if err := database.FailTranscription(uploadID, "Internal error: transcription process crashed"); err != nil {
+						logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+					}
 				}
 			}()
 
 			// Check for shutdown before starting
 			if isShuttingDown() {
 				logging.Info("Transcription cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailTranscription(uploadID, "Server shutting down - transcription interrupted")
+				if err := database.FailTranscription(uploadID, "Server shutting down - transcription interrupted"); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -4104,44 +4110,58 @@ func main() {
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
 			if strings.HasSuffix(videoPath, ".age") {
-				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
+				if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5); err != nil {
+					logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+				}
 				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
 					metrics.RecordTranscriptionFailed()
-					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
+					if err := database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err)); err != nil {
+						logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+					}
 					return
 				}
 				workingVideoPath = decryptedPath
-				defer os.Remove(decryptedPath) // Clean up decrypted file when done
+				defer removeWithLogging(decryptedPath, "decrypted video cleanup after transcription")
 			}
 
 			// Check for shutdown after decryption
 			if isShuttingDown() {
 				logging.Info("Transcription cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailTranscription(uploadID, "Server shutting down - transcription interrupted")
+				if err := database.FailTranscription(uploadID, "Server shutting down - transcription interrupted"); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
 			// Extract audio
-			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
+			if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10); err != nil {
+				logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+			}
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
 				logging.Error("Audio extraction failed", "error", err)
 				metrics.RecordTranscriptionFailed()
-				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
+				if err := database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err)); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
-			defer os.Remove(audioPath) // Clean up audio file when done (even on panic/error)
+			defer removeWithLogging(audioPath, "audio file cleanup after transcription")
 
 			// Check for shutdown after audio extraction
 			if isShuttingDown() {
 				logging.Info("Transcription cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailTranscription(uploadID, "Server shutting down - transcription interrupted")
+				if err := database.FailTranscription(uploadID, "Server shutting down - transcription interrupted"); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
-			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
+			if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30); err != nil {
+				logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+			}
 
 			// Start a goroutine to simulate progress updates during transcription
 			// Since whisper doesn't provide progress callbacks, we estimate based on time
@@ -4163,7 +4183,9 @@ func main() {
 						// Increment progress slowly from 30% to 90% during transcription
 						if progress < 90 {
 							progress += 5
-							database.UpdateTranscriptionStatus(uploadID, "processing", "Transcribing audio...", progress)
+							if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Transcribing audio...", progress); err != nil {
+								logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+							}
 						}
 					}
 				}
@@ -4177,7 +4199,9 @@ func main() {
 			if err != nil {
 				logging.Error("Transcription failed", "error", err)
 				metrics.RecordTranscriptionFailed()
-				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
+				if err := database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err)); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -4786,7 +4810,7 @@ func main() {
 			httputil.RespondError(w, http.StatusInternalServerError, "Failed to access video")
 			return
 		}
-		defer os.Remove(decryptedPath)
+		defer removeWithLogging(decryptedPath, "decrypted video cleanup after subtitle download")
 
 		// Extract the subtitle track
 		content, err := audio.ExtractSubtitleTrack(decryptedPath, trackIndex, format)
@@ -5046,7 +5070,9 @@ func main() {
 		keyVersion := video.KeyVersion
 
 		// Update transcription status to processing
-		database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
+		if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10); err != nil {
+			logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+		}
 
 		// Process in background (same logic as POST /api/transcribe/{id})
 		go func(kv int) {
@@ -5055,14 +5081,18 @@ func main() {
 				if r := recover(); r != nil {
 					logging.Error("Panic in reprocess goroutine", "upload_id", uploadID, "panic", r)
 					metrics.RecordTranscriptionFailed()
-					database.FailTranscription(uploadID, "Internal error: reprocess crashed")
+					if err := database.FailTranscription(uploadID, "Internal error: reprocess crashed"); err != nil {
+						logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+					}
 				}
 			}()
 
 			// Check for shutdown before starting
 			if isShuttingDown() {
 				logging.Info("Reprocess cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted")
+				if err := database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted"); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -5071,44 +5101,58 @@ func main() {
 			// Decrypt video file if encrypted
 			workingVideoPath := videoPath
 			if strings.HasSuffix(videoPath, ".age") {
-				database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5)
+				if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Decrypting video...", 5); err != nil {
+					logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+				}
 				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
 					metrics.RecordTranscriptionFailed()
-					database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
+					if err := database.FailTranscription(uploadID, fmt.Sprintf("Video decryption failed: %v", err)); err != nil {
+						logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+					}
 					return
 				}
 				workingVideoPath = decryptedPath
-				defer os.Remove(decryptedPath)
+				defer removeWithLogging(decryptedPath, "decrypted video cleanup after reprocess")
 			}
 
 			// Check for shutdown after decryption
 			if isShuttingDown() {
 				logging.Info("Reprocess cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted")
+				if err := database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted"); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
 			// Extract audio
-			database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10)
+			if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Extracting audio...", 10); err != nil {
+				logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+			}
 			audioPath := filepath.Join(uploadDir, uploadID+".wav")
 			if err := audioExtractor.ExtractAudio(workingVideoPath, audioPath); err != nil {
 				logging.Error("Audio extraction failed", "error", err)
 				metrics.RecordTranscriptionFailed()
-				database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err))
+				if err := database.FailTranscription(uploadID, fmt.Sprintf("Audio extraction failed: %v", err)); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
-			defer os.Remove(audioPath) // Clean up audio file when done (even on panic/error)
+			defer removeWithLogging(audioPath, "audio file cleanup after reprocess")
 
 			// Check for shutdown after audio extraction
 			if isShuttingDown() {
 				logging.Info("Reprocess cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted")
+				if err := database.FailTranscription(uploadID, "Server shutting down - reprocess interrupted"); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
-			database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30)
+			if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Running transcription...", 30); err != nil {
+				logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+			}
 
 			// Start progress simulation goroutine
 			// Use context for cancellation so it's safe to call cancel multiple times
@@ -5127,7 +5171,9 @@ func main() {
 					case <-ticker.C:
 						if progress < 90 {
 							progress += 5
-							database.UpdateTranscriptionStatus(uploadID, "processing", "Transcribing audio...", progress)
+							if err := database.UpdateTranscriptionStatus(uploadID, "processing", "Transcribing audio...", progress); err != nil {
+								logging.Error("Failed to update transcription status", "video_id", uploadID, "error", err)
+							}
 						}
 					}
 				}
@@ -5141,7 +5187,9 @@ func main() {
 			if err != nil {
 				logging.Error("Transcription failed", "error", err)
 				metrics.RecordTranscriptionFailed()
-				database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err))
+				if err := database.FailTranscription(uploadID, fmt.Sprintf("Transcription failed: %v", err)); err != nil {
+					logging.Error("Failed to mark transcription as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -5213,7 +5261,7 @@ func main() {
 				httputil.RespondError(w, http.StatusInternalServerError, "Failed to decrypt video")
 				return
 			}
-			defer os.Remove(decryptedPath)
+			defer removeWithLogging(decryptedPath, "decrypted video cleanup after download")
 			videoPath = decryptedPath
 		}
 
@@ -5302,7 +5350,7 @@ func main() {
 				httputil.RespondError(w, http.StatusInternalServerError, "Failed to decrypt thumbnail")
 				return
 			}
-			defer os.Remove(decryptedPath)
+			defer removeWithLogging(decryptedPath, "decrypted file cleanup after thumbnail download")
 			thumbPath = decryptedPath
 		}
 
@@ -5366,7 +5414,7 @@ func main() {
 					httputil.RespondJSON(w, http.StatusOK, result)
 					return
 				}
-				defer os.Remove(decryptedPath)
+				defer removeWithLogging(decryptedPath, "decrypted video cleanup after language hints")
 				videoPath = decryptedPath
 			} else {
 				videoPath = video.FilePath
@@ -5471,7 +5519,9 @@ func main() {
 				logging.ErrorContext(r.Context(), "Error creating burn job", "error", err)
 			}
 		} else {
-			database.UpdateBurnJobStatus(uploadID, "processing", "Starting subtitle burn...", 0)
+			if err := database.UpdateBurnJobStatus(uploadID, "processing", "Starting subtitle burn...", 0); err != nil {
+				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+			}
 		}
 
 		// Process in background (capture key version and burn mode)
@@ -5480,14 +5530,18 @@ func main() {
 			defer func() {
 				if r := recover(); r != nil {
 					logging.Error("Panic in burn goroutine", "upload_id", uploadID, "panic", r)
-					database.FailBurnJob(uploadID, "Internal error: burn process crashed")
+					if err := database.FailBurnJob(uploadID, "Internal error: burn process crashed"); err != nil {
+						logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+					}
 				}
 			}()
 
 			// Check for shutdown before starting
 			if isShuttingDown() {
 				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailBurnJob(uploadID, "Server shutting down - burn interrupted")
+				if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -5496,21 +5550,27 @@ func main() {
 			// Decrypt video if encrypted
 			workingVideoPath := videoPath
 			if strings.HasSuffix(videoPath, ".age") {
-				database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5)
+				if err := database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5); err != nil {
+					logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+				}
 				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
 				if err != nil {
 					logging.Error("Video decryption failed", "error", err)
-					database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err))
+					if err := database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err)); err != nil {
+						logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+					}
 					return
 				}
 				workingVideoPath = decryptedPath
-				defer os.Remove(decryptedPath)
+				defer removeWithLogging(decryptedPath, "decrypted video cleanup after burn")
 			}
 
 			// Check for shutdown after decryption
 			if isShuttingDown() {
 				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailBurnJob(uploadID, "Server shutting down - burn interrupted")
+				if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -5518,11 +5578,15 @@ func main() {
 			segments, err := transcription.GetSegments()
 			if err != nil || len(segments) == 0 {
 				logging.Error("No segments available", "error", err)
-				database.FailBurnJob(uploadID, "No subtitle segments available")
+				if err := database.FailBurnJob(uploadID, "No subtitle segments available"); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
-			database.UpdateBurnJobStatus(uploadID, "processing", "Generating subtitles...", 10)
+			if err := database.UpdateBurnJobStatus(uploadID, "processing", "Generating subtitles...", 10); err != nil {
+				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+			}
 
 			// Convert to WhisperResult for SRT generation
 			whisperResult := &WhisperResult{
@@ -5545,27 +5609,33 @@ func main() {
 			srtPath := filepath.Join(uploadDir, uploadID+"_burn.srt")
 			if err := os.WriteFile(srtPath, []byte(srtContent), 0644); err != nil {
 				logging.Error("Failed to write SRT file", "error", err)
-				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to write SRT file: %v", err))
+				if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to write SRT file: %v", err)); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
-			defer os.Remove(srtPath)
+			defer removeWithLogging(srtPath, "temp SRT file cleanup after burn")
 
 			progressMsg := "Burning subtitles into video..."
 			if mode == "embed" {
 				progressMsg = "Embedding subtitle track..."
 			}
-			database.UpdateBurnJobStatus(uploadID, "processing", progressMsg, 20)
+			if err := database.UpdateBurnJobStatus(uploadID, "processing", progressMsg, 20); err != nil {
+				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+			}
 
 			// Output to a temp file first, then encrypt
 			outputPath := filepath.Join(uploadDir, uploadID+"_burned.mp4")
 			// Defer removal of unencrypted output file (cleaned up even on panic/error)
 			// Note: This is a no-op if the file doesn't exist or was already removed
-			defer os.Remove(outputPath)
+			defer removeWithLogging(outputPath, "unencrypted burn output cleanup")
 
 			// Check for shutdown before starting ffmpeg (the long-running operation)
 			if isShuttingDown() {
 				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
-				database.FailBurnJob(uploadID, "Server shutting down - burn interrupted")
+				if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
@@ -5647,7 +5717,9 @@ func main() {
 					case <-ticker.C:
 						if progress < 85 {
 							progress += 5
-							database.UpdateBurnJobStatus(uploadID, "processing", statusMsg, progress)
+							if err := database.UpdateBurnJobStatus(uploadID, "processing", statusMsg, progress); err != nil {
+								logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+							}
 						}
 					}
 				}
@@ -5658,18 +5730,24 @@ func main() {
 
 			if err != nil {
 				logging.Error("ffmpeg burn subtitles failed", "error", err, "output", string(cmdOutput))
-				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err))
+				if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err)); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 
-			database.UpdateBurnJobStatus(uploadID, "processing", "Encrypting output...", 90)
+			if err := database.UpdateBurnJobStatus(uploadID, "processing", "Encrypting output...", 90); err != nil {
+				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+			}
 
 			// Encrypt the output file with current key version
 			encOutputPath, keyVersion, err := multiEnc.EncryptFile(outputPath)
 			if err != nil {
 				logging.Error("Failed to encrypt burned video", "error", err)
 				// Note: outputPath is cleaned up by defer above
-				database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err))
+				if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err)); err != nil {
+					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+				}
 				return
 			}
 			// Note: outputPath (unencrypted file) is cleaned up by defer above
@@ -5794,7 +5872,7 @@ func main() {
 				httputil.RespondError(w, http.StatusInternalServerError, "Failed to decrypt video")
 				return
 			}
-			defer os.Remove(decryptedPath)
+			defer removeWithLogging(decryptedPath, "decrypted video cleanup after subtitle extraction")
 			servePath = decryptedPath
 		}
 

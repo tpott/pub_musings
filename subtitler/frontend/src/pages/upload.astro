@@ -2904,7 +2904,9 @@ import '../styles/theme.css';
 
 						const start = parseFloat(el.getAttribute('data-start') || '0');
 						previewVideo.currentTime = start;
-						previewVideo.play();
+						previewVideo.play().catch(() => {
+							// Suppress play() rejections (e.g. NotAllowedError before user gesture)
+						});
 					});
 				});
 
@@ -3377,7 +3379,9 @@ import '../styles/theme.css';
 					case ' ':  // Space: Play/Pause
 						e.preventDefault();
 						if (previewVideo.paused) {
-							previewVideo.play();
+							previewVideo.play().catch(() => {
+								// Suppress play() rejections (e.g. NotAllowedError before user gesture)
+							});
 						} else {
 							previewVideo.pause();
 						}
