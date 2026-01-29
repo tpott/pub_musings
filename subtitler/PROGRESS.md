@@ -4,9 +4,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**367 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**372 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Tasks 359-368)
+### Recent (Tasks 369-372)
+- Deep inspection round 2 filed 4 tasks (369-372); all resolved
+- Task 369: Wrapped 39 fire-and-forget database calls with error logging (UpdateTranscriptionStatus, FailTranscription, FailBurnJob, UpdateBurnJobStatus)
+- Task 370: Replaced all 11 bare `defer os.Remove()` with `removeWithLogging()` for consistent temp file cleanup logging
+- Task 371: Added `.catch()` to 3 `video.play()` calls to suppress NotAllowedError before user gesture
+- Task 372: Updated TESTING.md counts (578 backend/26 files, 495 frontend/20 files, 1073 total) and added 13 missing test file entries
+
+### Previous (Tasks 359-368)
 - Deep inspection filed 10 tasks (359-368); all resolved
 - Task 359: Added rate limiting to POST /api/log (30 req/min, configurable via LOG_RATE_LIMIT)
 - Task 360: Consolidated 14 local `decodeJSONBody` calls into `httputil.DecodeJSONBody`
