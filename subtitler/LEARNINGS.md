@@ -16,1083 +16,532 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
-### 2026-01-29: Python scripts should defer third-party imports for CLI usability
+## Backend
 
-**Problem:** `evaluate.py` imported `requests` and `yaml` at module level, so even `--help` and `--list` crashed with `ModuleNotFoundError` when deps weren't installed.
+### Go net/http: Content-Type must be set before WriteHeader
 
-**Solution:** Moved `requests`, `yaml`, and `jiwer` imports into a `_ensure_imports()` function called only before evaluation work begins. `--help` and `--list` use only stdlib (`pathlib`, `argparse`).
+**Problem:** Headers set after `w.WriteHeader()` are silently ignored. 9 handlers had wrong ordering.
 
-**Lesson:** For Python CLI tools with optional or heavy dependencies, defer imports so basic subcommands (`--help`, `--list`) work without installing anything. Gate imports behind a function called only in the code paths that need them.
+**Solution:** Use `httputil.RespondJSON()`/`httputil.RespondError()` which handle this correctly. After Task 349, all handlers use httputil.
 
----
-
-### 2026-01-29: E2E route mocks must include wildcard for query params
-
-**Problem:** Playwright `page.route('**/api/upload/init')` doesn't match `/api/upload/init?session_id=abc123`. Anonymous users get `?session_id=...` appended via `getSessionQueryUrl()`, so mocked routes didn't intercept requests.
-
-**Solution:** Always use `**/api/endpoint*` (trailing `*`) in route patterns to match URLs with query parameters. The `*` matches any characters except `/`, so it handles query strings.
-
-**Lesson:** When writing E2E tests with mocked routes, always add a trailing `*` to route patterns if the frontend might append query parameters (session_id, page, limit, etc.).
+**Lesson:** Always use httputil helpers for JSON responses. Never use `json.NewEncoder(w).Encode()` directly.
 
 ---
 
-### 2026-01-29: Zod schema `.optional()` vs `.nullable()` for Go backends
+### Go slog package requires initialization before use
 
-**Problem:** VideoSchema had `thumbnail_path: z.string().optional()` which accepts `undefined` but rejects `null`. Go backend serializes nil `*string` as JSON `null`, causing schema validation failure ("Invalid response format from server").
+**Problem:** Tests crashed with nil pointer because `logging.Init()` wasn't called in test setup.
 
-**Solution:** Changed to `z.string().optional().nullable()` to accept both `undefined` and `null`.
+**Solution:** Added `init()` function that sets `Logger = slog.Default()` if nil.
 
-**Lesson:** When writing Zod schemas for Go API responses, use `.nullable()` for any field backed by a Go pointer type (`*string`, `*int`, etc.) since Go's JSON encoding sends `null` for nil pointers, not omitting the field.
-
----
-
-### 2026-01-29: E2E cookie consent must use `page.addInitScript()`
-
-**Problem:** E2E tests failed because cookie consent banner blocked interactions. Setting localStorage after `page.goto()` was too late - the page JS had already read the value.
-
-**Solution:** Use `page.addInitScript(() => { localStorage.setItem('subtitler:cookie_consent', 'accepted'); })` BEFORE `page.goto()` so the value is set before any page JS runs.
-
-**Lesson:** For localStorage values that affect page initialization, always use `page.addInitScript()` which runs before any page scripts. This is more reliable than setting values after navigation.
+**Lesson:** Package-level loggers should have safe defaults via Go's `init()` function. Tests often skip initialization that production code relies on.
 
 ---
 
-### 2026-01-29: Videos page inline vs modal download buttons use different patterns
+### go.mod module path must match GitHub org
 
-**Problem:** Inline download buttons on video cards use `downloadSRT()` (triggers file download via Blob URL), while modal download buttons use `openSRT()` (opens viewer page in new tab). Tests using `page.waitForEvent('popup')` for inline buttons timed out.
+**Problem:** `go.mod` declared `github.com/trevor/subtitler/backend` but repo is under `github.com/tpott/`.
 
-**Solution:** Use `page.waitForEvent('download')` for inline buttons, `page.waitForEvent('popup')` for modal buttons.
+**Solution:** Global replace in go.mod and all .go files.
 
-**Lesson:** Check which JS function each button calls before writing E2E assertions. File downloads (`<a>` with `download` attribute) emit 'download' events; `window.open()` calls emit 'popup' events.
-
----
-
-### 2026-01-29: E2E tests need explicit Go path in Playwright config
-
-**Problem:** Playwright's `webServer` config runs `go run main.go` but `go` wasn't in PATH for the child process. The E2E tests failed with "go: not found".
-
-**Solution:** Changed `playwright.config.ts` to use `/home/trevor/go/bin/go run main.go` as the webServer command. Note: this is machine-specific but necessary for the test environment.
-
-**Lesson:** Playwright webServer commands run in a stripped-down environment. Always use absolute paths for tools that aren't guaranteed to be in the system PATH.
+**Lesson:** Check go.mod module path matches actual GitHub repository owner.
 
 ---
 
-### 2026-01-29: Pre-commit hook path must account for monorepo structure
+### Go binary name depends on directory
 
-**Problem:** `scripts/pre-commit` used `$(git rev-parse --show-toplevel)/scripts` to find lint/test scripts. But the git repo root is `/home/trevor/pub_musings` while scripts are in `/home/trevor/pub_musings/subtitler/scripts/`. The hook couldn't find `lint.sh` and failed every commit.
+**Problem:** `.gitignore` had `backend/subtitler` but `go build` produces `backend/backend` (named after directory).
 
-**Solution:** Changed path to `$(git rev-parse --show-toplevel)/subtitler/scripts`.
+**Solution:** Added both patterns to `.gitignore`.
 
-**Lesson:** When a project is a subdirectory of a larger git repo (monorepo), `git rev-parse --show-toplevel` returns the parent, not the project root. Always verify script paths work from the actual hook location.
-
----
-
-### 2026-01-29: CRITICAL - Playback speeds must be 0.8x, 0.9x, 1.0x ONLY
-
-**Problem:** The playback speed options have been expanded from 3 speeds to 6 speeds (0.5x through 2x) multiple times by different Ralph iterations. Each time the owner has reverted it. The root cause is that specs/playback-speed.md previously listed 6 speeds, so agents kept "fixing" the code to match the spec.
-
-**Solution:** Task 383 restricted speeds to [0.8, 0.9, 1.0] in all locations:
-- `playback-speed.ts`: PLAYBACK_SPEEDS array
-- `upload.astro` and `videos.astro`: HTML speed option buttons
-- `specs/playback-speed.md`: Updated with prominent warning
-- Tests: Added explicit regression tests that assert speeds do NOT include 0.5, 0.75, 1.25, 1.5, or 2.0
-
-**Lesson:**
-1. **DO NOT expand playback speeds** beyond 0.8x, 0.9x, 1.0x without explicit owner approval
-2. The owner considers 0.5x quality unacceptable and doesn't want faster-than-normal speeds
-3. When specs and user feedback conflict, user feedback wins
-4. Added regression tests that explicitly check forbidden values to catch future drift
-5. If a "fix" keeps getting reverted, the spec is wrong, not the code
+**Lesson:** Go builds name the binary after the directory by default.
 
 ---
 
-### 2026-01-28: Always use httputil helpers for JSON responses
+### Background goroutines need shutdown context checks
 
-**Problem:** main.go had 222 direct `json.NewEncoder(w).Encode()` calls mixed with 108 `httputil.RespondJSON/RespondError` calls. The direct calls lacked consistent Content-Type headers, error logging for encoding failures, and required manually managing `w.WriteHeader()` ordering.
+**Problem:** Long-running goroutines continued executing during server shutdown, leaving jobs stuck in "processing" state.
 
-**Solution:** Migrated all 222 direct calls to httputil helpers using an automated Python script. The script categorized each call (simple error, error with fmt.Sprintf, error with err.Error(), multi-key map, success response, variable encoding, deferred) and applied the appropriate replacement. Also removed 47 orphaned handler-level `Content-Type: application/json` lines that were now redundant.
+**Solution:** Added `isShuttingDown()` helper checking global `shutdownCtx`. Called at key checkpoints in transcription/burn goroutines. Progress simulation goroutines listen on `shutdownCtx.Done()`.
 
-**Lesson:** Always use `httputil.RespondError(w, status, msg)`, `httputil.RespondErrorf(w, status, fmt, args...)`, or `httputil.RespondJSON(w, status, data)` for JSON responses. Never use `json.NewEncoder(w).Encode()` directly in handlers. The httputil helpers correctly set Content-Type before WriteHeader and log encoding errors. For bulk migrations, an automated script with pattern categorization is more reliable than manual edits across 200+ call sites.
-
----
-
-### 2026-01-28: Go net/http Content-Type must be set before WriteHeader
-
-**Problem:** 9 out of 51 HTTP handlers in main.go called `w.WriteHeader()` then `json.NewEncoder(w).Encode()` without having set `Content-Type: application/json` first. In Go's net/http, headers set after WriteHeader are silently ignored, causing responses to use Go's auto-detected content type instead of explicit `application/json`.
-
-**Solution:** Added `w.Header().Set("Content-Type", "application/json")` as the first line of each affected handler, matching the pattern used by the majority of handlers. The handlers already using `httputil.RespondJSON()`/`httputil.RespondError()` were safe because those helpers set Content-Type internally.
-
-**Lesson:** When creating new HTTP handlers, use the httputil helpers (RespondJSON, RespondError) which handle Content-Type correctly. After Task 349, all handlers use httputil for JSON responses, making this a non-issue going forward.
+**Lesson:** Any background goroutine running longer than shutdown grace period (30s) needs periodic shutdown checks.
 
 ---
 
-### 2026-01-28: Claude Code session log structure
+### rand.Read error handling patterns in Go
 
-**Problem:** Needed to parse Claude Code logs for the ralph optimizer tool.
+**Problem:** Several places used `rand.Read()` without checking errors.
 
-**Solution:** Claude Code session logs are JSONL with `type` fields: `system` (init with session_id, model), `assistant` (messages with content arrays and usage tokens), `user` (tool results). Tool calls are in `message.content` with `type: "tool_use"`. Agent sub-session calls have `parent_tool_use_id` set.
+**Solution:** Different patterns by context: return error for ID generation, fall back to timestamp for request IDs, fail safely for CSRF, panic in tests.
 
-**Lesson:** Token usage is split across `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`. All three must be summed for total input tokens. Agent logs are in `$session_id/$agent_id.jsonl` subdirectories.
-
----
-
-### 2026-01-28: HTML hardcoded values must match TypeScript constants
-
-**Problem:** Speed toggle buttons in upload.astro and videos.astro hardcoded `data-speed="0.8"` and `data-speed="0.9"`, but the `PLAYBACK_SPEEDS` array had different values. The validation `PLAYBACK_SPEEDS.includes(speed)` silently rejected them, making the buttons non-functional.
-
-**Solution:** (SUPERSEDED by 2026-01-29 entry above) The correct speeds are [0.8, 0.9, 1.0] -- both HTML and TypeScript must match these values.
-
-**Lesson:** When HTML options are validated against a TypeScript constant array, always generate the HTML from the same source of truth, or at minimum ensure the values match. Duplicated constants between HTML and TS will drift.
+**Lesson:** Cryptographic random errors should be handled explicitly. Security-critical code should fail safely rather than continue with bad state.
 
 ---
 
-### 2026-01-28: go.mod module path must match GitHub org
+### Path validation: check BEFORE filepath.Clean
 
-**Problem:** `go.mod` declared `github.com/trevor/subtitler/backend` but the repo is under `github.com/tpott/`. All 17 Go files with internal imports used the wrong path.
+**Problem:** `filepath.Clean("uploads/../etc/passwd")` returns `"etc/passwd"` -- traversal normalized away before detection.
 
-**Solution:** Global replace of `github.com/trevor/` → `github.com/tpott/` in go.mod and all .go files.
+**Solution:** Check for `..` traversal patterns BEFORE calling `filepath.Clean()`, then normalize.
 
-**Lesson:** Check go.mod module path matches the actual GitHub repository owner. This affects all internal imports.
-
----
-
-### 2026-01-28: Background goroutines need shutdown context checks
-
-**Problem:** Long-running goroutines (transcription, burn) spawned via `go func()` continued executing during server shutdown. Jobs would get stuck in "processing" state if the server was killed, with no way for them to detect they should exit.
-
-**Solution:** Added `isShuttingDown()` helper that checks the global `shutdownCtx`:
-```go
-func isShuttingDown() bool {
-    select {
-    case <-shutdownCtx.Done():
-        return true
-    default:
-        return false
-    }
-}
-```
-
-Call at key checkpoints in goroutines (before expensive operations). Progress simulation goroutines should also listen on `shutdownCtx.Done()`.
-
-**Lesson:** Any background goroutine that can run longer than the shutdown grace period (30s) needs periodic shutdown checks. Check at: start of work, after each long operation (decryption, extraction, encoding), and in any polling loops via `select`.
+**Lesson:** `filepath.Clean()` removes evidence of traversal attempts. Always validate raw path first. Also handle relative paths from database with `filepath.Abs()`.
 
 ---
 
-### 2026-01-28: Flex display breaks bionic reading word spacing
+### FFmpeg subtitle embedding: burn vs embed modes
 
-**Problem:** Bionic reading uses `<strong>` tags to bold first portion of words: `<strong>He</strong>llo <strong>Wor</strong>ld`. When rendered inside a `display: flex` container, each text node and `<strong>` element becomes a separate flex item, causing word spacing to collapse.
+**Problem:** Burning subtitles was very slow (re-encodes entire video).
 
-**Solution:** Changed `.modal-current-subtitle` from flex to table display:
-```css
-.modal-current-subtitle {
-  display: table;
-  width: 100%;
-}
-.modal-current-subtitle-inner {
-  display: table-cell;
-  vertical-align: middle;
-}
-```
+**Solution:** Added two modes: `burn` (hardcode with `-vf subtitles`, slow but universal) and `embed` (soft subtitles with `-c:v copy -c:a copy -c:s mov_text`, fast).
 
-**Lesson:** Flex containers treat each child (including text nodes between inline elements) as a flex item. For content with inline formatting like `<strong>`, use block/table display instead of flex to preserve natural text flow.
+**Lesson:** `-c:v copy -c:a copy` avoids re-encoding. Always provide both options for user choice.
 
 ---
 
-### 2026-01-28: Blob URLs trigger downloads instead of display
+### FFmpeg font configuration for Indic scripts
 
-**Problem:** Using `window.open(blobURL)` with `text/plain` or `application/json` MIME types causes some browsers to download the file instead of displaying it in the tab.
+**Problem:** Hindi subtitles showed as empty boxes in burned videos.
 
-**Solution:** Wrap content in an HTML viewer page with syntax highlighting and a copy button:
-```typescript
-function createViewerHTML(content: string, title: string): string {
-  return `<!DOCTYPE html><html>...<pre>${escapeHtml(content)}</pre>...</html>`;
-}
-const html = createViewerHTML(content, 'Subtitles (SRT)');
-const blobUrl = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
-window.open(blobUrl, '_blank');
-```
+**Solution:** Added `SUBTITLE_FONT` env var for configuring fontconfig. Users must install appropriate fonts (e.g., Noto Sans Devanagari).
 
-**Lesson:** For "view in new tab" functionality, always serve as `text/html`. Browser behavior for blob URLs with other MIME types is inconsistent.
+**Lesson:** Font support is essential for international text. Make font config optional; document requirements clearly.
 
 ---
 
-### 2026-01-22: Ralph isn't creating new tasks in TASKS.jsonl
+### FFmpeg filter paths need escaping
 
-**Problem:** Ralph will run out of explicit TASKS and will start working on implicit ones
+**Problem:** Special characters in file paths (quotes, colons, brackets) break ffmpeg filter syntax.
 
-**Solution:** When Ralph is working on a problem and notices an issue that it can work around
-but should ideally address in the long term, ralph should add a new task to TASKS.jsonl. When
-Ralph is getting low on the number of "todo" tasks, Ralph should spend extra time studying
-current specs/, current code, current application behavior and then file new tasks to improve.
+**Solution:** Created `escapeFFmpegFilterPath()` to escape special chars. Also sanitize font name from `SUBTITLE_FONT` env var.
 
-**Lesson:** Ralph should always be improving itself!
+**Lesson:** FFmpeg filter strings have their own escaping rules separate from shell escaping.
 
 ---
 
-### 2026-01-26: hCaptcha CAPTCHA integration
+### Whisper error messages leak internal details
 
-**Problem:** Adding CAPTCHA to protect registration/login from bots.
+**Problem:** Raw error messages from whisper containing IPs, paths, and service names were returned to clients.
 
-**Solution:** Used hCaptcha (privacy-focused alternative to reCAPTCHA):
-1. Backend `captcha` package with `Verifier` interface (allows disabled/enabled/mock modes)
-2. `CAPTCHA_SITE_KEY` and `CAPTCHA_SECRET_KEY` env vars - both required to enable
-3. Frontend loads hCaptcha script dynamically only when needed
-4. For TOTP login flow, CAPTCHA only required on initial login, not on TOTP code entry (user already passed CAPTCHA)
-5. Frontend stores `captchaPassed` state to hide widget after successful validation
+**Solution:** Sanitize in `dbTranscriptionToStatus()`. Production mode returns generic message; verbose mode shows details.
 
-**Lesson:** Optional features should gracefully degrade. Using a Verifier interface with disabled/mock implementations makes testing easy and allows development without CAPTCHA keys.
+**Lesson:** Always audit what gets stored in database `message` fields -- these often get returned to clients. Use `errmsg` package pattern consistently.
 
 ---
 
-### 2026-01-22: Go binary not in PATH
+### Production error messages: defense in depth
 
-**Problem:** `go test` failed with "command not found"
+**Problem:** Many backend error responses used `err.Error()` directly, leaking file paths, database queries, IPs.
 
-**Solution:** Use full path `/home/trevor/go/bin/go`
+**Solution:** Created `backend/errmsg` package with user-friendly constants. `LOG_VERBOSE` env var toggles modes. Log detailed error, return safe message.
 
-**Lesson:** Always check if tools are in PATH. Document full paths in AGENTS.md.
+**Lesson:** Never return `err.Error()` for internal errors. Validation errors (email format, password requirements) are fine to return as-is.
 
 ---
 
-### 2026-01-22: Documentation without implementation
+### Hindi transliteration: consonant clusters are complex
 
-**Problem:** Task 23 created BROWSER_TESTING.md documenting `npm run test:e2e`, but:
-- Playwright was never installed
-- No e2e/ directory created
-- No test:e2e script in package.json
+**Problem:** Simple character-by-character mapping produces readable but imperfect Devanagari output (missing halant clusters).
 
-The task's `done_when` was "BROWSER_TESTING.md exists" which allowed this gap.
+**Solution:** Documented as known limitation. For production quality, use GoVarnam or Aksharamukha.
 
-**Solution:** Added Task 25 to actually implement the E2E test setup.
+**Lesson:** Indic script transliteration is complex. Simple mapping works for detection and basic cases. Don't block on perfection -- file as future enhancement.
+
+---
+
+### Progress stuck at 30% during transcription
+
+**Problem:** Whisper subprocess provides no progress callbacks. Users saw frozen progress bar.
+
+**Solution:** Background goroutine simulates progress every 5 seconds from 30% to 90%.
+
+**Lesson:** For long-running operations without progress callbacks, simulate progress for better UX.
+
+---
+
+## Frontend
+
+### CRITICAL: Playback speeds must be 0.8x, 0.9x, 1.0x ONLY
+
+**Problem:** Speeds were expanded to 6 speeds (0.5x-2x) multiple times. Owner keeps reverting it.
+
+**Solution:** Restricted to [0.8, 0.9, 1.0]. Added regression tests that assert forbidden values. Updated spec with prominent warning.
+
+**Lesson:** DO NOT expand playback speeds without explicit owner approval. When specs and user feedback conflict, user feedback wins. If a "fix" keeps getting reverted, the spec is wrong, not the code.
+
+---
+
+### NEVER use scrollIntoView() for elements in scrollable containers
+
+**Problem:** Video scrolled out of view during playback. **Reported THREE TIMES.** `scrollIntoView()` scrolls ALL ancestor containers including the page.
+
+**Solution:** Use manual `container.scrollTop` adjustment instead.
+
+**Lesson:** `scrollIntoView()` scrolls all ancestors. `block: 'nearest'` does NOT prevent page scrolling. For scrollable containers, always use manual scrollTop calculation.
+
+---
+
+### Flex display breaks bionic reading word spacing
+
+**Problem:** `<strong>` tags inside `display: flex` containers cause word spacing to collapse.
+
+**Solution:** Changed from flex to table display for subtitle containers.
+
+**Lesson:** Flex treats each child (including text nodes) as a flex item. Use block/table display for content with inline formatting.
+
+---
+
+### Blob URLs trigger downloads instead of display
+
+**Problem:** `window.open(blobURL)` with `text/plain` causes browsers to download instead of display.
+
+**Solution:** Wrap in HTML viewer page with `text/html` MIME type and copy button.
+
+**Lesson:** For "view in new tab", always serve as `text/html`. Browser behavior for blob URLs with other MIME types is inconsistent.
+
+---
+
+### Client-side subtitle generation instead of server requests
+
+**Problem:** Download buttons made HTTP requests for data already loaded in browser. Wasted bandwidth; downloads didn't include unsaved edits.
+
+**Solution:** Generate SRT/VTT/JSON client-side with `Blob` + `URL.createObjectURL()`. Instant downloads, includes edits.
+
+**Lesson:** When data is already in browser, generate files client-side. Write E2E tests verifying no network requests.
+
+---
+
+### Use event delegation for paginated/dynamic lists
+
+**Problem:** Memory leaks from event handlers re-attached on each pagination render.
+
+**Solution:** Single delegated listener on parent container using `event.target.closest('.class')`.
+
+**Lesson:** For re-rendered lists, use event delegation. Set up once at page load, works for dynamically added elements.
+
+---
+
+### XHR uploads need manual CSRF token headers
+
+**Problem:** XHR uploads bypassed `csrfFetch` wrapper, getting "Invalid or missing CSRF token" errors.
+
+**Solution:** Manually get CSRF token before entering Promise, set via `xhr.setRequestHeader()`.
+
+**Lesson:** Any state-changing XHR request needs manual CSRF handling. Get async values BEFORE entering callbacks.
+
+---
+
+### HTML hardcoded values must match TypeScript constants
+
+**Problem:** Speed buttons had `data-speed="0.8"` in HTML but PLAYBACK_SPEEDS array had different values.
+
+**Solution:** Ensure HTML and TypeScript match. Generate HTML from same source of truth when possible.
+
+**Lesson:** Duplicated constants between HTML and TypeScript will drift.
+
+---
+
+### localStorage error handling: console.error is correct for utilities
+
+**Problem:** Deep inspection flagged console.error as "silent failure" needing user feedback.
+
+**Solution:** No change needed. Internal utilities should degrade gracefully with console.error, returning defaults.
+
+**Lesson:** Not every console.error needs user-facing feedback. Reserve user-facing errors for operations the user explicitly initiated.
+
+---
+
+## Security
+
+### X-Forwarded-For header trust requires explicit opt-in
+
+**Problem:** Rate limiter blindly trusted `X-Forwarded-For`, allowing IP spoofing to bypass rate limiting.
+
+**Solution:** Added `TRUST_PROXY` env var (default false). Only trusts proxy headers when explicitly enabled.
+
+**Lesson:** Never trust client-provided headers by default. Make proxy trust opt-in.
+
+---
+
+### Privacy leak in "My Videos" endpoint
+
+**Problem:** `GET /api/videos` without auth or session_id returned ALL videos from ALL users.
+
+**Solution:** Backend requires either auth or session_id, returns 400 if neither. Frontend passes session_id for anonymous users.
+
+**Lesson:** List endpoints must always require filter criteria. Never have a "return all" code path without admin privileges.
+
+---
+
+### XSS protection via escapeHtml
+
+**Problem:** innerHTML usage with user-controlled data (session IPs, segment text).
+
+**Solution:** Created shared `frontend/src/utils/html.ts` with comprehensive tests. Applied escapeHtml to all innerHTML uses.
+
+**Lesson:** Even "trusted" backend data should be escaped (defense in depth). Audit innerHTML, eval, and template literals regularly.
+
+---
+
+### Security headers: conditional HSTS
+
+**Problem:** HSTS breaks localhost development.
+
+**Solution:** HSTS conditional on `HTTPS_ONLY` env var. Permissions-Policy always set.
+
+**Lesson:** Not all security headers should be enabled unconditionally. Test environment variable conditions.
+
+---
+
+### Defense-in-depth: validate file paths from database before serving
+
+**Problem:** Database paths used directly by `http.ServeFile` could serve arbitrary files if DB is compromised.
+
+**Solution:** Validate all paths are within allowed directories before serving. Returns generic "Access denied" message.
+
+**Lesson:** Validate even "trusted" database data. Having a security package isn't enough -- it must be used at all vulnerable points.
+
+---
+
+### Multi-key encryption requires version tracking per file
+
+**Problem:** Key rotation requires files encrypted with old keys to remain decryptable.
+
+**Solution:** `MultiKeyEncryptor` with versioning. `key_version` column in database. CLI tool for rotation.
+
+**Lesson:** Key rotation requires version tracking at the data layer. Zero-downtime rotation requires files to remain readable during transition.
+
+---
+
+### hCaptcha integration pattern
+
+**Problem:** Adding CAPTCHA without breaking development/testing.
+
+**Solution:** `Verifier` interface with disabled/enabled/mock modes. Loads script dynamically. CAPTCHA only on initial login, not TOTP step.
+
+**Lesson:** Optional features should gracefully degrade. Interface with mock implementations makes testing easy.
+
+---
+
+## Infrastructure & E2E Testing
+
+### Go binary not in PATH for automated agents
+
+**Problem:** Go wasn't in PATH for Claude Code's non-interactive shells.
+
+**Solution:** Use `~/.profile` for PATH exports. Avoid hardcoding paths.
+
+**Lesson:** Automated tools run non-interactive shells that skip `.bashrc`. Use `~/.profile` for PATH exports.
+
+---
+
+### Playwright webServer needs full Go path
+
+**Problem:** `go run main.go` fails in Playwright's webServer config because Go isn't in PATH.
+
+**Solution:** Use full path `/home/trevor/go/bin/go run main.go` in playwright.config.ts.
+
+**Lesson:** Playwright webServer commands run in stripped-down environment. Use absolute paths.
+
+---
+
+### E2E route mocks must include wildcard for query params
+
+**Problem:** `page.route('**/api/upload/init')` doesn't match URLs with query parameters.
+
+**Solution:** Always use `**/api/endpoint*` (trailing `*`) in route patterns.
+
+**Lesson:** When writing E2E tests with mocked routes, add trailing `*` if frontend might append query parameters.
+
+---
+
+### Zod schemas: .optional() vs .nullable() for Go backends
+
+**Problem:** Go nil `*string` serializes as JSON `null`, but Zod `.optional()` rejects `null`.
+
+**Solution:** Use `.optional().nullable()` for Go pointer types.
+
+**Lesson:** Go JSON encoding sends `null` for nil pointers, not undefined. Zod schemas need `.nullable()`.
+
+---
+
+### E2E cookie consent must use page.addInitScript()
+
+**Problem:** Setting localStorage after `page.goto()` was too late -- page JS had already read the value.
+
+**Solution:** Use `page.addInitScript()` BEFORE `page.goto()`.
+
+**Lesson:** For localStorage values that affect page initialization, use `page.addInitScript()` which runs before page scripts.
+
+---
+
+### E2E tests hit rate limiting when running full suite
+
+**Problem:** Each test registered a new user; after 5 registrations/minute, subsequent tests failed.
+
+**Solution:** Share registered user via `test.describe.serial`. Skip tests covered by backend unit tests.
+
+**Lesson:** Minimize API calls per test. Use serial describe blocks to share state. Document why tests are skipped.
+
+---
+
+### Pre-commit hook path must account for monorepo structure
+
+**Problem:** `$(git rev-parse --show-toplevel)/scripts` resolved to wrong path because project is a subdirectory.
+
+**Solution:** Changed to `$(git rev-parse --show-toplevel)/subtitler/scripts`.
+
+**Lesson:** In monorepos, `git rev-parse --show-toplevel` returns the parent repo root.
+
+---
+
+### Videos page inline vs modal download buttons use different patterns
+
+**Problem:** Inline buttons trigger file download; modal buttons open viewer in new tab. Tests used wrong event type.
+
+**Solution:** Use `page.waitForEvent('download')` for inline, `page.waitForEvent('popup')` for modal.
+
+**Lesson:** Check which JS function each button calls before writing E2E assertions.
+
+---
+
+### Backend deploy fails with "Failed to connect to bus: No medium found"
+
+**Problem:** Webhook-deployer systemd service can't run `systemctl restart` due to D-Bus access restrictions.
+
+**Solution:** Pending. Options: PrivateMounts=no, socket activation, polkit rule, or alternative restart mechanism.
+
+**Lesson:** Services within systemd may have limited D-Bus access.
+
+---
+
+## Process
+
+### Python scripts should defer third-party imports for CLI usability
+
+**Problem:** `evaluate.py` crashed on `--help` due to uninstalled dependencies imported at module level.
+
+**Solution:** Moved imports into function called only when needed.
+
+**Lesson:** For Python CLI tools with optional deps, defer imports so basic subcommands work without installing anything.
+
+---
+
+### Documentation without implementation
+
+**Problem:** Task created BROWSER_TESTING.md documenting E2E tests, but Playwright was never installed and no tests existed.
+
+**Solution:** Added separate task to actually implement E2E setup.
 
 **Lesson:** Documentation tasks require verification. Run every command you document.
-If `done_when` only requires docs to exist, you still must verify the docs work.
 
 ---
 
-### 2026-01-22: Memory files were not updated
+### Memory files must be kept updated
 
-**Problem:** After 24 tasks, LEARNINGS.md was empty and no new specs were created in `specs/*.md`.
-Ralph read RALPH.md but treated memory updates as optional.
+**Problem:** After 24 tasks, LEARNINGS.md was empty, no specs created.
 
-**Solution:** Updated RALPH.md to make LEARNINGS.md mandatory and clarify that specs
-should be created for new features.
+**Solution:** Made LEARNINGS.md updates mandatory in RALPH.md.
 
-**Lesson:** Explicit is better than implicit. If a step is important, make it a rule,
-not a suggestion.
+**Lesson:** Explicit is better than implicit. If a step is important, make it a rule.
 
 ---
 
-### 2026-01-22: Meta - How to evaluate and improve Ralph
+### Backend returns data but frontend ignores it
 
-**Context:** A human reviewed Ralph's work after 24 tasks and found systemic gaps:
-empty LEARNINGS.md, unimplemented documentation, spec TODOs ignored, implementation
-deviating from spec (whisper-cli vs whisper-server).
+**Problem:** Backend returned recovery codes in TOTP verify response but frontend didn't display them.
 
-**Process used:**
-1. Read RALPH.md to understand expected behavior
-2. Check git history to see what was actually done
-3. Analyze logs (`grep -v "=== Iteration" /tmp/ralph_logs | jq ...`) to understand decisions
-4. Compare specs/docs against actual implementation
-5. File tasks for every gap found
-6. Update RALPH.md to prevent future mistakes but keept it short! RALPH.md and AGENTS.md get loaded
-   on every subagent, so they must be token efficient with LLM inference.
-7. Seed LEARNINGS.md with examples so Ralph knows what entries look like
+**Solution:** Added display section and recovery flow to frontend.
 
-**Lesson:** Ralph should periodically do this self-review:
-- Are the specs up to date? Are TODOs getting filled in?
-- Does the implementation match the spec? If not, is the spec wrong or the code?
-- What did I learn that future Ralphs need to know?
-- Am I just completing tasks, or am I improving the system?
-
-Ralph isn't just a task executor - Ralph should be self-improving. File tasks to fix
-gaps. Update specs when requirements change. Keep LEARNINGS.md current. The goal is
-that each Ralph iteration leaves the project in a better state than it found it.
+**Lesson:** When completing backend tasks, verify the frontend actually USES the returned data. Run full user flow end-to-end.
 
 ---
 
-### 2026-01-22: Playwright webServer needs full Go path
+### Utility functions written but never used
 
-**Problem:** When setting up Playwright's webServer config for the backend, using just `go run main.go` fails because Go isn't in PATH.
+**Problem:** validation.ts had tested utility functions that no page imported.
 
-**Solution:** Use full path in playwright.config.ts:
-```typescript
-webServer: [
-  {
-    command: 'cd ../backend && /home/trevor/go/bin/go run main.go',
-    ...
-  }
-]
-```
+**Solution:** Filed task to integrate. Grep for imports to verify usage.
 
-**Lesson:** Be consistent - the same Go PATH issue applies everywhere, not just direct bash commands.
+**Lesson:** Tests existing doesn't mean code is being used. Check: `grep -r "from.*validation" frontend/src/pages/`
 
 ---
 
-### 2026-01-22: Progress stuck at 30% during transcription
+### Self-audit process for finding gaps
 
-**Problem:** Frontend showed progress stuck at 30% during whisper transcription because:
-- Backend only updated progress at discrete stages: 5% (decrypt), 10% (extract audio), 30% (start transcription)
-- Whisper subprocess provides no progress callbacks
-- Users saw frozen progress bar for potentially minutes on long videos
+**Problem:** After many tasks, specs drift from implementation and gaps accumulate.
 
-**Solution:** Added a background goroutine that simulates progress updates every 5 seconds during transcription, incrementing from 30% to 90% in 5% steps. Channel closes when whisper completes.
+**Solution:** Periodically review: Are specs up to date? Does implementation match? What's missing?
 
-**Lesson:** For long-running subprocess operations without progress callbacks, simulate progress to provide user feedback. Users prefer any visible progress over a frozen UI.
+**Lesson:** Ralph isn't just a task executor -- Ralph should be self-improving. File tasks to fix gaps.
 
 ---
 
-### 2026-01-22: SRT download MIME type compatibility
+### Deep inspections identify technical debt
 
-**Problem:** SRT download used `Content-Type: text/srt; charset=utf-8` which is a non-standard MIME type. Some browsers might not handle this well for downloads.
+**Problem:** All explicit tasks done. How to find improvement opportunities?
 
-**Solution:** Changed to `text/plain; charset=utf-8` which is universally supported. The `Content-Disposition: attachment` header is what triggers the download behavior, not the Content-Type.
+**Solution:** Use parallel exploration agents to analyze frontend (memory leaks, duplication, accessibility), backend (security, performance), specs vs implementation, and documentation gaps.
 
-**Lesson:** For file downloads, use standard MIME types. `Content-Disposition: attachment` controls download behavior, not the Content-Type. When in doubt, `text/plain` is the safe choice for text files.
-
----
-
-### 2026-01-22: Shell script cd with relative paths
-
-**Problem:** `scripts/lint.sh` had a bug where after `cd` to backend, the next `cd "$PROJECT_ROOT/frontend"` failed because `PROJECT_ROOT` was a relative path (`.`) which was now relative to the backend directory.
-
-**Solution:** Make `SCRIPT_DIR` and therefore `PROJECT_ROOT` absolute paths:
-```bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-```
-
-**Lesson:** When a shell script uses multiple `cd` commands, always use absolute paths. Relative paths break after the first `cd`. The pattern `$(cd "$(dirname "$0")" && pwd)` converts a relative path to absolute.
+**Lesson:** When out of tasks, do systematic code review. Memory leaks from event listeners are common in paginated lists. Specs drift from implementation -- audit periodically.
 
 ---
 
-### 2026-01-22: Self-audit to find gaps in implementation
+### Verify test coverage before filing tasks
 
-**Problem:** After completing 36 tasks, I ran a self-audit comparing specs to implementation. Found several documented gaps including:
-- 2FA recovery codes not implemented (critical security issue)
-- Rate limiting not implemented (security concern)
-- Several features marked "NOT IMPLEMENTED" in specs
+**Problem:** Exploration agent reported missing tests that actually existed.
 
-**Solution:**
-1. Created Task 37 for recovery codes and Task 38 for rate limiting
-2. Implemented recovery codes immediately as it's security-critical
-3. Updated specs to reflect current status
+**Solution:** Verify by checking for `*_test.go` or `.test.ts` files before filing.
 
-**Lesson:** Periodically run self-audits by reading all specs and comparing to implementation. The specs document what SHOULD exist; if "NOT IMPLEMENTED" appears, create a task. Critical security gaps (like 2FA recovery) should be prioritized.
+**Lesson:** When an agent reports missing tests, verify manually first.
 
 ---
 
-### 2026-01-22: Recovery codes alphabet excludes ambiguous characters
+### Ralph should create new tasks proactively
 
-**Problem:** Users copying recovery codes manually could confuse similar characters: 0/O, 1/I/L.
+**Problem:** Ralph runs out of explicit tasks and works on implicit ones without tracking.
 
-**Solution:** Used alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789` which excludes:
-- 0 (zero) - looks like O
-- O (letter) - looks like 0
-- 1 (one) - looks like I or L
-- I (letter) - looks like 1 or L
-- L (letter) - looks like 1 or I
+**Solution:** When noticing issues during work, add new tasks to TASKS.jsonl. When low on tasks, study specs, code, and app behavior to find improvements.
 
-**Lesson:** For user-facing codes that may be manually entered, exclude visually ambiguous characters. This reduces support burden and user frustration.
+**Lesson:** Ralph should always be improving the project, not just executing tasks.
 
 ---
 
-### 2026-01-22: Go binary name depends on directory
+### Shell script cd with relative paths
 
-**Problem:** `.gitignore` had `backend/subtitler` but `go build` in the backend directory produced `backend/backend` (named after the directory, not the module).
+**Problem:** After `cd` to backend, `cd "$PROJECT_ROOT/frontend"` failed because PROJECT_ROOT was relative.
 
-**Solution:** Added both patterns to `.gitignore`: `backend/subtitler` and `backend/backend`.
+**Solution:** Make paths absolute: `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"`.
 
-**Lesson:** Go builds name the binary after the directory by default. When adding gitignore patterns for Go binaries, add both the expected name AND the directory name pattern.
-
----
-
-### 2026-01-22: Backend returns data but frontend ignores it
-
-**Problem:** After 38 tasks were "complete", a spec-vs-implementation audit revealed that:
-- Backend's `/api/auth/totp/verify` returned `recovery_codes` in the response
-- Frontend's `security.astro` didn't handle or display the codes
-- Users would enable 2FA but never see their recovery codes (critical security gap!)
-
-Similar pattern: `/api/auth/totp/recover` endpoint existed but no frontend UI to access it.
-
-**Solution:**
-1. Created Tasks 39-41 from audit findings
-2. Added recovery codes display section to security.astro with copy button and confirmation
-3. Added "Lost access to authenticator?" recovery flow to login.astro
-4. Added rate limiting to previously unprotected TOTP endpoints
-
-**Lesson:** When completing backend tasks, verify the frontend actually USES the data returned. API responses being "correct" doesn't mean the feature is complete. Run the full user flow end-to-end.
+**Lesson:** When using multiple `cd` commands, always use absolute paths.
 
 ---
 
-### 2026-01-22: Utility functions written but never used
+### Recovery codes alphabet excludes ambiguous characters
 
-**Problem:** validation.ts contains well-tested utility functions (validateEmail, validatePassword, validateTotpCode, validateVideoFile, validateSegmentTiming), but none of the .astro pages actually import or use them. Forms rely on basic HTML5 validation instead.
+**Problem:** Users could confuse similar characters: 0/O, 1/I/L.
 
-**Solution:** Filed Task 49 to integrate validation.ts into login.astro, register.astro, and security.astro pages.
+**Solution:** Used alphabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789`.
 
-**Lesson:** When writing utility functions, grep for their imports to verify actual usage. Tests existing doesn't mean the code is being used. Check: `grep -r "from.*validation" frontend/src/pages/`
-
----
-
-### 2026-01-22: E2E tests hit rate limiting when running full suite
-
-**Problem:** E2E auth tests passed individually but failed when running the full test suite. Each test registered a new user, and after 5 registrations in a minute (rate limit), all subsequent tests failed with "Too many requests".
-
-**Solution:**
-1. Restructured tests into groups:
-   - Client-side validation tests (no API calls) - can run freely
-   - Tests that share a single registered user via `test.describe.serial`
-   - Removed tests that duplicate backend unit test coverage (e.g., duplicate email rejection)
-2. Added comments explaining why certain tests are skipped in E2E
-3. Verified the skipped behaviors are covered by backend unit tests
-
-**Lesson:** When designing E2E tests with rate-limited APIs:
-- Minimize API calls per test
-- Use `test.describe.serial` to share test state (like a registered user)
-- Skip tests that would trigger rate limits if they're covered by unit tests
-- Document why tests are skipped to avoid future "why isn't this tested?" questions
+**Lesson:** For user-facing codes, exclude visually ambiguous characters.
 
 ---
 
-### 2026-01-22: Hindi transliteration requires proper handling of consonant clusters
+### SRT download MIME type compatibility
 
-**Problem:** When implementing romanized Hindi to Devanagari conversion, the basic character-by-character mapping produces readable but imperfect output. For example, "namaste" becomes "नमसते" instead of the correct "नमस्ते" (with halant to form the स्त cluster).
+**Problem:** `text/srt` is a non-standard MIME type.
 
-**Solution:** Documented as a known limitation. For production-quality Hindi transliteration:
-- Use GoVarnam (native Go with CGO, designed for input method editing)
-- Or use Aksharamukha via Docker (120+ scripts, comprehensive)
-- The basic implementation is still useful for script detection and simple cases
+**Solution:** Use `text/plain; charset=utf-8`. `Content-Disposition: attachment` controls download behavior.
 
-**Lesson:** Indic script transliteration is complex. Simple character mapping works for:
-- Script DETECTION (which is Unicode range checking)
-- Language DETECTION from romanized text (keyword matching)
-- Basic conversions that will be read by humans (phonetically close enough)
-
-But proper consonant cluster handling (halant/virama) requires sophisticated algorithms that understand syllable structure. File this as a future enhancement task rather than blocking on perfection.
+**Lesson:** For file downloads, use standard MIME types.
 
 ---
 
-### 2026-01-26: rand.Read error handling patterns in Go
+### Claude Code session log structure
 
-**Problem:** Several places in the codebase used `rand.Read()` without checking the returned error. While crypto/rand rarely fails on modern systems, ignoring the error is bad practice and can hide issues.
+**Problem:** Needed to parse Claude Code logs for ralph optimizer.
 
-**Solution:** Different handling based on context:
-1. **ID generation (main.go, db.go):** Return `(string, error)` and let callers handle it - typically return HTTP 500 to user
-2. **Request ID generation:** Fall back to timestamp-based ID so requests don't fail completely
-3. **CSRF secret:** Store error in package-level var, return empty token on failure (fails safely)
-4. **Test helpers:** Create `testGenerateID()` that panics on error (acceptable in test setup)
+**Solution:** JSONL format with `type` fields (system, assistant, user). Tool calls in `message.content` with `type: "tool_use"`. Token usage split across `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`.
 
-**Lesson:** For cryptographic random:
-- Production code should handle errors explicitly
-- Fallbacks are acceptable for non-critical uses (request IDs)
-- Security-critical code should fail safely rather than continue with bad state
-- Test code can panic since test setup failure indicates bigger problems
+**Lesson:** Sum all three token fields for total input tokens. Agent logs in `$session_id/$agent_id.jsonl` subdirectories.
 
 ---
-
-### 2026-01-26: X-Forwarded-For header trust requires explicit opt-in
-
-**Problem:** The rate limiter blindly trusted `X-Forwarded-For` and `X-Real-IP` headers from any client. This allowed attackers to spoof their IP address by sending fake headers, completely bypassing rate limiting protection.
-
-**Solution:** Added `TRUST_PROXY` environment variable that must be explicitly set to `true` or `1` to trust proxy headers. Default is `false` which only uses `RemoteAddr` for IP detection.
-
-**Lesson:** Never trust client-provided headers by default:
-- `X-Forwarded-For` can be set by anyone, not just proxies
-- Only trust these headers when you know you're behind a trusted reverse proxy
-- Make proxy trust opt-in, not opt-out
-- Document clearly which environment configurations require which settings
-- This applies to all similar headers: `X-Real-IP`, `X-Forwarded-Proto`, etc.
-
----
-
-### 2026-01-26: Privacy leak in "My Videos" endpoint - require filter criteria
-
-**Problem:** The `GET /api/videos` endpoint returned ALL videos in the database when called without authentication or session_id. Anonymous users could see videos from all other users including their filenames, sizes, and timestamps.
-
-**Root cause:** The backend's `ListVideos()` function had three code paths:
-1. If `userID` provided: filter by user
-2. If `sessionID` provided: filter by session
-3. If neither: return ALL videos (the bug!)
-
-The frontend called `/api/videos` without passing session_id for anonymous users.
-
-**Solution:**
-1. Backend: Added check requiring either auth or session_id, returns 400 Bad Request if neither
-2. Frontend: Created `session.ts` utility to generate/store session IDs in localStorage
-3. Frontend: Updated `videos.astro` to check auth first, then call API with session_id if anonymous
-4. Frontend: Updated `upload.astro` to pass session_id for anonymous uploads
-5. Added test `TestListVideosNoFilterRejected` to verify the fix
-
-**Lesson:** For any endpoint that can return a list of resources:
-- Always require filter criteria (user ID, session ID, etc.)
-- Never have a "return all" code path without explicit admin privileges
-- Test the "no filter provided" case explicitly
-- Consider privacy implications during code review: "What if no filter is provided?"
-
----
-
-### 2026-01-26: MoltenVK GPU passthrough to QEMU VMs is blocked on macOS
-
-**Problem:** Researched using MoltenVK + Venus to pass Vulkan GPU acceleration from macOS host to Linux guest VMs for whisper.cpp acceleration. This would eliminate the need for host-based whisper-server.
-
-**Findings:**
-1. **Good news - Upstream support exists:**
-   - QEMU 9.2.0+ includes Venus patches for Vulkan passthrough
-   - whisper.cpp has excellent Vulkan support (PR #2302, v1.8.3 is 12x faster)
-   - virglrenderer 1.0.0+ handles Venus protocol
-
-2. **Bad news - macOS is blocked:**
-   - Venus requires DMA buffer export features that MoltenVK cannot implement on macOS
-   - UTM Issue #4551 documents this as a fundamental architectural limitation
-   - Custom QEMU builds with patches exist (osy's gist) but require maintaining 4+ projects
-   - Even when working, performance is 75-77% of native Metal
-
-**Solution:** Keep using the host-based whisper-server approach. It's simpler, faster, and already working.
-
-**Lesson:** Before investing in complex GPU passthrough:
-1. Check if the guest OS → host stack is actually supported (Venus needs DMA buffers)
-2. Consider the maintenance burden of custom builds vs. simpler architectures
-3. 25% performance penalty plus complexity usually isn't worth it vs. host-based services
-4. Document research thoroughly so this doesn't get re-investigated later
-
----
-
-### 2026-01-26: Go must be in PATH for automated agents
-
-**Problem:** Claude Code (Ralph) couldn't run `go` commands because Go wasn't in PATH. The workaround was hardcoding `/home/trevor/go/bin/go` in 40+ places across scripts, docs, and config files.
-
-**Root cause:** Claude's Bash tool runs non-interactive shells that don't source `~/.bashrc` by default. Even adding Go to `.bashrc` wasn't sufficient.
-
-**Solution:** Ensure Go is in PATH via `~/.profile` (sourced by login shells) or by setting `BASH_ENV` to point to a file that exports PATH:
-```bash
-# ~/.profile
-export PATH="$PATH:$HOME/go/bin"
-```
-
-**Lesson:**
-1. Automated tools often run non-interactive shells that skip `.bashrc`
-2. Use `~/.profile` for PATH exports needed by automated systems
-3. Avoid hardcoding paths - they break portability and create maintenance burden
-4. When a tool isn't found, fix the environment rather than hardcoding paths everywhere
-
----
-
-### 2026-01-26: Go slog package requires initialization before use
-
-**Problem:** After implementing structured logging with `log/slog`, backend tests started failing with nil pointer dereferences. The logging functions called `Logger.Info()`, `Logger.Error()`, etc. but `Logger` was nil because `logging.Init()` wasn't called in test setup.
-
-**Solution:** Added an `init()` function to the logging package that sets `Logger = slog.Default()` if nil. This ensures logging always works even if `Init()` is never explicitly called:
-```go
-func init() {
-    if Logger == nil {
-        Logger = slog.Default()
-    }
-}
-```
-
-**Lesson:**
-1. Package-level loggers should have safe defaults - never leave them nil
-2. Use Go's `init()` function for defensive initialization
-3. `slog.Default()` provides a reasonable default logger
-4. Tests often skip initialization that production code relies on - make packages self-initializing when possible
-
----
-
-### 2026-01-26: XHR uploads need manual CSRF token headers
-
-**Problem:** Authenticated users got "Invalid or missing CSRF token" errors when uploading videos. The upload used XMLHttpRequest (XHR) for progress tracking, but XHR doesn't use the `csrfFetch` wrapper that automatically adds the CSRF header.
-
-**Root cause:** The CSRF middleware validates all POST requests for authenticated users. The `csrfFetch` wrapper handles this for regular fetch calls, but XHR uploads bypassed it.
-
-**Solution:** For XHR-based uploads, manually get and set the CSRF token:
-```typescript
-// Get token BEFORE entering Promise (can't await inside non-async callback)
-const csrfToken = isAuthenticated ? await getCsrfToken() : null;
-
-// Set header after xhr.open(), before xhr.send()
-if (csrfToken) {
-    xhr.setRequestHeader(CSRF_HEADER, csrfToken);
-}
-```
-
-**Lesson:**
-1. Any state-changing request using XHR instead of fetch needs manual CSRF handling
-2. Get async values (like CSRF tokens) BEFORE entering Promise callbacks
-3. The `csrfFetch` wrapper only helps with `fetch()` - XHR is on its own
-4. When adding CSRF protection, audit all POST/PUT/DELETE/PATCH endpoints for XHR usage
-
----
-
-### 2026-01-26: Multi-key encryption requires tracking key version per file
-
-**Problem:** Implementing encryption key rotation required significant changes beyond just adding a new key. Files encrypted with old keys need to be decryptable while new files use the new key.
-
-**Solution:**
-1. Created `MultiKeyEncryptor` that manages multiple age keys with versioning
-2. Added `key_version` column to `videos` table (migration 004)
-3. Updated all encrypt calls to capture and store the key version
-4. Updated all decrypt calls to use the file's stored key version
-5. CLI tool (`go run ./cmd/rotate-keys`) for rotation and re-encryption
-
-**Key architecture decisions:**
-- Keys stored in `data/keys/` as `key_v1.age`, `key_v2.age`, etc.
-- `current` symlink points to active key (or `currentVersion` file)
-- Encryption uses current key, decryption uses file's recorded version
-- Re-encryption is batched and can be run incrementally
-
-**Lesson:**
-1. Key rotation requires version tracking at the data layer, not just the crypto layer
-2. All encryption/decryption calls must be audited and updated together
-3. A CLI tool for operations staff is essential - rotation shouldn't require code changes
-4. Zero-downtime rotation requires files to remain readable during the transition period
-
----
-
-### 2026-01-26: XSS protection via escapeHtml
-
-**Problem:** Code analysis identified potential XSS vulnerabilities through innerHTML usage with user-controlled data.
-
-**Investigation:** Examined all innerHTML usages in frontend:
-- `videos.astro` - Already uses escapeHtml for filenames and segment text ✓
-- `upload.astro` - Already uses escapeHtml for segment text ✓
-- `security.astro` - Missing escapeHtml for session IP addresses
-
-**Solution:**
-1. Added escapeHtml function to security.astro for session IP addresses
-2. Created shared `frontend/src/utils/html.ts` utility with comprehensive tests
-3. Tests verify escaping of HTML tags, scripts, event handlers, and XSS attempts
-
-**Lesson:**
-1. Even "trusted" backend data like IP addresses should be escaped - defense in depth
-2. innerHTML with template literals is a common XSS vector - always audit
-3. The browser's `textContent → innerHTML` trick is an effective way to escape HTML
-4. Regular code audits should search for innerHTML, eval, and other dangerous patterns
-5. Consider using a shared utility to avoid duplicating escapeHtml across files
-
----
-
-### 2026-01-26: FFmpeg subtitle embedding - burn vs embed modes
-
-**Problem:** User reported burning subtitles into video was very slow.
-
-**Investigation:** The original implementation used `-vf subtitles` filter which re-encodes the entire video frame by frame. This is slow but produces subtitles that are always visible and work on any player.
-
-**Solution:** Added two modes to the burn endpoint:
-1. **burn** (default): Uses `-vf subtitles` to hardcode subtitles into video frames. Slow but universal.
-2. **embed**: Uses `-c:s mov_text` to create a soft subtitle track. Fast because it just copies video/audio streams without re-encoding.
-
-```bash
-# Burn mode (slow, ~1x video duration, subtitles always visible)
-ffmpeg -i input.mp4 -vf "subtitles='subs.srt'" output.mp4
-
-# Embed mode (fast, ~seconds, subtitles can be toggled)
-ffmpeg -i input.mp4 -i subs.srt -c:v copy -c:a copy -c:s mov_text output.mp4
-```
-
-**Lesson:**
-1. `-c:v copy -c:a copy` avoids re-encoding - huge speed improvement
-2. `-c:s mov_text` is the subtitle codec for MP4 containers
-3. Soft subtitles can be toggled on/off by the player, but may not work on all players
-4. Always provide both options - some users need speed, others need universal compatibility
-5. Consider user feedback as task suggestions - this was exactly what the user needed
-
----
-
-### 2026-01-26: FFmpeg font configuration for Indic scripts
-
-**Problem:** User reported Hindi subtitles showed as empty boxes (□) in burned videos.
-
-**Root cause:** FFmpeg's subtitles filter uses system fonts via fontconfig. Without fonts that support Devanagari (and other Indic scripts), characters are rendered as missing glyph boxes.
-
-**Solution:** Added `SUBTITLE_FONT` environment variable:
-1. If set, adds `FontName=<font>` to the ffmpeg subtitles filter style
-2. Users must install appropriate fonts (e.g., Noto Sans Devanagari)
-3. Documented font installation in INSTALL.md
-
-```go
-subtitleStyle := "FontSize=24,PrimaryColour=&HFFFFFF,..."
-if subtitleFont != "" {
-    subtitleStyle = fmt.Sprintf("FontName=%s,%s", subtitleFont, subtitleStyle)
-}
-```
-
-**Lesson:**
-1. Font support is essential for international text - test with non-Latin scripts
-2. Noto fonts provide excellent Unicode coverage for many scripts
-3. The problem only affects burned subtitles - SRT/VTT downloads contain correct text
-4. Make font configuration optional (don't break existing users)
-5. Document font requirements clearly - not everyone knows they need Indic fonts
-
----
-
-### 2026-01-26: Production error messages - defense in depth
-
-**Problem:** Many backend error responses used `err.Error()` directly, which could leak internal details like file paths, database queries, IP addresses, and API keys to users.
-
-**Solution:** Created `backend/errmsg` package with:
-1. User-friendly constants for common error types (ErrVideoNotFound, ErrTranscribeFailed, etc.)
-2. `LOG_VERBOSE` env var to toggle between production (safe) and development (detailed) modes
-3. Helper functions like `ForVideoNotFound(err)` that log detailed errors and return safe messages
-4. Test suite that verifies production errors don't contain sensitive patterns
-
-**Key design decisions:**
-- Default to safe mode (LOG_VERBOSE=false) - you have to opt-in to dangerous behavior
-- Log the detailed error before returning the safe message - debugging is still possible via logs
-- User-facing validation errors (email format, password requirements) are fine to return as-is
-- Only wrap errors from internal operations (database, file system, external services)
-
-**Lesson:**
-1. Never return `err.Error()` directly for internal errors - always wrap with a safe message
-2. Log first, then return safe message - you need both debugging ability and security
-3. Validation errors are different from internal errors - user feedback is important
-4. The `SetVerbose()` function enables testing both modes without environment variable manipulation
-5. Test with real-world sensitive patterns (file paths, IPs, SQL, API keys) to catch leaks
-
----
-
-### 2026-01-26: Path validation - check BEFORE filepath.Clean
-
-**Problem:** When implementing path traversal prevention, calling `filepath.Clean()` before checking for `..` segments was ineffective because `filepath.Clean("uploads/../etc/passwd")` returns `"etc/passwd"` - the traversal is normalized away before we can detect it.
-
-**Solution:** Check for traversal patterns BEFORE calling `filepath.Clean`:
-```go
-// Wrong order - traversal normalized away
-cleanPath := filepath.Clean(path)
-if containsTraversalPatterns(cleanPath) {  // Won't catch "uploads/../etc"
-    return ErrPathTraversal
-}
-
-// Correct order - check original path
-if containsTraversalPatterns(path) {  // Catches "uploads/../etc"
-    return ErrPathTraversal
-}
-cleanPath := filepath.Clean(path)
-```
-
-**Key design decisions:**
-1. Check for `..` as a complete path segment, not just substring (allows `..test` as valid filename)
-2. Check for null bytes which can be used in some path attacks
-3. Use `isWithinDir()` for absolute path validation with proper separator handling
-4. Support multiple allowed directories (uploads/, data/)
-5. `SafeJoin()` validates the base directory is allowed before joining
-
-**Lesson:**
-1. `filepath.Clean()` normalizes paths but removes evidence of traversal attempts
-2. Check for malicious patterns BEFORE normalization
-3. `..` as a complete path segment (separated by `/`) is different from `..` as a substring in a filename
-4. Always verify the final path is within allowed directories as a defense-in-depth measure
-
----
-
-### 2026-01-26: Security headers - conditional HSTS
-
-**Problem:** Need to add HSTS (Strict-Transport-Security) and Permissions-Policy headers, but HSTS should only be enabled in production (when HTTPS is actually used).
-
-**Solution:** Use the existing `HTTPS_ONLY` environment variable to conditionally add HSTS:
-```go
-if auth.IsHTTPSOnly() {
-    w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-}
-```
-
-**Key design decisions:**
-1. HSTS conditional on HTTPS_ONLY - avoids breaking development with localhost
-2. Permissions-Policy always set - disables unused features regardless of environment
-3. 1-year max-age with includeSubDomains - standard production HSTS configuration
-4. Test both scenarios: HTTPS_ONLY=false (no HSTS) and HTTPS_ONLY=true (HSTS present)
-
-**Features disabled by Permissions-Policy:**
-- `geolocation=()` - No location tracking needed
-- `microphone=()`, `camera=()` - No audio/video recording
-- `payment=()` - No payment processing
-- `usb=()` - No USB device access
-- `interest-cohort=()` - Opt out of Google's FLoC/Topics tracking
-
-**Lesson:**
-1. Not all security headers should be enabled unconditionally
-2. HSTS + localhost = browser will refuse HTTP connections, breaking development
-3. Permissions-Policy is defense-in-depth - even if XSS succeeds, malicious scripts can't access disabled features
-4. Test environment variable conditions to ensure headers appear/disappear correctly
-
----
-
-### 2026-01-26: Defense-in-depth: validate file paths from database before serving
-
-**Problem:** File paths stored in the database are used directly by file-serving endpoints (`http.ServeFile`). If the database is compromised or an attacker finds a way to inject malicious paths (e.g., `/etc/passwd`), the server could serve arbitrary files.
-
-**Solution:** Applied the `pathvalidator` package to all file-serving endpoints (video download, thumbnail, burned video). Each endpoint now validates that the file path from the database is within the allowed upload directory BEFORE calling `http.ServeFile()`.
-
-```go
-// Before serving, validate path is within allowed directories
-if err := pathValidator.ValidateAbsolutePath(video.FilePath); err != nil {
-    logging.ErrorContext(r.Context(), "Path validation failed", "error", err, "path", video.FilePath)
-    w.WriteHeader(http.StatusForbidden)
-    json.NewEncoder(w).Encode(map[string]string{"error": "Access denied"})
-    return
-}
-http.ServeFile(w, r, videoPath)
-```
-
-**Implementation details:**
-1. Created global `pathValidator` initialized with `uploadDir` at server startup
-2. Added validation to three endpoints: `/api/videos/{id}/video`, `/api/videos/{id}/thumbnail`, `/api/videos/{id}/burned`
-3. Returns 403 Forbidden with generic "Access denied" message (doesn't leak path details)
-4. Logs the actual path and error for debugging
-
-**Lesson:**
-1. Having a security utility package is only half the battle - it must actually be USED at all vulnerable points
-2. Defense-in-depth means assuming any layer could be compromised - validate even "trusted" database data
-3. Error messages should not leak security-sensitive information like paths - log for operators, return generic message to users
-4. Test path traversal attempts explicitly - don't assume they can't happen
-
----
-
-### 2026-01-26: pathvalidator must handle relative paths from database
-
-**Problem:** After adding path validation to file-serving endpoints, all video and thumbnail downloads returned 403 "Access denied". The pathvalidator rejected paths stored in the database because they were RELATIVE (e.g., `uploads/abc.mp4.age`) while the validator was initialized with an ABSOLUTE base directory (e.g., `/home/user/.../uploads`).
-
-**Root cause:** When files are uploaded with a relative `UPLOAD_DIR` (like `uploads`), the encrypted file path stored in the database is also relative. The `ValidateAbsolutePath` function compared this relative path against the absolute base directory, and they never matched because `/home/.../uploads/abc.mp4.age` doesn't start with `uploads/abc.mp4.age`.
-
-**Solution:** Updated `ValidateAbsolutePath` to convert relative paths to absolute using `filepath.Abs()` BEFORE comparing against the base directory:
-```go
-func (v *Validator) ValidateAbsolutePath(path string) error {
-    if containsTraversalPatterns(path) {
-        return ErrPathTraversal  // Check BEFORE Abs()
-    }
-    absPath, err := filepath.Abs(path)
-    cleanPath := filepath.Clean(absPath)
-    return v.validateAbsolutePath(cleanPath)
-}
-```
-
-**Lesson:**
-1. Path validation must handle both relative and absolute paths consistently
-2. Use `filepath.Abs()` to convert relative paths before comparison
-3. Check for traversal patterns BEFORE converting to absolute (to catch `../etc/passwd`)
-4. Test with both relative and absolute paths in different environments
-5. Database paths may be stored differently depending on how UPLOAD_DIR is configured
-
----
-
-### 2026-01-27: Download buttons should use client-side generation, not server requests
-
-**Problem:** SRT/VTT/JSON download buttons make a new HTTP request each time they're clicked. User feedback indicates this was supposed to be fixed previously but the issue persists.
-
-**Root cause investigation:** Commit `c66a935` (2026-01-26) changed the download links to use `target="_blank"` which opens in a new tab. The commit message said "SRT/VTT/JSON links now open content in new tabs instead of downloading." This may have been a misunderstanding of the user's original intent.
-
-The current implementation:
-1. Download buttons are `<a>` tags with `href="/api/videos/{id}/subtitles.{format}"`
-2. Backend sets `Content-Disposition: attachment` which triggers download
-3. Each click makes a new HTTP request to the server
-4. Frontend already has subtitle data loaded in `transcriptionSegments` or `editedSegments`
-
-**Problem types:**
-1. Wastes bandwidth/server resources on redundant requests
-2. Downloaded data may differ from what user sees (if they made unsaved edits)
-3. Poor UX - small delay while fetching data that's already in browser
-
-**Solution:** Generate SRT/VTT/JSON files client-side from the already-loaded subtitle data:
-1. Create utility functions `generateSRT()`, `generateVTT()`, `generateJSON()` in frontend
-2. Use `Blob` + `URL.createObjectURL()` to create downloadable data URLs
-3. Use `download` attribute on anchors with the generated URL
-4. No server request needed - instant downloads
-5. Always downloads what user sees (including unsaved edits if desired)
-
-**Lesson:**
-1. When debugging a "recurring" bug, check git history to understand previous "fix" attempts
-2. Client-side generation is better when data is already in browser
-3. Commit messages should clearly state what changed and why (the c66a935 message didn't explain the _reason_ for the change)
-4. User expectations: "download" means save file instantly, not "open in new tab then download"
-5. Write E2E tests that verify expected download behavior to prevent regressions
-
----
-
-### 2026-01-27: NEVER use scrollIntoView() for elements in scrollable containers
-
-**Problem:** Video scrolled out of view during playback. **THIS WAS REPORTED THREE TIMES.**
-
-**Root cause:** The code used `scrollIntoView({ behavior: 'smooth', block: 'nearest' })` to scroll subtitle segments into view during video playback. Despite `block: 'nearest'` sounding like it would only scroll if necessary, `scrollIntoView()` scrolls **ALL ancestor scrollable containers**, including the entire page.
-
-When:
-1. The video is at the top of the page
-2. The segments list is below the video
-3. A segment at the bottom of the list becomes active
-
-The browser scrolls the **entire page** to bring that segment into view, causing the video to scroll up and out of the viewport.
-
-**Solution:** Replace `scrollIntoView()` with manual container-only scrolling:
-```javascript
-// NEVER use this for elements inside scrollable containers:
-// el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-// Use this instead - only scrolls within the container:
-function scrollIntoContainerView(container: HTMLElement, element: HTMLElement) {
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = element.getBoundingClientRect();
-
-    if (elementRect.top < containerRect.top) {
-        container.scrollTop -= (containerRect.top - elementRect.top);
-    } else if (elementRect.bottom > containerRect.bottom) {
-        container.scrollTop += (elementRect.bottom - containerRect.bottom);
-    }
-}
-```
-
-**Lesson:**
-1. **NEVER use `scrollIntoView()` for elements inside scrollable containers** - it can scroll the entire page
-2. Always use manual `container.scrollTop` adjustment instead
-3. Add E2E tests that verify important elements stay visible during user interactions
-4. When a bug is reported multiple times, the fix wasn't thorough enough - add regression tests
-5. The `block: 'nearest'` option does NOT prevent page scrolling - it just affects where the element aligns
-
-**Files affected:**
-- `frontend/src/pages/upload.astro` - Fixed `navigateToSegment()` and `updateCurrentSubtitle()`
-- `frontend/src/pages/videos.astro` - Already had the correct fix
-- Added E2E regression tests in `frontend/e2e/upload-flow.spec.ts`
-
-**See also:** `specs/video-scroll-fix.md` for full analysis
-
----
-
-### 2026-01-27: Whisper error messages leak internal details to clients
-
-**Problem:** When transcription fails, the raw error message from whisper-cli/server was stored in the database and returned to clients. These messages can contain:
-- Internal IP addresses (`10.0.2.2:8765`)
-- File system paths (`/opt/subtitler/uploads/abc123.mp4`)
-- Internal service names (`whisper-server`)
-- Technical error details (`connection refused`)
-
-This is an information disclosure vulnerability - production error messages should never reveal server internals.
-
-**Solution:**
-1. Modified `dbTranscriptionToStatus()` in `main.go` to sanitize error messages
-2. When status is "error" and verbose mode is OFF (production), return generic user-friendly message
-3. Raw error details only shown when `LOG_VERBOSE=true` (development)
-4. Uses existing `errmsg.ErrTranscribeFailed` constant for consistency
-5. Added tests `TestTranscriptionErrorMessageSanitization` and `TestTranscriptionErrorVerboseMode`
-
-**Lesson:**
-1. **Always audit what gets stored in database `message` fields** - these often get returned to clients
-2. **Raw error messages should NEVER be returned in production** - use user-friendly messages
-3. The existing `errmsg` package pattern should be applied consistently to all error paths
-4. When adding features that store errors, trace the entire path: creation → storage → retrieval → client response
-
----
-
-### 2026-01-27: Backend deploy fails with "Failed to connect to bus: No medium found"
-
-**Problem:** Webhook-deployer service fails to restart subtitler backend. Error: `Failed to connect to bus: No medium found`. Manual `./deploy-subtitler-backend.sh` works fine.
-
-**Investigation:**
-1. The webhook-deployer runs as a systemd service
-2. When systemd service tries to run `sudo systemctl restart subtitler`, it fails to connect to D-Bus
-3. D-Bus socket may not be accessible from within the service context
-4. Running manually as user `trevor` works because the user session has D-Bus access
-
-**Potential solutions:**
-1. **PrivateMounts=no** - Allow service to see system D-Bus socket
-2. **Type=notify** with socket activation - Service auto-starts on request
-3. **Environment=DBUS_SESSION_BUS_ADDRESS** - Point to system bus
-4. **polkit rule** - Grant webhook service permission to restart subtitler
-
-**Lesson:** Services running within systemd may have limited access to D-Bus. Either configure the service unit to allow D-Bus access or use alternative restart mechanisms (kill/respawn, socket activation, etc.).
-
----
-
-### 2026-01-27: SRT/VTT/JSON buttons should open in new tabs, not download
-
-**Problem:** User feedback - "SRT / VTT / JSON buttons SHOULD NOT BE DOWNLOADS. I DON'T WANT DOWNLOADS."
-
-**Solution:** Changed from `downloadSRT()/downloadVTT()/downloadJSON()` functions to `openSRT()/openVTT()/openJSON()` which open content in new browser tabs using `window.open()` with blob URLs.
-
-**Lesson:** Understand user intent before implementing. "View subtitles" ≠ "Download subtitles". The user wanted to preview/copy subtitle content in browser, not download files.
-
----
-
-### 2026-01-27: Automated deep inspections identify technical debt
-
-**Problem:** With 224 tasks completed, all explicit work is done. How to find improvement opportunities?
-
-**Solution:** Used parallel exploration agents to analyze:
-1. **Frontend code** - Found memory leaks (event handlers not removed on pagination), ~300 lines of duplicated code (nav bars, auth checks), missing accessibility (aria-describedby for form errors)
-2. **Backend code** - Found file extension sanitization gap, missing session pagination limits, no panic recovery in WithTransaction
-3. **Specs vs implementation** - deployment.md still lists chunked uploads as "Future" (already implemented), missing specs for metrics/logging/migrations
-4. **Documentation** - ENV.md missing some rate limit variables, RATE_LIMITS.md doesn't mention USER_RATE_LIMIT
-
-Filed 19 new improvement tasks (225-243) covering security, performance, code quality, and documentation.
-
-**Lesson:**
-1. When out of explicit tasks, do systematic code review with multiple perspectives
-2. Memory leaks from event listeners are common - especially in pagination where list is re-rendered
-3. Navigation/auth code duplication across pages indicates need for shared components
-4. Specs can drift from implementation - periodic audits catch this
-5. Parallel exploration agents can cover more ground faster than sequential analysis
-
----
-
-### 2026-01-27: Use event delegation for paginated/dynamic lists
-
-**Problem:** videos.astro had memory leaks from event handlers. Each pagination call:
-1. Re-rendered video list HTML via `videoList.innerHTML = ...`
-2. Called `attachDeleteHandlers()`, `attachRetryHandlers()`, `attachViewHandlers()`, etc.
-3. These functions did `element.addEventListener()` on each button/thumbnail
-
-While old DOM elements get garbage collected (and their handlers with them), the pattern is fragile and the repeated attach calls cluttered the code.
-
-**Solution:** Event delegation - attach ONE listener to the parent container, handle all child interactions:
-
-```javascript
-// BEFORE: Multiple per-element handlers attached on each render
-function attachDeleteHandlers() {
-    videoList.querySelectorAll('.btn-delete').forEach((btn) => {
-        btn.addEventListener('click', (e) => { ... });
-    });
-}
-
-// AFTER: Single delegated handler, set up once
-videoList.addEventListener('click', (e) => {
-    const button = (e.target as HTMLElement).closest('button');
-    if (button?.classList.contains('btn-delete')) {
-        const videoId = button.dataset.videoId;
-        deleteVideo(videoId, ...);
-    }
-    // Handle other button types similarly
-});
-```
-
-Benefits:
-1. Single listener vs. N listeners - uses less memory
-2. Works for dynamically added elements without re-attaching handlers
-3. Cleaner code - no "attach" functions to call after each render
-4. No risk of duplicate handlers if attach called multiple times
-
-**Lesson:**
-1. For lists that get re-rendered (pagination, filtering, sorting), use event delegation
-2. Use `event.target.closest('.class')` to find the relevant element (handles clicks on child elements)
-3. Set up the delegated listener once at page load, not after each render
-4. This pattern was already correctly used for modal segments - should have applied it everywhere
-
----
-
-### 2026-01-28: localStorage error handling - existing code is correct
-
-**Problem:** Deep inspection flagged processing-speed.ts and session.ts as having "silent failures" with console.error statements that don't provide user feedback.
-
-**Solution:** After code review, the existing implementation is correct:
-- try-catch with console.error is appropriate for internal utilities
-- Functions return sensible defaults (empty arrays, empty objects) on failure
-- localStorage failures shouldn't interrupt user's workflow with alerts
-- The console.error helps developers debug in DevTools
-
-**Lesson:** Not every console.error needs user-facing feedback. For internal utilities that degrade gracefully (returning default values), console.error is the right choice. User-facing errors should be reserved for operations the user explicitly initiated that failed.
-
----
-
-### 2026-01-28: Verify test coverage before filing tasks
-
-**Problem:** Deep inspection agent reported that backend/align/ package had "no test file" but it actually has comprehensive tests in align_test.go and lyrics_test.go (500+ lines of test coverage).
-
-**Solution:** Task 323 was marked done immediately after verifying the test files exist. No code changes needed.
-
-**Lesson:** When an exploration agent reports missing tests, verify by checking for `*_test.go` files before filing a task. The agent may have missed test files or made an error in its analysis.
