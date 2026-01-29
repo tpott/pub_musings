@@ -51,7 +51,7 @@ All scripts are in the `scripts/` directory:
 | `test-frontend.sh` | Run frontend Vitest tests |
 | `test-e2e.sh` | Run Playwright E2E tests |
 | `verify-all.sh` | Run lint + backend + frontend tests |
-| `pre-commit` | Git pre-commit hook (lint + unit tests) |
+| `pre-commit` | Git pre-commit hook (lint + unit + E2E tests) |
 | `fetch-feedback.sh` | Fetch new user feedback from prod to FEEDBACK.md |
 
 ## Dependency Policy
@@ -75,5 +75,4 @@ To install the pre-commit hook:
 ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 ```
 
-The hook runs `lint.sh`, `test-backend.sh`, and `test-frontend.sh` before each commit.
-E2E tests are skipped in pre-commit as they're too slow.
+The hook runs `lint.sh`, `test-backend.sh`, `test-frontend.sh`, and `test-e2e.sh` before each commit.
