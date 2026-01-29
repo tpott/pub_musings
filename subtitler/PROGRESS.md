@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**347 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**348 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
 ### Recent (Tasks 339-348)
 - Fixed speed toggle buttons (0.8x/0.9x → spec values 0.5x-2x)
@@ -15,6 +15,8 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 - Implemented ralph_optimizer.py with log parsing, cost analysis, and pattern detection (Task 343)
 - Added dependency justification policy to CLAUDE.md and created deps.md (Task 344)
 - Escaped ffmpeg filter path and font name to prevent syntax injection (Tasks 345, 348)
+- Fixed clipboard API error handling and null checks in subtitles viewer (Task 346)
+- Added network error logging to nav-auth catch block (Task 347)
 
 ## Feature Summary
 
@@ -148,9 +150,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Current Work
 
-**347 tasks completed.**
+**348 tasks completed.**
 
 ### Recent Work (2026-01-28)
+
+**Tasks 346-347: Frontend Error Handling (COMPLETE)**
+- Added .catch() handler and null checks to clipboard API in subtitles viewer
+- Added network error logging (TypeError) to nav-auth.ts catch block
 
 **Tasks 345, 348: FFmpeg Filter Escaping (COMPLETE)**
 - Added escapeFFmpegFilterPath() to escape special chars (quotes, colons, brackets, semicolons, backslashes)

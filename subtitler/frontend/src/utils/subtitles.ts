@@ -248,12 +248,18 @@ function createViewerHTML(content: string, title: string, language: string = '')
     function copyContent() {
       navigator.clipboard.writeText(content).then(() => {
         const btn = document.querySelector('.copy-btn');
+        if (!btn) return;
         btn.textContent = 'Copied!';
         btn.classList.add('copied');
         setTimeout(() => {
           btn.textContent = 'Copy to Clipboard';
           btn.classList.remove('copied');
         }, 2000);
+      }).catch(() => {
+        const btn = document.querySelector('.copy-btn');
+        if (!btn) return;
+        btn.textContent = 'Copy failed';
+        setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 2000);
       });
     }
   </script>

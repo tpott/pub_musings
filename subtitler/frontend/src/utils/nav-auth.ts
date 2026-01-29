@@ -92,7 +92,10 @@ export async function checkAuthAndUpdateNav(
 			}
 		}
 	} catch (err) {
-		// Not logged in
+		// Auth check failed - likely not logged in, but log if it's a network error
+		if (err instanceof TypeError) {
+			console.error('Auth check network error:', err.message);
+		}
 	}
 
 	// Call page-specific callback for unauthenticated state
