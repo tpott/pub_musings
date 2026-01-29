@@ -4,9 +4,16 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**354 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**357 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Task 349)
+### Recent (Tasks 353-357)
+- Task 357: Created `specs/thumbnails.md` documenting the video thumbnail feature (generation, storage, API, caching, security)
+- Task 356: Verified console-forwarder tests already exist (20 tests covering all criteria)
+- Task 355: Added Home/End key support to settings tab navigation (WAI-ARIA tabs pattern)
+- Task 354: Removed `as any` casts in videos.astro — used `as PlaybackSpeed` and aligned local interfaces with API schema
+- Task 353: Added `escapeHtml()` to upload.astro script select innerHTML (defense-in-depth XSS prevention)
+
+### Previous (Task 349)
 - Migrated all 222 remaining `json.NewEncoder(w).Encode()` calls in main.go to httputil helpers
 - Error responses now use `httputil.RespondError()` / `httputil.RespondErrorf()` (proper Content-Type, error logging)
 - Success responses now use `httputil.RespondJSON()` (proper Content-Type, error logging)
