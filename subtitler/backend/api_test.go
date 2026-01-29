@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/tpott/subtitler/backend/align"
+	"github.com/tpott/subtitler/backend/audio"
 	"github.com/tpott/subtitler/backend/auth"
 	"github.com/tpott/subtitler/backend/captcha"
 	"github.com/tpott/subtitler/backend/crypto"
@@ -2935,6 +2936,114 @@ func (ts *testServer) registerHandlers() {
 		}
 		json.NewEncoder(w).Encode(response)
 	})
+
+	// Extract embedded subtitle track from video
+	ts.mux.HandleFunc("GET /api/videos/{id}/embedded-subtitles/{track}", ts.downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		videoID, valid := validatePathID(w, r.PathValue("id"), "Video ID")
+		if !valid {
+			return
+		}
+
+		// Parse track index
+		trackStr := r.PathValue("track")
+		trackIndex, err := strconv.Atoi(trackStr)
+		if err != nil || trackIndex < 0 {
+			httputil.RespondError(w, http.StatusBadRequest, "Invalid track index")
+			return
+		}
+
+		// Get the video
+		video, err := ts.db.GetVideo(videoID)
+		if err != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		// Verify the track exists in the video's embedded subtitles
+		if video.EmbeddedSubtitlesJSON == nil {
+			httputil.RespondError(w, http.StatusNotFound, "This video has no embedded subtitles")
+			return
+		}
+
+		var tracks []audio.SubtitleTrack
+		if err := json.Unmarshal([]byte(*video.EmbeddedSubtitlesJSON), &tracks); err != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to parse subtitle information")
+			return
+		}
+
+		// Find the track with the given index
+		var foundTrack *audio.SubtitleTrack
+		for _, t := range tracks {
+			if t.Index == trackIndex {
+				foundTrack = &t
+				break
+			}
+		}
+		if foundTrack == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Subtitle track not found")
+			return
+		}
+
+		// Only text-based subtitles can be extracted
+		if !foundTrack.TextBased {
+			httputil.RespondError(w, http.StatusBadRequest, "Cannot extract image-based subtitle track (use OCR for Blu-ray/DVD subtitles)")
+			return
+		}
+
+		// Check access (user owns video or has matching session_id)
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
+		// Get format from query parameter (default to srt)
+		format := r.URL.Query().Get("format")
+		if format == "" {
+			format = "srt"
+		}
+		if format != "srt" && format != "vtt" {
+			httputil.RespondError(w, http.StatusBadRequest, "Format must be 'srt' or 'vtt'")
+			return
+		}
+
+		// In tests, return mock subtitle content instead of calling ffmpeg
+		content := "1\n00:00:00,000 --> 00:00:02,500\nHello world.\n\n2\n00:00:03,000 --> 00:00:05,500\nThis is a test.\n"
+		if format == "vtt" {
+			content = "WEBVTT\n\n00:00:00.000 --> 00:00:02.500\nHello world.\n\n00:00:03.000 --> 00:00:05.500\nThis is a test.\n"
+		}
+
+		contentType := "text/plain; charset=utf-8"
+		ext := ".srt"
+		if format == "vtt" {
+			contentType = "text/vtt; charset=utf-8"
+			ext = ".vtt"
+		}
+
+		filename := strings.TrimSuffix(video.Filename, filepath.Ext(video.Filename))
+		if foundTrack.Language != "" {
+			filename += "_" + foundTrack.Language
+		}
+		filename += "_embedded" + ext
+
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Content-Disposition", httputil.ContentDisposition(filename))
+		w.WriteHeader(http.StatusOK)
+		httputil.WriteContent(w, []byte(content), "embedded subtitles download")
+	}))
 }
 
 // request helpers
@@ -10104,5 +10213,284 @@ func TestContentTypeHeader(t *testing.T) {
 				t.Errorf("Expected Content-Type starting with application/json, got %q (status %d)", ct, resp.Code)
 			}
 		})
+	}
+}
+
+// setVideoEmbeddedSubtitles is a test helper that sets embedded subtitles JSON on a video.
+func (ts *testServer) setVideoEmbeddedSubtitles(t *testing.T, videoID string, tracks []audio.SubtitleTrack) {
+	t.Helper()
+	tracksJSON, err := json.Marshal(tracks)
+	if err != nil {
+		t.Fatalf("Failed to marshal subtitle tracks: %v", err)
+	}
+	jsonStr := string(tracksJSON)
+	if err := ts.db.UpdateVideoEmbeddedSubtitles(videoID, &jsonStr); err != nil {
+		t.Fatalf("Failed to update embedded subtitles: %v", err)
+	}
+}
+
+func TestExtractEmbeddedSubtitleValidTrack(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "embed@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Set embedded subtitles with a text-based track
+	tracks := []audio.SubtitleTrack{
+		{Index: 2, Language: "eng", Title: "English", Codec: "subrip", TextBased: true},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	// Extract track 2 as SRT (default format)
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/2", nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	ct := resp.Header().Get("Content-Type")
+	if ct != "text/plain; charset=utf-8" {
+		t.Errorf("Expected Content-Type 'text/plain; charset=utf-8', got %q", ct)
+	}
+
+	cd := resp.Header().Get("Content-Disposition")
+	if !strings.Contains(cd, "test_eng_embedded.srt") {
+		t.Errorf("Expected Content-Disposition containing 'test_eng_embedded.srt', got %q", cd)
+	}
+
+	body := resp.Body.String()
+	if !strings.Contains(body, "Hello world.") {
+		t.Errorf("Expected body to contain 'Hello world.', got %q", body)
+	}
+}
+
+func TestExtractEmbeddedSubtitleVTTFormat(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "embedvtt@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	tracks := []audio.SubtitleTrack{
+		{Index: 3, Language: "fra", Codec: "ass", TextBased: true},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	// Extract as VTT format
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/3?format=vtt", nil, token)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	ct := resp.Header().Get("Content-Type")
+	if ct != "text/vtt; charset=utf-8" {
+		t.Errorf("Expected Content-Type 'text/vtt; charset=utf-8', got %q", ct)
+	}
+
+	cd := resp.Header().Get("Content-Disposition")
+	if !strings.Contains(cd, "test_fra_embedded.vtt") {
+		t.Errorf("Expected Content-Disposition containing 'test_fra_embedded.vtt', got %q", cd)
+	}
+
+	body := resp.Body.String()
+	if !strings.Contains(body, "WEBVTT") {
+		t.Errorf("Expected body to contain 'WEBVTT', got %q", body)
+	}
+}
+
+func TestExtractEmbeddedSubtitleInvalidTrackIndex(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "embedinvalid@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	tracks := []audio.SubtitleTrack{
+		{Index: 2, Language: "eng", Codec: "subrip", TextBased: true},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	tests := []struct {
+		name       string
+		trackParam string
+		wantCode   int
+		wantError  string
+	}{
+		{"negative index", "-1", http.StatusBadRequest, "Invalid track index"},
+		{"non-numeric", "abc", http.StatusBadRequest, "Invalid track index"},
+		{"nonexistent index", "99", http.StatusNotFound, "Subtitle track not found"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/"+tc.trackParam, nil, token)
+
+			if resp.Code != tc.wantCode {
+				t.Errorf("Expected status %d, got %d: %s", tc.wantCode, resp.Code, resp.Body.String())
+			}
+
+			var result map[string]string
+			json.NewDecoder(resp.Body).Decode(&result)
+			if result["error"] != tc.wantError {
+				t.Errorf("Expected error %q, got %q", tc.wantError, result["error"])
+			}
+		})
+	}
+}
+
+func TestExtractEmbeddedSubtitleImageBasedRejected(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "embedimage@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Set up an image-based subtitle track (PGS Blu-ray)
+	tracks := []audio.SubtitleTrack{
+		{Index: 4, Language: "eng", Codec: "hdmv_pgs_subtitle", TextBased: false},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/4", nil, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if !strings.Contains(result["error"], "image-based") {
+		t.Errorf("Expected error about image-based subtitles, got %q", result["error"])
+	}
+}
+
+func TestExtractEmbeddedSubtitleAccessControl(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video owned by user1
+	userID1, _ := ts.createTestUserWithID(t, "owner@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID1, nil)
+
+	tracks := []audio.SubtitleTrack{
+		{Index: 2, Language: "eng", Codec: "subrip", TextBased: true},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	// Create a different user
+	_, token2 := ts.createTestUserWithID(t, "other@example.com", "Password123!")
+
+	// User2 should be forbidden from accessing user1's video
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/2", nil, token2)
+
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if !strings.Contains(result["error"], "permission") {
+		t.Errorf("Expected error about permission, got %q", result["error"])
+	}
+}
+
+func TestExtractEmbeddedSubtitleAnonymousAccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create an anonymous video with a session ID
+	sessionID := testGenerateID()
+	video := ts.createTestVideo(t, nil, &sessionID)
+
+	tracks := []audio.SubtitleTrack{
+		{Index: 2, Language: "eng", Codec: "subrip", TextBased: true},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	// Access with matching session_id should succeed
+	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/2?session_id="+sessionID, nil)
+	rr := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 with matching session_id, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Access with wrong session_id should be forbidden
+	req2 := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/2?session_id=wrongsession", nil)
+	rr2 := httptest.NewRecorder()
+	ts.mux.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 with wrong session_id, got %d: %s", rr2.Code, rr2.Body.String())
+	}
+}
+
+func TestExtractEmbeddedSubtitleVideoNotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	_, token := ts.createTestUserWithID(t, "notfound@example.com", "Password123!")
+
+	// Use a valid 32-char hex ID format that doesn't exist in the database
+	resp := ts.doRequest("GET", "/api/videos/aabbccdd11223344aabbccdd11223344/embedded-subtitles/0", nil, token)
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Video not found" {
+		t.Errorf("Expected error 'Video not found', got %q", result["error"])
+	}
+}
+
+func TestExtractEmbeddedSubtitleNoSubtitles(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "nosubs@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	// Don't set any embedded subtitles - video.EmbeddedSubtitlesJSON is nil
+
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/0", nil, token)
+
+	if resp.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "This video has no embedded subtitles" {
+		t.Errorf("Expected error 'This video has no embedded subtitles', got %q", result["error"])
+	}
+}
+
+func TestExtractEmbeddedSubtitleInvalidFormat(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	userID, token := ts.createTestUserWithID(t, "badfmt@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+
+	tracks := []audio.SubtitleTrack{
+		{Index: 2, Language: "eng", Codec: "subrip", TextBased: true},
+	}
+	ts.setVideoEmbeddedSubtitles(t, video.ID, tracks)
+
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/embedded-subtitles/2?format=ass", nil, token)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Format must be 'srt' or 'vtt'" {
+		t.Errorf("Expected error about format, got %q", result["error"])
 	}
 }

@@ -4,9 +4,15 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**352 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
+**353 tasks completed** as of 2026-01-28. All core features implemented and tested. User feedback addressed: bionic reading, playback speed, dark mode, subtitle viewer improvements.
 
-### Recent (Task 358)
+### Recent (Task 352)
+- Added 9 tests for GET /api/videos/{id}/embedded-subtitles/{track} endpoint
+- Tests cover: valid SRT/VTT extraction, invalid track index (negative, non-numeric, nonexistent), image-based subtitle rejection, access control (wrong user, anonymous with session_id), video not found, no embedded subtitles, invalid format
+- Added test handler to registerHandlers() with mock subtitle content (skips ffmpeg/decryption)
+- Added setVideoEmbeddedSubtitles test helper
+
+### Previous (Task 358)
 - Audited all 51 HTTP handlers in main.go for Content-Type header ordering
 - Fixed 9 handlers missing `Content-Type: application/json` before WriteHeader: register, login, me, forgot-password, upload/init, upload/complete, transcribe segments, videos list, video delete
 - Added TestContentTypeHeader test verifying Content-Type is set on all previously-affected endpoints
