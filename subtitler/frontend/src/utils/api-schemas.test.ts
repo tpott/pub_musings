@@ -229,6 +229,19 @@ describe('api-schemas', () => {
 			expect(TranscriptionStatusResponseSchema.safeParse(response).success).toBe(true);
 		});
 
+		it('validates response with embedded subtitles', () => {
+			const response = {
+				status: 'complete',
+				result: {
+					segments: [{ id: 0, start: 0, end: 1, text: 'Hello' }],
+				},
+				embedded_subtitles: [
+					{ index: 0, language: 'en', title: 'English', codec: 'subrip', default: true, forced: false, text_based: true },
+				],
+			};
+			expect(TranscriptionStatusResponseSchema.safeParse(response).success).toBe(true);
+		});
+
 		it('rejects invalid status', () => {
 			const response = { status: 'invalid' };
 			expect(TranscriptionStatusResponseSchema.safeParse(response).success).toBe(false);

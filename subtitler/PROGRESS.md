@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**488 tasks completed** as of 2026-01-30.
+**490 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 841 tests across 29 files
+- **Frontend:** Astro/TypeScript, 842 tests across 29 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
-- **Total:** 1514+ tests, 32 specification documents
+- **Total:** 1515+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -67,6 +67,8 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - **Task 486:** Fixed TOTP spec/schema drift — added `qr_code` to setup response in specs/totp.md, added `recovery_codes` and recovery code generation steps to verify response in spec, added `uri` and `issuer` optional fields to `TotpSetupResponseSchema`. Added test for full backend response shape
 - **Task 487:** Fixed 5 Zod schema mismatches: SessionSchema `last_used_at` → `expires_at`, LanguageHintsResponseSchema `recommended` → `suggested_language`/`suggested_confidence`, LanguageHintSchema added `language_name`/`raw_value`, UploadCompleteResponseSchema `id` → `upload_id` and `language_hints` from array to DetectionResult object, UserSchema added `email_verified`. Added 7 tests
 - **Task 488:** Fixed API.md register response — showed full `user` object with `email_verified` field matching backend. Removed false "email disabled returns token" section (never implemented in code)
+- **Task 489:** Fixed frontend type drift — added `embedded_subtitles` to `TranscriptionStatusResponseSchema`, `duration`/`estimated_remaining_seconds` to `BurnStatusResponse`, `conversion_failed_indices` to `AlignmentResponse`. Added test
+- **Task 490:** Made `assembleChunks` `destFile.Close()` error fatal — removes partial file and returns error instead of silently continuing with potentially corrupted assembled file (same pattern as Task 480 for chunk uploads)
 
 ### Tasks 483-485: User-reported bugs from FEEDBACK.md (2026-01-30)
 - **Task 483:** Fixed TOTP 2FA enable returning "API response validation failed" — frontend Zod schema expected `{success: boolean}` but backend returned `{message, totp_enabled, recovery_codes}`. Updated `TotpVerifyResponseSchema` to match backend. Added regression test

@@ -162,6 +162,7 @@ export const TranscriptionStatusResponseSchema = z.object({
 	message: z.string().optional(),
 	progress: z.number().optional(),
 	result: TranscriptionResultSchema.optional(),
+	embedded_subtitles: z.array(EmbeddedSubtitleTrackSchema).optional(),
 });
 
 export type TranscriptionStatusResponse = z.infer<typeof TranscriptionStatusResponseSchema>;

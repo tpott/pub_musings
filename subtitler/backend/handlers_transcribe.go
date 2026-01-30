@@ -670,7 +670,9 @@ func assembleChunks(ctx context.Context, chunks []db.UploadChunk, destPath strin
 	}
 
 	if err := destFile.Close(); err != nil {
-		logging.WarnContext(ctx, "Error closing assembled file", "path", destPath, "error", err)
+		removeWithLogging(destPath, "assembled file after close failure")
+		logging.ErrorContext(ctx, "Error closing assembled file", "path", destPath, "error", err)
+		return 0, fmt.Errorf("Failed to finalize assembled file")
 	}
 	return totalWritten, nil
 }
