@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/tpott/subtitler/backend/auth"
 )
 
 func TestSecurityHeadersMiddleware(t *testing.T) {
@@ -88,6 +90,8 @@ func TestSecurityHeadersMiddlewareWithHTTPS(t *testing.T) {
 
 	// Enable HTTPS_ONLY
 	os.Setenv("HTTPS_ONLY", "true")
+	auth.InitHTTPSOnly()
+	defer auth.InitHTTPSOnly() // re-initialize after restoring env var
 
 	// Create a simple handler
 	innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

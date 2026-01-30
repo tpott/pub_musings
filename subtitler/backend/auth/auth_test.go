@@ -419,6 +419,7 @@ func TestIsHTTPSOnly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("HTTPS_ONLY", tt.envValue)
+			InitHTTPSOnly()
 			if got := IsHTTPSOnly(); got != tt.expected {
 				t.Errorf("IsHTTPSOnly() with HTTPS_ONLY=%q = %v, want %v", tt.envValue, got, tt.expected)
 			}

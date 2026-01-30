@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tpott/subtitler/backend/auth"
 	"github.com/tpott/subtitler/backend/db"
 	"github.com/tpott/subtitler/backend/logging"
 	"github.com/tpott/subtitler/backend/validation"
@@ -361,4 +362,7 @@ func initConfig() {
 	whisperThreads = getEnvIntOrDefault("WHISPER_THREADS", defaultWhisperThreads)
 	whisperTemperature = getEnvOrDefault("WHISPER_TEMPERATURE", "0.0")
 	whisperTimeout = getEnvDurationOrDefault("WHISPER_TIMEOUT", defaultWhisperTimeout)
+
+	// Cache HTTPS_ONLY for cookie and HSTS configuration
+	auth.InitHTTPSOnly()
 }

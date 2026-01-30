@@ -33,14 +33,11 @@ func runCleanup() {
 	security.CleanupStarted()
 	logging.Info("Running cleanup for expired videos")
 
-	// Get total count of expired videos for logging
+	// Get total count of expired videos for logging (non-fatal if this fails)
 	totalExpired, err := database.CountExpiredVideos()
 	if err != nil {
 		logging.Error("Error counting expired videos", "error", err)
-		return
-	}
-
-	if totalExpired == 0 {
+	} else if totalExpired == 0 {
 		logging.Debug("No expired videos to clean up")
 	} else {
 		logging.Info("Found expired videos to clean up", "count", totalExpired)

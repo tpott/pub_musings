@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**461 tasks completed** as of 2026-01-30. 0 tasks pending.
+**465 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 No pending tasks.
 
 ## Recent Work
+
+### Tasks 459-462: Docs accuracy, config caching, and scheduler bug fix (2026-01-30)
+- **Task 459:** Fixed API.md `POST /api/auth/register` — documented `200 OK` but code returns `201 Created` with email verification message. Updated to match actual handler behavior
+- **Task 460:** Cached `HTTPS_ONLY` env var at startup — `auth.IsHTTPSOnly()` was calling `os.Getenv` on every request (every cookie set/clear and HSTS header). Added `InitHTTPSOnly()` called from `initConfig()`, matching the CAPTCHA_SITE_KEY pattern (Task 456)
+- **Task 461:** Fixed cleanup scheduler early-return bug — `runCleanup()` returned entirely when `CountExpiredVideos()` failed, blocking cleanup of sessions, login attempts, upload sessions, and auth tokens. The count is only for logging; failure now logs an error without aborting other cleanup
+- **Task 462:** Updated API.md auth requirements for 13 endpoints that gained ownership checks in Tasks 436-438 (transcription, subtitle download, burn, language-hints). Changed "Not required" to "Required (owner via user session or session_id)" and added `403 Forbidden` to error lists
 
 ### Tasks 457-458: Transaction safety and code deduplication (2026-01-30)
 - **Task 457:** Wrapped `DeleteUploadSession` in `db.WithTransaction()` — the two DELETEs (chunks then session) were not atomic, risking orphaned records on partial failure. Matches the pattern from `DeleteVideo` (Task 441)
