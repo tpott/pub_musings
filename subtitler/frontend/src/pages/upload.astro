@@ -1,0 +1,1011 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import Navigation from '../components/Navigation.astro';
+import CookieConsent from '../components/CookieConsent.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+import '../styles/upload.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Upload - Subtitler</title>
+	</head>
+	<body>
+		<Navigation showSettings={true} />
+		<div class="container">
+			<div class="header">
+				<a href="/" class="back-link" aria-label="Back to home">&larr;</a>
+				<h1>Upload Video</h1>
+			</div>
+
+			<div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload video file. Drag and drop or press Enter to browse.">
+				<div class="dropzone-icon">📹</div>
+				<p class="dropzone-text">Drag and drop your video here</p>
+				<p class="dropzone-hint">or click to browse (MP4, MOV, WebM up to 500MB)</p>
+				<input type="file" class="file-input" id="fileInput" accept="video/*" />
+			</div>
+
+			<div class="video-preview" id="videoPreview">
+				<div class="video-preview-container">
+					<video id="previewVideo" controls></video>
+					<div class="speed-indicator" id="speedIndicator" aria-live="polite">1x</div>
+					<div class="speed-dropdown speed-dropdown-overlay" id="speedDropdown">
+						<button class="speed-btn" id="speedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
+						<div class="speed-options" id="speedOptions" role="menu">
+							<button class="speed-option" data-speed="0.8" role="menuitem">0.8x</button>
+							<button class="speed-option" data-speed="0.9" role="menuitem">0.9x</button>
+							<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="language-section" id="languageSection" style="display: none;">
+				<div class="language-section-header">
+					<div class="language-label">
+						<span>Transcription language:</span>
+					</div>
+					<select class="language-select" id="transcriptionLanguageSelect" aria-label="Select transcription language">
+						<option value="auto">Auto-detect</option>
+						<option value="en">English</option>
+						<option value="es">Spanish (Español)</option>
+						<option value="fr">French (Français)</option>
+						<option value="de">German (Deutsch)</option>
+						<option value="it">Italian (Italiano)</option>
+						<option value="pt">Portuguese (Português)</option>
+						<option value="ru">Russian (Русский)</option>
+						<option value="zh">Chinese (中文)</option>
+						<option value="ja">Japanese (日本語)</option>
+						<option value="ko">Korean (한국어)</option>
+						<option value="ar">Arabic (العربية)</option>
+						<option value="hi">Hindi (हिन्दी)</option>
+						<option value="nl">Dutch (Nederlands)</option>
+						<option value="pl">Polish (Polski)</option>
+						<option value="tr">Turkish (Türkçe)</option>
+						<option value="vi">Vietnamese (Tiếng Việt)</option>
+						<option value="th">Thai (ไทย)</option>
+						<option value="id">Indonesian (Bahasa Indonesia)</option>
+						<option value="uk">Ukrainian (Українська)</option>
+						<option value="sv">Swedish (Svenska)</option>
+					</select>
+					<button class="retranscribe-btn" id="retranscribeBtn" style="display: none;">
+						Re-transcribe
+					</button>
+				</div>
+				<div class="detected-language" id="detectedLanguage" style="display: none;">
+					Detected: <span class="detected-value" id="detectedLanguageValue"></span>
+				</div>
+			</div>
+
+			<div class="status" id="status" role="status" aria-live="polite">
+				<p id="statusText">Ready to upload</p>
+				<div class="progress-bar" id="progressBar" style="display: none;">
+					<div class="progress-bar-fill" id="progressFill"></div>
+				</div>
+			</div>
+
+			<div class="transcription" id="transcription">
+				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
+				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
+				<div class="current-subtitle" aria-live="polite" aria-atomic="true"><span class="current-subtitle-inner" id="currentSubtitle"></span></div>
+				<div class="subtitle-feedback" id="subtitleFeedback" style="display: none;">
+					<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
+						<span class="emoji">👍</span>
+					</button>
+					<button class="feedback-btn misaligned" data-feedback="misaligned" aria-label="Mark current segment as misaligned" title="Timing is off">
+						<span class="emoji">⏱️</span> Misaligned
+					</button>
+					<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
+						<span class="emoji">❓</span> Missing
+					</button>
+				</div>
+				<div class="edit-actions" id="editActions">
+					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+					</button>
+					<button class="undo-redo-btn" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo last undone edit">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+					</button>
+					<div class="undo-redo-separator"></div>
+					<button class="save-btn" id="saveBtn">Save Changes</button>
+					<button class="cancel-btn" id="cancelBtn">Cancel</button>
+				</div>
+				<div class="segments" id="segments"></div>
+				<button class="add-segment-btn" id="addSegmentBtn">+ Add Segment</button>
+				<div class="collapsible-section" id="pasteTranscriptSection" style="display: none;">
+					<div class="collapsible-header" id="pasteTranscriptHeader" role="button" aria-expanded="true" aria-controls="pasteTranscriptContent" tabindex="0">
+						<h3>Replace with your own transcript</h3>
+						<span class="collapsible-icon">▼</span>
+					</div>
+					<div class="collapsible-content" id="pasteTranscriptContent">
+					<textarea id="pasteText" placeholder="Paste your transcript or lyrics here..."></textarea>
+					<div class="lyrics-mode-toggle">
+						<label class="toggle-switch">
+							<input type="checkbox" id="lyricsMode" />
+							<span class="toggle-slider"></span>
+						</label>
+						<label class="toggle-label" for="lyricsMode">Known lyrics mode</label>
+						<span class="tooltip-container">
+							<span class="tooltip-icon">?</span>
+							<span class="tooltip-text">
+								<strong>Standard mode:</strong> Best for spoken word, interviews, and presentations. Uses basic text matching.<br><br>
+								<strong>Lyrics mode:</strong> Best for music videos and songs. Handles elongated words ("loooove"), vocal substitutions ("you" → "ooh"), and repeated choruses.
+							</span>
+						</span>
+					</div>
+					<div class="script-conversion-section">
+						<div class="script-conversion-header">
+							<input type="checkbox" id="convertScript" />
+							<label for="convertScript">Convert to native script (e.g., romanized Hindi → Devanagari)</label>
+						</div>
+						<div class="script-selectors hidden" id="scriptSelectors">
+							<div class="selector-group">
+								<label for="languageSelect">Language</label>
+								<select id="languageSelect">
+									<option value="hi">Hindi</option>
+									<option value="ml">Malayalam</option>
+									<option value="ta">Tamil</option>
+									<option value="te">Telugu</option>
+									<option value="kn">Kannada</option>
+									<option value="bn">Bengali</option>
+									<option value="gu">Gujarati</option>
+									<option value="or">Oriya</option>
+									<option value="pa">Punjabi</option>
+								</select>
+							</div>
+							<div class="selector-group">
+								<label for="scriptSelect">Target Script</label>
+								<select id="scriptSelect">
+									<option value="Devanagari">Devanagari</option>
+								</select>
+							</div>
+						</div>
+						<p class="script-conversion-hint" id="scriptHint"></p>
+					</div>
+					<button class="align-btn" id="alignBtn">Align Transcript</button>
+					<div class="align-status" id="alignStatus"></div>
+					</div>
+				</div>
+				<div class="embedded-subtitles-notice" id="embeddedSubtitlesNotice" style="display: none;">
+					<div class="notice-content">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="notice-icon">
+							<circle cx="12" cy="12" r="10"></circle>
+							<line x1="12" y1="16" x2="12" y2="12"></line>
+							<line x1="12" y1="8" x2="12.01" y2="8"></line>
+						</svg>
+						<div class="notice-text">
+							<strong>Embedded subtitles detected</strong>
+							<span id="embeddedSubtitlesList"></span>
+						</div>
+					</div>
+					<select id="embeddedTrackSelect" class="track-select">
+					</select>
+					<button class="use-embedded-btn" id="useEmbeddedBtn">Use Embedded Subtitles</button>
+				</div>
+				<div class="actions" id="actions" style="display: none;">
+					<a href="#" class="view-btn" id="viewBtn" aria-label="View in My Videos page">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+							<circle cx="12" cy="12" r="3"></circle>
+						</svg>
+						View in My Videos
+					</a>
+					<button class="edit-btn" id="editBtn">Edit Subtitles</button>
+					<div class="download-group">
+						<a href="#" class="download-btn" id="downloadSrt" aria-label="View subtitles in SRT format">SRT</a>
+						<a href="#" class="download-btn download-btn-secondary" id="downloadVtt" aria-label="View subtitles in VTT format">VTT</a>
+						<a href="#" class="download-btn download-btn-secondary" id="downloadJson" aria-label="View subtitles in JSON format">JSON</a>
+					</div>
+					<button class="burn-btn" id="burnBtn">Burn Subtitles into Video</button>
+					<button class="keyboard-help-btn" id="keyboardHelpBtn" aria-label="Show keyboard shortcuts">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M6 16h8"/></svg>
+						Shortcuts
+					</button>
+				</div>
+				<div class="burn-status" id="burnStatus">
+					<p id="burnStatusText">Starting...</p>
+					<p id="burnEtaText" class="burn-eta" style="display: none;"></p>
+					<div class="progress-bar" id="burnProgressBar">
+						<div class="progress-bar-fill" id="burnProgressFill"></div>
+					</div>
+					<a href="#" class="download-burned-btn" id="downloadBurnedBtn" style="display: none;">Download Video with Subtitles</a>
+				</div>
+				<div class="collapsible-section collapsed" id="fullTextSection" style="display: none;">
+					<div class="collapsible-header" id="fullTextHeader" role="button" aria-expanded="false" aria-controls="fullTextContent" tabindex="0">
+						<h3>Full Transcript Text</h3>
+						<span class="collapsible-icon">▼</span>
+					</div>
+					<div class="collapsible-content" id="fullTextContent">
+						<div class="full-text-inner" id="fullText"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Keyboard shortcuts modal -->
+		<div class="modal-overlay" id="keyboardShortcutsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title" id="modalTitle">Keyboard Shortcuts</h2>
+					<button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
+				</div>
+				<div class="modal-body">
+					<div class="shortcut-section">
+						<div class="shortcut-section-title">Video Playback</div>
+						<ul class="shortcut-list">
+							<li class="shortcut-item">
+								<span class="shortcut-description">Play / Pause</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Space</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Seek backward 5s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">←</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Seek forward 5s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">→</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Rewind 10s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">J</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Pause</span>
+								<span class="shortcut-keys"><span class="shortcut-key">K</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Forward 10s</span>
+								<span class="shortcut-keys"><span class="shortcut-key">L</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Slower speed</span>
+								<span class="shortcut-keys"><span class="shortcut-key">[</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Faster speed</span>
+								<span class="shortcut-keys"><span class="shortcut-key">]</span></span>
+							</li>
+						</ul>
+					</div>
+					<div class="shortcut-section">
+						<div class="shortcut-section-title">Subtitle Navigation</div>
+						<ul class="shortcut-list">
+							<li class="shortcut-item">
+								<span class="shortcut-description">Next segment</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Tab</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Previous segment</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Shift</span><span class="shortcut-key">Tab</span></span>
+							</li>
+						</ul>
+					</div>
+					<div class="shortcut-section">
+						<div class="shortcut-section-title">Editing (in edit mode)</div>
+						<ul class="shortcut-list">
+							<li class="shortcut-item">
+								<span class="shortcut-description">Undo</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">Z</span></span>
+							</li>
+							<li class="shortcut-item">
+								<span class="shortcut-description">Redo</span>
+								<span class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">Shift</span><span class="shortcut-key">Z</span></span>
+							</li>
+						</ul>
+					</div>
+					<div class="shortcut-note">
+						Note: Playback shortcuts work when focus is not in a text field. In edit mode, use Tab/Shift+Tab to navigate between segments.
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { csrfFetch } from '../utils/csrf';
+			import { cleanupStaleUploadSessions } from '../utils/session';
+			import { escapeHtml } from '../utils/html';
+			import { openSRT, openVTT, openJSON } from '../utils/subtitles';
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
+			import { getRequiredElement } from '../utils/dom';
+			import { fetchWithTimeout } from '../utils/fetch-timeout';
+			import type { TranscriptionResult } from '../types/transcription';
+			import type { LanguageHints } from '../types/transcription';
+
+			import {
+				LANGUAGE_DISPLAY_NAMES,
+				LANGUAGE_SCRIPT_MAP,
+				SCRIPT_LANGUAGE_NAMES,
+				PREFERRED_LANGUAGE_KEY,
+				PASTE_COLLAPSED_KEY,
+				FULLTEXT_COLLAPSED_KEY,
+				MAX_ALIGN_TEXT_LENGTH
+			} from '../utils/upload-constants';
+			import {
+				validateFile,
+				uploadFile,
+				createUploadState,
+			} from '../utils/upload-file';
+			import {
+				startTranscription as startTranscriptionPoll,
+				pollTranscriptionStatus,
+				parseSRT,
+				getLanguageDisplayName,
+				createTranscriptionState,
+			} from '../utils/transcription-polling';
+			import {
+				createSegmentEditorState,
+				renderSegments,
+				setupFeedbackHandler,
+				enterEditMode,
+				exitEditMode,
+				saveSegments,
+				addNewSegment,
+				performUndo,
+				performRedo,
+			} from '../utils/segment-editor';
+			import type { SegmentEditorElements } from '../utils/segment-editor';
+			import {
+				setupSubtitleSync,
+				createSubtitleUpdater,
+				setupSpeedControls,
+				createSpeedUIState,
+				setupKeyboardShortcuts,
+				startBurn,
+				createBurnState,
+			} from '../utils/subtitle-sync';
+			import { showConfirm } from '../utils/dialog';
+
+			// --- DOM Elements ---
+			const dropzone = getRequiredElement('dropzone', HTMLElement);
+			const fileInput = getRequiredElement('fileInput', HTMLInputElement);
+			const statusEl = getRequiredElement('status', HTMLElement);
+			const statusText = getRequiredElement('statusText', HTMLElement);
+			const videoPreview = getRequiredElement('videoPreview', HTMLElement);
+			const previewVideo = getRequiredElement('previewVideo', HTMLVideoElement);
+			const progressBar = getRequiredElement('progressBar', HTMLElement);
+			const progressFill = getRequiredElement('progressFill', HTMLElement);
+			const transcriptionEl = getRequiredElement('transcription', HTMLElement);
+			const transcriptionStatus = getRequiredElement('transcriptionStatus', HTMLElement);
+			const segmentsEl = getRequiredElement('segments', HTMLElement);
+			const fullText = getRequiredElement('fullText', HTMLElement);
+			const fullTextSection = getRequiredElement('fullTextSection', HTMLElement);
+			const fullTextHeader = getRequiredElement('fullTextHeader', HTMLElement);
+			const currentSubtitle = getRequiredElement('currentSubtitle', HTMLElement);
+			const subtitleFeedback = getRequiredElement('subtitleFeedback', HTMLElement);
+			const actions = getRequiredElement('actions', HTMLElement);
+			const embeddedSubtitlesNotice = getRequiredElement('embeddedSubtitlesNotice', HTMLElement);
+			const embeddedSubtitlesList = getRequiredElement('embeddedSubtitlesList', HTMLElement);
+			const embeddedTrackSelect = getRequiredElement('embeddedTrackSelect', HTMLSelectElement);
+			const useEmbeddedBtn = getRequiredElement('useEmbeddedBtn', HTMLButtonElement);
+			const viewBtn = getRequiredElement('viewBtn', HTMLAnchorElement);
+			const downloadSrt = getRequiredElement('downloadSrt', HTMLAnchorElement);
+			const downloadVtt = getRequiredElement('downloadVtt', HTMLAnchorElement);
+			const downloadJson = getRequiredElement('downloadJson', HTMLAnchorElement);
+			const editBtn = getRequiredElement('editBtn', HTMLButtonElement);
+			const undoBtn = getRequiredElement('undoBtn', HTMLButtonElement);
+			const redoBtn = getRequiredElement('redoBtn', HTMLButtonElement);
+			const saveBtn = getRequiredElement('saveBtn', HTMLButtonElement);
+			const cancelBtn = getRequiredElement('cancelBtn', HTMLButtonElement);
+			const editActions = getRequiredElement('editActions', HTMLElement);
+			const addSegmentBtn = getRequiredElement('addSegmentBtn', HTMLButtonElement);
+			const unsavedIndicator = getRequiredElement('unsavedIndicator', HTMLElement);
+			const burnBtn = getRequiredElement('burnBtn', HTMLButtonElement);
+			const burnStatusEl = getRequiredElement('burnStatus', HTMLElement);
+			const burnStatusText = getRequiredElement('burnStatusText', HTMLElement);
+			const burnEtaText = getRequiredElement('burnEtaText', HTMLElement);
+			const burnProgressFill = getRequiredElement('burnProgressFill', HTMLElement);
+			const downloadBurnedBtn = getRequiredElement('downloadBurnedBtn', HTMLAnchorElement);
+			const pasteTranscriptSection = getRequiredElement('pasteTranscriptSection', HTMLElement);
+			const pasteTranscriptHeader = getRequiredElement('pasteTranscriptHeader', HTMLElement);
+			const pasteText = getRequiredElement('pasteText', HTMLTextAreaElement);
+			const convertScript = getRequiredElement('convertScript', HTMLInputElement);
+			const scriptSelectors = getRequiredElement('scriptSelectors', HTMLElement);
+			const languageSelect = getRequiredElement('languageSelect', HTMLSelectElement);
+			const scriptSelect = getRequiredElement('scriptSelect', HTMLSelectElement);
+			const scriptHint = getRequiredElement('scriptHint', HTMLElement);
+			const lyricsMode = getRequiredElement('lyricsMode', HTMLInputElement);
+			const alignBtn = getRequiredElement('alignBtn', HTMLButtonElement);
+			const alignStatus = getRequiredElement('alignStatus', HTMLElement);
+			const languageSection = getRequiredElement('languageSection', HTMLElement);
+			const transcriptionLanguageSelect = getRequiredElement('transcriptionLanguageSelect', HTMLSelectElement);
+			const retranscribeBtn = getRequiredElement('retranscribeBtn', HTMLButtonElement);
+			const detectedLanguage = getRequiredElement('detectedLanguage', HTMLElement);
+			const detectedLanguageValue = getRequiredElement('detectedLanguageValue', HTMLElement);
+			const keyboardHelpBtn = getRequiredElement('keyboardHelpBtn', HTMLButtonElement);
+			const keyboardShortcutsModal = getRequiredElement('keyboardShortcutsModal', HTMLElement);
+			const modalClose = getRequiredElement('modalClose', HTMLButtonElement);
+			const speedBtn = getRequiredElement('speedBtn', HTMLButtonElement);
+			const speedOptions = getRequiredElement('speedOptions', HTMLElement);
+			const speedDropdown = getRequiredElement('speedDropdown', HTMLElement);
+			const speedIndicator = getRequiredElement('speedIndicator', HTMLElement);
+
+			// --- State ---
+			let isAuthenticated = false;
+			const uploadState = createUploadState();
+			const transcriptionState = createTranscriptionState();
+			const editorState = createSegmentEditorState();
+			const burnState = createBurnState();
+			const speedState = createSpeedUIState();
+			const subtitleSyncState = { active: false };
+
+			const editorEls: SegmentEditorElements = {
+				segments: segmentsEl,
+				fullText,
+				editBtn,
+				undoBtn,
+				redoBtn,
+				saveBtn,
+				editActions,
+				addSegmentBtn,
+				unsavedIndicator,
+				subtitleFeedback,
+				previewVideo,
+			};
+
+			// --- Helper functions ---
+			function showStatus(message: string, type?: 'error' | 'success') {
+				statusText.textContent = message;
+				statusEl.classList.add('visible');
+				statusEl.classList.remove('error', 'success');
+				if (type) statusEl.classList.add(type);
+			}
+
+			function showProgress(percent: number) {
+				progressBar.style.display = 'block';
+				progressFill.style.width = `${percent}%`;
+			}
+
+			function hideProgress() {
+				progressBar.style.display = 'none';
+				progressFill.style.width = '0%';
+			}
+
+			// --- Collapsible sections ---
+			function setupCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
+				const savedState = localStorage.getItem(storageKey);
+				const defaultCollapsed = storageKey === FULLTEXT_COLLAPSED_KEY;
+				const isCollapsed = savedState !== null ? savedState === 'true' : defaultCollapsed;
+
+				if (isCollapsed) {
+					section.classList.add('collapsed');
+					header.setAttribute('aria-expanded', 'false');
+				} else {
+					section.classList.remove('collapsed');
+					header.setAttribute('aria-expanded', 'true');
+				}
+
+				const toggle = () => {
+					const collapsed = section.classList.contains('collapsed');
+					if (collapsed) {
+						section.classList.remove('collapsed');
+						header.setAttribute('aria-expanded', 'true');
+						localStorage.setItem(storageKey, 'false');
+					} else {
+						section.classList.add('collapsed');
+						header.setAttribute('aria-expanded', 'false');
+						localStorage.setItem(storageKey, 'true');
+					}
+				};
+
+				header.addEventListener('click', toggle);
+				header.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						toggle();
+					}
+				});
+			}
+
+			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY);
+			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY);
+
+			// --- Language hints ---
+			function handleLanguageHints(languageHints: LanguageHints | undefined) {
+				if (!languageHints || !languageHints.hints || languageHints.hints.length === 0) return;
+				languageSection.style.display = 'block';
+
+				const suggestedLang = languageHints.suggested_language;
+				const confidence = languageHints.suggested_confidence;
+
+				if (suggestedLang) {
+					if (transcriptionLanguageSelect.value === 'auto') {
+						const langOption = transcriptionLanguageSelect.querySelector(`option[value="${suggestedLang}"]`) as HTMLOptionElement | null;
+						if (langOption) transcriptionLanguageSelect.value = suggestedLang;
+					}
+
+					const sources = languageHints.hints.map(h => h.source).join(', ');
+					const displayName = getLanguageDisplayName(suggestedLang, languageHints.hints[0]?.language_name);
+
+					let confidenceClass = confidence === 'high' ? 'confidence-high' : confidence === 'medium' ? 'confidence-medium' : 'confidence-low';
+
+					detectedLanguageValue.textContent = displayName;
+					detectedLanguageValue.className = `detected-value ${confidenceClass}`;
+					detectedLanguageValue.title = `Detected from ${sources} (${confidence} confidence)`;
+					detectedLanguage.style.display = 'block';
+				}
+			}
+
+			// --- Script conversion ---
+			function updateScriptOptions() {
+				const lang = languageSelect.value;
+				const scripts = LANGUAGE_SCRIPT_MAP[lang] || ['Devanagari'];
+				scriptSelect.innerHTML = scripts.map(s =>
+					`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`
+				).join('');
+				const langName = SCRIPT_LANGUAGE_NAMES[lang] || lang;
+				scriptHint.textContent = `Romanized ${langName} text will be converted to ${scripts[0]} script.`;
+			}
+
+			convertScript.addEventListener('change', () => {
+				if (convertScript.checked) {
+					scriptSelectors.classList.remove('hidden');
+					updateScriptOptions();
+				} else {
+					scriptSelectors.classList.add('hidden');
+					scriptHint.textContent = '';
+				}
+			});
+			languageSelect.addEventListener('change', updateScriptOptions);
+
+			// --- Cleanup ---
+			cleanupStaleUploadSessions();
+
+			function cleanupPendingOperations() {
+				if (transcriptionState.transcriptionPollTimeout !== null) {
+					clearTimeout(transcriptionState.transcriptionPollTimeout);
+					transcriptionState.transcriptionPollTimeout = null;
+				}
+				if (burnState.burnPollTimeout !== null) {
+					clearTimeout(burnState.burnPollTimeout);
+					burnState.burnPollTimeout = null;
+				}
+				if (transcriptionState.fetchAbortController) {
+					transcriptionState.fetchAbortController.abort();
+					transcriptionState.fetchAbortController = null;
+				}
+				if (uploadState.uploadTimeoutId !== null) {
+					clearTimeout(uploadState.uploadTimeoutId);
+					uploadState.uploadTimeoutId = null;
+				}
+				if (uploadState.currentUploadXhr) {
+					uploadState.currentUploadXhr.abort();
+					uploadState.currentUploadXhr = null;
+				}
+			}
+
+			const updateCurrentSubtitle = createSubtitleUpdater(
+				editorState, previewVideo, currentSubtitle, subtitleFeedback, segmentsEl
+			);
+
+			window.addEventListener('beforeunload', (e) => {
+				cleanupPendingOperations();
+				if (subtitleSyncState.active && previewVideo) {
+					previewVideo.removeEventListener('timeupdate', updateCurrentSubtitle);
+					subtitleSyncState.active = false;
+				}
+				if (editorState.hasUnsavedChanges) {
+					e.preventDefault();
+					e.returnValue = '';
+				}
+			});
+			window.addEventListener('pagehide', cleanupPendingOperations);
+
+			// --- Transcription display ---
+			function displayTranscription(result: TranscriptionResult | null) {
+				if (!result) return;
+
+				editorState.transcriptionSegments = result.segments || [];
+				editorState.editedSegments = structuredClone(editorState.transcriptionSegments);
+
+				if (result.text) fullText.textContent = result.text;
+
+				if (result.language) {
+					detectedLanguageValue.textContent = getLanguageDisplayName(result.language);
+					detectedLanguage.style.display = 'block';
+					retranscribeBtn.style.display = 'inline-block';
+				}
+
+				renderSegments(editorState, editorEls);
+
+				if (editorState.currentUploadId) {
+					actions.style.display = 'flex';
+					viewBtn.href = `/videos?play=${editorState.currentUploadId}`;
+					pasteTranscriptSection.style.display = 'block';
+					fullTextSection.style.display = 'block';
+				}
+
+				showEmbeddedSubtitlesNotice();
+
+				if (editorState.currentUploadId) {
+					previewVideo.src = `/api/videos/${editorState.currentUploadId}/video`;
+				}
+
+				setupSubtitleSync(previewVideo, updateCurrentSubtitle, subtitleSyncState);
+			}
+
+			// --- Embedded subtitles ---
+			function showEmbeddedSubtitlesNotice() {
+				const textTracks = transcriptionState.embeddedSubtitleTracks.filter(t => t.text_based);
+				if (textTracks.length === 0) {
+					embeddedSubtitlesNotice.style.display = 'none';
+					return;
+				}
+
+				embeddedSubtitlesList.textContent = textTracks.map(t => {
+					let label = t.language || 'Unknown';
+					if (t.title) label += ` (${t.title})`;
+					if (t.default) label += ' [default]';
+					return label;
+				}).join(', ');
+
+				embeddedTrackSelect.innerHTML = '';
+				textTracks.forEach((track, i) => {
+					const option = document.createElement('option');
+					option.value = track.index.toString();
+					let label = track.language || 'Unknown language';
+					if (track.title) label = `${label} - ${track.title}`;
+					label += ` (${track.codec})`;
+					if (track.default) label += ' [default]';
+					option.textContent = label;
+					if (i === 0) option.selected = true;
+					embeddedTrackSelect.appendChild(option);
+				});
+
+				embeddedTrackSelect.style.display = textTracks.length === 1 ? 'none' : 'block';
+				embeddedSubtitlesNotice.style.display = 'flex';
+			}
+
+			useEmbeddedBtn.addEventListener('click', async () => {
+				if (!editorState.currentUploadId) return;
+				const trackIndex = parseInt(embeddedTrackSelect.value, 10);
+				useEmbeddedBtn.disabled = true;
+				useEmbeddedBtn.textContent = 'Loading...';
+
+				try {
+					const response = await fetchWithTimeout(
+						`/api/videos/${editorState.currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
+					);
+					if (!response.ok) {
+						const err = await response.json();
+						throw new Error(err.error || 'Failed to extract subtitles');
+					}
+					const srtContent = await response.text();
+					const parsedSegments = parseSRT(srtContent);
+					if (parsedSegments.length === 0) throw new Error('No subtitles found in embedded track');
+
+					editorState.transcriptionSegments = parsedSegments;
+					editorState.editedSegments = structuredClone(parsedSegments);
+					editorState.hasUnsavedChanges = true;
+					unsavedIndicator.classList.add('visible');
+
+					renderSegments(editorState, editorEls);
+					fullText.textContent = parsedSegments.map(s => s.text).join(' ');
+					transcriptionStatus.textContent = 'Loaded embedded subtitles! (Unsaved)';
+				} catch (error) {
+					console.error('Failed to load embedded subtitles:', error);
+					transcriptionStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
+				} finally {
+					useEmbeddedBtn.disabled = false;
+					useEmbeddedBtn.textContent = 'Use Embedded Subtitles';
+				}
+			});
+
+			// --- Transcript alignment ---
+			async function alignTranscript() {
+				if (!editorState.currentUploadId) return;
+				const text = pasteText.value.trim();
+				if (!text) {
+					alignStatus.textContent = 'Please paste some text first.';
+					alignStatus.className = 'align-status error';
+					return;
+				}
+				if (new Blob([text]).size > MAX_ALIGN_TEXT_LENGTH) {
+					const sizeKB = Math.round(new Blob([text]).size / 1024);
+					alignStatus.textContent = `Text is too long (${sizeKB}KB). Maximum is ${MAX_ALIGN_TEXT_LENGTH / 1024}KB.`;
+					alignStatus.className = 'align-status error';
+					return;
+				}
+
+				alignBtn.disabled = true;
+				alignBtn.textContent = 'Aligning...';
+				alignStatus.textContent = '';
+				alignStatus.className = 'align-status';
+
+				try {
+					const mode = lyricsMode.checked ? 'lyrics' : 'standard';
+					const payload: { text: string; mode: string; convert_to_script?: string; language?: string } = { text, mode };
+					if (convertScript.checked) {
+						payload.convert_to_script = scriptSelect.value;
+						payload.language = languageSelect.value;
+					}
+
+					const response = await csrfFetch(`/api/transcribe/${editorState.currentUploadId}/align`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+					const result = await response.json();
+					if (!response.ok) throw new Error(result.error || 'Alignment failed');
+
+					const transcriptionResponse = await fetchWithTimeout(`/api/transcribe/${editorState.currentUploadId}`);
+					const transcriptionResult = await transcriptionResponse.json();
+					if (transcriptionResult.status === 'complete' && transcriptionResult.result) {
+						editorState.transcriptionSegments = transcriptionResult.result.segments || [];
+						editorState.editedSegments = structuredClone(editorState.transcriptionSegments);
+						fullText.textContent = editorState.transcriptionSegments.map((s) => s.text).join(' ');
+						renderSegments(editorState, editorEls);
+					}
+
+					const matchPct = result.stats?.match_rate ? Math.round(result.stats.match_rate * 100) : 0;
+					let statusMsg = `Aligned ${result.segments} segments (${matchPct}% match rate, ${result.mode} mode)`;
+					if (result.script_converted) statusMsg += ` — converted to ${result.target_script}`;
+					alignStatus.textContent = statusMsg;
+					alignStatus.className = 'align-status success';
+					pasteText.value = '';
+				} catch (error) {
+					alignStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
+					alignStatus.className = 'align-status error';
+				} finally {
+					alignBtn.disabled = false;
+					alignBtn.textContent = 'Align Transcript';
+				}
+			}
+			alignBtn.addEventListener('click', alignTranscript);
+
+			// --- File upload (drag-and-drop + file input + keyboard) ---
+			dropzone.addEventListener('click', () => fileInput.click());
+			dropzone.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					fileInput.click();
+				}
+			});
+			dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+			dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+			dropzone.addEventListener('drop', (e) => {
+				e.preventDefault();
+				dropzone.classList.remove('dragover');
+				const files = e.dataTransfer?.files;
+				if (files && files.length > 0) handleFile(files[0]);
+			});
+			fileInput.addEventListener('change', () => {
+				const files = fileInput.files;
+				if (files && files.length > 0) handleFile(files[0]);
+			});
+
+			function handleFile(file: File) {
+				if (uploadState.isUploading) {
+					showStatus('Upload already in progress', 'error');
+					return;
+				}
+				const error = validateFile(file);
+				if (error) {
+					showStatus(error, 'error');
+					return;
+				}
+
+				previewVideo.src = URL.createObjectURL(file);
+				videoPreview.classList.add('visible');
+
+				previewVideo.addEventListener('loadedmetadata', () => {
+					if (previewVideo.duration && !isNaN(previewVideo.duration) && isFinite(previewVideo.duration)) {
+						transcriptionState.currentVideoDuration = previewVideo.duration;
+					}
+				}, { once: true });
+
+				languageSection.style.display = 'block';
+				const savedLanguage = localStorage.getItem(PREFERRED_LANGUAGE_KEY);
+				if (savedLanguage && transcriptionLanguageSelect.querySelector(`option[value="${savedLanguage}"]`)) {
+					transcriptionLanguageSelect.value = savedLanguage;
+				}
+				retranscribeBtn.style.display = 'none';
+				detectedLanguage.style.display = 'none';
+
+				showStatus(`Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+				uploadFile(file, uploadState, {
+					showStatus,
+					showProgress,
+					hideProgress,
+					isAuthenticated: () => isAuthenticated,
+					onUploadComplete: (uploadId, languageHints) => {
+						handleLanguageHints(languageHints);
+						editorState.currentUploadId = uploadId;
+						startTranscription(uploadId);
+					}
+				});
+			}
+
+			// --- Transcription ---
+			function startTranscription(uploadId: string, language?: string, force?: boolean) {
+				transcriptionEl.classList.add('visible');
+				transcriptionStatus.textContent = 'Starting transcription...';
+				segmentsEl.innerHTML = '';
+				fullText.textContent = '';
+
+				const selectedLanguage = language || transcriptionLanguageSelect.value;
+				if (selectedLanguage && selectedLanguage !== 'auto') {
+					localStorage.setItem(PREFERRED_LANGUAGE_KEY, selectedLanguage);
+				}
+
+				startTranscriptionPoll(uploadId, transcriptionState, {
+					setTranscriptionStatus: (text) => { transcriptionStatus.textContent = text; },
+					displayTranscription,
+				}, selectedLanguage, force);
+			}
+
+			// --- Edit mode event handlers ---
+			setupFeedbackHandler(editorState, subtitleFeedback);
+
+			editBtn.addEventListener('click', async () => {
+				if (editorState.isEditMode) {
+					if (editorState.hasUnsavedChanges) {
+						if (await showConfirm('You have unsaved changes. Discard them?', { title: 'Unsaved Changes', confirmText: 'Discard', cancelText: 'Keep Editing' })) exitEditMode(editorState, editorEls);
+					} else {
+						exitEditMode(editorState, editorEls);
+					}
+				} else {
+					enterEditMode(editorState, editorEls);
+				}
+			});
+			saveBtn.addEventListener('click', () => saveSegments(editorState, editorEls, { showStatus }));
+			cancelBtn.addEventListener('click', async () => {
+				if (editorState.hasUnsavedChanges) {
+					if (await showConfirm('Discard unsaved changes?', { title: 'Unsaved Changes', confirmText: 'Discard', cancelText: 'Keep Editing' })) exitEditMode(editorState, editorEls);
+				} else {
+					exitEditMode(editorState, editorEls);
+				}
+			});
+			addSegmentBtn.addEventListener('click', () => addNewSegment(editorState, editorEls));
+			undoBtn.addEventListener('click', () => performUndo(editorState, editorEls));
+			redoBtn.addEventListener('click', () => performRedo(editorState, editorEls));
+
+			// --- Subtitle download buttons ---
+			downloadSrt.addEventListener('click', (e) => {
+				e.preventDefault();
+				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
+				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
+				openSRT(segs);
+			});
+			downloadVtt.addEventListener('click', (e) => {
+				e.preventDefault();
+				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
+				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
+				openVTT(segs);
+			});
+			downloadJson.addEventListener('click', (e) => {
+				e.preventDefault();
+				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
+				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
+				openJSON(segs);
+			});
+
+			// --- Burn subtitles ---
+			burnBtn.addEventListener('click', () => {
+				if (editorState.currentUploadId) {
+					startBurn(editorState.currentUploadId, burnState, {
+						burnBtn, burnStatus: burnStatusEl, burnStatusText, burnEtaText, burnProgressFill, downloadBurnedBtn
+					});
+				}
+			});
+
+			// --- Speed controls and keyboard shortcuts ---
+			setupSpeedControls(previewVideo, speedBtn, speedOptions, speedDropdown, speedState);
+			setupKeyboardShortcuts(editorState, editorEls, {
+				keyboardHelpBtn, keyboardShortcutsModal, modalClose,
+				videoPreview, previewVideo, speedBtn, speedOptions, speedIndicator
+			}, speedState);
+
+			// --- Re-transcribe ---
+			async function retranscribe() {
+				if (!editorState.currentUploadId) return;
+				const selectedLanguage = transcriptionLanguageSelect.value;
+				if (selectedLanguage === 'auto') {
+					if (!await showConfirm('Auto-detect will likely produce the same result. Are you sure you want to re-transcribe?', { title: 'Re-transcribe', confirmText: 'Re-transcribe', cancelText: 'Cancel' })) return;
+				}
+
+				retranscribeBtn.disabled = true;
+				retranscribeBtn.textContent = 'Re-transcribing...';
+
+				editorState.transcriptionSegments = [];
+				editorState.editedSegments = [];
+				segmentsEl.innerHTML = '';
+				fullText.textContent = '';
+				currentSubtitle.textContent = '';
+				subtitleFeedback.style.display = 'none';
+				editorState.feedbackActiveIndex = -1;
+				actions.style.display = 'none';
+				pasteTranscriptSection.style.display = 'none';
+				fullTextSection.style.display = 'none';
+				detectedLanguage.style.display = 'none';
+
+				transcriptionEl.classList.add('visible');
+				transcriptionStatus.textContent = 'Starting re-transcription...';
+
+				const uploadId = editorState.currentUploadId;
+				const language = selectedLanguage !== 'auto' ? selectedLanguage : undefined;
+				if (language) {
+					localStorage.setItem(PREFERRED_LANGUAGE_KEY, language);
+				}
+
+				function resetRetranscribeBtn() {
+					retranscribeBtn.disabled = false;
+					retranscribeBtn.textContent = 'Re-transcribe';
+				}
+
+				startTranscriptionPoll(uploadId, transcriptionState, {
+					setTranscriptionStatus: (text) => {
+						transcriptionStatus.textContent = text;
+						// Re-enable button on terminal states (error)
+						if (text.startsWith('Error:') || text.startsWith('Failed') || text.startsWith('Polling error:')) {
+							resetRetranscribeBtn();
+						}
+					},
+					displayTranscription: (result) => {
+						resetRetranscribeBtn();
+						displayTranscription(result);
+					},
+				}, language, true);
+			}
+			retranscribeBtn.addEventListener('click', retranscribe);
+
+			// --- Load existing video ---
+			async function loadExistingVideo() {
+				const urlParams = new URLSearchParams(window.location.search);
+				const videoId = urlParams.get('id');
+				if (!videoId) return;
+
+				editorState.currentUploadId = videoId;
+
+				try {
+					const response = await fetchWithTimeout(`/api/transcribe/${videoId}`);
+					const result = await response.json();
+
+					if (result.status === 'complete' && result.result) {
+						previewVideo.src = `/api/videos/${videoId}/video`;
+						videoPreview.classList.add('visible');
+						languageSection.style.display = 'block';
+						retranscribeBtn.style.display = 'inline-block';
+						transcriptionEl.classList.add('visible');
+						transcriptionStatus.textContent = 'Transcription complete!';
+						displayTranscription(result.result);
+						dropzone.style.display = 'none';
+					} else if (result.status === 'processing' || result.status === 'pending') {
+						previewVideo.src = `/api/videos/${videoId}/video`;
+						videoPreview.classList.add('visible');
+						languageSection.style.display = 'block';
+						dropzone.style.display = 'none';
+						transcriptionEl.classList.add('visible');
+						pollTranscriptionStatus(videoId, transcriptionState, {
+							setTranscriptionStatus: (text) => { transcriptionStatus.textContent = text; },
+							displayTranscription,
+						});
+					} else if (result.status === 'error') {
+						previewVideo.src = `/api/videos/${videoId}/video`;
+						videoPreview.classList.add('visible');
+						dropzone.style.display = 'none';
+						transcriptionEl.classList.add('visible');
+						transcriptionStatus.textContent = `Error: ${result.message || 'Transcription failed'}`;
+					}
+				} catch (err) {
+					console.error('Failed to load video:', err);
+				}
+			}
+
+			// --- Initialize ---
+			checkAuthAndUpdateNav({
+				onAuthenticated: () => { isAuthenticated = true; }
+			});
+			loadExistingVideo();
+		</script>
+		<CookieConsent />
+		<FeedbackButton />
+	</body>
+</html>

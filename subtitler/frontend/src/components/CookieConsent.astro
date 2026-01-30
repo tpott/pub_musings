@@ -1,0 +1,178 @@
+---
+/**
+ * Cookie consent banner component.
+ * Shows on first visit, stores consent in localStorage.
+ * Required before session_id tracking is enabled.
+ */
+---
+
+<div class="cookie-banner" id="cookieBanner" role="dialog" aria-labelledby="cookieTitle" aria-describedby="cookieDesc">
+	<div class="cookie-content">
+		<div class="cookie-text">
+			<h3 id="cookieTitle" class="cookie-title">Cookie Notice</h3>
+			<p id="cookieDesc" class="cookie-description">
+				We use a session identifier stored in your browser's localStorage to track your uploaded videos.
+				This allows you to view and manage your videos even without an account.
+				No personal information is collected.
+			</p>
+		</div>
+		<div class="cookie-actions">
+			<button class="cookie-btn cookie-btn-accept" id="cookieAccept">Accept</button>
+			<button class="cookie-btn cookie-btn-decline" id="cookieDecline">Decline</button>
+		</div>
+	</div>
+</div>
+
+<style>
+	.cookie-banner {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background-color: var(--secondary-bg);
+		border-top: 1px solid var(--border-color);
+		padding: 1rem 1.5rem;
+		z-index: 1000;
+		box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+		display: none;
+	}
+	.cookie-banner.visible {
+		display: block;
+	}
+	.cookie-content {
+		max-width: 1200px;
+		margin: 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1.5rem;
+		flex-wrap: wrap;
+	}
+	.cookie-text {
+		flex: 1;
+		min-width: 280px;
+	}
+	.cookie-title {
+		font-size: 1rem;
+		font-weight: 600;
+		margin: 0 0 0.5rem 0;
+		color: var(--text-color);
+	}
+	.cookie-description {
+		font-size: 0.9rem;
+		color: var(--text-secondary);
+		margin: 0;
+		line-height: 1.5;
+	}
+	.cookie-actions {
+		display: flex;
+		gap: 0.75rem;
+		flex-shrink: 0;
+	}
+	.cookie-btn {
+		padding: 0.625rem 1.25rem;
+		border-radius: 6px;
+		font-size: 0.9rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background-color 0.2s, opacity 0.2s;
+		border: none;
+	}
+	.cookie-btn:focus {
+		outline: 2px solid var(--accent-color);
+		outline-offset: 2px;
+	}
+	.cookie-btn-accept {
+		background-color: var(--accent-color);
+		color: white;
+	}
+	.cookie-btn-accept:hover {
+		background-color: var(--accent-hover);
+	}
+	.cookie-btn-decline {
+		background-color: var(--bg-color);
+		color: var(--text-color);
+		border: 1px solid var(--border-color);
+	}
+	.cookie-btn-decline:hover {
+		background-color: var(--btn-secondary-hover);
+	}
+	@media (max-width: 600px) {
+		.cookie-banner {
+			padding: 1rem;
+		}
+		.cookie-content {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 1rem;
+		}
+		.cookie-actions {
+			justify-content: stretch;
+		}
+		.cookie-btn {
+			flex: 1;
+			min-height: 44px;
+		}
+	}
+</style>
+
+<script>
+	const CONSENT_KEY = 'subtitler:cookie_consent';
+
+	const banner = document.getElementById('cookieBanner') as HTMLElement;
+	const acceptBtn = document.getElementById('cookieAccept') as HTMLButtonElement;
+	const declineBtn = document.getElementById('cookieDecline') as HTMLButtonElement;
+
+	// Check if consent has already been given
+	function hasConsent(): boolean {
+		return localStorage.getItem(CONSENT_KEY) === 'accepted';
+	}
+
+	function hasDeclined(): boolean {
+		return localStorage.getItem(CONSENT_KEY) === 'declined';
+	}
+
+	function hasMadeChoice(): boolean {
+		const consent = localStorage.getItem(CONSENT_KEY);
+		return consent === 'accepted' || consent === 'declined';
+	}
+
+	function showBanner() {
+		banner.classList.add('visible');
+	}
+
+	function hideBanner() {
+		banner.classList.remove('visible');
+	}
+
+	function acceptCookies() {
+		localStorage.setItem(CONSENT_KEY, 'accepted');
+		hideBanner();
+		// Dispatch event so other components can react
+		window.dispatchEvent(new CustomEvent('cookieConsentChanged', { detail: { accepted: true } }));
+	}
+
+	function declineCookies() {
+		localStorage.setItem(CONSENT_KEY, 'declined');
+		hideBanner();
+		// Dispatch event so other components can react
+		window.dispatchEvent(new CustomEvent('cookieConsentChanged', { detail: { accepted: false } }));
+	}
+
+	// Event listeners
+	acceptBtn.addEventListener('click', acceptCookies);
+	declineBtn.addEventListener('click', declineCookies);
+
+	// Show banner if no choice has been made
+	if (!hasMadeChoice()) {
+		showBanner();
+	}
+
+	// Export for use by other scripts
+	(window as any).cookieConsent = {
+		hasConsent,
+		hasDeclined,
+		hasMadeChoice,
+		showBanner
+	};
+</script>

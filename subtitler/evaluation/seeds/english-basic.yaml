@@ -1,0 +1,56 @@
+# English basic test corpus
+# Each segment generates a separate audio file for evaluation
+id: english-basic
+language: en
+voice: en_US-lessac-medium
+description: "Basic English sentences for transcription accuracy testing"
+
+segments:
+  # Simple declarative sentences
+  - id: simple-01
+    text: "Hello, this is a test of the transcription system."
+    expected_duration: 3.5
+
+  - id: simple-02
+    text: "The quick brown fox jumps over the lazy dog."
+    expected_duration: 2.8
+
+  - id: simple-03
+    text: "Please transcribe this audio accurately."
+    expected_duration: 2.5
+
+  # Numbers and dates
+  - id: numbers-01
+    text: "The meeting is scheduled for January 15th, 2026 at 3 PM."
+    expected_duration: 4.0
+
+  - id: numbers-02
+    text: "The total cost was $1,234.56 including tax."
+    expected_duration: 3.5
+
+  # Technical terms
+  - id: tech-01
+    text: "Configure the API endpoint to use HTTPS on port 443."
+    expected_duration: 4.0
+
+  - id: tech-02
+    text: "The database query returned 256 rows in 0.003 seconds."
+    expected_duration: 4.5
+
+  # Common confusions (homophones)
+  - id: homophone-01
+    text: "They're going to their house over there."
+    expected_duration: 3.0
+
+  - id: homophone-02
+    text: "It's important to protect its data integrity."
+    expected_duration: 3.5
+
+  # Longer sentences
+  - id: long-01
+    text: "When using automatic speech recognition, accuracy depends on factors including audio quality, background noise, speaker accent, and the vocabulary used."
+    expected_duration: 10.0
+
+  - id: long-02
+    text: "The evaluation framework generates test audio from seed files, runs transcription on each sample, and calculates word error rate along with timing accuracy metrics."
+    expected_duration: 10.0

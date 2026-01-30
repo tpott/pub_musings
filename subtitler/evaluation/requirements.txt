@@ -1,0 +1,13 @@
+# Python dependencies for evaluation framework
+
+# TTS audio generation
+piper-tts>=1.2.0
+
+# YAML parsing for seed files
+PyYAML>=6.0
+
+# HTTP client for whisper-server
+requests>=2.28.0
+
+# Word Error Rate calculation
+jiwer>=3.0.0

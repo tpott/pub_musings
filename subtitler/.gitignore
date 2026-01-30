@@ -1,1 +1,31 @@
 .venv
+STOP_RALPH
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+
+# Backend
+backend/subtitler
+backend/subtitler-prev
+backend/backend
+backend/uploads/
+backend/data/
+backend/csrf/data/
+
+# Design analysis artifacts (large binary files)
+design-analysis/
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+
+# Evaluation framework (generated audio files, virtualenv)
+evaluation/audio/
+evaluation/venv/
+
+# Feedback fetch secrets and cursor
+.env
+.env.feedback
+.feedback-cursor

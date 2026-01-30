@@ -1,0 +1,315 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import Navigation from '../components/Navigation.astro';
+import CookieConsent from '../components/CookieConsent.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+import '../styles/videos.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>My Videos - Subtitler</title>
+	</head>
+	<body>
+		<Navigation showSettings={true} />
+		<div class="container">
+			<div class="header">
+				<div class="header-left">
+					<a href="/" class="back-link" aria-label="Back to home">&larr;</a>
+					<h1>My Videos</h1>
+				</div>
+				<a href="/upload" class="upload-btn">Upload Video</a>
+			</div>
+
+			<div id="loading" class="loading" role="status" aria-live="polite">Loading videos...</div>
+			<div id="error" class="error" style="display: none;" role="alert" aria-live="assertive"></div>
+			<div id="empty" class="empty-state" style="display: none;">
+				<div class="empty-icon">📹</div>
+				<p class="empty-text">No videos yet. Upload your first video to get started!</p>
+				<a href="/upload" class="upload-btn">Upload Video</a>
+			</div>
+			<div id="videoList" class="video-list" style="display: none;"></div>
+			<div id="pagination" class="pagination" style="display: none;">
+				<button class="pagination-btn" id="prevPage" disabled>← Previous</button>
+				<span class="pagination-info" id="pageInfo">Page 1</span>
+				<button class="pagination-btn" id="nextPage" disabled>Next →</button>
+			</div>
+		</div>
+
+		<!-- Video player modal -->
+		<div class="modal-overlay" id="videoModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 class="modal-title" id="modalTitle">Video</h2>
+					<button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
+				</div>
+				<div class="modal-body">
+					<div class="modal-loading" id="modalLoading">Loading video...</div>
+					<div class="modal-error" id="modalError" style="display: none;"></div>
+					<div id="modalVideoContainer" style="display: none;">
+						<div class="modal-video-wrapper">
+							<video class="modal-video" id="modalVideo" controls></video>
+							<div class="modal-speed-indicator" id="modalSpeedIndicator" aria-live="polite">1x</div>
+						</div>
+						<div class="modal-current-subtitle" aria-live="polite" aria-atomic="true" aria-label="Current subtitle text"><span class="modal-current-subtitle-inner" id="modalCurrentSubtitle"></span></div>
+						<div class="modal-segments" id="modalSegments"></div>
+						<div class="modal-actions">
+							<div class="speed-dropdown" id="modalSpeedDropdown">
+								<button class="speed-btn" id="modalSpeedBtn" aria-haspopup="true" aria-expanded="false" aria-label="Playback speed">1x</button>
+								<div class="speed-options" id="modalSpeedOptions" role="menu">
+									<button class="speed-option" data-speed="0.8" role="menuitem">0.8x</button>
+									<button class="speed-option" data-speed="0.9" role="menuitem">0.9x</button>
+									<button class="speed-option active" data-speed="1" role="menuitem">1x</button>
+								</div>
+							</div>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadSrt" target="_blank" rel="noopener" aria-label="View subtitles in SRT format">SRT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener" aria-label="View subtitles in VTT format">VTT</a>
+							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener" aria-label="View subtitles in JSON format">JSON</a>
+							<a href="#" class="modal-edit-link" id="modalEditLink" aria-label="Edit subtitles">Edit</a>
+							<button class="kid-mode-btn" id="modalKidModeBtn" aria-label="Lock screen for kid mode" aria-pressed="false">
+								<span class="kid-mode-icon" aria-hidden="true"></span>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { getOrCreateSessionId } from '../utils/session';
+			import { getRequiredElement } from '../utils/dom';
+			import { VideoListResponseSchema, safeParse } from '../utils/api-schemas';
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
+			import { renderVideo, reprocessVideo, deleteVideo } from '../utils/videos-list';
+			import { handleDownloadClick } from '../utils/videos-subtitles';
+			import { createModalState, setupModalListeners, type ModalElements } from '../utils/videos-modal';
+
+			// Get all required page elements
+			const loading = getRequiredElement('loading', HTMLElement);
+			const error = getRequiredElement('error', HTMLElement);
+			const empty = getRequiredElement('empty', HTMLElement);
+			const videoList = getRequiredElement('videoList', HTMLElement);
+
+			// Set up modal
+			const modalElements: ModalElements = {
+				videoModal: getRequiredElement('videoModal', HTMLElement),
+				modalClose: getRequiredElement('modalClose', HTMLButtonElement),
+				modalTitle: getRequiredElement('modalTitle', HTMLElement),
+				modalLoading: getRequiredElement('modalLoading', HTMLElement),
+				modalError: getRequiredElement('modalError', HTMLElement),
+				modalVideoContainer: getRequiredElement('modalVideoContainer', HTMLElement),
+				modalVideo: getRequiredElement('modalVideo', HTMLVideoElement),
+				modalCurrentSubtitle: getRequiredElement('modalCurrentSubtitle', HTMLElement),
+				modalSegments: getRequiredElement('modalSegments', HTMLElement),
+				modalDownloadSrt: getRequiredElement('modalDownloadSrt', HTMLAnchorElement),
+				modalDownloadVtt: getRequiredElement('modalDownloadVtt', HTMLAnchorElement),
+				modalDownloadJson: getRequiredElement('modalDownloadJson', HTMLAnchorElement),
+				modalEditLink: getRequiredElement('modalEditLink', HTMLAnchorElement),
+				modalSpeedBtn: getRequiredElement('modalSpeedBtn', HTMLButtonElement),
+				modalSpeedOptions: getRequiredElement('modalSpeedOptions', HTMLElement),
+				modalSpeedDropdown: getRequiredElement('modalSpeedDropdown', HTMLElement),
+				modalSpeedIndicator: getRequiredElement('modalSpeedIndicator', HTMLElement),
+				modalKidModeBtn: getRequiredElement('modalKidModeBtn', HTMLButtonElement),
+			};
+
+			const modalState = createModalState();
+			const { openVideoModal, setTriggerElement } = setupModalListeners(modalElements, modalState);
+
+			// Track if user is authenticated (set by checkAuth)
+			let isAuthenticated = false;
+
+			// Event delegation for video list - single listeners on the container prevent memory leaks
+			// These are set up once on page load, not per-render or per-pagination
+			videoList.addEventListener('click', async (e) => {
+				const target = e.target as HTMLElement;
+				const button = target.closest('button') as HTMLButtonElement | null;
+				const thumbnail = target.closest('.clickable-thumbnail') as HTMLElement | null;
+
+				if (button?.classList.contains('btn-delete')) {
+					const videoId = button.dataset.videoId;
+					const filename = button.dataset.filename;
+					if (videoId) {
+						deleteVideo(videoId, filename || 'this video', button, videoList, isAuthenticated);
+					}
+					return;
+				}
+
+				if (button?.classList.contains('btn-retry')) {
+					const videoId = button.dataset.videoId;
+					if (videoId) {
+						reprocessVideo(videoId, button, isAuthenticated);
+					}
+					return;
+				}
+
+				if (button?.classList.contains('btn-view')) {
+					const videoId = button.dataset.videoId;
+					const filename = button.dataset.filename;
+					if (videoId) {
+						setTriggerElement(button);
+						openVideoModal(videoId, filename || 'Video');
+					}
+					return;
+				}
+
+				if (button?.classList.contains('btn-download-srt')) {
+					await handleDownloadClick(button, 'srt');
+					return;
+				}
+				if (button?.classList.contains('btn-download-vtt')) {
+					await handleDownloadClick(button, 'vtt');
+					return;
+				}
+				if (button?.classList.contains('btn-download-json')) {
+					await handleDownloadClick(button, 'json');
+					return;
+				}
+
+				if (thumbnail) {
+					const videoId = thumbnail.dataset.videoId;
+					const filename = thumbnail.dataset.filename;
+					if (videoId) {
+						setTriggerElement(thumbnail);
+						openVideoModal(videoId, filename || 'Video');
+					}
+				}
+			});
+
+			// Keyboard support for thumbnails (Enter/Space to open)
+			videoList.addEventListener('keydown', (e) => {
+				if (e.key !== 'Enter' && e.key !== ' ') {
+					return;
+				}
+				const target = e.target as HTMLElement;
+				const thumbnail = target.closest('.clickable-thumbnail') as HTMLElement | null;
+				if (thumbnail) {
+					e.preventDefault();
+					const videoId = thumbnail.dataset.videoId;
+					const filename = thumbnail.dataset.filename;
+					if (videoId) {
+						setTriggerElement(thumbnail);
+						openVideoModal(videoId, filename || 'Video');
+					}
+				}
+			});
+
+			// Pagination state
+			const VIDEOS_PER_PAGE = 20;
+			let currentPage = 0;
+			let totalVideos = 0;
+			let hasMore = false;
+
+			const pagination = getRequiredElement('pagination', HTMLElement);
+			const prevPageBtn = getRequiredElement('prevPage', HTMLButtonElement);
+			const nextPageBtn = getRequiredElement('nextPage', HTMLButtonElement);
+			const pageInfo = getRequiredElement('pageInfo', HTMLElement);
+
+			function updatePaginationUI() {
+				if (totalVideos <= VIDEOS_PER_PAGE) {
+					pagination.style.display = 'none';
+					return;
+				}
+
+				pagination.style.display = 'flex';
+				prevPageBtn.disabled = currentPage === 0;
+				nextPageBtn.disabled = !hasMore;
+
+				const startItem = currentPage * VIDEOS_PER_PAGE + 1;
+				const endItem = Math.min(startItem + VIDEOS_PER_PAGE - 1, totalVideos);
+				pageInfo.textContent = `${startItem}-${endItem} of ${totalVideos}`;
+			}
+
+			async function loadVideos(page: number = 0) {
+				try {
+					currentPage = page;
+					const offset = page * VIDEOS_PER_PAGE;
+
+					let url = `/api/videos?limit=${VIDEOS_PER_PAGE}&offset=${offset}`;
+					if (!isAuthenticated) {
+						const sessionId = getOrCreateSessionId();
+						url += `&session_id=${encodeURIComponent(sessionId)}`;
+					}
+
+					const response = await fetch(url);
+					if (!response.ok) {
+						const errorData = await response.json().catch(() => ({}));
+						throw new Error(errorData.error || `HTTP ${response.status}`);
+					}
+					let rawData;
+					try {
+						rawData = await response.json();
+					} catch (e) {
+						if (e instanceof SyntaxError) {
+							throw new Error('Server returned invalid data');
+						}
+						throw e;
+					}
+
+					const data = safeParse(VideoListResponseSchema, rawData);
+					if (!data) {
+						throw new Error('Invalid response format from server');
+					}
+
+					loading.style.display = 'none';
+
+					totalVideos = data.total_count ?? 0;
+					hasMore = data.has_more ?? false;
+
+					if (data.videos.length === 0) {
+						if (page === 0) {
+							empty.style.display = 'block';
+							pagination.style.display = 'none';
+						}
+						return;
+					}
+
+					videoList.innerHTML = data.videos.map(renderVideo).join('');
+					videoList.style.display = 'flex';
+					updatePaginationUI();
+
+				} catch (err) {
+					loading.style.display = 'none';
+					error.textContent = `Failed to load videos: ${err instanceof Error ? err.message : err}`;
+					error.style.display = 'block';
+				}
+			}
+
+			prevPageBtn.addEventListener('click', () => {
+				if (currentPage > 0) {
+					loading.style.display = 'block';
+					videoList.style.display = 'none';
+					loadVideos(currentPage - 1);
+				}
+			});
+
+			nextPageBtn.addEventListener('click', () => {
+				if (hasMore) {
+					loading.style.display = 'block';
+					videoList.style.display = 'none';
+					loadVideos(currentPage + 1);
+				}
+			});
+
+			// Start auth check (which will then load videos)
+			checkAuthAndUpdateNav({
+				onAuthenticated: () => {
+					isAuthenticated = true;
+					loadVideos();
+				},
+				onUnauthenticated: () => {
+					loadVideos();
+				}
+			});
+		</script>
+		<CookieConsent />
+		<FeedbackButton />
+	</body>
+</html>

@@ -1,6 +1,6 @@
 # subtitler
 
-Lets design a fun website for discovering subtitles for our content. 
+A website for generating and editing subtitles for music videos and language learning content. Subtitles should be written in the script most native for reading that language—for example, Hindi subtitles should be in Devanagari (देवनागरी), not romanized transliteration.
 
 ## Core Function
 
@@ -33,7 +33,40 @@ visual feedback that my upload is happening. I should get interesting informatio
 indicates text from my upload is getting transcribed. I should have the most accurate
 transcription possible.
 
-TODO write a plan for evaluating competitors on accuracy and speed.
+### Accuracy Evaluation Plan
+
+To evaluate transcription accuracy, we measure both word accuracy and timing alignment.
+
+1. **Create a test corpus**:
+   - 10-20 diverse audio/video samples (accents, noise levels, domains)
+   - Ground truth transcripts with precise timestamps for each
+   - Include edge cases: numbers, technical terms, music with background
+   - See [Clean Room Evaluation](evaluation-cleanroom.md) for test framework
+
+2. **Measure Word Error Rate (WER)**:
+   - WER = (Substitutions + Insertions + Deletions) / Total Reference Words
+   - Industry standard benchmark metric
+   - Baseline comparison: Whisper Large V3 achieves ~7.88% WER
+
+3. **Measure Timing Alignment**:
+   - **Onset Error**: Difference between predicted and actual speech start time
+   - **Offset Error**: Difference between predicted and actual speech end time
+   - **Mean Absolute Error (MAE)**: Average timing error in milliseconds
+   - **Early Start Penalty**: Subtitles appearing before speech are worse for UX
+   - Target: MAE < 200ms, onset error < 100ms
+
+4. **Speed metrics**:
+   - Real-time factor (RTF): Processing time / Audio duration
+   - Whisper Large V3: ~10-30 min per hour of audio
+   - Whisper Turbo: 6x faster with ~1-2% accuracy loss
+
+5. **Model comparison**:
+   - large-v3 vs large-v3-turbo vs medium
+   - Processing time per file
+   - WER per file
+   - Timing alignment per file
+
+See [benchmarks](#competitor-benchmarks) in competitors section for competitor numbers.
 
 ## Design
 
@@ -50,13 +83,33 @@ in production.
 
 The backend should be written in Go. The backend should either use a remote whisper-server
 or it should run whisper-server itself. Tests should use a smaller, faster model.
-Production should use a larger, more accurate model. Cost vs speed tradeoff is still TBD.
-Default to using the fastest whisper model you can. Allow for overriding the whisper model
-via an env var. Allow for overriding the whisper server so we can run whisper server on
-a baremetal Mac Mini. TODO document how to passthrough the whisper server IP:port into
-the qemu VM and what the env var the backend needs to use that for transcoding. If
-running the whisper server process, then pipe all whisper-server logs to the backend logs
-so its easier for debugging. Make sure to document all useful env vars in `backend/README.md`
+
+### Whisper Model Selection
+
+**Recommended: large-v3-turbo** for production use.
+
+| Model | WER | Real-Time Factor | Processing Time (1hr audio) |
+|-------|-----|------------------|----------------------------|
+| large-v3 | ~7.9% | 0.3-0.5 | 18-30 minutes |
+| **large-v3-turbo** | **~7.8%** | **0.05-0.1** | **3-6 minutes** |
+| medium | ~10-12% | 0.02-0.05 | 1-3 minutes |
+
+**Rationale:**
+- large-v3-turbo is 6x faster than large-v3 AND achieves slightly better accuracy (~7.8% vs ~7.9% WER)
+- The "turbo" variant is a distilled version that removes redundant layers while preserving quality
+- For user experience, 3-6 minute wait for a 1-hour video is acceptable; 30 minutes is not
+- Medium model is 30% worse accuracy, not acceptable for production
+
+**Configuration:**
+- `WHISPER_MODEL` env var controls which model whisper-server uses
+- Default: `large-v3-turbo`
+- For tests: use `tiny` or `base` for speed (not accuracy)
+
+Allow for overriding the whisper model via env var. Allow for overriding the whisper server
+so we can run whisper-server on a baremetal Mac Mini. See [deployment.md](deployment.md)
+for whisper-server passthrough. If running the whisper server process, then pipe all
+whisper-server logs to the backend logs so its easier for debugging. Make sure to document
+all useful env vars in `backend/README.md`
 
 Whisper cpp's source code is available in https://github.com/ggml-org/whisper.cpp . I
 probably checked it out locally at ~/Github/whisper.cpp/. You may want to pull the latest
@@ -80,20 +133,115 @@ that are useful to include in our [documentation](#Documentation).
 
 Environment variables should be encrypted with `sops`.
 
-Deploys are TBD. Writing a plan is TODO. Implementing requires human intervention. I plan
-to run the website on a Mac Mini in a qemu VM, and ideally in a docker container inside
-of the VM. I would like to figure out how to passthrough Mac Metal via MoltenVK to qemu.
-Write a plan for that is TODO. Write a plan for how to leverage
-`pub_musings/webhook-deployer/` which was described in
-`pub_musings/personal/001_INITIALIZATION.md` to trigger deploys for subtitler, frontend
-and backend.
+Deploys are TBD. Implementing requires human intervention. See [deployment.md](deployment.md)
+for deployment plan. I plan to run the website on a Mac Mini in a qemu VM, and ideally in a
+docker container inside of the VM. See [metal-moltenvk.md](metal-moltenvk.md) for GPU
+passthrough research. See [webhook-deployer.md](webhook-deployer.md) for automated deployment
+integration leveraging `pub_musings/webhook-deployer/` for frontend and backend deploys.
 
 Production deploys will leverage astro built static files with Caddy as the frontend load
 balancer. Caddy can route all /api/* requests to the backend.
 
+## Known Transcripts and Script Normalization
+
+### The Problem
+
+Whisper and other transcription engines often output text in romanized/transliterated form
+rather than native scripts. For example:
+- Hindi audio may be transcribed as "devanagari" instead of "देवनागरी"
+- Japanese may come out as romaji ("arigatou") instead of hiragana/kanji ("ありがとう")
+- Arabic may be romanized instead of using Arabic script
+
+Similarly, users may paste known lyrics or transcripts that are already transliterated
+(common on lyrics websites) when native script subtitles would be more appropriate for
+language learners.
+
+### Multi-Script Languages
+
+Some languages have multiple valid writing systems:
+- **Urdu/Hindi**: Mutually intelligible spoken languages, but Urdu uses Nastaliq (Arabic-derived)
+  script while Hindi uses Devanagari
+- **Serbian**: Uses both Cyrillic and Latin scripts
+- **Japanese**: Uses Hiragana, Katakana, and Kanji (often mixed)
+- **Chinese**: Simplified vs Traditional characters
+- **Punjabi**: Gurmukhi (India) vs Shahmukhi (Pakistan)
+
+### Backend: Script Conversion Library
+
+The backend should include a script conversion/transliteration library that can:
+1. Detect the current script of input text
+2. Convert between scripts for the same language (e.g., romanized → Devanagari)
+3. Handle mixed-script input gracefully
+4. Preserve timing information when converting subtitle segments
+
+Potential libraries to evaluate:
+- **ICU (International Components for Unicode)**: Comprehensive transliteration support
+- **Aksharamukha**: Supports 100+ scripts, especially strong for Indic languages
+- **OpenCC**: Chinese simplified ↔ traditional conversion
+- **Language-specific libraries**: polyglot, indic-transliteration, etc.
+
+### Frontend: Language and Script Selection
+
+The upload/edit interface should allow users to:
+1. **Specify source language**: What language is being spoken in the video
+2. **Choose target script**: Which writing system to use for subtitles
+   - Show only valid scripts for the selected language
+   - Default to the most common native script
+3. **Request re-transliteration**: Convert existing subtitles to a different script
+
+Example UI flow:
+```
+Language: Hindi
+Script:   ○ Devanagari (देवनागरी) [default]
+          ○ Romanized (IAST)
+          ○ Romanized (casual)
+```
+
+### Quality Considerations
+
+- Romanized → native script conversion is lossy in some cases (ambiguous spellings)
+- Some content is intentionally romanized (song lyrics for international audiences)
+- Consider showing confidence scores or highlighting uncertain conversions
+- Allow manual correction of script conversion errors in the subtitle editor
+
 ## Competitors
 
-TODO research their landing pages, new user signup flows, pricing and performance.
+### Key Players
+
+| Service | AI Pricing | Human Pricing | Accuracy | Speed |
+|---------|-----------|---------------|----------|-------|
+| Rev | $0.25/min | $1.50/min | 90% AI, 99% human | 5 min AI, 12hr human |
+| Happy Scribe | $5/hour | varies | Good | Fast |
+| GoTranscript | $0.02/min | $1.02-2.34/min | 99%+ human | Fast AI |
+| Otter.ai | Free tier, $8.33/mo Pro | N/A | Good | Real-time |
+| Sonix | $5/hour | N/A | Good | Fast |
+| VEED | SaaS pricing | N/A | Good | Seconds |
+| Descript | SaaS pricing | N/A | Good | Fast |
+
+### Competitor Benchmarks
+
+Word Error Rate (WER) comparison (lower is better):
+- **Assembly AI Universal-2**: 6.68% WER - current best commercial
+- **Whisper Large V3**: 7.88% WER - our baseline model
+- **Whisper Turbo**: 7.75% WER, 6x faster than Large V3
+- **NVIDIA Canary Qwen 2.5B**: Best open-source accuracy
+- **Granite-Speech-3.3**: 8.18% WER (edge deployment)
+- **Distil-Whisper**: 14.93% WER, 6x faster, 756M params
+
+### Competitive Advantages We Can Offer
+
+1. **Music video focus**: Optimized for song lyrics alignment and timing
+2. **Language learning focus**: Native script output (Devanagari, Kanji, etc.)
+3. **Per-minute pricing**: Matches industry expectations for SaaS customers
+4. **Open-source models**: Whisper is free to run, can swap to better models
+5. **Subtitle editing**: Built-in correction and timing adjustment
+6. **Known lyrics alignment**: Upload lyrics to fix transcription automatically
+
+### Areas to Improve
+
+1. ~~Speed: Whisper Large is slow (~10-30min/hour). Consider Turbo or Distil.~~ **Resolved:** Using large-v3-turbo (6x faster, same accuracy)
+2. Accuracy: Consider supporting newer models (Canary, Granite) as alternatives.
+3. Multi-speaker diarization: Not currently supported.
 
 ## Documentation
 

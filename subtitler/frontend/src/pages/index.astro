@@ -1,0 +1,114 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import Navigation from '../components/Navigation.astro';
+import CookieConsent from '../components/CookieConsent.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Subtitler</title>
+		<style>
+			.container {
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 4rem 2rem;
+			}
+			h1 {
+				font-size: 3rem;
+				font-weight: 600;
+				margin-bottom: 1rem;
+			}
+			.tagline {
+				font-size: 1.25rem;
+				color: var(--text-secondary);
+				margin-bottom: 3rem;
+			}
+			.cta {
+				display: inline-block;
+				background-color: var(--text-color);
+				color: var(--bg-color);
+				padding: 1rem 2rem;
+				border-radius: 8px;
+				text-decoration: none;
+				font-weight: 500;
+				transition: opacity 0.2s;
+			}
+			.cta:hover {
+				opacity: 0.9;
+			}
+			.buttons {
+				display: flex;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+			.cta.secondary {
+				background-color: transparent;
+				color: var(--text-color);
+				border: 2px solid var(--text-color);
+			}
+			.cta.secondary:hover {
+				background-color: var(--text-color);
+				color: var(--bg-color);
+			}
+			/* Mobile responsive styles */
+			@media (max-width: 480px) {
+				.container {
+					padding: 2rem 1rem;
+				}
+				h1 {
+					font-size: 2rem;
+				}
+				.tagline {
+					font-size: 1rem;
+				}
+				.buttons {
+					flex-direction: column;
+				}
+				.cta {
+					width: 100%;
+					text-align: center;
+					min-height: 44px;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+				}
+			}
+			@media (max-width: 375px) {
+				h1 {
+					font-size: 1.75rem;
+				}
+				.container {
+					padding: 1.5rem 0.75rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<Navigation showSettings={true} />
+		<div class="container">
+			<h1>Subtitler</h1>
+			<p class="tagline">Generate accurate subtitles for your videos in seconds.</p>
+			<div class="buttons">
+				<a href="/upload" class="cta">Upload a Video</a>
+				<a href="/videos" class="cta secondary">My Videos</a>
+			</div>
+		</div>
+
+		<script>
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
+
+			checkAuthAndUpdateNav();
+		</script>
+		<CookieConsent />
+		<FeedbackButton />
+	</body>
+</html>

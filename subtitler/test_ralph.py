@@ -6,9 +6,19 @@ import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from ralph import generate_ralph_id, get_timestamp, log, process_claude_output
+from ralph import (
+    calculate_sleep_seconds,
+    fetch_feedback,
+    generate_ralph_id,
+    get_timestamp,
+    log,
+    parse_rate_limit_reset,
+    process_claude_output,
+)
 
 
 class TestGenerateRalphId(unittest.TestCase):
@@ -75,32 +85,32 @@ class TestProcessClaudeOutput(unittest.TestCase):
     def test_returns_last_line(self) -> None:
         lines = ["first\n", "second\n", "third\n"]
         with redirect_stdout(io.StringIO()):
-            result = process_claude_output(lines, verbose=False)
+            result = process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(result, "third")
 
     def test_returns_none_for_empty_input(self) -> None:
         with redirect_stdout(io.StringIO()):
-            result = process_claude_output([], verbose=False)
+            result = process_claude_output([], verbose=False, log_file=None)
         self.assertIsNone(result)
 
     def test_strips_newlines(self) -> None:
         lines = ["line with newline\n"]
         with redirect_stdout(io.StringIO()):
-            result = process_claude_output(lines, verbose=False)
+            result = process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(result, "line with newline")
 
     def test_verbose_prints_full_lines(self) -> None:
         lines = ["line1\n", "line2\n"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=True)
+            process_claude_output(lines, verbose=True, log_file=None)
         self.assertEqual(stdout.getvalue(), "line1\nline2\n")
 
     def test_non_verbose_prints_dots(self) -> None:
         lines = ["line1\n", "line2\n", "line3\n"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=False)
+            process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(stdout.getvalue(), "...\n")
 
     def test_prints_session_id_once(self) -> None:
@@ -111,7 +121,7 @@ class TestProcessClaudeOutput(unittest.TestCase):
         ]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=False)
+            process_claude_output(lines, verbose=False, log_file=None)
         output = stdout.getvalue()
         self.assertEqual(output.count("session_id: abc123"), 1)
         self.assertIn("...\n", output)
@@ -120,7 +130,7 @@ class TestProcessClaudeOutput(unittest.TestCase):
         lines = ["not json\n", "also not json\n"]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            result = process_claude_output(lines, verbose=False)
+            result = process_claude_output(lines, verbose=False, log_file=None)
         self.assertEqual(result, "also not json")
         self.assertEqual(stdout.getvalue(), "..\n")
 
@@ -131,9 +141,153 @@ class TestProcessClaudeOutput(unittest.TestCase):
         ]
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            process_claude_output(lines, verbose=False)
+            process_claude_output(lines, verbose=False, log_file=None)
         output = stdout.getvalue()
         self.assertIn("session_id: found", output)
+
+
+class TestParseRateLimitReset(unittest.TestCase):
+    def test_parses_standard_message(self) -> None:
+        msg = "You've hit your limit · resets 2am (America/Los_Angeles)"
+        result = parse_rate_limit_reset(msg)
+        self.assertEqual(result, (2, "am", "America/Los_Angeles"))
+
+    def test_parses_pm_time(self) -> None:
+        msg = "You've hit your limit · resets 5pm (America/New_York)"
+        result = parse_rate_limit_reset(msg)
+        self.assertEqual(result, (5, "pm", "America/New_York"))
+
+    def test_parses_12_hour(self) -> None:
+        msg = "You've hit your limit · resets 12pm (UTC)"
+        result = parse_rate_limit_reset(msg)
+        self.assertEqual(result, (12, "pm", "UTC"))
+
+    def test_parses_uppercase_ampm(self) -> None:
+        msg = "You've hit your limit · resets 3AM (Europe/London)"
+        result = parse_rate_limit_reset(msg)
+        self.assertEqual(result, (3, "am", "Europe/London"))
+
+    def test_returns_none_for_non_matching(self) -> None:
+        msg = "Some other error message"
+        result = parse_rate_limit_reset(msg)
+        self.assertIsNone(result)
+
+    def test_returns_none_for_empty_string(self) -> None:
+        result = parse_rate_limit_reset("")
+        self.assertIsNone(result)
+
+    def test_handles_different_whitespace(self) -> None:
+        msg = "resets  10am  (Asia/Tokyo)"
+        result = parse_rate_limit_reset(msg)
+        self.assertEqual(result, (10, "am", "Asia/Tokyo"))
+
+
+class TestCalculateSleepSeconds(unittest.TestCase):
+    def test_reset_in_future_same_day(self) -> None:
+        tz = ZoneInfo("America/Los_Angeles")
+        # It's 1am, reset at 2am = 1 hour + 60s buffer
+        now = datetime(2024, 1, 15, 1, 0, 0, tzinfo=tz)
+        result = calculate_sleep_seconds(2, "am", "America/Los_Angeles", now=now)
+        self.assertEqual(result, 3600 + 60)  # 1 hour + 60s buffer
+
+    def test_reset_tomorrow_when_past_today(self) -> None:
+        tz = ZoneInfo("America/Los_Angeles")
+        # It's 3am, reset at 2am = 23 hours + 60s buffer
+        now = datetime(2024, 1, 15, 3, 0, 0, tzinfo=tz)
+        result = calculate_sleep_seconds(2, "am", "America/Los_Angeles", now=now)
+        self.assertEqual(result, 23 * 3600 + 60)  # 23 hours + 60s buffer
+
+    def test_pm_conversion(self) -> None:
+        tz = ZoneInfo("UTC")
+        # It's 1pm (13:00), reset at 5pm (17:00) = 4 hours + 60s buffer
+        now = datetime(2024, 1, 15, 13, 0, 0, tzinfo=tz)
+        result = calculate_sleep_seconds(5, "pm", "UTC", now=now)
+        self.assertEqual(result, 4 * 3600 + 60)
+
+    def test_12am_is_midnight(self) -> None:
+        tz = ZoneInfo("UTC")
+        # It's 11pm (23:00), reset at 12am (00:00) = 1 hour + 60s buffer
+        now = datetime(2024, 1, 15, 23, 0, 0, tzinfo=tz)
+        result = calculate_sleep_seconds(12, "am", "UTC", now=now)
+        self.assertEqual(result, 3600 + 60)
+
+    def test_12pm_is_noon(self) -> None:
+        tz = ZoneInfo("UTC")
+        # It's 11am (11:00), reset at 12pm (12:00) = 1 hour + 60s buffer
+        now = datetime(2024, 1, 15, 11, 0, 0, tzinfo=tz)
+        result = calculate_sleep_seconds(12, "pm", "UTC", now=now)
+        self.assertEqual(result, 3600 + 60)
+
+    def test_handles_partial_hours(self) -> None:
+        tz = ZoneInfo("UTC")
+        # It's 1:30am, reset at 2am = 30 minutes + 60s buffer
+        now = datetime(2024, 1, 15, 1, 30, 0, tzinfo=tz)
+        result = calculate_sleep_seconds(2, "am", "UTC", now=now)
+        self.assertEqual(result, 30 * 60 + 60)  # 30 minutes + 60s buffer
+
+    def test_cross_timezone(self) -> None:
+        # Now is in UTC, but reset is specified in LA time
+        utc = ZoneInfo("UTC")
+        # 10am UTC = 2am LA (UTC-8 in winter)
+        now = datetime(2024, 1, 15, 10, 0, 0, tzinfo=utc)
+        # Reset at 3am LA time = 11am UTC = 1 hour from now
+        result = calculate_sleep_seconds(3, "am", "America/Los_Angeles", now=now)
+        self.assertEqual(result, 3600 + 60)
+
+
+class TestFetchFeedback(unittest.TestCase):
+    def test_uses_custom_script_path(self) -> None:
+        """When script_path is provided, it should be used instead of the default."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "custom-feedback.py"
+            script.write_text('import sys; print("custom output"); sys.exit(0)')
+            log_file = Path(tmp_dir) / "test.log"
+            fetch_feedback(log_file, script_path=script)
+            log_content = log_file.read_text()
+            self.assertIn("custom output", log_content)
+
+    def test_custom_script_not_found(self) -> None:
+        """When script_path points to a nonexistent file, should log and skip."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            log_file = Path(tmp_dir) / "test.log"
+            fake_path = Path(tmp_dir) / "does-not-exist.py"
+            fetch_feedback(log_file, script_path=fake_path)
+            log_content = log_file.read_text()
+            self.assertIn("not found, skipping", log_content)
+
+    def test_default_script_when_none(self) -> None:
+        """When script_path is None, should fall back to the default constant."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            log_file = Path(tmp_dir) / "test.log"
+            # The default script likely doesn't exist in the test environment,
+            # so we expect the "not found" message with the default path
+            fetch_feedback(log_file, script_path=None)
+            log_content = log_file.read_text()
+            # Should reference the default script path
+            self.assertIn("Feedback:", log_content)
+
+    def test_custom_script_exit_1_no_feedback(self) -> None:
+        """Exit code 1 means no new feedback."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "no-feedback.py"
+            script.write_text("import sys; sys.exit(1)")
+            log_file = Path(tmp_dir) / "test.log"
+            fetch_feedback(log_file, script_path=script)
+            log_content = log_file.read_text()
+            self.assertIn("No new feedback", log_content)
+
+    def test_custom_script_exit_2_error(self) -> None:
+        """Non-zero, non-1 exit code means error."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script = Path(tmp_dir) / "error-feedback.py"
+            script.write_text(
+                'import sys; print("error details", file=sys.stderr); sys.exit(2)'
+            )
+            log_file = Path(tmp_dir) / "test.log"
+            fetch_feedback(log_file, script_path=script)
+            log_content = log_file.read_text()
+            self.assertIn("fetch failed (exit 2)", log_content)
+            self.assertIn("error details", log_content)
 
 
 if __name__ == "__main__":

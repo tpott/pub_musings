@@ -1,0 +1,298 @@
+/* Global Theme Variables */
+/* Light theme (default) */
+:root {
+	/* Core colors */
+	--bg-color: #fafafa;
+	--text-color: #1a1a1a;
+	--accent-color: #0066cc;
+	--accent-hover: #0052a3;
+	--secondary-bg: #ffffff;
+	--border-color: #e5e5e5;
+
+	/* Text variations */
+	--text-secondary: #666666;
+	--text-tertiary: #999999;
+
+	/* Status colors */
+	--error-color: #c53030;
+	--error-bg: #fff5f5;
+	--error-border: #feb2b2;
+	--success-color: #276749;
+	--success-bg: #c6f6d5;
+	--success-border: #9ae6b4;
+	--warning-color: #92400e;
+	--warning-bg: #fef3c7;
+	--warning-border: #f59e0b;
+	--info-color: #0369a1;
+	--info-bg: #e0f2fe;
+
+	/* UI element colors */
+	--btn-secondary-bg: #f5f5f5;
+	--btn-secondary-hover: #e5e5e5;
+	--btn-danger-color: #c53030;
+	--btn-danger-hover: #9b2c2c;
+	--btn-success-color: #22c55e;
+	--btn-success-hover: #16a34a;
+	--btn-teal-color: #059669;
+	--btn-teal-hover: #047857;
+
+	/* Special UI colors */
+	--active-segment-bg: #e6f0ff;
+	--hover-bg: #f5f5f5;
+	--dropzone-hover-bg: #f0f7ff;
+	--card-shadow: rgba(0, 0, 0, 0.08);
+	--focus-ring: rgba(0, 102, 204, 0.1);
+	--error-focus-ring: rgba(197, 48, 48, 0.1);
+
+	/* Subtitle display */
+	--subtitle-bg: #1a1a1a;
+	--subtitle-text: #ffffff;
+
+	/* Toggle slider */
+	--toggle-bg: #cccccc;
+	--toggle-knob: #ffffff;
+
+	/* Tooltip */
+	--tooltip-bg: #1a1a1a;
+	--tooltip-text: #ffffff;
+
+	/* Status badges */
+	--badge-complete-bg: #c6f6d5;
+	--badge-complete-text: #276749;
+	--badge-processing-bg: #fef3c7;
+	--badge-processing-text: #92400e;
+	--badge-pending-bg: #e2e8f0;
+	--badge-pending-text: #475569;
+	--badge-error-bg: #fed7d7;
+	--badge-error-text: #c53030;
+	--badge-none-bg: #e2e8f0;
+	--badge-none-text: #64748b;
+
+	/* Retention badges */
+	--retention-info-bg: #e0f2fe;
+	--retention-info-text: #0369a1;
+	--retention-warning-bg: #fef3c7;
+	--retention-warning-text: #92400e;
+	--retention-expired-bg: #fed7d7;
+	--retention-expired-text: #c53030;
+
+	/* Script conversion section */
+	--script-section-bg: #f8fafc;
+	--script-section-border: #e2e8f0;
+	--script-label-color: #64748b;
+
+	/* Delete button */
+	--delete-btn-bg: #fee2e2;
+	--delete-btn-text: #dc2626;
+	--delete-btn-border: #fecaca;
+	--delete-btn-hover: #fecaca;
+
+	/* Session management */
+	--current-session-border: var(--accent-color);
+	--current-session-bg: rgba(0, 102, 204, 0.05);
+
+	/* Revoke button */
+	--revoke-btn-bg: #fff5f5;
+	--revoke-btn-text: #c53030;
+	--revoke-btn-border: #feb2b2;
+	--revoke-btn-hover: #fecaca;
+}
+
+/* Dark theme */
+:root.dark {
+	/* Core colors - warmer, softer dark theme */
+	--bg-color: #1a1a1f;
+	--text-color: #e8e8ec;
+	--accent-color: #60a5fa;
+	--accent-hover: #3b82f6;
+	--secondary-bg: #242429;
+	--border-color: #3a3a42;
+
+	/* Text variations */
+	--text-secondary: #9ca3af;
+	--text-tertiary: #6b7280;
+
+	/* Status colors */
+	--error-color: #f87171;
+	--error-bg: #450a0a;
+	--error-border: #7f1d1d;
+	--success-color: #4ade80;
+	--success-bg: #052e16;
+	--success-border: #166534;
+	--warning-color: #fbbf24;
+	--warning-bg: #451a03;
+	--warning-border: #78350f;
+	--info-color: #38bdf8;
+	--info-bg: #082f49;
+
+	/* UI element colors */
+	--btn-secondary-bg: #2d2d35;
+	--btn-secondary-hover: #3a3a45;
+	--btn-danger-color: #f87171;
+	--btn-danger-hover: #ef4444;
+	--btn-success-color: #4ade80;
+	--btn-success-hover: #22c55e;
+	--btn-teal-color: #2dd4bf;
+	--btn-teal-hover: #14b8a6;
+
+	/* Special UI colors */
+	--active-segment-bg: #1e3a5f;
+	--hover-bg: #2a2a32;
+	--dropzone-hover-bg: #1e3a5f;
+	--card-shadow: rgba(0, 0, 0, 0.4);
+	--focus-ring: rgba(96, 165, 250, 0.3);
+	--error-focus-ring: rgba(248, 113, 113, 0.3);
+
+	/* Subtitle display */
+	--subtitle-bg: #0f0f12;
+	--subtitle-text: #f0f0f4;
+
+	/* Toggle slider */
+	--toggle-bg: #4a4a55;
+	--toggle-knob: #e8e8ec;
+
+	/* Tooltip */
+	--tooltip-bg: #35353d;
+	--tooltip-text: #e8e8ec;
+
+	/* Status badges */
+	--badge-complete-bg: #0a3d1f;
+	--badge-complete-text: #6ee7a0;
+	--badge-processing-bg: #4a2008;
+	--badge-processing-text: #fcd34d;
+	--badge-pending-bg: #2d2d35;
+	--badge-pending-text: #9ca3af;
+	--badge-error-bg: #4a0f0f;
+	--badge-error-text: #fca5a5;
+	--badge-none-bg: #2d2d35;
+	--badge-none-text: #6b7280;
+
+	/* Retention badges */
+	--retention-info-bg: #0c3a5c;
+	--retention-info-text: #7dd3fc;
+	--retention-warning-bg: #4a2008;
+	--retention-warning-text: #fcd34d;
+	--retention-expired-bg: #4a0f0f;
+	--retention-expired-text: #fca5a5;
+
+	/* Script conversion section */
+	--script-section-bg: #242429;
+	--script-section-border: #3a3a42;
+	--script-label-color: #9ca3af;
+
+	/* Delete button */
+	--delete-btn-bg: #4a0f0f;
+	--delete-btn-text: #fca5a5;
+	--delete-btn-border: #7f1d1d;
+	--delete-btn-hover: #6b1515;
+
+	/* Session management */
+	--current-session-border: var(--accent-color);
+	--current-session-bg: rgba(96, 165, 250, 0.12);
+
+	/* Revoke button */
+	--revoke-btn-bg: #4a0f0f;
+	--revoke-btn-text: #fca5a5;
+	--revoke-btn-border: #7f1d1d;
+	--revoke-btn-hover: #6b1515;
+}
+
+/* Base reset and body styles */
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	background-color: var(--bg-color);
+	color: var(--text-color);
+	line-height: 1.6;
+	min-height: 100vh;
+	transition: background-color 0.2s, color 0.2s;
+}
+
+/* Common form input styles */
+input[type="email"],
+input[type="password"],
+input[type="text"],
+textarea,
+select {
+	background-color: var(--secondary-bg);
+	color: var(--text-color);
+	border: 1px solid var(--border-color);
+	transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+	outline: none;
+	border-color: var(--accent-color);
+	box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+input.input-error {
+	border-color: var(--error-color);
+}
+
+input.input-error:focus {
+	box-shadow: 0 0 0 3px var(--error-focus-ring);
+}
+
+/* Theme toggle button styles */
+.theme-toggle {
+	background: none;
+	border: none;
+	padding: 0.5rem;
+	border-radius: 6px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-color);
+	transition: background-color 0.2s;
+}
+
+.theme-toggle:hover {
+	background-color: var(--border-color);
+}
+
+.theme-toggle:focus {
+	outline: 2px solid var(--accent-color);
+	outline-offset: 2px;
+}
+
+.theme-toggle svg {
+	width: 20px;
+	height: 20px;
+}
+
+/* Theme toggle icons - show icon for current mode */
+/* Hide all icons by default */
+.theme-toggle .icon-sun,
+.theme-toggle .icon-moon,
+.theme-toggle .icon-auto {
+	display: none;
+}
+
+/* Light mode: show sun icon */
+:root[data-theme-mode="light"] .theme-toggle .icon-sun {
+	display: block;
+}
+
+/* Dark mode: show moon icon */
+:root[data-theme-mode="dark"] .theme-toggle .icon-moon {
+	display: block;
+}
+
+/* Auto mode: show auto/computer icon */
+:root[data-theme-mode="auto"] .theme-toggle .icon-auto {
+	display: block;
+}
+
+/* Fallback for when data-theme-mode is not set yet (initial load) */
+:root:not([data-theme-mode]) .theme-toggle .icon-auto {
+	display: block;
+}

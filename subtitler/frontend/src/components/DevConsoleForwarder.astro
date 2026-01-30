@@ -1,0 +1,22 @@
+---
+/**
+ * DevConsoleForwarder - Astro component to forward console logs to backend.
+ *
+ * This component should be included in pages where you want console logs
+ * to be forwarded to the backend. It only activates in development mode.
+ *
+ * Usage:
+ *   import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+ *   <DevConsoleForwarder />
+ */
+
+// Check if we're in dev mode at build time
+const isDev = import.meta.env.DEV;
+---
+
+{isDev && (
+  <script>
+    import { installConsoleForwarder } from '../utils/console-forwarder';
+    installConsoleForwarder(true);
+  </script>
+)}

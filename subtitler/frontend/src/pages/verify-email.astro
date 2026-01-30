@@ -1,0 +1,234 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Verify Email - Subtitler</title>
+		<style>
+			body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.theme-toggle-wrapper {
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+			}
+			.container {
+				max-width: 400px;
+				width: 100%;
+				padding: 2rem;
+			}
+			.card {
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 12px;
+				padding: 2rem;
+			}
+			.header {
+				text-align: center;
+				margin-bottom: 2rem;
+			}
+			.logo-link {
+				text-decoration: none;
+				color: var(--text-color);
+			}
+			h1 {
+				font-size: 1.75rem;
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+			}
+			.subtitle {
+				color: var(--text-secondary);
+				font-size: 0.95rem;
+			}
+			.btn {
+				width: 100%;
+				padding: 0.875rem 1rem;
+				border: none;
+				border-radius: 6px;
+				font-size: 1rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s, opacity 0.2s;
+				text-decoration: none;
+				text-align: center;
+				display: block;
+			}
+			.btn-primary {
+				background-color: var(--text-color);
+				color: white;
+			}
+			.btn-primary:hover:not(:disabled) {
+				opacity: 0.9;
+			}
+			.btn:disabled {
+				opacity: 0.6;
+				cursor: not-allowed;
+			}
+			.status-message {
+				text-align: center;
+				padding: 2rem 0;
+			}
+			.status-message h2 {
+				margin-bottom: 1rem;
+			}
+			.status-message p {
+				margin-bottom: 1.5rem;
+				color: var(--text-secondary);
+			}
+			.success-icon {
+				font-size: 3rem;
+				margin-bottom: 1rem;
+				color: var(--success-color, #059669);
+			}
+			.error-icon {
+				font-size: 3rem;
+				margin-bottom: 1rem;
+				color: var(--error-color);
+			}
+			.loading {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				padding: 2rem;
+			}
+			.spinner {
+				width: 40px;
+				height: 40px;
+				border: 3px solid var(--border-color);
+				border-top: 3px solid var(--accent-color);
+				border-radius: 50%;
+				animation: spin 1s linear infinite;
+				margin-bottom: 1rem;
+			}
+			@keyframes spin {
+				0% { transform: rotate(0deg); }
+				100% { transform: rotate(360deg); }
+			}
+			/* Mobile responsive styles */
+			@media (max-width: 480px) {
+				.container {
+					padding: 1rem;
+				}
+				.card {
+					padding: 1.5rem;
+				}
+				h1 {
+					font-size: 1.5rem;
+				}
+				.btn {
+					min-height: 44px;
+				}
+			}
+			@media (max-width: 375px) {
+				.container {
+					padding: 0.75rem;
+				}
+				.card {
+					padding: 1.25rem;
+				}
+				h1 {
+					font-size: 1.25rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="theme-toggle-wrapper">
+			<ThemeToggle />
+		</div>
+		<div class="container">
+			<div class="card">
+				<div class="header">
+					<a href="/" class="logo-link">
+						<h1>Subtitler</h1>
+					</a>
+					<p class="subtitle">Email Verification</p>
+				</div>
+
+				<div id="loadingSection" class="loading">
+					<div class="spinner"></div>
+					<p>Verifying your email...</p>
+				</div>
+
+				<div id="successSection" class="status-message" style="display: none;">
+					<div class="success-icon">&#10003;</div>
+					<h2>Email Verified!</h2>
+					<p>Your email has been successfully verified. You can now log in to your account.</p>
+					<a href="/login" class="btn btn-primary">Go to Login</a>
+				</div>
+
+				<div id="errorSection" class="status-message" style="display: none;">
+					<div class="error-icon">&#10005;</div>
+					<h2>Verification Failed</h2>
+					<p id="errorMessage">This verification link is invalid or has expired.</p>
+					<a href="/register" class="btn btn-primary">Sign Up Again</a>
+				</div>
+
+				<div id="noTokenSection" class="status-message" style="display: none;">
+					<h2>No Verification Token</h2>
+					<p>No verification token was provided. Please check the link in your email.</p>
+					<a href="/register" class="btn btn-primary">Sign Up</a>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { getRequiredElement } from '../utils/dom';
+
+			// Get all required elements with type checking
+			const loadingSection = getRequiredElement('loadingSection', HTMLElement);
+			const successSection = getRequiredElement('successSection', HTMLElement);
+			const errorSection = getRequiredElement('errorSection', HTMLElement);
+			const noTokenSection = getRequiredElement('noTokenSection', HTMLElement);
+			const errorMessage = getRequiredElement('errorMessage', HTMLElement);
+
+			// Get token from URL
+			const urlParams = new URLSearchParams(window.location.search);
+			const token = urlParams.get('token');
+
+			async function verifyEmail() {
+				if (!token) {
+					loadingSection.style.display = 'none';
+					noTokenSection.style.display = 'block';
+					return;
+				}
+
+				try {
+					const response = await fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`);
+					const data = await response.json();
+
+					loadingSection.style.display = 'none';
+
+					if (response.ok) {
+						successSection.style.display = 'block';
+					} else {
+						errorMessage.textContent = data.error || 'This verification link is invalid or has expired.';
+						errorSection.style.display = 'block';
+					}
+				} catch (err) {
+					loadingSection.style.display = 'none';
+					errorMessage.textContent = 'Network error. Please try again.';
+					errorSection.style.display = 'block';
+				}
+			}
+
+			// Verify on page load
+			verifyEmail();
+		</script>
+		<FeedbackButton />
+	</body>
+</html>

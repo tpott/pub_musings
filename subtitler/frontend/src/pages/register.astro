@@ -1,0 +1,476 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Sign Up - Subtitler</title>
+		<style>
+			body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.theme-toggle-wrapper {
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+			}
+			.container {
+				max-width: 400px;
+				width: 100%;
+				padding: 2rem;
+			}
+			.card {
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 12px;
+				padding: 2rem;
+			}
+			.header {
+				text-align: center;
+				margin-bottom: 2rem;
+			}
+			.logo-link {
+				text-decoration: none;
+				color: var(--text-color);
+			}
+			h1 {
+				font-size: 1.75rem;
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+			}
+			.subtitle {
+				color: var(--text-secondary);
+				font-size: 0.95rem;
+			}
+			.form-group {
+				margin-bottom: 1.25rem;
+			}
+			label {
+				display: block;
+				font-weight: 500;
+				margin-bottom: 0.5rem;
+				font-size: 0.9rem;
+			}
+			input[type="email"],
+			input[type="password"] {
+				width: 100%;
+				padding: 0.75rem 1rem;
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-size: 1rem;
+				transition: border-color 0.2s, box-shadow 0.2s;
+			}
+			input:focus {
+				outline: none;
+				border-color: var(--accent-color);
+				box-shadow: 0 0 0 3px var(--focus-ring);
+			}
+			input.input-error {
+				border-color: var(--error-color);
+			}
+			input.input-error:focus {
+				box-shadow: 0 0 0 3px var(--error-focus-ring);
+			}
+			.field-error {
+				color: var(--error-color);
+				font-size: 0.8rem;
+				margin-top: 0.25rem;
+				display: none;
+			}
+			.hint {
+				font-size: 0.8rem;
+				color: var(--text-secondary);
+				margin-top: 0.25rem;
+			}
+			.btn {
+				width: 100%;
+				padding: 0.875rem 1rem;
+				border: none;
+				border-radius: 6px;
+				font-size: 1rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s, opacity 0.2s;
+			}
+			.btn-primary {
+				background-color: var(--text-color);
+				color: white;
+			}
+			.btn-primary:hover:not(:disabled) {
+				opacity: 0.9;
+			}
+			.btn:disabled {
+				opacity: 0.6;
+				cursor: not-allowed;
+			}
+			.btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.error-message {
+				background-color: var(--error-bg);
+				border: 1px solid var(--error-border);
+				color: var(--error-color);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1.25rem;
+				font-size: 0.9rem;
+				display: none;
+			}
+			.success-message {
+				background-color: var(--success-bg, #ecfdf5);
+				border: 1px solid var(--success-border, #a7f3d0);
+				color: var(--success-color, #065f46);
+				padding: 1.5rem;
+				border-radius: 6px;
+				text-align: center;
+			}
+			.success-message h2 {
+				margin: 0 0 0.75rem 0;
+				font-size: 1.25rem;
+			}
+			.success-message p {
+				margin: 0.5rem 0;
+			}
+			.success-email {
+				font-weight: 600;
+				color: var(--text-color);
+			}
+			.success-actions {
+				margin-top: 1.5rem;
+				display: flex;
+				flex-direction: column;
+				gap: 0.75rem;
+			}
+			.btn-secondary {
+				background-color: transparent;
+				border: 1px solid var(--border-color);
+				color: var(--text-color);
+			}
+			.btn-secondary:hover:not(:disabled) {
+				background-color: var(--secondary-bg);
+			}
+			.footer {
+				text-align: center;
+				margin-top: 1.5rem;
+				font-size: 0.9rem;
+				color: var(--text-secondary);
+			}
+			.footer a {
+				color: var(--accent-color);
+				text-decoration: none;
+			}
+			.footer a:hover {
+				text-decoration: underline;
+			}
+			.captcha-container {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+			/* Mobile responsive styles */
+			@media (max-width: 480px) {
+				.container {
+					padding: 1rem;
+				}
+				.card {
+					padding: 1.5rem;
+				}
+				h1 {
+					font-size: 1.5rem;
+				}
+				.btn {
+					min-height: 44px;
+				}
+			}
+			@media (max-width: 375px) {
+				.container {
+					padding: 0.75rem;
+				}
+				.card {
+					padding: 1.25rem;
+				}
+				h1 {
+					font-size: 1.25rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="theme-toggle-wrapper">
+			<ThemeToggle />
+		</div>
+		<div class="container">
+			<div class="card">
+				<div class="header">
+					<a href="/" class="logo-link">
+						<h1>Subtitler</h1>
+					</a>
+					<p class="subtitle">Create your account</p>
+				</div>
+
+				<div id="error" class="error-message" role="alert" aria-live="assertive"></div>
+
+				<div id="formSection">
+					<form id="registerForm">
+						<div class="form-group">
+							<label for="email">Email</label>
+							<input type="email" id="email" name="email" required autocomplete="email" aria-describedby="emailError" />
+							<div id="emailError" class="field-error" role="alert"></div>
+						</div>
+						<div class="form-group">
+							<label for="password">Password</label>
+							<input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" aria-describedby="passwordHint passwordError" />
+							<p id="passwordHint" class="hint">At least 8 characters</p>
+							<div id="passwordError" class="field-error" role="alert"></div>
+						</div>
+						<div class="form-group">
+							<label for="confirmPassword">Confirm Password</label>
+							<input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password" aria-describedby="confirmPasswordError" />
+							<div id="confirmPasswordError" class="field-error" role="alert"></div>
+						</div>
+						<div id="captchaContainer" class="form-group captcha-container" style="display: none;">
+							<div id="hcaptcha" aria-describedby="captchaError"></div>
+							<div id="captchaError" class="field-error" role="alert"></div>
+						</div>
+						<button type="submit" class="btn btn-primary" id="submitBtn">Create account</button>
+					</form>
+
+					<div class="footer">
+						<p>Already have an account? <a href="/login">Log in</a></p>
+					</div>
+				</div>
+
+				<div id="successSection" style="display: none;">
+					<div class="success-message">
+						<h2>Check your email</h2>
+						<p>We've sent a verification link to</p>
+						<p class="success-email" id="registeredEmail"></p>
+						<p>Click the link in the email to verify your account.</p>
+						<div class="success-actions">
+							<a href="/login" class="btn btn-primary">Go to login</a>
+							<button type="button" class="btn btn-secondary" id="resendBtn">Resend verification email</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { validateEmail, validatePassword } from '../utils/validation';
+			import { getCaptchaConfig, renderCaptcha, getCaptchaToken, resetCaptcha } from '../utils/captcha';
+			import { clearFieldError, showFieldError } from '../utils/form-errors';
+			import { setupBlurValidation, createPasswordMatchValidator } from '../utils/form-validation';
+			import { getRequiredElement } from '../utils/dom';
+
+			// Get all required elements with type checking
+			const form = getRequiredElement('registerForm', HTMLFormElement);
+			const errorDiv = getRequiredElement('error', HTMLElement);
+			const submitBtn = getRequiredElement('submitBtn', HTMLButtonElement);
+			const emailInput = getRequiredElement('email', HTMLInputElement);
+			const passwordInput = getRequiredElement('password', HTMLInputElement);
+			const confirmPasswordInput = getRequiredElement('confirmPassword', HTMLInputElement);
+			const emailError = getRequiredElement('emailError', HTMLElement);
+			const passwordError = getRequiredElement('passwordError', HTMLElement);
+			const confirmPasswordError = getRequiredElement('confirmPasswordError', HTMLElement);
+			const formSection = getRequiredElement('formSection', HTMLElement);
+			const successSection = getRequiredElement('successSection', HTMLElement);
+			const registeredEmailSpan = getRequiredElement('registeredEmail', HTMLElement);
+			const resendBtn = getRequiredElement('resendBtn', HTMLButtonElement);
+			const captchaContainer = getRequiredElement('captchaContainer', HTMLElement);
+			const captchaError = getRequiredElement('captchaError', HTMLElement);
+
+			let registeredEmail = '';
+			let captchaEnabled = false;
+			let captchaSiteKey = '';
+			let captchaReady = false;
+
+			// Initialize CAPTCHA on page load
+			async function initCaptcha() {
+				const config = await getCaptchaConfig();
+				if (config.enabled && config.site_key) {
+					captchaEnabled = true;
+					captchaSiteKey = config.site_key;
+					captchaContainer.style.display = 'flex';
+					try {
+						await renderCaptcha('hcaptcha', captchaSiteKey);
+						captchaReady = true;
+					} catch (err) {
+						console.error('Failed to render CAPTCHA:', err);
+					}
+				}
+			}
+			initCaptcha();
+
+			// Add blur validation using shared utility
+			setupBlurValidation({ input: emailInput, errorEl: emailError, validate: validateEmail });
+			setupBlurValidation({ input: passwordInput, errorEl: passwordError, validate: validatePassword });
+			setupBlurValidation({
+				input: confirmPasswordInput,
+				errorEl: confirmPasswordError,
+				validate: createPasswordMatchValidator(passwordInput)
+			});
+
+			function showError(message: string) {
+				errorDiv.textContent = message;
+				errorDiv.style.display = 'block';
+			}
+
+			function hideError() {
+				errorDiv.style.display = 'none';
+			}
+
+			let isSubmitting = false;
+			function setLoading(loading: boolean) {
+				isSubmitting = loading;
+				submitBtn.disabled = loading;
+				submitBtn.textContent = loading ? 'Creating account...' : 'Create account';
+			}
+
+			function showSuccess(email: string) {
+				registeredEmail = email;
+				registeredEmailSpan.textContent = email;
+				formSection.style.display = 'none';
+				successSection.style.display = 'block';
+			}
+
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				if (isSubmitting) return;
+
+				hideError();
+				captchaError.style.display = 'none';
+
+				const email = emailInput.value.trim();
+				const password = passwordInput.value;
+				const confirmPassword = confirmPasswordInput.value;
+
+				// Validate fields
+				let hasErrors = false;
+
+				const emailValidation = validateEmail(email);
+				if (emailValidation) {
+					showFieldError(emailInput, emailError, emailValidation);
+					hasErrors = true;
+				}
+
+				const passwordValidation = validatePassword(password);
+				if (passwordValidation) {
+					showFieldError(passwordInput, passwordError, passwordValidation);
+					hasErrors = true;
+				}
+
+				if (password !== confirmPassword) {
+					showFieldError(confirmPasswordInput, confirmPasswordError, 'Passwords do not match');
+					hasErrors = true;
+				}
+
+				// Validate CAPTCHA if enabled
+				let captchaToken = '';
+				if (captchaEnabled) {
+					captchaToken = getCaptchaToken('hcaptcha') || '';
+					if (!captchaToken) {
+						captchaError.textContent = 'Please complete the CAPTCHA';
+						captchaError.style.display = 'block';
+						hasErrors = true;
+					}
+				}
+
+				if (hasErrors) {
+					return;
+				}
+
+				setLoading(true);
+
+				try {
+					const body: { email: string; password: string; captcha_token?: string } = { email, password };
+					if (captchaToken) {
+						body.captcha_token = captchaToken;
+					}
+
+					const response = await fetch('/api/auth/register', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(body),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Registration failed');
+						// Reset CAPTCHA on failure
+						if (captchaEnabled) {
+							resetCaptcha('hcaptcha');
+						}
+						setLoading(false);
+						return;
+					}
+
+					// Registration successful - show verification message
+					if (data.email_verification) {
+						showSuccess(email);
+					} else {
+						// Legacy fallback (shouldn't happen with new API)
+						window.location.href = '/videos';
+					}
+				} catch (err) {
+					showError('Network error. Please try again.');
+					setLoading(false);
+				}
+			});
+
+			// Resend verification email
+			resendBtn.addEventListener('click', async () => {
+				if (!registeredEmail) return;
+
+				resendBtn.disabled = true;
+				resendBtn.textContent = 'Sending...';
+
+				try {
+					const response = await fetch('/api/auth/resend-verification', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: registeredEmail }),
+					});
+
+					if (response.ok) {
+						resendBtn.textContent = 'Email sent!';
+						setTimeout(() => {
+							resendBtn.textContent = 'Resend verification email';
+							resendBtn.disabled = false;
+						}, 3000);
+					} else {
+						resendBtn.textContent = 'Failed to send';
+						setTimeout(() => {
+							resendBtn.textContent = 'Resend verification email';
+							resendBtn.disabled = false;
+						}, 3000);
+					}
+				} catch (err) {
+					resendBtn.textContent = 'Failed to send';
+					setTimeout(() => {
+						resendBtn.textContent = 'Resend verification email';
+						resendBtn.disabled = false;
+					}, 3000);
+				}
+			});
+		</script>
+		<FeedbackButton />
+	</body>
+</html>

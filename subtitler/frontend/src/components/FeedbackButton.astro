@@ -1,0 +1,529 @@
+---
+/**
+ * Global feedback button component.
+ * Shows a floating button that opens a feedback modal.
+ * Captures user context (page URL, video ID, session) for debugging.
+ */
+---
+
+<button class="feedback-button" id="feedbackBtn" aria-label="Send us feedback" title="Send feedback">
+	<svg class="feedback-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+	</svg>
+	<span class="feedback-label">Feedback</span>
+</button>
+
+<div class="feedback-modal" id="feedbackModal" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle">
+	<div class="feedback-content">
+		<div class="feedback-header">
+			<h2 id="feedbackTitle">Send Feedback</h2>
+			<button class="feedback-close" id="feedbackClose" aria-label="Close feedback dialog">&times;</button>
+		</div>
+		<div class="feedback-body">
+			<form id="feedbackForm">
+				<div class="form-group">
+					<label for="feedbackType">Type</label>
+					<select id="feedbackType" name="type" required>
+						<option value="general">General Feedback</option>
+						<option value="bug">Bug Report</option>
+						<option value="feature">Feature Request</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label>Rating <span class="optional">(optional)</span></label>
+					<div class="star-rating" id="starRating" role="radiogroup" aria-label="Rating">
+						<button type="button" class="star" data-value="1" aria-label="1 star">★</button>
+						<button type="button" class="star" data-value="2" aria-label="2 stars">★</button>
+						<button type="button" class="star" data-value="3" aria-label="3 stars">★</button>
+						<button type="button" class="star" data-value="4" aria-label="4 stars">★</button>
+						<button type="button" class="star" data-value="5" aria-label="5 stars">★</button>
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="feedbackText">Message <span class="required">*</span></label>
+					<textarea
+						id="feedbackText"
+						name="text"
+						placeholder="Tell us what you think, report a bug, or request a feature..."
+						required
+						rows="5"
+						maxlength="10240"></textarea>
+					<span class="char-count" id="charCount">0 / 10,240</span>
+				</div>
+				<div class="form-actions">
+					<button type="button" class="btn-cancel" id="feedbackCancel">Cancel</button>
+					<button type="submit" class="btn-submit" id="feedbackSubmit">Send Feedback</button>
+				</div>
+			</form>
+			<div id="feedbackSuccess" class="feedback-success" style="display: none;">
+				<svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+					<polyline points="22 4 12 14.01 9 11.01"></polyline>
+				</svg>
+				<h3>Thank you!</h3>
+				<p>Your feedback has been submitted. We appreciate your input.</p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<style>
+	.feedback-button {
+		position: fixed;
+		bottom: 1.5rem;
+		right: 1.5rem;
+		background-color: var(--accent-color);
+		color: white;
+		border: none;
+		padding: 0.75rem 1rem;
+		border-radius: 24px;
+		cursor: pointer;
+		font-weight: 500;
+		font-size: 0.9rem;
+		z-index: 999;
+		transition: all 0.2s;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	}
+
+	.feedback-button:hover {
+		background-color: var(--accent-hover);
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+	}
+
+	.feedback-button:focus {
+		outline: 2px solid var(--accent-color);
+		outline-offset: 2px;
+	}
+
+	.feedback-icon {
+		width: 18px;
+		height: 18px;
+	}
+
+	/* Hide label on mobile, show just icon */
+	@media (max-width: 600px) {
+		.feedback-button {
+			padding: 0.75rem;
+			border-radius: 50%;
+		}
+		.feedback-label {
+			display: none;
+		}
+	}
+
+	.feedback-modal {
+		display: none;
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: rgba(0, 0, 0, 0.5);
+		z-index: 1100;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+	}
+
+	.feedback-modal.visible {
+		display: flex;
+	}
+
+	.feedback-content {
+		background-color: var(--bg-color);
+		border-radius: 12px;
+		max-width: 500px;
+		width: 100%;
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+		max-height: 90vh;
+		overflow-y: auto;
+	}
+
+	.feedback-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1.25rem 1.5rem;
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	.feedback-header h2 {
+		margin: 0;
+		font-size: 1.25rem;
+		color: var(--text-color);
+	}
+
+	.feedback-close {
+		background: none;
+		border: none;
+		font-size: 1.75rem;
+		cursor: pointer;
+		color: var(--text-secondary);
+		padding: 0;
+		line-height: 1;
+		transition: color 0.2s;
+	}
+
+	.feedback-close:hover {
+		color: var(--text-color);
+	}
+
+	.feedback-close:focus {
+		outline: 2px solid var(--accent-color);
+		outline-offset: 2px;
+	}
+
+	.feedback-body {
+		padding: 1.5rem;
+	}
+
+	.form-group {
+		margin-bottom: 1.25rem;
+	}
+
+	.form-group label {
+		display: block;
+		margin-bottom: 0.5rem;
+		font-weight: 500;
+		color: var(--text-color);
+	}
+
+	.optional {
+		font-weight: 400;
+		color: var(--text-secondary);
+	}
+
+	.required {
+		color: var(--error-color);
+	}
+
+	.form-group select,
+	.form-group textarea {
+		width: 100%;
+		padding: 0.75rem;
+		border: 1px solid var(--border-color);
+		border-radius: 6px;
+		background-color: var(--secondary-bg);
+		color: var(--text-color);
+		font-family: inherit;
+		font-size: 0.95rem;
+		transition: border-color 0.2s;
+	}
+
+	.form-group select:focus,
+	.form-group textarea:focus {
+		border-color: var(--accent-color);
+		outline: none;
+		box-shadow: 0 0 0 3px var(--focus-ring);
+	}
+
+	.form-group textarea {
+		resize: vertical;
+		min-height: 100px;
+	}
+
+	.char-count {
+		display: block;
+		text-align: right;
+		font-size: 0.8rem;
+		color: var(--text-tertiary);
+		margin-top: 0.25rem;
+	}
+
+	.star-rating {
+		display: flex;
+		gap: 0.25rem;
+	}
+
+	.star {
+		background: none;
+		border: none;
+		font-size: 1.75rem;
+		cursor: pointer;
+		color: var(--text-tertiary);
+		transition: color 0.15s, transform 0.15s;
+		padding: 0.25rem;
+	}
+
+	.star:hover {
+		transform: scale(1.1);
+	}
+
+	.star:focus {
+		outline: 2px solid var(--accent-color);
+		outline-offset: 2px;
+	}
+
+	.star.active {
+		color: #f59e0b;
+	}
+
+	.star.hover {
+		color: #fbbf24;
+	}
+
+	.form-actions {
+		display: flex;
+		gap: 0.75rem;
+		justify-content: flex-end;
+		margin-top: 1.5rem;
+	}
+
+	.btn-cancel,
+	.btn-submit {
+		padding: 0.75rem 1.25rem;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background-color 0.2s;
+	}
+
+	.btn-cancel {
+		background-color: var(--btn-secondary-bg);
+		border: 1px solid var(--border-color);
+		color: var(--text-color);
+	}
+
+	.btn-cancel:hover {
+		background-color: var(--btn-secondary-hover);
+	}
+
+	.btn-submit {
+		background-color: var(--accent-color);
+		border: none;
+		color: white;
+	}
+
+	.btn-submit:hover {
+		background-color: var(--accent-hover);
+	}
+
+	.btn-submit:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.btn-cancel:focus,
+	.btn-submit:focus {
+		outline: 2px solid var(--accent-color);
+		outline-offset: 2px;
+	}
+
+	.feedback-success {
+		text-align: center;
+		padding: 2rem 1rem;
+	}
+
+	.success-icon {
+		width: 48px;
+		height: 48px;
+		color: var(--success-color);
+		margin-bottom: 1rem;
+	}
+
+	.feedback-success h3 {
+		margin: 0 0 0.5rem 0;
+		color: var(--text-color);
+	}
+
+	.feedback-success p {
+		margin: 0;
+		color: var(--text-secondary);
+	}
+
+	@media (max-width: 600px) {
+		.feedback-content {
+			max-height: 100vh;
+			border-radius: 12px 12px 0 0;
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			max-width: 100%;
+		}
+
+		.feedback-modal {
+			align-items: flex-end;
+			padding: 0;
+		}
+
+		.form-actions {
+			flex-direction: column;
+		}
+
+		.btn-cancel,
+		.btn-submit {
+			width: 100%;
+			min-height: 44px;
+		}
+	}
+</style>
+
+<script>
+	import { csrfFetch, getCsrfToken } from '../utils/csrf';
+	import { getSessionId } from '../utils/session';
+	import { showAlert } from '../utils/dialog';
+
+	const feedbackBtn = document.getElementById('feedbackBtn') as HTMLButtonElement;
+	const feedbackModal = document.getElementById('feedbackModal') as HTMLElement;
+	const feedbackClose = document.getElementById('feedbackClose') as HTMLButtonElement;
+	const feedbackCancel = document.getElementById('feedbackCancel') as HTMLButtonElement;
+	const feedbackForm = document.getElementById('feedbackForm') as HTMLFormElement;
+	const feedbackSuccess = document.getElementById('feedbackSuccess') as HTMLElement;
+	const feedbackText = document.getElementById('feedbackText') as HTMLTextAreaElement;
+	const charCount = document.getElementById('charCount') as HTMLElement;
+	const submitBtn = document.getElementById('feedbackSubmit') as HTMLButtonElement;
+
+	let selectedRating: number | null = null;
+	const starRatingContainer = document.getElementById('starRating') as HTMLElement;
+	const stars = starRatingContainer.querySelectorAll('.star');
+
+	// Character count update
+	feedbackText.addEventListener('input', () => {
+		const length = feedbackText.value.length;
+		charCount.textContent = `${length.toLocaleString()} / 10,240`;
+	});
+
+	// Star rating with event delegation - single listener on container
+	// This pattern is more efficient than attaching listeners to each star
+	starRatingContainer.addEventListener('mouseenter', (e) => {
+		const star = (e.target as HTMLElement).closest('.star');
+		if (!star) return;
+		const index = Array.from(stars).indexOf(star);
+		stars.forEach((s, i) => {
+			if (i <= index) {
+				s.classList.add('hover');
+			} else {
+				s.classList.remove('hover');
+			}
+		});
+	}, true); // Use capture to handle mouseenter on children
+
+	starRatingContainer.addEventListener('mouseleave', (e) => {
+		const relatedTarget = e.relatedTarget as HTMLElement;
+		// Only clear hover if leaving the container entirely
+		if (!starRatingContainer.contains(relatedTarget)) {
+			stars.forEach((s) => s.classList.remove('hover'));
+		}
+	});
+
+	starRatingContainer.addEventListener('click', (e) => {
+		const star = (e.target as HTMLElement).closest('.star');
+		if (!star) return;
+		const index = Array.from(stars).indexOf(star);
+		selectedRating = index + 1;
+		stars.forEach((s, i) => {
+			if (i < selectedRating!) {
+				s.classList.add('active');
+			} else {
+				s.classList.remove('active');
+			}
+		});
+	});
+
+	// Open modal
+	function openModal() {
+		// Save current overflow state so we can restore it on close
+		previousOverflow = document.body.style.overflow;
+		feedbackModal.classList.add('visible');
+		document.body.style.overflow = 'hidden';
+		feedbackClose.focus();
+	}
+
+	// Track whether body overflow was already hidden before opening
+	let previousOverflow = '';
+
+	// Close modal
+	function closeModal() {
+		feedbackModal.classList.remove('visible');
+		// Restore previous overflow state instead of always clearing
+		document.body.style.overflow = previousOverflow;
+		feedbackBtn.focus();
+	}
+
+	// Reset form
+	function resetForm() {
+		feedbackForm.reset();
+		feedbackForm.style.display = 'block';
+		feedbackSuccess.style.display = 'none';
+		selectedRating = null;
+		stars.forEach(s => s.classList.remove('active'));
+		charCount.textContent = '0 / 10,240';
+		submitBtn.disabled = false;
+	}
+
+	feedbackBtn.addEventListener('click', openModal);
+	feedbackClose.addEventListener('click', closeModal);
+	feedbackCancel.addEventListener('click', closeModal);
+
+	// Close on overlay click
+	feedbackModal.addEventListener('click', (e) => {
+		if (e.target === feedbackModal) {
+			closeModal();
+		}
+	});
+
+	// Keyboard: Escape to close
+	feedbackModal.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape') {
+			closeModal();
+		}
+	});
+
+	// Submit feedback
+	feedbackForm.addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const formData = new FormData(feedbackForm);
+		const sessionId = getSessionId();
+
+		// Disable submit button
+		submitBtn.disabled = true;
+		submitBtn.textContent = 'Sending...';
+
+		try {
+			// Get CSRF token first
+			await getCsrfToken();
+
+			const response = await csrfFetch('/api/feedback', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					text: formData.get('text'),
+					type: formData.get('type'),
+					rating: selectedRating,
+					page_url: window.location.href,
+					video_id: (window as any).currentVideoId || null,
+					session_id: sessionId,
+					browser_info: `${navigator.userAgent}; viewport: ${window.innerWidth}x${window.innerHeight}`
+				})
+			});
+
+			if (response.ok) {
+				// Show success message
+				feedbackForm.style.display = 'none';
+				feedbackSuccess.style.display = 'block';
+
+				// Close modal after delay
+				setTimeout(() => {
+					closeModal();
+					resetForm();
+				}, 2500);
+			} else {
+				const data = await response.json();
+				await showAlert(data.error || 'Failed to send feedback. Please try again.', 'error');
+				submitBtn.disabled = false;
+				submitBtn.textContent = 'Send Feedback';
+			}
+		} catch (err) {
+			await showAlert('Error sending feedback. Please check your connection and try again.', 'error');
+			submitBtn.disabled = false;
+			submitBtn.textContent = 'Send Feedback';
+		}
+	});
+</script>

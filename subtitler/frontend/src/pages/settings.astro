@@ -1,0 +1,441 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import Navigation from '../components/Navigation.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+import '../styles/settings.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Settings - Subtitler</title>
+	</head>
+	<body>
+		<Navigation />
+		<div class="container">
+			<div class="header">
+				<a href="/videos" class="back-link" aria-label="Back to videos">&larr;</a>
+				<h1>Settings</h1>
+			</div>
+
+			<div id="loading" class="loading">Loading...</div>
+			<div id="notLoggedIn" class="card hidden">
+				<p>Please <a href="/login">log in</a> to manage your settings.</p>
+			</div>
+
+			<div id="content" class="hidden">
+				<div id="errorMessage" class="error-message hidden" role="alert" aria-live="assertive"></div>
+				<div id="successMessage" class="success-message hidden" role="status" aria-live="polite"></div>
+
+				<!-- Tab Navigation -->
+				<div class="tabs" role="tablist">
+					<button class="tab active" role="tab" aria-selected="true" aria-controls="security-tab" id="security-tab-btn" data-tab="security">Security</button>
+					<button class="tab" role="tab" aria-selected="false" aria-controls="account-tab" id="account-tab-btn" data-tab="account">Account</button>
+					<button class="tab" role="tab" aria-selected="false" aria-controls="preferences-tab" id="preferences-tab-btn" data-tab="preferences">Preferences</button>
+				</div>
+
+				<!-- Security Tab Content -->
+				<div id="security-tab" class="tab-content active" role="tabpanel" aria-labelledby="security-tab-btn">
+					<div class="card">
+						<div class="card-header">
+							<h2 class="card-title">Two-Factor Authentication</h2>
+							<span id="totpStatus" class="status-badge status-disabled">Disabled</span>
+						</div>
+						<p class="card-description">
+							Add an extra layer of security to your account by requiring a verification code from your authenticator app when signing in.
+						</p>
+
+						<div id="enableSection">
+							<button id="startSetupBtn" class="btn btn-primary">Enable 2FA</button>
+						</div>
+
+						<div id="setupSection" class="setup-section hidden">
+							<div class="setup-instructions">
+								<p><strong>Set up your authenticator app:</strong></p>
+								<ol>
+									<li>Download an authenticator app like Google Authenticator, Authy, or 1Password</li>
+									<li>Scan the QR code below or manually enter the secret key</li>
+									<li>Enter the 6-digit code from your app to verify</li>
+								</ol>
+							</div>
+
+							<div class="qr-container">
+								<div class="qr-placeholder">
+									<img id="qrCode" class="qr-code" alt="QR Code for 2FA setup" />
+								</div>
+							</div>
+
+							<p style="text-align: center; font-size: 0.9rem; color: #666;">Or enter this secret manually:</p>
+							<div id="secretDisplay" class="secret-display">Loading...</div>
+
+							<form id="verifyForm">
+								<div class="form-group">
+									<label for="verifyCode">Verification Code</label>
+									<input type="text" id="verifyCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required aria-describedby="verifyCodeError" />
+									<div id="verifyCodeError" class="field-error" role="alert"></div>
+								</div>
+								<div class="btn-group">
+									<button type="submit" class="btn btn-primary" id="verifyBtn">Verify & Enable</button>
+									<button type="button" class="btn btn-secondary" id="cancelSetupBtn">Cancel</button>
+								</div>
+							</form>
+						</div>
+
+						<div id="recoveryCodesSection" class="recovery-codes-section hidden">
+							<div class="recovery-warning">
+								<strong>Save your recovery codes!</strong>
+								These codes can be used to access your account if you lose your authenticator device. Each code can only be used once. Store them in a safe place.
+							</div>
+							<div id="recoveryCodesGrid" class="recovery-codes-grid"></div>
+							<div class="recovery-actions">
+								<button type="button" class="btn btn-secondary" id="copyCodesBtn">Copy All Codes</button>
+								<button type="button" class="btn btn-secondary" id="downloadCodesBtn">Download as File</button>
+							</div>
+							<div class="confirmation-checkbox">
+								<input type="checkbox" id="savedCodesCheckbox" />
+								<label for="savedCodesCheckbox">I have saved my recovery codes in a safe place</label>
+							</div>
+							<div class="btn-group" style="margin-top: 1rem;">
+								<button type="button" class="btn btn-primary" id="continueBtn" disabled>Continue</button>
+							</div>
+						</div>
+
+						<div id="disableSection" class="hidden">
+							<div id="managementOptions">
+								<div style="margin-bottom: 1.5rem;">
+									<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Recovery Codes</h3>
+									<p class="card-description" style="margin-top: 0;">
+										Recovery codes can be used to access your account if you lose your authenticator device.
+									</p>
+									<button type="button" class="btn btn-secondary" id="startRegenBtn">Regenerate Recovery Codes</button>
+								</div>
+
+								<div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+									<h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Disable 2FA</h3>
+									<p class="card-description" style="margin-top: 0;">
+										Remove two-factor authentication from your account.
+									</p>
+									<button type="button" class="btn btn-danger" id="startDisableBtn">Disable 2FA</button>
+								</div>
+							</div>
+
+							<div id="regenSection" class="hidden">
+								<p class="card-description" style="margin-top: 0;">
+									To regenerate recovery codes, enter your current password and a code from your authenticator app.
+								</p>
+								<form id="regenForm">
+									<div class="form-group">
+										<label for="regenPassword">Password</label>
+										<input type="password" id="regenPassword" autocomplete="current-password" required aria-describedby="regenPasswordError" />
+										<div id="regenPasswordError" class="field-error" role="alert"></div>
+									</div>
+									<div class="form-group">
+										<label for="regenCode">Authentication Code</label>
+										<input type="text" id="regenCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required aria-describedby="regenCodeError" />
+										<div id="regenCodeError" class="field-error" role="alert"></div>
+									</div>
+									<div class="btn-group">
+										<button type="submit" class="btn btn-primary" id="regenBtn">Regenerate Codes</button>
+										<button type="button" class="btn btn-secondary" id="cancelRegenBtn">Cancel</button>
+									</div>
+								</form>
+							</div>
+
+							<div id="disableFormSection" class="hidden">
+								<p class="card-description" style="margin-top: 0;">
+									To disable 2FA, enter your current password and a code from your authenticator app.
+								</p>
+								<form id="disableForm">
+									<div class="form-group">
+										<label for="disablePassword">Password</label>
+										<input type="password" id="disablePassword" autocomplete="current-password" required aria-describedby="disablePasswordError" />
+										<div id="disablePasswordError" class="field-error" role="alert"></div>
+									</div>
+									<div class="form-group">
+										<label for="disableCode">Authentication Code</label>
+										<input type="text" id="disableCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required aria-describedby="disableCodeError" />
+										<div id="disableCodeError" class="field-error" role="alert"></div>
+									</div>
+									<div class="btn-group">
+										<button type="submit" class="btn btn-danger" id="disableBtn">Disable 2FA</button>
+										<button type="button" class="btn btn-secondary" id="cancelDisableBtn">Cancel</button>
+									</div>
+								</form>
+							</div>
+						</div>
+					</div>
+
+					<div class="card">
+						<div class="card-header">
+							<h2 class="card-title">Active Sessions</h2>
+						</div>
+						<p class="card-description">
+							Manage your active login sessions. You can revoke access from other devices if you notice suspicious activity.
+						</p>
+						<div id="sessionsLoading" class="loading" style="padding: 1rem;">Loading sessions...</div>
+						<div id="sessionsList" class="session-list hidden"></div>
+					</div>
+				</div>
+
+				<!-- Account Tab Content (placeholder) -->
+				<div id="account-tab" class="tab-content" role="tabpanel" aria-labelledby="account-tab-btn">
+					<div class="card">
+						<div class="placeholder-content">
+							<h3>Account Settings</h3>
+							<p>Account management features coming soon. You'll be able to update your email, change your password, and manage your profile here.</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Preferences Tab Content -->
+				<div id="preferences-tab" class="tab-content" role="tabpanel" aria-labelledby="preferences-tab-btn">
+					<div class="card">
+						<div class="card-header">
+							<h2 class="card-title">Reading Preferences</h2>
+						</div>
+
+						<!-- Bionic Reading Toggle -->
+						<div class="toggle-row">
+							<div class="toggle-label-group">
+								<span class="toggle-label">Bionic Reading</span>
+								<span class="toggle-description">Bold the first portion of each word to create visual anchors</span>
+							</div>
+							<label class="toggle-switch">
+								<input type="checkbox" id="bionicToggle" aria-label="Enable Bionic Reading" />
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+
+						<!-- Fixation Slider (only visible when enabled) -->
+						<div id="bionicOptions" class="slider-row disabled-section">
+							<div class="slider-header">
+								<span class="slider-label">Fixation Intensity</span>
+								<span id="fixationValue" class="slider-value">40%</span>
+							</div>
+							<input type="range" id="fixationSlider" class="slider-input" min="30" max="50" value="40" step="5" aria-label="Fixation percentage" />
+							<div class="slider-labels">
+								<span>Light (30%)</span>
+								<span>Moderate (40%)</span>
+								<span>Strong (50%)</span>
+							</div>
+						</div>
+
+						<!-- Preview -->
+						<div id="bionicPreview" class="preview-section">
+							<div class="preview-label">Preview</div>
+							<div id="previewText" class="preview-text">The quick brown fox jumps over the lazy dog.</div>
+						</div>
+
+						<!-- Disclaimer -->
+						<div class="disclaimer">
+							Note: Scientific studies have not found measurable improvements in reading speed or comprehension for most people. Some individuals find this feature subjectively helpful for focus. Try it to see if it works for you.
+						</div>
+					</div>
+
+					<div class="card">
+						<div class="placeholder-content">
+							<h3>More Preferences</h3>
+							<p>Additional preference settings coming soon.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { getRequiredElement, queryAllElements } from '../utils/dom';
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
+			import { setupTotp, type TotpElements } from '../utils/settings-totp';
+			import { setupSessions, type SessionsElements } from '../utils/settings-sessions';
+			import { setupPreferences, type PreferencesElements } from '../utils/settings-preferences';
+
+			// Page-level elements
+			const loading = getRequiredElement('loading', HTMLElement);
+			const notLoggedIn = getRequiredElement('notLoggedIn', HTMLElement);
+			const content = getRequiredElement('content', HTMLElement);
+			const errorMessage = getRequiredElement('errorMessage', HTMLElement);
+			const successMessage = getRequiredElement('successMessage', HTMLElement);
+
+			// Tab elements
+			const tabButtons = queryAllElements('.tab', HTMLButtonElement);
+			const tabContents = queryAllElements('.tab-content', HTMLElement);
+
+			// Shared state
+			const state = {
+				currentUser: null as { id: string; email: string; totp_enabled: boolean } | null,
+			};
+
+			// Message helpers shared across modules
+			function showError(message: string) {
+				errorMessage.textContent = message;
+				errorMessage.classList.remove('hidden');
+				successMessage.classList.add('hidden');
+			}
+
+			function showSuccess(message: string) {
+				successMessage.textContent = message;
+				successMessage.classList.remove('hidden');
+				errorMessage.classList.add('hidden');
+			}
+
+			function hideMessages() {
+				errorMessage.classList.add('hidden');
+				successMessage.classList.add('hidden');
+			}
+
+			const callbacks = { showError, showSuccess, hideMessages };
+
+			// Set up TOTP module
+			const totpElements: TotpElements = {
+				totpStatus: getRequiredElement('totpStatus', HTMLElement),
+				enableSection: getRequiredElement('enableSection', HTMLElement),
+				setupSection: getRequiredElement('setupSection', HTMLElement),
+				disableSection: getRequiredElement('disableSection', HTMLElement),
+				startSetupBtn: getRequiredElement('startSetupBtn', HTMLButtonElement),
+				cancelSetupBtn: getRequiredElement('cancelSetupBtn', HTMLButtonElement),
+				verifyForm: getRequiredElement('verifyForm', HTMLFormElement),
+				verifyBtn: getRequiredElement('verifyBtn', HTMLButtonElement),
+				verifyCode: getRequiredElement('verifyCode', HTMLInputElement),
+				verifyCodeError: getRequiredElement('verifyCodeError', HTMLElement),
+				disableForm: getRequiredElement('disableForm', HTMLFormElement),
+				disableBtn: getRequiredElement('disableBtn', HTMLButtonElement),
+				disablePassword: getRequiredElement('disablePassword', HTMLInputElement),
+				disablePasswordError: getRequiredElement('disablePasswordError', HTMLElement),
+				disableCode: getRequiredElement('disableCode', HTMLInputElement),
+				disableCodeError: getRequiredElement('disableCodeError', HTMLElement),
+				qrCode: getRequiredElement('qrCode', HTMLImageElement),
+				secretDisplay: getRequiredElement('secretDisplay', HTMLElement),
+				recoveryCodesSection: getRequiredElement('recoveryCodesSection', HTMLElement),
+				recoveryCodesGrid: getRequiredElement('recoveryCodesGrid', HTMLElement),
+				copyCodesBtn: getRequiredElement('copyCodesBtn', HTMLButtonElement),
+				downloadCodesBtn: getRequiredElement('downloadCodesBtn', HTMLButtonElement),
+				savedCodesCheckbox: getRequiredElement('savedCodesCheckbox', HTMLInputElement),
+				continueBtn: getRequiredElement('continueBtn', HTMLButtonElement),
+				managementOptions: getRequiredElement('managementOptions', HTMLElement),
+				regenSection: getRequiredElement('regenSection', HTMLElement),
+				disableFormSection: getRequiredElement('disableFormSection', HTMLElement),
+				startRegenBtn: getRequiredElement('startRegenBtn', HTMLButtonElement),
+				startDisableBtn: getRequiredElement('startDisableBtn', HTMLButtonElement),
+				cancelRegenBtn: getRequiredElement('cancelRegenBtn', HTMLButtonElement),
+				cancelDisableBtn: getRequiredElement('cancelDisableBtn', HTMLButtonElement),
+				regenForm: getRequiredElement('regenForm', HTMLFormElement),
+				regenBtn: getRequiredElement('regenBtn', HTMLButtonElement),
+				regenPassword: getRequiredElement('regenPassword', HTMLInputElement),
+				regenPasswordError: getRequiredElement('regenPasswordError', HTMLElement),
+				regenCode: getRequiredElement('regenCode', HTMLInputElement),
+				regenCodeError: getRequiredElement('regenCodeError', HTMLElement),
+			};
+
+			const totp = setupTotp(totpElements, callbacks, state);
+
+			// Set up sessions module
+			const sessionsElements: SessionsElements = {
+				sessionsLoading: getRequiredElement('sessionsLoading', HTMLElement),
+				sessionsList: getRequiredElement('sessionsList', HTMLElement),
+			};
+
+			const sessions = setupSessions(sessionsElements, callbacks);
+
+			// Set up preferences module
+			const preferencesElements: PreferencesElements = {
+				bionicToggle: getRequiredElement('bionicToggle', HTMLInputElement),
+				bionicOptions: getRequiredElement('bionicOptions', HTMLElement),
+				fixationSlider: getRequiredElement('fixationSlider', HTMLInputElement),
+				fixationValue: getRequiredElement('fixationValue', HTMLElement),
+				previewText: getRequiredElement('previewText', HTMLElement),
+			};
+
+			setupPreferences(preferencesElements);
+
+			// Tab switching logic
+			function switchTab(tabName: string) {
+				tabButtons.forEach(btn => {
+					const isActive = btn.dataset.tab === tabName;
+					btn.classList.toggle('active', isActive);
+					btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+				});
+
+				tabContents.forEach(content => {
+					const isActive = content.id === `${tabName}-tab`;
+					content.classList.toggle('active', isActive);
+				});
+
+				localStorage.setItem('subtitler:settings-tab', tabName);
+			}
+
+			function initTabs() {
+				const hash = window.location.hash.slice(1);
+				const savedTab = localStorage.getItem('subtitler:settings-tab');
+				const validTabs = ['security', 'account', 'preferences'];
+
+				let initialTab = 'security';
+				if (hash && validTabs.includes(hash)) {
+					initialTab = hash;
+				} else if (savedTab && validTabs.includes(savedTab)) {
+					initialTab = savedTab;
+				}
+
+				switchTab(initialTab);
+			}
+
+			tabButtons.forEach(btn => {
+				btn.addEventListener('click', () => {
+					const tab = btn.dataset.tab;
+					if (tab) {
+						switchTab(tab);
+						history.replaceState(null, '', `#${tab}`);
+					}
+				});
+			});
+
+			// Handle keyboard navigation for tabs (WAI-ARIA tabs pattern)
+			tabButtons.forEach((btn, index) => {
+				btn.addEventListener('keydown', (e) => {
+					let nextIndex = index;
+					if (e.key === 'ArrowRight') {
+						nextIndex = (index + 1) % tabButtons.length;
+					} else if (e.key === 'ArrowLeft') {
+						nextIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+					} else if (e.key === 'Home') {
+						nextIndex = 0;
+					} else if (e.key === 'End') {
+						nextIndex = tabButtons.length - 1;
+					} else {
+						return;
+					}
+					e.preventDefault();
+					tabButtons[nextIndex].focus();
+					tabButtons[nextIndex].click();
+				});
+			});
+
+			// Auth check and initialization
+			loading.classList.add('hidden');
+
+			checkAuthAndUpdateNav({
+				onAuthenticated: (user) => {
+					state.currentUser = user;
+					content.classList.remove('hidden');
+					totp.updateUI();
+					initTabs();
+					sessions.loadSessions();
+				},
+				onUnauthenticated: () => {
+					notLoggedIn.classList.remove('hidden');
+				}
+			}).then(result => {
+				if (!result.isAuthenticated) {
+					notLoggedIn.classList.remove('hidden');
+				}
+			});
+		</script>
+		<FeedbackButton />
+	</body>
+</html>

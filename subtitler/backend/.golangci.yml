@@ -1,0 +1,34 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - funlen
+    - revive
+
+  settings:
+    funlen:
+      # Max lines per function. Set above current largest non-route-table
+      # function (main at 147 lines) to provide a ceiling for new growth.
+      # Route-table register functions are excluded via //nolint:funlen.
+      lines: 150
+      # Disable statement counting — line count is sufficient.
+      statements: -1
+      # Ignore comments when counting lines.
+      ignore-comments: true
+
+    revive:
+      rules:
+        - name: file-length-limit
+          arguments:
+            - max: 2600
+              skipComments: true
+              skipBlankLines: true
+
+  exclusions:
+    rules:
+      # Test files tend to be long due to table-driven tests and setup.
+      - path: _test\.go
+        linters:
+          - funlen
+          - revive

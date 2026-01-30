@@ -361,7 +361,7 @@ ingress:
   - hostname: webhook.pottingers.us
     service: http://localhost:9000
   - hostname: subtitler.pottingers.us
-    service: http://localhost:8080  # or whatever port subtitler uses
+    service: http://localhost:8060
   - service: http_status:404
 ```
 

@@ -20,6 +20,7 @@ type SiteConfig struct {
 	PathPrefix   string            `yaml:"path_prefix"`   // Only deploy if files here changed
 	Branch       string            `yaml:"branch"`
 	Repository   string            `yaml:"repository"`    // e.g., "tpott/pub_musings"
+	RepoPath     string            `yaml:"repo_path"`     // Git repository root (for mutex)
 	DeployScript string            `yaml:"deploy_script"` // External script path
 	Commands     []string          `yaml:"commands"`      // Or inline commands
 	Environment  map[string]string `yaml:"environment"`

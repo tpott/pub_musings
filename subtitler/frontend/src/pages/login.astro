@@ -1,0 +1,772 @@
+---
+import DevConsoleForwarder from '../components/DevConsoleForwarder.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import '../styles/theme.css';
+---
+
+<html lang="en">
+	<head>
+		<ThemeInit />
+		<DevConsoleForwarder />
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Login - Subtitler</title>
+		<style>
+			body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.theme-toggle-wrapper {
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+			}
+			.container {
+				max-width: 400px;
+				width: 100%;
+				padding: 2rem;
+			}
+			.card {
+				background-color: var(--secondary-bg);
+				border: 1px solid var(--border-color);
+				border-radius: 12px;
+				padding: 2rem;
+			}
+			.header {
+				text-align: center;
+				margin-bottom: 2rem;
+			}
+			.logo-link {
+				text-decoration: none;
+				color: var(--text-color);
+			}
+			h1 {
+				font-size: 1.75rem;
+				font-weight: 600;
+				margin-bottom: 0.5rem;
+			}
+			.subtitle {
+				color: var(--text-secondary);
+				font-size: 0.95rem;
+			}
+			.form-group {
+				margin-bottom: 1.25rem;
+			}
+			label {
+				display: block;
+				font-weight: 500;
+				margin-bottom: 0.5rem;
+				font-size: 0.9rem;
+			}
+			input[type="email"],
+			input[type="password"],
+			input[type="text"] {
+				width: 100%;
+				padding: 0.75rem 1rem;
+				border: 1px solid var(--border-color);
+				border-radius: 6px;
+				font-size: 1rem;
+				transition: border-color 0.2s, box-shadow 0.2s;
+			}
+			.totp-input {
+				font-family: 'Menlo', 'Monaco', monospace;
+				font-size: 1.5rem;
+				letter-spacing: 0.3rem;
+				text-align: center;
+			}
+			.hidden {
+				display: none !important;
+			}
+			.totp-info {
+				text-align: center;
+				margin-bottom: 1rem;
+				font-size: 0.9rem;
+				color: var(--text-secondary);
+			}
+			input:focus {
+				outline: none;
+				border-color: var(--accent-color);
+				box-shadow: 0 0 0 3px var(--focus-ring);
+			}
+			input.input-error {
+				border-color: var(--error-color);
+			}
+			input.input-error:focus {
+				box-shadow: 0 0 0 3px var(--error-focus-ring);
+			}
+			.field-error {
+				color: var(--error-color);
+				font-size: 0.8rem;
+				margin-top: 0.25rem;
+				display: none;
+			}
+			.btn {
+				width: 100%;
+				padding: 0.875rem 1rem;
+				border: none;
+				border-radius: 6px;
+				font-size: 1rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s, opacity 0.2s;
+			}
+			.btn-primary {
+				background-color: var(--text-color);
+				color: white;
+			}
+			.btn-primary:hover:not(:disabled) {
+				opacity: 0.9;
+			}
+			.btn:disabled {
+				opacity: 0.6;
+				cursor: not-allowed;
+			}
+			.btn:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.error-message {
+				background-color: var(--error-bg);
+				border: 1px solid var(--error-border);
+				color: var(--error-color);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1.25rem;
+				font-size: 0.9rem;
+				display: none;
+			}
+			.footer {
+				text-align: center;
+				margin-top: 1.5rem;
+				font-size: 0.9rem;
+				color: var(--text-secondary);
+			}
+			.footer a {
+				color: var(--accent-color);
+				text-decoration: none;
+			}
+			.footer a:hover {
+				text-decoration: underline;
+			}
+			.recovery-link {
+				text-align: center;
+				margin-top: 1rem;
+				font-size: 0.85rem;
+			}
+			.recovery-link a {
+				color: var(--accent-color);
+				text-decoration: none;
+				cursor: pointer;
+			}
+			.recovery-link a:hover {
+				text-decoration: underline;
+			}
+			.recovery-code-input {
+				font-family: 'Menlo', 'Monaco', monospace;
+				font-size: 1.2rem;
+				letter-spacing: 0.1rem;
+				text-align: center;
+			}
+			.back-link {
+				display: block;
+				text-align: center;
+				margin-top: 0.75rem;
+				font-size: 0.85rem;
+				color: var(--accent-color);
+				text-decoration: none;
+				cursor: pointer;
+			}
+			.back-link:hover {
+				text-decoration: underline;
+			}
+			.success-message {
+				background-color: var(--success-bg);
+				border: 1px solid var(--success-border);
+				color: var(--success-color);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1.25rem;
+				font-size: 0.9rem;
+				display: none;
+			}
+			.warning-message {
+				background-color: var(--warning-bg, #fffbeb);
+				border: 1px solid var(--warning-border, #fde68a);
+				color: var(--warning-color, #92400e);
+				padding: 0.75rem 1rem;
+				border-radius: 6px;
+				margin-bottom: 1.25rem;
+				font-size: 0.9rem;
+				display: none;
+			}
+			.warning-message button {
+				background: none;
+				border: none;
+				color: inherit;
+				text-decoration: underline;
+				cursor: pointer;
+				padding: 0;
+				font: inherit;
+			}
+			.warning-message button:hover {
+				text-decoration: none;
+			}
+			.forgot-link {
+				text-align: right;
+				margin-top: -0.5rem;
+				margin-bottom: 1.25rem;
+				font-size: 0.85rem;
+			}
+			.forgot-link a {
+				color: var(--accent-color);
+				text-decoration: none;
+			}
+			.forgot-link a:hover {
+				text-decoration: underline;
+			}
+			.link-button {
+				background: none;
+				border: none;
+				padding: 0;
+				font: inherit;
+				color: var(--accent-color);
+				cursor: pointer;
+				text-decoration: none;
+			}
+			.link-button:hover {
+				text-decoration: underline;
+			}
+			.link-button:focus {
+				outline: 2px solid var(--accent-color);
+				outline-offset: 2px;
+			}
+			.divider {
+				display: flex;
+				align-items: center;
+				margin: 1.5rem 0;
+				color: var(--text-secondary);
+				font-size: 0.85rem;
+			}
+			.divider::before,
+			.divider::after {
+				content: '';
+				flex: 1;
+				border-bottom: 1px solid var(--border-color);
+			}
+			.divider span {
+				padding: 0 1rem;
+			}
+			.btn-secondary {
+				background-color: transparent;
+				color: var(--text-color);
+				border: 1px solid var(--border-color);
+			}
+			.btn-secondary:hover:not(:disabled) {
+				background-color: var(--secondary-bg);
+			}
+			#magicLinkSection {
+				margin-top: 1rem;
+			}
+			.captcha-container {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+			/* Mobile responsive styles */
+			@media (max-width: 480px) {
+				.container {
+					padding: 1rem;
+				}
+				.card {
+					padding: 1.5rem;
+				}
+				h1 {
+					font-size: 1.5rem;
+				}
+				.btn {
+					min-height: 44px;
+				}
+				.totp-input {
+					font-size: 1.25rem;
+					letter-spacing: 0.2rem;
+				}
+			}
+			@media (max-width: 375px) {
+				.container {
+					padding: 0.75rem;
+				}
+				.card {
+					padding: 1.25rem;
+				}
+				h1 {
+					font-size: 1.25rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="theme-toggle-wrapper">
+			<ThemeToggle />
+		</div>
+		<div class="container">
+			<div class="card">
+				<div class="header">
+					<a href="/" class="logo-link">
+						<h1>Subtitler</h1>
+					</a>
+					<p class="subtitle">Welcome back</p>
+				</div>
+
+				<div id="error" class="error-message" role="alert" aria-live="assertive"></div>
+				<div id="success" class="success-message" role="status" aria-live="polite"></div>
+				<div id="verifyWarning" class="warning-message" role="alert">
+					Please verify your email address before logging in.
+					<button type="button" id="resendVerifyBtn">Resend verification email</button>
+				</div>
+
+				<form id="loginForm">
+					<div id="credentialsSection">
+						<div class="form-group">
+							<label for="email">Email</label>
+							<input type="email" id="email" name="email" required autocomplete="email" aria-describedby="emailError" />
+							<div id="emailError" class="field-error" role="alert"></div>
+						</div>
+						<div class="form-group">
+							<label for="password">Password</label>
+							<input type="password" id="password" name="password" required autocomplete="current-password" aria-describedby="passwordError" />
+							<div id="passwordError" class="field-error" role="alert"></div>
+						</div>
+						<div class="forgot-link">
+							<a href="/forgot-password">Forgot password?</a>
+						</div>
+						<div id="captchaContainer" class="form-group captcha-container" style="display: none;">
+							<div id="hcaptcha" aria-describedby="captchaError"></div>
+							<div id="captchaError" class="field-error" role="alert"></div>
+						</div>
+					</div>
+					<div id="totpSection" class="hidden">
+						<p class="totp-info">Enter the 6-digit code from your authenticator app</p>
+						<div class="form-group">
+							<label for="totpCode">Authentication Code</label>
+							<input type="text" id="totpCode" name="totpCode" class="totp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" aria-describedby="totpError" />
+							<div id="totpError" class="field-error" role="alert"></div>
+						</div>
+						<div class="recovery-link">
+							<button type="button" id="showRecoveryLink" class="link-button">Lost access to authenticator?</button>
+						</div>
+					</div>
+					<div id="recoverySection" class="hidden">
+						<p class="totp-info">Enter one of your recovery codes to disable 2FA and log in</p>
+						<div class="form-group">
+							<label for="recoveryCode">Recovery Code</label>
+							<input type="text" id="recoveryCode" name="recoveryCode" class="recovery-code-input" maxlength="9" placeholder="XXXX-XXXX" autocomplete="off" />
+						</div>
+						<button type="button" id="backToTotpLink" class="back-link link-button">Back to authenticator code</button>
+					</div>
+					<button type="submit" class="btn btn-primary" id="submitBtn">Log in</button>
+				</form>
+
+				<div class="divider"><span>or</span></div>
+
+				<div id="magicLinkSection">
+					<form id="magicLinkForm">
+						<div class="form-group">
+							<label for="magicEmail">Email</label>
+							<input type="email" id="magicEmail" name="magicEmail" required autocomplete="email" aria-describedby="magicEmailError" />
+							<div id="magicEmailError" class="field-error" role="alert"></div>
+						</div>
+						<button type="submit" class="btn btn-secondary" id="magicLinkBtn">Email me a login link</button>
+					</form>
+				</div>
+
+				<div class="footer">
+					<p>Don't have an account? <a href="/register">Sign up</a></p>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			import { validateEmail, validatePassword, validateTotpCode } from '../utils/validation';
+			import { getCaptchaConfig, renderCaptcha, getCaptchaToken, resetCaptcha } from '../utils/captcha';
+			import { clearFieldError, showFieldError } from '../utils/form-errors';
+			import { setupBlurValidation, createOptionalValidator } from '../utils/form-validation';
+			import { getRequiredElement } from '../utils/dom';
+
+			// Get all required elements with type checking
+			const form = getRequiredElement('loginForm', HTMLFormElement);
+			const errorDiv = getRequiredElement('error', HTMLElement);
+			const successDiv = getRequiredElement('success', HTMLElement);
+			const verifyWarningDiv = getRequiredElement('verifyWarning', HTMLElement);
+			const resendVerifyBtn = getRequiredElement('resendVerifyBtn', HTMLButtonElement);
+			const submitBtn = getRequiredElement('submitBtn', HTMLButtonElement);
+			const emailInput = getRequiredElement('email', HTMLInputElement);
+			const passwordInput = getRequiredElement('password', HTMLInputElement);
+			const totpInput = getRequiredElement('totpCode', HTMLInputElement);
+			const recoveryCodeInput = getRequiredElement('recoveryCode', HTMLInputElement);
+			const credentialsSection = getRequiredElement('credentialsSection', HTMLElement);
+			const totpSection = getRequiredElement('totpSection', HTMLElement);
+			const recoverySection = getRequiredElement('recoverySection', HTMLElement);
+			const showRecoveryLink = getRequiredElement('showRecoveryLink', HTMLButtonElement);
+			const backToTotpLink = getRequiredElement('backToTotpLink', HTMLButtonElement);
+			const emailError = getRequiredElement('emailError', HTMLElement);
+			const passwordError = getRequiredElement('passwordError', HTMLElement);
+			const totpError = getRequiredElement('totpError', HTMLElement);
+			const captchaContainer = getRequiredElement('captchaContainer', HTMLElement);
+			const captchaError = getRequiredElement('captchaError', HTMLElement);
+
+			let totpRequired = false;
+			let recoveryMode = false;
+			let unverifiedEmail = '';
+			let captchaEnabled = false;
+			let captchaSiteKey = '';
+			let captchaReady = false;
+			let captchaPassed = false; // Track if CAPTCHA was already passed (for TOTP retry)
+
+			// Initialize CAPTCHA on page load
+			async function initCaptcha() {
+				const config = await getCaptchaConfig();
+				if (config.enabled && config.site_key) {
+					captchaEnabled = true;
+					captchaSiteKey = config.site_key;
+					captchaContainer.style.display = 'flex';
+					try {
+						await renderCaptcha('hcaptcha', captchaSiteKey);
+						captchaReady = true;
+					} catch (err) {
+						console.error('Failed to render CAPTCHA:', err);
+					}
+				}
+			}
+			initCaptcha();
+
+			// Add blur validation using shared utility
+			setupBlurValidation({ input: emailInput, errorEl: emailError, validate: validateEmail });
+			setupBlurValidation({ input: passwordInput, errorEl: passwordError, validate: validatePassword });
+			setupBlurValidation({
+				input: totpInput,
+				errorEl: totpError,
+				validate: createOptionalValidator(validateTotpCode),
+				condition: () => totpRequired
+			});
+
+			function showError(message: string) {
+				errorDiv.textContent = message;
+				errorDiv.style.display = 'block';
+				successDiv.style.display = 'none';
+			}
+
+			function showSuccess(message: string) {
+				successDiv.textContent = message;
+				successDiv.style.display = 'block';
+				errorDiv.style.display = 'none';
+			}
+
+			function hideMessages() {
+				errorDiv.style.display = 'none';
+				successDiv.style.display = 'none';
+				verifyWarningDiv.style.display = 'none';
+			}
+
+			function showVerifyWarning(email: string) {
+				unverifiedEmail = email;
+				verifyWarningDiv.style.display = 'block';
+				errorDiv.style.display = 'none';
+				successDiv.style.display = 'none';
+			}
+
+			// Resend verification email
+			resendVerifyBtn.addEventListener('click', async () => {
+				if (!unverifiedEmail) return;
+
+				resendVerifyBtn.disabled = true;
+				resendVerifyBtn.textContent = 'Sending...';
+
+				try {
+					const response = await fetch('/api/auth/resend-verification', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: unverifiedEmail }),
+					});
+
+					if (response.ok) {
+						resendVerifyBtn.textContent = 'Sent!';
+						setTimeout(() => {
+							resendVerifyBtn.textContent = 'Resend verification email';
+							resendVerifyBtn.disabled = false;
+						}, 3000);
+					} else {
+						resendVerifyBtn.textContent = 'Failed';
+						setTimeout(() => {
+							resendVerifyBtn.textContent = 'Resend verification email';
+							resendVerifyBtn.disabled = false;
+						}, 3000);
+					}
+				} catch (err) {
+					resendVerifyBtn.textContent = 'Failed';
+					setTimeout(() => {
+						resendVerifyBtn.textContent = 'Resend verification email';
+						resendVerifyBtn.disabled = false;
+					}, 3000);
+				}
+			});
+
+			let isSubmitting = false;
+			function setLoading(loading: boolean) {
+				isSubmitting = loading;
+				submitBtn.disabled = loading;
+				if (recoveryMode) {
+					submitBtn.textContent = loading ? 'Recovering...' : 'Recover Account';
+				} else {
+					submitBtn.textContent = loading ? 'Logging in...' : 'Log in';
+				}
+			}
+
+			function showTotpInput() {
+				totpRequired = true;
+				recoveryMode = false;
+				credentialsSection.classList.add('hidden');
+				totpSection.classList.remove('hidden');
+				recoverySection.classList.add('hidden');
+				submitBtn.textContent = 'Log in';
+				totpInput.focus();
+			}
+
+			function showRecoveryInput() {
+				recoveryMode = true;
+				totpSection.classList.add('hidden');
+				recoverySection.classList.remove('hidden');
+				submitBtn.textContent = 'Recover Account';
+				recoveryCodeInput.focus();
+			}
+
+			function backToTotp() {
+				recoveryMode = false;
+				recoverySection.classList.add('hidden');
+				totpSection.classList.remove('hidden');
+				submitBtn.textContent = 'Log in';
+				recoveryCodeInput.value = '';
+				totpInput.focus();
+			}
+
+			showRecoveryLink.addEventListener('click', showRecoveryInput);
+			backToTotpLink.addEventListener('click', backToTotp);
+
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				if (isSubmitting) return;
+
+				hideMessages();
+				captchaError.style.display = 'none';
+
+				const email = emailInput.value.trim();
+				const password = passwordInput.value;
+				const totpCode = totpInput.value.trim();
+				const recoveryCode = recoveryCodeInput.value.trim().toUpperCase();
+
+				// Validate fields
+				let hasErrors = false;
+
+				const emailValidation = validateEmail(email);
+				if (emailValidation) {
+					showFieldError(emailInput, emailError, emailValidation);
+					hasErrors = true;
+				}
+
+				const passwordValidation = validatePassword(password);
+				if (passwordValidation) {
+					showFieldError(passwordInput, passwordError, passwordValidation);
+					hasErrors = true;
+				}
+
+				if (totpRequired && !recoveryMode) {
+					const totpValidation = validateTotpCode(totpCode);
+					if (totpValidation) {
+						showFieldError(totpInput, totpError, totpValidation);
+						hasErrors = true;
+					}
+				}
+
+				// Validate CAPTCHA if enabled (only on initial login, not TOTP retry)
+				let captchaToken = '';
+				if (captchaEnabled && !totpRequired && !captchaPassed) {
+					captchaToken = getCaptchaToken('hcaptcha') || '';
+					if (!captchaToken) {
+						captchaError.textContent = 'Please complete the CAPTCHA';
+						captchaError.style.display = 'block';
+						hasErrors = true;
+					}
+				}
+
+				if (hasErrors) {
+					return;
+				}
+
+				setLoading(true);
+
+				// Handle recovery mode
+				if (recoveryMode) {
+					if (!recoveryCode) {
+						showError('Please enter a recovery code');
+						setLoading(false);
+						return;
+					}
+
+					try {
+						const response = await fetch('/api/auth/totp/recover', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								email,
+								password,
+								recovery_code: recoveryCode,
+							}),
+						});
+
+						const data = await response.json();
+
+						if (!response.ok) {
+							showError(data.error || 'Recovery failed');
+							setLoading(false);
+							return;
+						}
+
+						// Recovery successful - 2FA has been disabled, redirect to videos
+						window.location.href = '/videos';
+					} catch (err) {
+						showError('Network error. Please try again.');
+						setLoading(false);
+					}
+					return;
+				}
+
+				// Normal login flow
+
+				try {
+					const body: { email: string; password: string; totp_code?: string; captcha_token?: string } = { email, password };
+					if (totpRequired && totpCode) {
+						body.totp_code = totpCode;
+					}
+					if (captchaToken) {
+						body.captcha_token = captchaToken;
+					}
+
+					const response = await fetch('/api/auth/login', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(body),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						// Check if 2FA is required
+						if (data.totp_required) {
+							// Mark CAPTCHA as passed so we don't require it again for TOTP
+							captchaPassed = true;
+							// Hide CAPTCHA container when showing TOTP input
+							if (captchaEnabled) {
+								captchaContainer.style.display = 'none';
+							}
+							showTotpInput();
+							setLoading(false);
+							return;
+						}
+						// Check if email verification is required
+						if (data.email_not_verified) {
+							showVerifyWarning(email);
+							setLoading(false);
+							return;
+						}
+						showError(data.error || 'Login failed');
+						// Reset CAPTCHA on failure
+						if (captchaEnabled && !captchaPassed) {
+							resetCaptcha('hcaptcha');
+						}
+						setLoading(false);
+						return;
+					}
+
+					// Login successful - redirect to videos page
+					window.location.href = '/videos';
+				} catch (err) {
+					showError('Network error. Please try again.');
+					setLoading(false);
+				}
+			});
+
+			// Magic link form handling
+			const magicLinkForm = getRequiredElement('magicLinkForm', HTMLFormElement);
+			const magicEmailInput = getRequiredElement('magicEmail', HTMLInputElement);
+			const magicEmailError = getRequiredElement('magicEmailError', HTMLElement);
+			const magicLinkBtn = getRequiredElement('magicLinkBtn', HTMLButtonElement);
+
+			// Add blur validation using shared utility
+			setupBlurValidation({ input: magicEmailInput, errorEl: magicEmailError, validate: validateEmail });
+
+			let isMagicLinkSubmitting = false;
+			magicLinkForm.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				if (isMagicLinkSubmitting) return;
+
+				hideMessages();
+
+				const magicEmail = magicEmailInput.value.trim();
+
+				const emailValidation = validateEmail(magicEmail);
+				if (emailValidation) {
+					showFieldError(magicEmailInput, magicEmailError, emailValidation);
+					return;
+				}
+
+				isMagicLinkSubmitting = true;
+				magicLinkBtn.disabled = true;
+				magicLinkBtn.textContent = 'Sending...';
+
+				try {
+					const response = await fetch('/api/auth/magic-link', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: magicEmail }),
+					});
+
+					const data = await response.json();
+
+					if (!response.ok) {
+						showError(data.error || 'Failed to send login link');
+						isMagicLinkSubmitting = false;
+						magicLinkBtn.disabled = false;
+						magicLinkBtn.textContent = 'Email me a login link';
+						return;
+					}
+
+					showSuccess('Check your email for a login link!');
+					magicLinkBtn.textContent = 'Email sent!';
+					setTimeout(() => {
+						isMagicLinkSubmitting = false;
+						magicLinkBtn.disabled = false;
+						magicLinkBtn.textContent = 'Email me a login link';
+					}, 5000);
+				} catch (err) {
+					showError('Network error. Please try again.');
+					isMagicLinkSubmitting = false;
+					magicLinkBtn.disabled = false;
+					magicLinkBtn.textContent = 'Email me a login link';
+				}
+			});
+		</script>
+		<FeedbackButton />
+	</body>
+</html>

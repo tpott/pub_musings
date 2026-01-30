@@ -18,7 +18,8 @@ type WebhookHandler struct {
 	secret     string
 	config     *Config
 	siteMutexs map[string]*sync.Mutex
-	mu         sync.Mutex // protects siteMutexs
+	repoMutexs map[string]*sync.Mutex // mutex per repo_path to serialize deploys
+	mu         sync.Mutex             // protects siteMutexs and repoMutexs
 }
 
 type GitHubPushEvent struct {
@@ -41,6 +42,7 @@ func NewWebhookHandler(secret string, config *Config) *WebhookHandler {
 		secret:     secret,
 		config:     config,
 		siteMutexs: make(map[string]*sync.Mutex),
+		repoMutexs: make(map[string]*sync.Mutex),
 	}
 }
 
@@ -141,7 +143,26 @@ func (h *WebhookHandler) getSiteMutex(siteName string) *sync.Mutex {
 	return h.siteMutexs[siteName]
 }
 
+// getRepoMutex returns a mutex for the given repo path, creating one if needed.
+// This serializes deploys across different sites that share the same git repository.
+func (h *WebhookHandler) getRepoMutex(repoPath string) *sync.Mutex {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.repoMutexs[repoPath] == nil {
+		h.repoMutexs[repoPath] = &sync.Mutex{}
+	}
+	return h.repoMutexs[repoPath]
+}
+
 func (h *WebhookHandler) deploySite(site SiteConfig) {
+	// Acquire repo-level mutex first to serialize deploys sharing the same git repo
+	if site.RepoPath != "" {
+		repoMutex := h.getRepoMutex(site.RepoPath)
+		repoMutex.Lock()
+		defer repoMutex.Unlock()
+	}
+
 	// Get per-site mutex to prevent concurrent deploys of the same site
 	mutex := h.getSiteMutex(site.Name)
 	mutex.Lock()
