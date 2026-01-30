@@ -4,12 +4,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**429 tasks completed** as of 2026-01-29. 0 tasks pending.
+**430 tasks completed** as of 2026-01-29. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
-- **E2E:** Playwright tests (61 scenarios)
+- **E2E:** Playwright tests (71 scenarios)
 - **Total:** 1492+ tests, 32 specification documents
 
 ## Feature Summary

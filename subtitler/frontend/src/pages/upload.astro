@@ -361,6 +361,7 @@ import '../styles/upload.css';
 				startBurn,
 				createBurnState,
 			} from '../utils/subtitle-sync';
+			import { showConfirm } from '../utils/dialog';
 
 			// --- DOM Elements ---
 			const dropzone = getRequiredElement('dropzone', HTMLElement);
@@ -843,10 +844,10 @@ import '../styles/upload.css';
 			// --- Edit mode event handlers ---
 			setupFeedbackHandler(editorState, subtitleFeedback);
 
-			editBtn.addEventListener('click', () => {
+			editBtn.addEventListener('click', async () => {
 				if (editorState.isEditMode) {
 					if (editorState.hasUnsavedChanges) {
-						if (confirm('You have unsaved changes. Discard them?')) exitEditMode(editorState, editorEls);
+						if (await showConfirm('You have unsaved changes. Discard them?', { title: 'Unsaved Changes', confirmText: 'Discard', cancelText: 'Keep Editing' })) exitEditMode(editorState, editorEls);
 					} else {
 						exitEditMode(editorState, editorEls);
 					}
@@ -855,9 +856,9 @@ import '../styles/upload.css';
 				}
 			});
 			saveBtn.addEventListener('click', () => saveSegments(editorState, editorEls, { showStatus }));
-			cancelBtn.addEventListener('click', () => {
+			cancelBtn.addEventListener('click', async () => {
 				if (editorState.hasUnsavedChanges) {
-					if (confirm('Discard unsaved changes?')) exitEditMode(editorState, editorEls);
+					if (await showConfirm('Discard unsaved changes?', { title: 'Unsaved Changes', confirmText: 'Discard', cancelText: 'Keep Editing' })) exitEditMode(editorState, editorEls);
 				} else {
 					exitEditMode(editorState, editorEls);
 				}
@@ -903,11 +904,11 @@ import '../styles/upload.css';
 			}, speedState);
 
 			// --- Re-transcribe ---
-			function retranscribe() {
+			async function retranscribe() {
 				if (!editorState.currentUploadId) return;
 				const selectedLanguage = transcriptionLanguageSelect.value;
 				if (selectedLanguage === 'auto') {
-					if (!confirm('Auto-detect will likely produce the same result. Are you sure you want to re-transcribe?')) return;
+					if (!await showConfirm('Auto-detect will likely produce the same result. Are you sure you want to re-transcribe?', { title: 'Re-transcribe', confirmText: 'Re-transcribe', cancelText: 'Cancel' })) return;
 				}
 
 				retranscribeBtn.disabled = true;

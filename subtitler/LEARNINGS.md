@@ -468,6 +468,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Pre-commit hook E2E tests require running servers
+
+**Problem:** The pre-commit hook runs E2E tests via `test-e2e.sh`, which require both the frontend dev server (port 4321) and backend server (port 8080) to be running. When Ralph commits without servers running, all E2E tests fail with `ERR_CONNECTION_REFUSED`.
+
+**Solution:** Use `verify-all.sh` (lint + unit tests) for Ralph's verification. E2E tests should only run when servers are available. The pre-commit hook blocks commits in environments without running servers.
+
+**Lesson:** When committing in an environment without dev servers, the pre-commit hook will fail on E2E tests even if unit tests pass. This is an infrastructure constraint, not a code issue.
+
+---
+
 ## Process
 
 ### Python scripts should defer third-party imports for CLI usability
