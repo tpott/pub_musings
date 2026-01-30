@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**412 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
+**414 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
-- **Frontend:** Astro/TypeScript, 772 tests across 28 files
+- **Frontend:** Astro/TypeScript, 829 tests across 30 files
 - **E2E:** Playwright tests (59 scenarios)
-- **Total:** 1350+ tests, 31 specification documents
+- **Total:** 1407+ tests, 31 specification documents
 
 ## Feature Summary
 
@@ -61,6 +61,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 415-416: Add unit tests for remaining untested frontend utility files (2026-01-29)
+- Added 57 tests across 2 new test files covering the last untested utility modules
+- `settings-preferences.test.ts` (24 tests): setupPreferences init, bionic toggle, fixation slider, preview rendering, disabled-section toggling
+- `settings-sessions.test.ts` (33 tests): loadSessions, parseUserAgent detection, session rendering, revoke flow, error/timeout handling, event delegation
+- Frontend tests: 772 -> 829 (30 test files)
+- All frontend utility .ts files with executable logic now have test coverage
 
 ### Tasks 410-413: More unit tests + backend DRY improvement (2026-01-29)
 - Added 114 tests across 3 new test files covering remaining untested utility modules
