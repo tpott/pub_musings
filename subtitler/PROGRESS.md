@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**403 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
+**408 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
-- **Frontend:** Astro/TypeScript, 498 tests across 20 files
+- **Frontend:** Astro/TypeScript, 658 tests across 25 files
 - **E2E:** Playwright tests (59 scenarios)
-- **Total:** 1080+ tests, 31 specification documents
+- **Total:** 1240+ tests, 31 specification documents
 
 ## Feature Summary
 
@@ -61,6 +61,15 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 405-409: Add unit tests for 5 untested frontend utility files (2026-01-29)
+- Added 160 tests across 5 new test files covering the largest untested utility modules
+- `segment-editor.test.ts` (69 tests): undo/redo, feedback, edit mode, segment navigation, save
+- `subtitle-sync.test.ts` (19 tests): subtitle sync, speed UI, burn subtitles
+- `videos-modal.test.ts` (25 tests): modal lifecycle, formatTime, open/close, error handling
+- `settings-totp.test.ts` (27 tests): TOTP setup/verify/disable, recovery codes, regen
+- `upload-file.test.ts` (20 tests): file validation, session URLs, upload flow, XHR handling
+- Frontend tests: 498 -> 658 (25 test files)
 
 ### Task 388: Doc sync linting (2026-01-29)
 - Created `scripts/lint-doc-sync.sh` to detect documentation drift
