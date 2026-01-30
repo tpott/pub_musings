@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**477 tasks completed** as of 2026-01-30. 1 task pending (archive).
+**480 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 600 tests across 45 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
 - **Frontend:** Astro/TypeScript, 832 tests across 29 files
-- **E2E:** Playwright tests (71 scenarios)
-- **Total:** 1503+ tests, 32 specification documents
+- **E2E:** Playwright tests (67 scenarios across 7 spec files)
+- **Total:** 1501+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -61,393 +61,39 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - HTTP range requests for video streaming
 - Graceful shutdown with context cancellation
 
-## Pending Tasks
-
-- Task 476: Archive completed tasks in TASKS.jsonl
-
 ## Recent Work
 
+### Tasks 477-480: Chunk upload race fix, close error handling, doc updates (2026-01-30)
+- **Task 477:** Fixed TOCTOU race condition in chunked upload — `CreateUploadChunk` now uses `INSERT OR IGNORE` and returns `(bool, error)` indicating whether the row was actually inserted. Handler treats concurrent duplicate as idempotent success (cleans up duplicate file, returns 200). Added 2 tests (idempotent + concurrent). Prevents 500 errors from UNIQUE constraint violations during concurrent chunk uploads
+- **Task 478:** Updated PROGRESS.md — status summary, E2E count (71→67), removed duplicate pending section, compacted recent work
+- **Task 479:** Updated TESTING.md E2E count from 71 to 67 scenarios, backend count from 600 to 602
+- **Task 480:** Made chunk `destFile.Close()` error fatal — chunks have no downstream validation (unlike regular uploads which use `ValidateVideoFile`), so a close failure could leave corrupted data. Now removes chunk and returns 500 instead of continuing
+
 ### Tasks 469-475: Security, memory leaks, accessibility, and UX fixes (2026-01-30)
-- **Task 469:** Enforced minimum chunk size (1MB) in `POST /api/upload/init` — prevents abuse where `chunk_size=1` could create millions of DB records. Added `minChunkSize` constant in `config.go`. Test validates production handler rejects small values
-- **Task 470:** Fixed memory leak in `subtitle-sync.ts` — `setupSpeedControls()` added `document.addEventListener` for click/keydown without cleanup. Now uses `AbortController` stored in `SpeedUIState.abortController`; old controller aborted if `setupSpeedControls` called again
-- **Task 471:** Fixed `closeVideoModal()` in `videos-modal.ts` — speed indicator timeout (800ms) was not cleared on modal close, allowing callback to fire on disposed elements. Added `clearTimeout`/null in close
-- **Task 472:** Added `aria-label="Select embedded subtitle track"` to `<select id="embeddedTrackSelect">` in upload.astro
-- **Task 473:** Wontfix — `generateID()` duplication between `helpers.go` and `db/db_auth.go` is acceptable Go design (separate packages can't share unexported functions; creating a package for 5 lines is over-engineering)
-- **Task 474:** Fixed video modal hiding video container on subtitle load failure — catch block in `openVideoModal` now sets `modalVideoContainer.style.display = 'block'` so users can watch video without subtitles. Tests updated
-- **Task 475:** Updated TESTING.md — backend: 600 tests (was 598), total: 1503+
+- Enforced minimum chunk size (1MB), fixed memory leak in speed controls (AbortController), cleared speedIndicatorTimeout on modal close
+- Added aria-label to embedded subtitle track select, fixed video modal hiding video on subtitle load failure
+- Updated TESTING.md test counts. Wontfix: generateID duplication is acceptable Go design
 
-### Tasks 463-468: Accessibility, security, and input validation (2026-01-30)
-- **Task 463:** Fixed WCAG AA contrast — `--text-tertiary` changed from `#999999` (3.97:1) to `#767676` (4.54:1) against `#fafafa` background
-- **Task 464:** Increased `generateID()` entropy from 8 bytes (64-bit) to 16 bytes (128-bit) in `db_auth.go` for better collision resistance
-- **Task 465:** Added `aria-hidden="true"` to decorative SVGs in FeedbackButton, ThemeToggle, and upload.astro (undo/redo, info, view, keyboard icons)
-- **Task 466:** Added `aria-label` to paste transcript textarea in upload.astro for screen reader accessibility
-- **Task 467:** Added `downloadLimiter` (30/min) rate limiting to `GET /api/videos/{id}/burn` status endpoint. Updated `RATE_LIMITS.md`
-- **Task 468:** Added `ValidateSessionID()` to validation package — rejects session_ids over 64 chars or containing non-alphanumeric/hyphen characters. All handlers now use `getValidSessionID(r)` instead of raw `r.URL.Query().Get("session_id")`
+### Tasks 436-468: Security hardening, bug fixes, performance, and docs (2026-01-30)
+- **Security:** Added ownership checks to 13 endpoints (subtitles, transcription, burn, language-hints), validated session_id format, rate-limited burn status
+- **Performance:** Fixed N+1 query in video listing, cached HTTPS_ONLY and CAPTCHA_SITE_KEY at startup
+- **Bug fixes:** Fixed double WriteHeader in health endpoint, scheduler early-return, feedback timestamp comparison
+- **Transactions:** Wrapped DeleteVideo, SaveRecoveryCodes, DeleteUploadSession in DB transactions
+- **Docs:** Updated API.md auth requirements, added missing endpoints to RATE_LIMITS.md, fixed API.md register status code
 
-### Tasks 459-462: Docs accuracy, config caching, and scheduler bug fix (2026-01-30)
-- **Task 459:** Fixed API.md `POST /api/auth/register` — documented `200 OK` but code returns `201 Created` with email verification message. Updated to match actual handler behavior
-- **Task 460:** Cached `HTTPS_ONLY` env var at startup — `auth.IsHTTPSOnly()` was calling `os.Getenv` on every request (every cookie set/clear and HSTS header). Added `InitHTTPSOnly()` called from `initConfig()`, matching the CAPTCHA_SITE_KEY pattern (Task 456)
-- **Task 461:** Fixed cleanup scheduler early-return bug — `runCleanup()` returned entirely when `CountExpiredVideos()` failed, blocking cleanup of sessions, login attempts, upload sessions, and auth tokens. The count is only for logging; failure now logs an error without aborting other cleanup
-- **Task 462:** Updated API.md auth requirements for 13 endpoints that gained ownership checks in Tasks 436-438 (transcription, subtitle download, burn, language-hints). Changed "Not required" to "Required (owner via user session or session_id)" and added `403 Forbidden` to error lists
+### Tasks 397-435: User-reported bugs, testing, refactoring (2026-01-29—2026-01-30)
+- Fixed 6 user-reported bugs (night mode CTA, re-transcribe progress, bionic whitespace, scroll position, feedback modal, speed buttons)
+- Added 500+ frontend tests across 15 new test files (498→832 tests, 25→29 files)
+- Refactored: split upload.astro (3844→975), videos.astro (1818→311), settings.astro (1663→441)
+- Split all 8 files over 1000 lines, split api_test.go (10863→5 files)
+- Cross-language file size linter, doc sync linting, double-submit prevention, kid mode, fetch timeouts
 
-### Tasks 457-458: Transaction safety and code deduplication (2026-01-30)
-- **Task 457:** Wrapped `DeleteUploadSession` in `db.WithTransaction()` — the two DELETEs (chunks then session) were not atomic, risking orphaned records on partial failure. Matches the pattern from `DeleteVideo` (Task 441)
-- **Task 458:** Removed duplicate `formatTime` from `videos-modal.ts` — was identical to the copy in `transcription-polling.ts`. `videos-modal.ts` now imports from `transcription-polling.ts`. Test file updated to import from new location
-
-### Tasks 453-456: Rate limiter fix, docs, accessibility, and config cleanup (2026-01-30)
-- **Task 453:** Fixed `GET /api/upload/status/{session_id}` — was using `scriptLimiter` (10/min) instead of `downloadLimiter` (30/min) as documented. Code comment and API.md both specified 30/min
-- **Task 454:** Added 8 missing endpoints to `docs/RATE_LIMITS.md` — upload init/complete/status, auth verify, resend-verification, magic-link, magic-link/verify
-- **Task 455:** Added focus restoration to `dialog.ts` — saves `document.activeElement` before showing dialog, restores focus when dialog closes. Improves keyboard accessibility
-- **Task 456:** Added `SiteKey()` method to CAPTCHA `Verifier` interface — `/api/captcha/config` now reads site key from the verifier initialized at startup instead of calling `os.Getenv` on every request. Removed unused `os` import from `handlers_system.go`
-
-### Tasks 450-452: Documentation sync and script cleanup (2026-01-30)
-- **Task 450:** Updated TESTING.md — backend: 598 tests / 45 files, frontend: 832 tests / 29 files, total: 1,501+. Removed deleted `speed-control.test.ts` reference. Updated backend test file table to reflect split files
-- **Task 451:** Updated `docs/deps.md` vitest entry from "498 tests across 20 files" to "832 tests across 29 files"
-- **Task 452:** Deleted obsolete `scripts/lint-frontend-filesize.sh` (superseded by `lint-filesize.py`). Updated CLAUDE.md script table
-
-### Tasks 447-448: Dead code removal and lock pattern refactor (2026-01-30)
-- **Task 447:** Deleted unused `speed-control.ts` and `speed-control.test.ts` — the speed control logic is duplicated inline in `subtitle-sync.ts` and `videos-modal.ts`, and `speed-control.ts` was never imported
-- **Task 448:** Extracted `loadKeysLocked()` from `LoadKeys()` in `crypto/multi.go` — `LoadOrInitialize()` now calls `loadKeysLocked()` directly instead of the fragile unlock-call-relock pattern. All 19 crypto tests pass
-
-### Tasks 444-446: Frontend memory leak and cleanup fixes (2026-01-30)
-- **Task 444:** Moved `feedbackList.addEventListener('change', handleStatusChange)` from inside `renderFeedback()` to top-level — was re-registering on every pagination/filter change
-- **Task 445:** Added `URL.revokeObjectURL()` before creating new blob URL in `upload.astro` `handleFile()` — previous blob URLs leaked when user selected a different file
-- **Task 446:** Stored `error` and `unhandledrejection` handler references in `console-forwarder.ts`; `uninstallConsoleForwarder()` now calls `removeEventListener()` to clean them up. Added test verifying listeners are removed
-- 842 frontend tests pass (1 new test added)
-
-### Task 443: Fix N+1 query in video listing handler (2026-01-30)
-- **Performance:** `GET /api/videos` was making one `GetTranscription()` query per video to fetch transcription status, causing N+1 queries on the video list page
-- Added `GetTranscriptionStatuses(videoIDs)` to `db/db_transcription.go` — fetches all statuses in a single `SELECT ... WHERE video_id IN (...)` query
-- Updated both production handler (`handlers_video.go`) and test handler (`api_test_helpers_test.go`) to use the batch query
-- All 598 backend tests pass (6 ListVideo API tests + 2 DB-level ListVideo tests)
-
-### Task 442: Add expired auth token cleanup to scheduler (2026-01-30)
-- **Bug fix:** `runCleanup()` in `scheduler.go` was not cleaning up expired password reset tokens, email verification tokens, or magic link tokens, causing stale rows to accumulate
-- Added calls to `DeleteExpiredPasswordResetTokens()`, `DeleteExpiredEmailVerificationTokens()`, and `DeleteExpiredMagicLinkTokens()` alongside existing session and login attempt cleanup
-- Each cleanup logs deletion count when tokens are found, and logs errors without aborting the rest of cleanup
-- All 598 backend tests pass
-
-### Task 441: Wrap DeleteVideo in a database transaction (2026-01-30)
-- **Bug fix:** `DeleteVideo` in `db/db_video.go` was executing 3 DELETE operations (transcriptions, burn_jobs, videos) without a transaction, risking orphaned records if the process crashed mid-deletion
-- Wrapped the 3 cascading DELETEs in `db.WithTransaction()`, keeping the read operations (GetVideo, GetBurnJob) outside the transaction
-- Removed unused `ctx, cancel := db.queryContext()` since the transaction creates its own context
-- All delete-related tests pass (6 API + 4 DB-level tests, 598 backend tests total)
-
-### Task 440: Wrap SaveRecoveryCodes in a database transaction (2026-01-30)
-- **Bug fix:** `SaveRecoveryCodes` in `db/db_auth.go` was executing DELETE + INSERT operations without a transaction, risking partial writes if the process crashed between operations
-- Wrapped the DELETE (old codes) + INSERT (new codes) loop in `db.WithTransaction()` using the existing `Tx` pattern from `EnableTOTPWithRecoveryCodes`
-- Changed from `db.conn.ExecContext(ctx, ...)` to `tx.tx.Exec(...)` within the transaction closure
-- All recovery code and TOTP tests pass (598 backend tests total)
-
-### Task 439: Fix double WriteHeader in health endpoint (2026-01-30)
-- **Bug fix:** Health endpoint (`GET /api/health`) was calling `w.WriteHeader(503)` followed by `httputil.RespondJSON(w, 200, ...)` when health was degraded, causing a superfluous WriteHeader warning
-- Fixed by using a single `statusCode` variable and passing it to `RespondJSON` — the separate `w.WriteHeader()` call was removed
-- Same fix applied to the test handler in `api_test_helpers_test.go`
-- All 598 backend tests pass (including 4 health endpoint tests covering OK and degraded states)
-
-### Task 438: Add ownership checks to burn and language-hints endpoints (2026-01-30)
-- **Security fix:** Burn endpoints (`POST /api/videos/{id}/burn`, `GET /api/videos/{id}/burn`) and language-hints endpoint (`GET /api/videos/{id}/language-hints`) now verify caller owns the video before allowing access
-- Access check matches the pattern from tasks 436-437: authenticated user must own the video or anonymous user must have matching session_id
-- Updated production handlers (`handlers_video_burn.go`, `handlers_video.go`) and test handlers (`api_test_helpers_test.go`)
-- Added 3 new access-denied tests, updated 10 existing tests to pass session_id
-- Optimized POST burn handler to reuse video fetched for access check (eliminated duplicate `getVideoForDecryption` call)
-- Optimized GET burned handler to reuse video and user from access check for filename and audit log
-- All 598 backend tests pass, lint clean
-
-### Task 437: Add ownership checks to transcription endpoints (2026-01-30)
-- **Security fix:** All four transcription endpoints (`POST /api/transcribe/{id}`, `GET /api/transcribe/{id}`, `PUT /api/transcribe/{id}/segments`, `POST /api/transcribe/{id}/align`) now verify caller owns the video before allowing access
-- Access check matches the pattern from task 436: authenticated user must own the video or anonymous user must have matching session_id
-- Updated both production handlers (`handlers_transcribe.go`) and test handlers (`api_test_helpers_test.go`)
-- Added 3 new access-denied tests, updated 15 existing tests to pass session_id
-- Optimized GET handler to reuse video fetched for access check (eliminated duplicate DB query)
-- All 595 backend tests pass, lint clean
-
-### Task 449: Fix flaky E2E re-transcribe auto-language confirmation test (2026-01-30)
-- **Bug fix:** E2E test `should show confirmation when re-transcribing with auto language` was using `page.on('dialog')` to listen for a native browser confirm dialog, but the app uses a custom `showConfirm()` from `dialog.ts` which creates an HTML overlay
-- Updated test to wait for `#dialog-container.visible`, verify `#dialog-message` text, and click `#dialog-cancel`
-- Test now passes reliably instead of timing out waiting for a native dialog that never appears
-
-### Task 436: Add ownership checks to subtitle download endpoints (2026-01-30)
-- **Security fix:** SRT/VTT/JSON subtitle download endpoints (`GET /api/videos/{id}/subtitles.*`) now verify the caller owns the video before returning subtitle data
-- Access check matches the pattern used by embedded-subtitles endpoint: authenticated user must own the video (via user_id) or anonymous user must have matching session_id
-- Updated both production handlers (`handlers_video_subtitles.go`) and test handlers (`api_test_helpers_test.go`)
-- Added 4 new tests: `TestDownloadSRTAccessDenied`, `TestDownloadSRTAuthenticatedUserAccess`, `TestDownloadVTTAccessDenied`, `TestDownloadJSONAccessDenied`
-- Updated 10 existing subtitle tests to use session_id for access
-- All 587 backend tests pass, lint clean
-
-### Task 432: Cross-language file size linter (2026-01-30)
-- Created `scripts/lint-filesize.py`: checks all source files (Go, TS, Astro, CSS) for >1000 lines
-- Replaces frontend-only `lint-frontend-filesize.sh` with unified cross-language linter
-- 5 api_test files excepted with justification (task 431 split artifacts — shared test infrastructure)
-- Supports `--list-exceptions` flag for documenting exceptions
-- Integrated into `lint.sh` (replacing old frontend-only check)
-
-### Task 433: Split/compact all source files over 1000 lines (2026-01-30)
-- Split all 8 files over 1000 lines to under 1000 lines each:
-  - `db/db.go` (2578 → 294 lines): split into 11 source files by domain (types, video, auth, user, session, upload, transcription, feedback, burnjob, maintenance)
-  - `db/db_test.go` (3411 → deleted): split into 11 test files by domain
-  - `main_test.go` (1621 → deleted): split into 6 focused test files (subtitle_format, config, middleware, helpers, video_helpers, goroutine)
-  - `handlers_video.go` (1565 → 623): extracted subtitles (356), burn (524), text (114)
-  - `handlers_upload.go` (1553 → 877): extracted transcribe (695)
-  - `handlers_auth.go` (1307 → 470): extracted TOTP (434), recovery (444)
-  - `upload.css` (1266 → 784): extracted speed-controls (92), segment-editor (270), keyboard-modal (146) via CSS @import
-  - `upload.astro` (1011 → 999): deduplicated subtitle download handlers
-- Fixed missing `_ "github.com/mattn/go-sqlite3"` import in db/db.go lost during split
-- Backend: 52 source files (was 9 monolithic), 45 test files (was 26)
-- All 583 backend + 841 frontend tests pass, verify-all.sh clean
-
-### Task 431: Split api_test.go into smaller test files (2026-01-30)
-- Split `api_test.go` (10,863 lines) into 5 focused test files:
-  - `api_test_helpers_test.go` (3,334 lines): shared infrastructure (testServer, setupTestServer, registerHandlers, helper methods)
-  - `api_auth_test.go` (2,338 lines): 66 auth tests (login, register, sessions, TOTP, password reset, magic link, email verification, CSRF, CAPTCHA)
-  - `api_video_test.go` (2,760 lines): 84 video tests (list, delete, transcription, segments, burn, caching, range requests, thumbnails, align, language hints, embedded subtitles)
-  - `api_upload_test.go` (1,011 lines): 27 upload tests (single upload, chunked upload)
-  - `api_system_test.go` (1,562 lines): 45 system tests (health, logs, feedback, admin feedback, metrics, scripts, request ID, content-type)
-- Investigated replacing test `registerHandlers()` with production handlers: NOT feasible because tests intentionally stub upload/transcription/burn flows and use different (non-transactional) DB methods
-- All 222 test functions preserved, all tests pass, lint clean
-
-### Tasks 434-435: Fix feedback list timestamp bug, increase video thumbnails (2026-01-30)
-- **Task 434:** Fixed `ListFeedback` `after` parameter: go-sqlite3 stores `time.Time` as RFC3339Nano with offset but formats query parameters differently, breaking SQLite text comparison. Used `datetime()` normalization on both sides. Added handler validation for RFC3339 format. Added 3 new tests (db + api level).
-- **Task 435:** Increased video thumbnails from 80x45px to 160x90px on My Videos page per user feedback.
-- Backend tests: 580 -> 583
-
-### Task 428: Update TESTING.md test counts (2026-01-29)
-- Updated TESTING.md overview: 580 backend, 841 frontend, 71 E2E = 1,492+ total tests
-- Added 10 missing frontend test files to the test file table (30 total now)
-- Updated BROWSER_TESTING.md: added 2 new E2E test entries, updated directory structure
-
-### Task 427: Add max-length validation for paste transcript text (2026-01-29)
-- Added `MAX_ALIGN_TEXT_LENGTH` constant (100KB) to upload-constants.ts, matching backend validation
-- Added client-side byte-length check using `new Blob([text]).size` before align API call
-- Shows inline error message with actual/max size when exceeded
-- Added E2E test verifying error message appears for oversized text
-- E2E scenarios: 60 -> 61
-
-### Task 426: Replace alert() with styled dialog in admin feedback page (2026-01-29)
-- Replaced native `alert()` in admin/feedback.astro with `showAlert()` from `utils/dialog.ts`
-- Error message for failed status updates now shows as a styled error dialog instead of browser-native alert
-- Build passes
-
-### Task 425: Make upload dropzone keyboard-accessible (2026-01-29)
-- Added `role="button"`, `tabindex="0"`, `aria-label` to dropzone div
-- Added keyboard handler: Enter/Space opens file picker
-- Added `focus-visible` CSS style for keyboard navigation
-- Added E2E test verifying accessibility attributes and focusability
-- E2E scenarios: 59 -> 60
-
-### Task 429: Add kid mode (screen lock) to video modal (2026-01-29)
-- User feedback: kids tapping mobile screen accidentally click buttons during playback
-- Added lock button (padlock icon) to video modal action bar, positioned on right side
-- When locked: all buttons/links/segments disabled via CSS `pointer-events: none`, overlay click blocked, keyboard shortcuts blocked
-- Native `<video>` controls remain functional (play/pause, seek, volume)
-- Unlock requires 1-second long-press (prevents accidental unlock by kids)
-- Visual feedback: CSS fill animation during unlock hold, accent color when locked
-- ARIA attributes update for screen readers (`aria-pressed`, `aria-label`)
-- Kid mode resets when modal closes (no persistence)
-- Added 10 unit tests covering enable/disable, keyboard blocking, overlay blocking, event registration
-- Created `specs/kid-mode.md` specification
-- Frontend tests: 831 -> 841
-
-### Task 424: Add double-submit prevention to auth forms (2026-01-29)
-- Added `isSubmitting` guard to 5 form submit handlers across 4 pages:
-  - `login.astro`: main login form + magic link form
-  - `register.astro`: registration form
-  - `forgot-password.astro`: password reset request form
-  - `reset-password.astro`: password reset form
-- Guard integrated into `setLoading()` function so all existing `setLoading(false)` calls also reset the flag
-- Prevents concurrent form submissions from rapid double-clicks
-- All 831 frontend tests pass, build clean, lint clean
-- Filed 4 new tasks (425-428) from deep codebase inspection
-
-### Task 423: Extract chunked upload complete handler into smaller functions (2026-01-29)
-- Refactored `POST /api/upload/complete` handler from ~290 lines to ~160 lines
-- Extracted 4 helper functions: `assembleChunks`, `processVideoMetadata`, `encryptAndPersistVideo`, `finalizeUploadSession`
-- All 580 backend tests pass, golangci-lint clean (0 issues)
-
-### Task 422: Extract burn subtitles handler into smaller functions (2026-01-29)
-- Refactored `POST /api/videos/{id}/burn` handler from 335 lines to 104 lines
-- Extracted 6 helper functions: `processBurnJob`, `failBurnShutdown`, `decryptVideoForBurn`, `generateBurnSRTFile`, `buildBurnFFmpegCmd`, `startBurnProgressTracker`, `encryptBurnOutput`
-- All 580 backend tests pass, golangci-lint clean (0 issues)
-
-### Task 421: Add fetch timeout via AbortController (2026-01-29)
-- Replaced bare `fetch()` calls with `fetchWithTimeout()` in 3 files:
-  - `upload.astro`: loadExistingVideo, embedded subtitles extraction, post-align transcription fetch
-  - `videos-modal.ts`: openVideoModal transcription fetch
-  - `videos-subtitles.ts`: getSubtitleSegments server fetch
-- Uses existing `fetchWithTimeout` utility (30s default timeout via AbortController)
-- Added 2 new tests verifying `fetchWithTimeout` is called in videos-modal and videos-subtitles
-- Frontend tests: 829 -> 831
-
-### Task 419: Add pagination offset limit (2026-01-29)
-- Added `maxPaginationOffset` constant (100,000) in helpers.go
-- Both paginated endpoints (`GET /api/videos`, `GET /api/admin/feedback`) now return 400 for offsets exceeding the limit
-- Added 2 new tests (`TestListVideosExcessiveOffset`, `TestAdminFeedbackListExcessiveOffset`)
-- Backend tests: 578 -> 580
-
-### Tasks 417-418, 420: Code quality improvements from deep inspection (2026-01-29)
-- **Task 417:** Drain HTTP response body in whisper health check for TCP connection reuse
-- **Task 418:** Made login lockout constants configurable via `MAX_LOGIN_ATTEMPTS` and `LOGIN_LOCK_DURATION` env vars (previously hardcoded to 5 attempts / 15 min)
-- **Task 420:** Replaced all `JSON.parse(JSON.stringify(...))` deep clone patterns with `structuredClone()` across frontend source and test files
-- Filed 7 new tasks (417-423) from deep codebase inspection covering backend code quality, frontend improvements, and handler refactoring
-- Updated docs/ENV.md with new security configuration variables
-- All 1407+ tests pass, lint clean
-
-### Tasks 415-416: Add unit tests for remaining untested frontend utility files (2026-01-29)
-- Added 57 tests across 2 new test files covering the last untested utility modules
-- `settings-preferences.test.ts` (24 tests): setupPreferences init, bionic toggle, fixation slider, preview rendering, disabled-section toggling
-- `settings-sessions.test.ts` (33 tests): loadSessions, parseUserAgent detection, session rendering, revoke flow, error/timeout handling, event delegation
-- Frontend tests: 772 -> 829 (30 test files)
-- All frontend utility .ts files with executable logic now have test coverage
-
-### Tasks 410-413: More unit tests + backend DRY improvement (2026-01-29)
-- Added 114 tests across 3 new test files covering remaining untested utility modules
-- `transcription-polling.test.ts` (49 tests): formatTime, formatDuration, parseSRT, getLanguageDisplayName, startTranscription, pollTranscriptionStatus
-- `videos-list.test.ts` (48 tests): formatBytes, formatDate, formatRetention, getStatusBadge, getEmbeddedSubtitlesBadge, renderVideo, reprocessVideo, deleteVideo
-- `videos-subtitles.test.ts` (17 tests): getSubtitleSegments (LRU cache, error handling), handleDownloadClick (SRT/VTT/JSON)
-- Backend: Extracted duplicated MIME type whitelist to shared `allowedMIMETypes` variable in config.go (was defined twice in handlers_upload.go)
-- Task 414 (shared CSS extraction) marked wontfix: CSS differences between pages are intentional design choices for different contexts
-- Frontend tests: 658 -> 772 (28 test files)
-
-### Tasks 405-409: Add unit tests for 5 untested frontend utility files (2026-01-29)
-- Added 160 tests across 5 new test files covering the largest untested utility modules
-- `segment-editor.test.ts` (69 tests): undo/redo, feedback, edit mode, segment navigation, save
-- `subtitle-sync.test.ts` (19 tests): subtitle sync, speed UI, burn subtitles
-- `videos-modal.test.ts` (25 tests): modal lifecycle, formatTime, open/close, error handling
-- `settings-totp.test.ts` (27 tests): TOTP setup/verify/disable, recovery codes, regen
-- `upload-file.test.ts` (20 tests): file validation, session URLs, upload flow, XHR handling
-- Frontend tests: 498 -> 658 (25 test files)
-
-### Task 388: Doc sync linting (2026-01-29)
-- Created `scripts/lint-doc-sync.sh` to detect documentation drift
-- 5 automated checks: deps.md vs go.mod/package.json, ENV.md vs os.Getenv calls, API.md vs registered routes, RATE_LIMITS.md vs rate limit config
-- Integrated into `scripts/lint.sh` (runs as part of verification)
-- Fixed missing Chunked Upload and User rate limit categories in RATE_LIMITS.md
-- Updated RATE_LIMITS.md Configuration section (was referencing old main.go structure)
-
-### Task 404: Refactor settings.astro into smaller files (2026-01-29)
-- Split settings.astro from 1663 lines to 441 lines (under 1000 target)
-- Extracted CSS to `styles/settings.css` (623 lines)
-- Extracted TOTP setup/verify/disable/recovery code logic to `utils/settings-totp.ts` (458 lines)
-- Extracted session management to `utils/settings-sessions.ts` (133 lines)
-- Extracted bionic reading preferences to `utils/settings-preferences.ts` (61 lines)
-- All 1080+ tests pass, build clean, lint clean
-
-### Task 403: Refactor videos.astro into smaller files (2026-01-29)
-- Split videos.astro from 1818 lines to 311 lines (under 1000 target)
-- Extracted CSS to `styles/videos.css` (702 lines)
-- Extracted video list rendering and operations to `utils/videos-list.ts` (248 lines)
-- Extracted modal playback, subtitle sync, speed controls to `utils/videos-modal.ts` (474 lines)
-- Extracted subtitle caching and download helpers to `utils/videos-subtitles.ts` (99 lines)
-- All 1080+ tests pass, build clean, lint clean
-
-### Tasks 397-402: Fix 6 user-reported bugs from FEEDBACK.md (2026-01-29)
-- **Task 397:** Fixed night mode CTA text unreadable on home page
-- **Task 398:** Fixed re-transcribe button showing no progress feedback
-- **Task 399:** Fixed bionic reading whitespace collapse in upload page
-- **Task 400:** Fixed subtitle segments scrolling too far ahead on videos page
-- **Task 401:** Fixed feedback modal interfering with video playback
-- **Task 402:** Fixed playback speed not applying on videos page
-
-### Task 384: Add decision tracking process to LEARNINGS.md (2026-01-29)
-- Added "Decisions" section to LEARNINGS.md with Context/Options/Decision/Outcome format
-- Documented 6 key decisions: SQLite, Astro, age encryption, file size linting, fetch-feedback Python rewrite, Resend email
-- Updated CLAUDE.md with "Decision Tracking" section instructing future Ralphs to document decisions
-- Added decision format template alongside existing lesson format
-
-### Task 396: Split upload.astro into smaller files (2026-01-29)
-- Split `upload.astro` from 3844 lines to 975 lines (75% reduction)
-- Extracted 5 TypeScript utility modules using state objects + callbacks pattern:
-  - `upload-constants.ts` (100 lines): Language maps, localStorage keys, upload config
-  - `upload-file.ts` (352 lines): File upload with chunked resume support
-  - `transcription-polling.ts` (217 lines): Polling, ETA, SRT parsing, time formatting
-  - `segment-editor.ts` (510 lines): Editing, undo/redo, feedback, rendering
-  - `subtitle-sync.ts` (497 lines): Video sync, speed controls, burn, keyboard shortcuts
-- Extracted CSS to `styles/upload.css` (1256 lines) imported via Astro frontmatter
-- Fixed bug: `updateUnsavedIndicator()` call replaced with correct `markUnsaved()` pattern
-- All 1076+ tests pass, file size lint clean (upload.astro no longer in warnings)
-
-### Task 379: Frontend file size linting (2026-01-29)
-- Researched options: ESLint+eslint-plugin-astro (4+ deps for 1 rule), Biome (no .astro support), shell script (zero deps)
-- Chose shell script approach per dependency policy
-- Created `scripts/lint-frontend-filesize.sh`: error at 4000 lines, warn at 1000 lines, test files excluded
-- Integrated into `scripts/lint.sh` as new "Checking Frontend File Sizes" step
-- 3 files flagged as warnings: upload.astro (3844), videos.astro (1811), settings.astro (1663)
-- Filed Task 396 to split upload.astro
-- Added LEARNINGS.md entry documenting decision rationale
-
-### Task 377: Set up golangci-lint with file length linter (2026-01-29)
-- Installed golangci-lint v2.8.0, created `backend/.golangci.yml` (v2 format)
-- Enabled linters: `funlen` (max 150 lines/function), `revive` with `file-length-limit` (max 2600 lines/file)
-- Added `//nolint:funlen` to 5 route-table registration functions (`register*Handlers`)
-- Test files excluded from both linters
-- Updated `scripts/lint.sh` to run golangci-lint when available (graceful fallback)
-- Updated `LINTERS.md` to mark golangci-lint as IN USE
-- Added golangci-lint to `docs/deps.md` Development Tools section
-- All 1076+ tests pass, lint clean
-
-### Task 378: Split main.go into smaller files (2026-01-29)
-- Split `backend/main.go` from 6340 lines to 207 lines (9 files total)
-- New files: `config.go` (334), `globals.go` (125), `helpers.go` (704), `scheduler.go` (268), `handlers_system.go` (462), `handlers_auth.go` (1310), `handlers_upload.go` (1546), `handlers_video.go` (1543)
-- Handlers extracted via `registerXxxHandlers(mux)` pattern
-- All 578 backend tests pass, full verification passes
-
-### Task 389: Create Python security events query tool (2026-01-29)
-- Created `scripts/query-security-events.py` for filtering/analyzing security events
-- Parses slog logfmt output from journalctl stdin
-- Filters: `--event` (prefix match), `--ip`, `--user` (email/user_id), `--level`, `--since`/`--until`
-- Output: `--format short|raw`, `--count-by FIELD` for aggregation, `--tail N`
-- Documented in `docs/SECURITY_EVENTS.md` with usage examples
-
-### Task 394: Add --auto-fetch-feedback-script CLI arg to ralph.py (2026-01-29)
-- Added `--auto-fetch-feedback-script <path>` CLI argument to `ralph.py`
-- `fetch_feedback()` now accepts optional `script_path` parameter
-- When flag is omitted, uses default `scripts/fetch-feedback.py`
-- Added 5 tests for the new functionality in `test_ralph.py`
-- Updated `specs/feedback-fetch.md` Integration section
-
-### Task 393: Rewrite fetch-feedback.sh in Python (2026-01-29)
-- Replaced `scripts/fetch-feedback.sh` with `scripts/fetch-feedback.py`
-- Secrets resolution: env vars > `.env` file > `secrets.enc.yaml` via sops
-- Uses only stdlib (`urllib`, `json`, `subprocess`) - no new dependencies
-- `ralph.py` updated to call Python script via `sys.executable`
-- Updated specs/feedback-fetch.md, AGENTS.md, .gitignore
-
-### Task 387: Add Missing Dependencies to deps.md (2026-01-29)
-- Added CDN Scripts section (hCaptcha widget)
-- Added System Dependencies section (ffmpeg, ffprobe, whisper-cli, whisper-server, sqlite3)
-- Added External Services section (Resend, hCaptcha API)
-- Added Deployment Dependencies section (Caddy, Cloudflare Tunnel, sops, systemd, fail2ban)
-- Added Build-Time Dependencies section (Go, Node.js/npm, Noto fonts)
-
-### Tasks 376, 380, 381: Documentation Compaction (2026-01-29)
-- PROGRESS.md compacted from 1492 to ~130 lines (kept summary, features, recent work, key files)
-- LEARNINGS.md compacted from 1099 to ~550 lines, sorted by category (Backend, Frontend, Security, Infrastructure, Process)
-- TASKS.jsonl compacted from 395 to 13 lines; 383 completed tasks archived to TASKS_archive.jsonl
-
-### Task 390: Verify and Fix Evaluation Scripts (2026-01-29)
-- Fixed `evaluate.py` to defer imports so `--help` and `--list` work without dependencies
-- Updated `evaluation/README.md` with Prerequisites, Limitations sections
-- Added `evaluation/venv/` to `.gitignore`
-
-### Task 391: Fix Subtitle Feedback Buttons (2026-01-28)
-- Moved feedback buttons from every segment to current subtitle display only
-- Persistent click handler on feedback container (not per-segment listeners)
-- Backend integration documented as pending
-
-### Task 395: E2E Test Fixes (2026-01-27)
-- Fixed 15 of 16 failing Playwright E2E tests
-- Root causes: cookie consent blocking, timing races, route pattern mismatches, schema nullability
-- Added retry mechanism for local E2E runs
-
-### Tasks 382-385, 392: Feedback Processing (2026-01-27)
-- Processed FEEDBACK.md: filed 19 new tasks (376-394)
-- Restricted playback speeds to 0.8x, 0.9x, 1.0x only (recurring issue)
-- Added Settings link to all pages for authenticated users
-- Added E2E tests to pre-commit hook
-
-## Pending Tasks
-
-No pending tasks. All tasks completed.
+### Tasks 376-396: Infrastructure, refactoring, and documentation (2026-01-27—2026-01-29)
+- Split backend main.go (6340→207 lines) into 9 handler files, set up golangci-lint
+- Added decision tracking to LEARNINGS.md, Python security events query tool, fetch-feedback Python rewrite
+- Compacted docs (PROGRESS.md, LEARNINGS.md, TASKS.jsonl), added missing deps to deps.md
+- Fixed subtitle feedback buttons, evaluation scripts, 15 E2E tests
+- Processed user feedback: filed 19 tasks, restricted playback speeds to 0.8x/0.9x/1.0x
 
 ## Key Files
 

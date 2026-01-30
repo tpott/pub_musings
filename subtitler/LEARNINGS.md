@@ -32,6 +32,14 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Backend
 
+### 2026-01-30: TOCTOU race in INSERT with prior existence check
+
+**Problem:** Chunked upload handler checked if a chunk existed (`GetUploadChunk`), then inserted if missing (`CreateUploadChunk`). Concurrent requests for the same chunk could both pass the check, then one fails with a UNIQUE constraint violation, returning 500 instead of idempotent 200.
+
+**Solution:** Changed `INSERT INTO` to `INSERT OR IGNORE INTO` and return `RowsAffected()` as a boolean. Handler checks if the insert was a no-op (rows=0) and treats it as idempotent success — cleans up the duplicate file and returns progress normally.
+
+**Lesson:** Never use check-then-insert patterns for idempotency. Use `INSERT OR IGNORE` / `ON CONFLICT DO NOTHING` and inspect `RowsAffected()` to detect duplicates. SQLite's UNIQUE constraint violations are errors, not silent no-ops, unless you use the IGNORE conflict resolution.
+
 ### golangci-lint v2: severity doesn't affect exit code
 
 **Problem:** Wanted `revive` file-length-limit to produce warnings (not errors) for existing large files. Set `severity: warning` in the revive rule config expecting golangci-lint to exit 0.

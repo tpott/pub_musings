@@ -67,16 +67,26 @@ func (db *DB) UpdateUploadSessionStatus(sessionID, status string) error {
 	return err
 }
 
-// CreateUploadChunk records a chunk upload
-func (db *DB) CreateUploadChunk(chunk *UploadChunk) error {
+// CreateUploadChunk records a chunk upload. Returns (true, nil) if the chunk was
+// inserted, or (false, nil) if a chunk with the same session+index already exists
+// (UNIQUE constraint). This prevents a TOCTOU race when concurrent requests upload
+// the same chunk.
+func (db *DB) CreateUploadChunk(chunk *UploadChunk) (bool, error) {
 	ctx, cancel := db.queryContext()
 	defer cancel()
 
-	_, err := db.conn.ExecContext(ctx, `
-		INSERT INTO upload_chunks (id, upload_session_id, chunk_index, chunk_path, size, created_at)
+	result, err := db.conn.ExecContext(ctx, `
+		INSERT OR IGNORE INTO upload_chunks (id, upload_session_id, chunk_index, chunk_path, size, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, chunk.ID, chunk.UploadSessionID, chunk.ChunkIndex, chunk.ChunkPath, chunk.Size, chunk.CreatedAt)
-	return err
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
 }
 
 // GetUploadChunk retrieves a specific chunk by session ID and index

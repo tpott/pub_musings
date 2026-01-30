@@ -579,9 +579,12 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save chunk")
 			return
 		}
-		// Close after writing - log any error but continue since data is written
+		// Close after writing - treat as fatal since chunks have no downstream validation
 		if err := destFile.Close(); err != nil {
-			logging.WarnContext(r.Context(), "Error closing chunk destination file", "path", chunkPath, "error", err)
+			removeWithLogging(chunkPath, "chunk after close failure")
+			logging.ErrorContext(r.Context(), "Error closing chunk file", "path", chunkPath, "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save chunk")
+			return
 		}
 
 		// Validate chunk size (allow up to expected size; last chunk may be smaller)
@@ -608,11 +611,19 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			Size:            written,
 			CreatedAt:       time.Now(),
 		}
-		if err := database.CreateUploadChunk(chunk); err != nil {
+		inserted, err := database.CreateUploadChunk(chunk)
+		if err != nil {
 			removeWithLogging(chunkPath, "chunk after DB record failure")
 			logging.ErrorContext(r.Context(), "Error saving chunk record", "error", err)
 			httputil.RespondError(w, http.StatusInternalServerError, "Failed to record chunk")
 			return
+		}
+		if !inserted {
+			// Concurrent request already inserted this chunk — remove our duplicate file
+			// and return idempotent success
+			removeWithLogging(chunkPath, "duplicate chunk from concurrent upload")
+			logging.InfoContext(r.Context(), "Chunk already inserted by concurrent request",
+				"session_id", uploadSessionID, "chunk_index", chunkIndex)
 		}
 
 		// Calculate progress

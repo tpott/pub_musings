@@ -6,10 +6,10 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 600 tests across 45 test files
+- **Backend (Go)**: 602 tests across 45 test files
 - **Frontend (TypeScript)**: 832 tests across 29 test files
-- **E2E (Playwright)**: 71 scenarios across 7 spec files
-- **Total**: 1,503+ tests
+- **E2E (Playwright)**: 67 scenarios across 7 spec files
+- **Total**: 1,501+ tests
 
 ## Backend Tests
 

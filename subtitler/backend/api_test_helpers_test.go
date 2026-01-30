@@ -2846,7 +2846,7 @@ func (ts *testServer) registerHandlers() {
 			Size:            written,
 			CreatedAt:       time.Now(),
 		}
-		if err := ts.db.CreateUploadChunk(chunk); err != nil {
+		if _, err := ts.db.CreateUploadChunk(chunk); err != nil {
 			os.Remove(chunkPath)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record chunk"})
