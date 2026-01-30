@@ -3359,6 +3359,47 @@ func TestListFeedbackLimitValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("after parameter filters by timestamp", func(t *testing.T) {
+		// The after parameter is passed as RFC3339 from the API.
+		// go-sqlite3 stores time.Time differently from JSON marshaling,
+		// so ListFeedback must parse the string into time.Time before querying.
+		// Use a future timestamp so only the item we create "after" it is returned.
+		futureTime := time.Now().Add(1 * time.Hour)
+		newFeedback := &Feedback{
+			ID:        "feedback-after-test",
+			PageURL:   "http://test.com",
+			Text:      "New feedback after cutoff",
+			Type:      "general",
+			Status:    FeedbackStatusNew,
+			CreatedAt: futureTime.Add(1 * time.Minute),
+		}
+		if err := db.CreateFeedback(newFeedback); err != nil {
+			t.Fatalf("Failed to create feedback: %v", err)
+		}
+		// Cutoff is the futureTime; only the item 1 minute later should match
+		cutoff := futureTime.UTC().Format(time.RFC3339)
+		feedbackList, total, err := db.ListFeedback("", "", 50, 0, cutoff)
+		if err != nil {
+			t.Fatalf("ListFeedback with after failed: %v", err)
+		}
+		if total != 1 {
+			t.Errorf("Expected 1 feedback item after cutoff, got %d", total)
+		}
+		if len(feedbackList) != 1 {
+			t.Errorf("Expected 1 feedback item, got %d", len(feedbackList))
+		}
+		if len(feedbackList) > 0 && feedbackList[0].ID != "feedback-after-test" {
+			t.Errorf("Expected feedback-after-test, got %s", feedbackList[0].ID)
+		}
+	})
+
+	t.Run("after parameter rejects invalid timestamp", func(t *testing.T) {
+		_, _, err := db.ListFeedback("", "", 50, 0, "not-a-timestamp")
+		if err == nil {
+			t.Error("Expected error for invalid after timestamp, got nil")
+		}
+	})
+
 	t.Run("MaxFeedbackLimit constant is reasonable", func(t *testing.T) {
 		if MaxFeedbackLimit < 50 {
 			t.Errorf("MaxFeedbackLimit too low: %d", MaxFeedbackLimit)

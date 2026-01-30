@@ -96,22 +96,22 @@ h1 {
 	flex-shrink: 0;
 }
 .video-thumbnail {
-	width: 80px;
-	height: 45px;
+	width: 160px;
+	height: 90px;
 	object-fit: cover;
 	border-radius: 4px;
 	background-color: var(--border-color);
 	flex-shrink: 0;
 }
 .video-thumbnail-placeholder {
-	width: 80px;
-	height: 45px;
+	width: 160px;
+	height: 90px;
 	background-color: var(--border-color);
 	border-radius: 4px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 1.5rem;
+	font-size: 2rem;
 	flex-shrink: 0;
 }
 /* Focus indicators for clickable thumbnails */

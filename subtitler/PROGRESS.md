@@ -4,10 +4,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**430 tasks completed** as of 2026-01-29. 0 tasks pending.
+**435 tasks completed** as of 2026-01-30. 3 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
+- **Backend:** Go server (9 source files, ~6500 lines total), 583 tests across 26 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
 - **E2E:** Playwright tests (71 scenarios)
 - **Total:** 1492+ tests, 32 specification documents
@@ -63,9 +63,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-0 tasks pending. All tasks completed.
+3 tasks pending: 431 (split api_test.go), 432 (cross-language filesize linter), 433 (split oversized files).
 
 ## Recent Work
+
+### Tasks 434-435: Fix feedback list timestamp bug, increase video thumbnails (2026-01-30)
+- **Task 434:** Fixed `ListFeedback` `after` parameter: go-sqlite3 stores `time.Time` as RFC3339Nano with offset but formats query parameters differently, breaking SQLite text comparison. Used `datetime()` normalization on both sides. Added handler validation for RFC3339 format. Added 3 new tests (db + api level).
+- **Task 435:** Increased video thumbnails from 80x45px to 160x90px on My Videos page per user feedback.
+- Backend tests: 580 -> 583
 
 ### Task 428: Update TESTING.md test counts (2026-01-29)
 - Updated TESTING.md overview: 580 backend, 841 frontend, 71 E2E = 1,492+ total tests

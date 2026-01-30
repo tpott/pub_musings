@@ -2510,9 +2510,21 @@ func (db *DB) ListFeedback(status string, feedbackType string, limit, offset int
 		args = append(args, feedbackType)
 	}
 	if after != "" {
-		query += " AND created_at > ?"
-		countQuery += " AND created_at > ?"
-		args = append(args, after)
+		// Validate the after timestamp is valid RFC3339.
+		parsedAfter, err := time.Parse(time.RFC3339, after)
+		if err != nil {
+			parsedAfter, err = time.Parse(time.RFC3339Nano, after)
+		}
+		if err != nil {
+			return nil, 0, fmt.Errorf("invalid after timestamp: %w", err)
+		}
+		// Use SQLite's datetime() on both sides to normalize formats.
+		// go-sqlite3 stores time.Time as RFC3339Nano with timezone offset (e.g. "2026-01-30T00:05:07.123-08:00")
+		// but formats time.Time parameters differently (e.g. "2026-01-30 09:05:07+00:00").
+		// SQLite's datetime() normalizes both to "YYYY-MM-DD HH:MM:SS" in UTC for correct comparison.
+		query += " AND datetime(created_at) > datetime(?)"
+		countQuery += " AND datetime(created_at) > datetime(?)"
+		args = append(args, parsedAfter.UTC().Format("2006-01-02 15:04:05"))
 	}
 
 	// Get total count

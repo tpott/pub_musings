@@ -10470,6 +10470,46 @@ func TestAdminFeedbackListExcessiveOffset(t *testing.T) {
 	}
 }
 
+func TestAdminFeedbackListAfterTimestamp(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	_, token := ts.createTestAdminUser(t, "adminafter@example.com", "Password123!")
+
+	// Create feedback items with staggered times
+	for i := 0; i < 3; i++ {
+		fb := &db.Feedback{
+			ID:        fmt.Sprintf("feedback-after-%d", i),
+			PageURL:   "http://test.com",
+			Text:      fmt.Sprintf("Feedback %d", i),
+			Type:      "general",
+			Status:    db.FeedbackStatusNew,
+			CreatedAt: time.Now().Add(time.Duration(i) * time.Second),
+		}
+		if err := ts.db.CreateFeedback(fb); err != nil {
+			t.Fatalf("Failed to create feedback: %v", err)
+		}
+	}
+
+	// Query with after=RFC3339 timestamp that should exclude the first 2 items
+	cutoff := time.Now().Add(1 * time.Second).UTC().Format(time.RFC3339)
+	resp := ts.doRequest("GET", "/api/admin/feedback?after="+cutoff, nil, token)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result struct {
+		Feedback []db.Feedback `json:"feedback"`
+		Total    int           `json:"total"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if result.Total != 1 {
+		t.Errorf("Expected 1 feedback item after cutoff, got %d", result.Total)
+	}
+}
+
 // TestContentTypeHeader verifies that all JSON API endpoints set Content-Type: application/json
 // before writing the response, including error responses.
 func TestContentTypeHeader(t *testing.T) {

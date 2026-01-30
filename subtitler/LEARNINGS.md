@@ -52,6 +52,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### go-sqlite3 timestamp format inconsistency breaks comparisons
+
+**Problem:** `go-sqlite3` stores `time.Time` values as RFC3339Nano with timezone offset (e.g., `"2026-01-30T00:05:07.123-08:00"`), but formats `time.Time` query parameters differently (e.g., `"2026-01-30 09:05:07+00:00"` — space-separated, UTC, no nanoseconds). SQLite uses text comparison for `DATETIME` columns, so `created_at > ?` fails because the stored and parameter formats never match lexicographically.
+
+**Solution:** Use SQLite's `datetime()` function on both sides of the comparison: `datetime(created_at) > datetime(?)`. Parse the input RFC3339 string into `time.Time`, then format as UTC `"2006-01-02 15:04:05"` for the parameter. `datetime()` normalizes both the stored RFC3339Nano and the parameter to `"YYYY-MM-DD HH:MM:SS"` in UTC.
+
+**Lesson:** Never do raw text comparison on SQLite `DATETIME` columns when the values may come from different sources (Go time.Time storage vs API parameters). Always normalize with `datetime()`. Test timestamp filtering with actual database roundtrips, not just in-memory comparisons.
+
+---
+
 ### Go net/http: Content-Type must be set before WriteHeader
 
 **Problem:** Headers set after `w.WriteHeader()` are silently ignored. 9 handlers had wrong ordering.

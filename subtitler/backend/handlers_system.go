@@ -286,6 +286,14 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		limitStr := r.URL.Query().Get("limit")
 		offsetStr := r.URL.Query().Get("offset")
 		after := r.URL.Query().Get("after")
+		if after != "" {
+			if _, err := time.Parse(time.RFC3339, after); err != nil {
+				if _, err := time.Parse(time.RFC3339Nano, after); err != nil {
+					httputil.RespondError(w, http.StatusBadRequest, "Invalid after timestamp format (expected RFC3339)")
+					return
+				}
+			}
+		}
 
 		limit := 50
 		if limitStr != "" {
