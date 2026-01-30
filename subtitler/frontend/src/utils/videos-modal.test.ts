@@ -3,6 +3,8 @@ import {
 	createModalState,
 	formatTime,
 	setupModalListeners,
+	enableKidMode,
+	disableKidMode,
 	type ModalElements,
 	type ModalState,
 } from './videos-modal';
@@ -51,6 +53,7 @@ function makeMockModalElements(): ModalElements {
 		videoModal: {
 			classList: { add: vi.fn(), remove: vi.fn(), contains: vi.fn(() => false) },
 			querySelectorAll: vi.fn(() => []),
+			querySelector: vi.fn(() => ({ classList: { add: vi.fn(), remove: vi.fn() } })),
 			addEventListener: vi.fn(),
 		} as unknown as HTMLElement,
 		modalClose: {
@@ -101,6 +104,11 @@ function makeMockModalElements(): ModalElements {
 			textContent: '',
 			classList: { add: vi.fn(), remove: vi.fn() },
 		} as unknown as HTMLElement,
+		modalKidModeBtn: {
+			classList: { add: vi.fn(), remove: vi.fn() },
+			setAttribute: vi.fn(),
+			addEventListener: vi.fn(),
+		} as unknown as HTMLButtonElement,
 	};
 }
 
@@ -138,6 +146,8 @@ describe('createModalState', () => {
 		expect(state.lastActiveSegmentIndex).toBe(-1);
 		expect(state.speedMenuOpen).toBe(false);
 		expect(state.speedIndicatorTimeout).toBeNull();
+		expect(state.kidModeLocked).toBe(false);
+		expect(state.kidModeUnlockTimeout).toBeNull();
 	});
 
 	it('should return independent state objects', () => {
@@ -472,5 +482,187 @@ describe('openVideoModal', () => {
 
 		expect(els.modalLoading.style.display).toBe('none');
 		expect(els.modalVideoContainer.style.display).toBe('block');
+	});
+});
+
+describe('kid mode', () => {
+	it('enableKidMode should set kidModeLocked and update aria attributes', () => {
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => ({
+			classList: { add: vi.fn(), remove: vi.fn() },
+		}));
+		const state = createModalState();
+
+		enableKidMode(els, state);
+
+		expect(state.kidModeLocked).toBe(true);
+		expect(els.modalKidModeBtn.setAttribute).toHaveBeenCalledWith('aria-pressed', 'true');
+		expect(els.modalKidModeBtn.setAttribute).toHaveBeenCalledWith('aria-label', 'Unlock screen (hold for 1 second)');
+	});
+
+	it('enableKidMode should add kid-mode-locked class to modal-content', () => {
+		const mockContent = { classList: { add: vi.fn(), remove: vi.fn() } };
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => mockContent);
+		const state = createModalState();
+
+		enableKidMode(els, state);
+
+		expect(mockContent.classList.add).toHaveBeenCalledWith('kid-mode-locked');
+	});
+
+	it('disableKidMode should unset kidModeLocked and update aria attributes', () => {
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => ({
+			classList: { add: vi.fn(), remove: vi.fn() },
+		}));
+		const state = createModalState();
+		state.kidModeLocked = true;
+
+		disableKidMode(els, state);
+
+		expect(state.kidModeLocked).toBe(false);
+		expect(els.modalKidModeBtn.setAttribute).toHaveBeenCalledWith('aria-pressed', 'false');
+		expect(els.modalKidModeBtn.setAttribute).toHaveBeenCalledWith('aria-label', 'Lock screen for kid mode');
+	});
+
+	it('disableKidMode should remove kid-mode-locked class from modal-content', () => {
+		const mockContent = { classList: { add: vi.fn(), remove: vi.fn() } };
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => mockContent);
+		const state = createModalState();
+		state.kidModeLocked = true;
+
+		disableKidMode(els, state);
+
+		expect(mockContent.classList.remove).toHaveBeenCalledWith('kid-mode-locked');
+	});
+
+	it('disableKidMode should clear unlock timeout if set', () => {
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => ({
+			classList: { add: vi.fn(), remove: vi.fn() },
+		}));
+		const state = createModalState();
+		state.kidModeLocked = true;
+		state.kidModeUnlockTimeout = setTimeout(() => {}, 5000);
+
+		disableKidMode(els, state);
+
+		expect(state.kidModeUnlockTimeout).toBeNull();
+	});
+
+	it('disableKidMode should remove kid-mode-unlocking class from button', () => {
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => ({
+			classList: { add: vi.fn(), remove: vi.fn() },
+		}));
+		const state = createModalState();
+		state.kidModeLocked = true;
+
+		disableKidMode(els, state);
+
+		expect(els.modalKidModeBtn.classList.remove).toHaveBeenCalledWith('kid-mode-unlocking');
+	});
+
+	it('setupModalListeners should register kid mode event listeners', () => {
+		const els = makeMockModalElements();
+		const state = createModalState();
+
+		setupModalListeners(els, state);
+
+		expect(els.modalKidModeBtn.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
+		expect(els.modalKidModeBtn.addEventListener).toHaveBeenCalledWith('pointerdown', expect.any(Function));
+		expect(els.modalKidModeBtn.addEventListener).toHaveBeenCalledWith('pointerup', expect.any(Function));
+		expect(els.modalKidModeBtn.addEventListener).toHaveBeenCalledWith('pointerleave', expect.any(Function));
+		expect(els.modalKidModeBtn.addEventListener).toHaveBeenCalledWith('pointercancel', expect.any(Function));
+	});
+
+	it('closeVideoModal should reset kid mode state', async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				status: 'complete',
+				result: { segments: [{ id: 0, start: 0, end: 5, text: 'test' }] },
+			}),
+		});
+		vi.stubGlobal('fetch', mockFetch);
+
+		const mockContent = { classList: { add: vi.fn(), remove: vi.fn() } };
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => mockContent);
+		const state = createModalState();
+		const { openVideoModal, closeVideoModal } = setupModalListeners(els, state);
+
+		await openVideoModal('video-1', 'test.mp4');
+		enableKidMode(els, state);
+		expect(state.kidModeLocked).toBe(true);
+
+		closeVideoModal();
+		expect(state.kidModeLocked).toBe(false);
+	});
+
+	it('keyboard shortcuts should be blocked when kid mode is locked', async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				status: 'complete',
+				result: { segments: [] },
+			}),
+		});
+		vi.stubGlobal('fetch', mockFetch);
+
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => ({
+			classList: { add: vi.fn(), remove: vi.fn() },
+		}));
+		const state = createModalState();
+		const { openVideoModal } = setupModalListeners(els, state);
+
+		await openVideoModal('video-1', 'test.mp4');
+
+		// Get the keydown handler that was registered on document
+		const addEventListenerCalls = (mockDocument.addEventListener as ReturnType<typeof vi.fn>).mock.calls;
+		const keydownCall = addEventListenerCalls.find(
+			(call: unknown[]) => call[0] === 'keydown'
+		);
+		expect(keydownCall).toBeTruthy();
+		const keydownHandler = keydownCall[1] as (e: KeyboardEvent) => void;
+
+		// Enable kid mode
+		enableKidMode(els, state);
+
+		// Escape should be blocked
+		const escapeEvent = { key: 'Escape', preventDefault: vi.fn() } as unknown as KeyboardEvent;
+		keydownHandler(escapeEvent);
+		// Modal should still be visible (close was NOT called)
+		expect(els.videoModal.classList.remove).not.toHaveBeenCalledWith('visible');
+	});
+
+	it('overlay click should not close modal when kid mode is locked', () => {
+		const els = makeMockModalElements();
+		(els.videoModal as any).querySelector = vi.fn(() => ({
+			classList: { add: vi.fn(), remove: vi.fn() },
+		}));
+		const state = createModalState();
+		setupModalListeners(els, state);
+
+		// Enable kid mode
+		enableKidMode(els, state);
+
+		// Get the click handler registered on videoModal
+		const addEventListenerCalls = (els.videoModal.addEventListener as ReturnType<typeof vi.fn>).mock.calls;
+		const clickCall = addEventListenerCalls.find(
+			(call: unknown[]) => call[0] === 'click'
+		);
+		expect(clickCall).toBeTruthy();
+		const clickHandler = clickCall[1] as (e: MouseEvent) => void;
+
+		// Simulate clicking on overlay (target === videoModal)
+		const clickEvent = { target: els.videoModal } as unknown as MouseEvent;
+		clickHandler(clickEvent);
+
+		// Modal should NOT have been closed
+		expect(els.videoModal.classList.remove).not.toHaveBeenCalledWith('visible');
 	});
 });

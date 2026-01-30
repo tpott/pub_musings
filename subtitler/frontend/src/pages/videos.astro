@@ -74,6 +74,9 @@ import '../styles/videos.css';
 							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadVtt" target="_blank" rel="noopener" aria-label="View subtitles in VTT format">VTT</a>
 							<a href="#" class="modal-download-btn modal-download-btn-secondary" id="modalDownloadJson" target="_blank" rel="noopener" aria-label="View subtitles in JSON format">JSON</a>
 							<a href="#" class="modal-edit-link" id="modalEditLink" aria-label="Edit subtitles">Edit</a>
+							<button class="kid-mode-btn" id="modalKidModeBtn" aria-label="Lock screen for kid mode" aria-pressed="false">
+								<span class="kid-mode-icon" aria-hidden="true"></span>
+							</button>
 						</div>
 					</div>
 				</div>
@@ -114,6 +117,7 @@ import '../styles/videos.css';
 				modalSpeedOptions: getRequiredElement('modalSpeedOptions', HTMLElement),
 				modalSpeedDropdown: getRequiredElement('modalSpeedDropdown', HTMLElement),
 				modalSpeedIndicator: getRequiredElement('modalSpeedIndicator', HTMLElement),
+				modalKidModeBtn: getRequiredElement('modalKidModeBtn', HTMLButtonElement),
 			};
 
 			const modalState = createModalState();

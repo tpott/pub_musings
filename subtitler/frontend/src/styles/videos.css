@@ -700,3 +700,72 @@ h1 {
 		justify-content: center;
 	}
 }
+/* Kid mode (screen lock) */
+.kid-mode-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.75rem 1.25rem;
+	background-color: var(--btn-secondary-bg);
+	color: var(--text-color);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	font-size: 0.9rem;
+	cursor: pointer;
+	transition: background-color 0.2s;
+	margin-left: auto;
+	position: relative;
+	overflow: hidden;
+	-webkit-user-select: none;
+	user-select: none;
+	touch-action: manipulation;
+}
+.kid-mode-btn:hover {
+	background-color: var(--btn-secondary-hover);
+}
+.kid-mode-btn:focus-visible {
+	outline: 2px solid var(--accent-color);
+	outline-offset: 2px;
+}
+/* Padlock icon via CSS - unlocked state */
+.kid-mode-icon::before {
+	content: '\1F513';
+	font-size: 1.1rem;
+}
+/* Locked state */
+.kid-mode-btn[aria-pressed="true"] {
+	background-color: var(--accent-color);
+	color: white;
+	border-color: var(--accent-color);
+}
+.kid-mode-btn[aria-pressed="true"] .kid-mode-icon::before {
+	content: '\1F512';
+}
+/* Unlock progress animation */
+.kid-mode-btn.kid-mode-unlocking::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+	width: 0;
+	background-color: rgba(255, 255, 255, 0.3);
+	animation: kid-mode-fill 1s linear forwards;
+}
+@keyframes kid-mode-fill {
+	from { width: 0; }
+	to { width: 100%; }
+}
+/* When locked, disable all modal interactive elements except the lock button and video */
+.kid-mode-locked .modal-actions > *:not(.kid-mode-btn) {
+	pointer-events: none;
+	opacity: 0.4;
+}
+.kid-mode-locked .modal-segments {
+	pointer-events: none;
+	opacity: 0.4;
+}
+.kid-mode-locked .modal-close {
+	pointer-events: none;
+	opacity: 0.4;
+}

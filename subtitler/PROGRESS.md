@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**424 tasks completed** as of 2026-01-29. 4 tasks pending.
+**425 tasks completed** as of 2026-01-29. 4 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
-- **Frontend:** Astro/TypeScript, 831 tests across 30 files
+- **Frontend:** Astro/TypeScript, 841 tests across 30 files
 - **E2E:** Playwright tests (59 scenarios)
-- **Total:** 1411+ tests, 31 specification documents
+- **Total:** 1421+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -36,6 +36,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Video thumbnails on My Videos page
 - Keyboard shortcuts for video control
 - Styled dialog modals (replaced native alert/confirm)
+- Kid mode (screen lock) for mobile video playback
 - Feedback system with star rating
 
 ### Authentication & Security
@@ -65,6 +66,19 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 4 tasks pending (425-428).
 
 ## Recent Work
+
+### Task 429: Add kid mode (screen lock) to video modal (2026-01-29)
+- User feedback: kids tapping mobile screen accidentally click buttons during playback
+- Added lock button (padlock icon) to video modal action bar, positioned on right side
+- When locked: all buttons/links/segments disabled via CSS `pointer-events: none`, overlay click blocked, keyboard shortcuts blocked
+- Native `<video>` controls remain functional (play/pause, seek, volume)
+- Unlock requires 1-second long-press (prevents accidental unlock by kids)
+- Visual feedback: CSS fill animation during unlock hold, accent color when locked
+- ARIA attributes update for screen readers (`aria-pressed`, `aria-label`)
+- Kid mode resets when modal closes (no persistence)
+- Added 10 unit tests covering enable/disable, keyboard blocking, overlay blocking, event registration
+- Created `specs/kid-mode.md` specification
+- Frontend tests: 831 -> 841
 
 ### Task 424: Add double-submit prevention to auth forms (2026-01-29)
 - Added `isSubmitting` guard to 5 form submit handlers across 4 pages:

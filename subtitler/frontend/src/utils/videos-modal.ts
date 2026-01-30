@@ -38,6 +38,7 @@ export interface ModalElements {
 	modalSpeedOptions: HTMLElement;
 	modalSpeedDropdown: HTMLElement;
 	modalSpeedIndicator: HTMLElement;
+	modalKidModeBtn: HTMLButtonElement;
 }
 
 export interface ModalState {
@@ -50,6 +51,8 @@ export interface ModalState {
 	lastActiveSegmentIndex: number;
 	speedMenuOpen: boolean;
 	speedIndicatorTimeout: ReturnType<typeof setTimeout> | null;
+	kidModeLocked: boolean;
+	kidModeUnlockTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 export function createModalState(): ModalState {
@@ -63,6 +66,8 @@ export function createModalState(): ModalState {
 		lastActiveSegmentIndex: -1,
 		speedMenuOpen: false,
 		speedIndicatorTimeout: null,
+		kidModeLocked: false,
+		kidModeUnlockTimeout: null,
 	};
 }
 
@@ -200,12 +205,62 @@ function createUpdateModalSubtitle(els: ModalElements, state: ModalState): () =>
 	};
 }
 
+function getModalContentEl(els: ModalElements): HTMLElement | null {
+	return els.videoModal.querySelector('.modal-content');
+}
+
+export function enableKidMode(els: ModalElements, state: ModalState): void {
+	state.kidModeLocked = true;
+	const content = getModalContentEl(els);
+	if (content) {
+		content.classList.add('kid-mode-locked');
+	}
+	els.modalKidModeBtn.setAttribute('aria-pressed', 'true');
+	els.modalKidModeBtn.setAttribute('aria-label', 'Unlock screen (hold for 1 second)');
+}
+
+export function disableKidMode(els: ModalElements, state: ModalState): void {
+	state.kidModeLocked = false;
+	if (state.kidModeUnlockTimeout) {
+		clearTimeout(state.kidModeUnlockTimeout);
+		state.kidModeUnlockTimeout = null;
+	}
+	const content = getModalContentEl(els);
+	if (content) {
+		content.classList.remove('kid-mode-locked');
+	}
+	els.modalKidModeBtn.classList.remove('kid-mode-unlocking');
+	els.modalKidModeBtn.setAttribute('aria-pressed', 'false');
+	els.modalKidModeBtn.setAttribute('aria-label', 'Lock screen for kid mode');
+}
+
+function startKidModeUnlock(els: ModalElements, state: ModalState): void {
+	if (!state.kidModeLocked) return;
+	els.modalKidModeBtn.classList.add('kid-mode-unlocking');
+	state.kidModeUnlockTimeout = setTimeout(() => {
+		disableKidMode(els, state);
+	}, 1000);
+}
+
+function cancelKidModeUnlock(els: ModalElements, state: ModalState): void {
+	if (state.kidModeUnlockTimeout) {
+		clearTimeout(state.kidModeUnlockTimeout);
+		state.kidModeUnlockTimeout = null;
+	}
+	els.modalKidModeBtn.classList.remove('kid-mode-unlocking');
+}
+
 function createHandleModalKeydown(
 	els: ModalElements,
 	state: ModalState,
 	closeFn: () => void
 ): (e: KeyboardEvent) => void {
 	return function handleModalKeydown(e: KeyboardEvent) {
+		// Block all keyboard shortcuts (except Tab for a11y) when kid mode is locked
+		if (state.kidModeLocked && e.key !== 'Tab') {
+			return;
+		}
+
 		if (e.key === 'Escape') {
 			if (state.speedMenuOpen) {
 				closeModalSpeedMenu(els, state);
@@ -294,6 +349,9 @@ export function setupModalListeners(els: ModalElements, state: ModalState): {
 			state.keydownController.abort();
 			state.keydownController = null;
 		}
+
+		// Reset kid mode on close
+		disableKidMode(els, state);
 
 		state.currentVideoId = null;
 		(window as any).currentVideoId = null;
@@ -430,11 +488,32 @@ export function setupModalListeners(els: ModalElements, state: ModalState): {
 		if (state.speedMenuOpen && !els.modalSpeedDropdown.contains(e.target as Node)) {
 			closeModalSpeedMenu(els, state);
 		}
-		// Close on clicking overlay background
-		if (e.target === els.videoModal) {
+		// Close on clicking overlay background (blocked in kid mode)
+		if (e.target === els.videoModal && !state.kidModeLocked) {
 			closeVideoModal();
 		}
 	});
+
+	// Kid mode lock button
+	els.modalKidModeBtn.addEventListener('click', () => {
+		if (!state.kidModeLocked) {
+			enableKidMode(els, state);
+		}
+		// When locked, single click does nothing (must long-press to unlock)
+	});
+
+	// Long-press to unlock kid mode
+	els.modalKidModeBtn.addEventListener('pointerdown', (e) => {
+		if (state.kidModeLocked) {
+			e.preventDefault();
+			startKidModeUnlock(els, state);
+		}
+	});
+
+	const cancelUnlock = () => cancelKidModeUnlock(els, state);
+	els.modalKidModeBtn.addEventListener('pointerup', cancelUnlock);
+	els.modalKidModeBtn.addEventListener('pointerleave', cancelUnlock);
+	els.modalKidModeBtn.addEventListener('pointercancel', cancelUnlock);
 
 	// Modal subtitle view buttons
 	els.modalDownloadSrt.addEventListener('click', async (e) => {
