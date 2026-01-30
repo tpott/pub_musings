@@ -517,7 +517,9 @@ import '../styles/theme.css';
 				}
 			});
 
+			let isSubmitting = false;
 			function setLoading(loading: boolean) {
+				isSubmitting = loading;
 				submitBtn.disabled = loading;
 				if (recoveryMode) {
 					submitBtn.textContent = loading ? 'Recovering...' : 'Recover Account';
@@ -558,6 +560,8 @@ import '../styles/theme.css';
 
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
+				if (isSubmitting) return;
+
 				hideMessages();
 				captchaError.style.display = 'none';
 
@@ -710,8 +714,11 @@ import '../styles/theme.css';
 			// Add blur validation using shared utility
 			setupBlurValidation({ input: magicEmailInput, errorEl: magicEmailError, validate: validateEmail });
 
+			let isMagicLinkSubmitting = false;
 			magicLinkForm.addEventListener('submit', async (e) => {
 				e.preventDefault();
+				if (isMagicLinkSubmitting) return;
+
 				hideMessages();
 
 				const magicEmail = magicEmailInput.value.trim();
@@ -722,6 +729,7 @@ import '../styles/theme.css';
 					return;
 				}
 
+				isMagicLinkSubmitting = true;
 				magicLinkBtn.disabled = true;
 				magicLinkBtn.textContent = 'Sending...';
 
@@ -738,6 +746,7 @@ import '../styles/theme.css';
 
 					if (!response.ok) {
 						showError(data.error || 'Failed to send login link');
+						isMagicLinkSubmitting = false;
 						magicLinkBtn.disabled = false;
 						magicLinkBtn.textContent = 'Email me a login link';
 						return;
@@ -746,11 +755,13 @@ import '../styles/theme.css';
 					showSuccess('Check your email for a login link!');
 					magicLinkBtn.textContent = 'Email sent!';
 					setTimeout(() => {
+						isMagicLinkSubmitting = false;
 						magicLinkBtn.disabled = false;
 						magicLinkBtn.textContent = 'Email me a login link';
 					}, 5000);
 				} catch (err) {
 					showError('Network error. Please try again.');
+					isMagicLinkSubmitting = false;
 					magicLinkBtn.disabled = false;
 					magicLinkBtn.textContent = 'Email me a login link';
 				}

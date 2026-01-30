@@ -332,7 +332,9 @@ import '../styles/theme.css';
 				errorDiv.style.display = 'none';
 			}
 
+			let isSubmitting = false;
 			function setLoading(loading: boolean) {
+				isSubmitting = loading;
 				submitBtn.disabled = loading;
 				submitBtn.textContent = loading ? 'Creating account...' : 'Create account';
 			}
@@ -346,6 +348,8 @@ import '../styles/theme.css';
 
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
+				if (isSubmitting) return;
+
 				hideError();
 				captchaError.style.display = 'none';
 

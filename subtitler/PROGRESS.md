@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**423 tasks completed** as of 2026-01-29. 0 tasks pending.
+**424 tasks completed** as of 2026-01-29. 4 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
@@ -62,9 +62,20 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-No pending tasks. All tasks completed.
+4 tasks pending (425-428).
 
 ## Recent Work
+
+### Task 424: Add double-submit prevention to auth forms (2026-01-29)
+- Added `isSubmitting` guard to 5 form submit handlers across 4 pages:
+  - `login.astro`: main login form + magic link form
+  - `register.astro`: registration form
+  - `forgot-password.astro`: password reset request form
+  - `reset-password.astro`: password reset form
+- Guard integrated into `setLoading()` function so all existing `setLoading(false)` calls also reset the flag
+- Prevents concurrent form submissions from rapid double-clicks
+- All 831 frontend tests pass, build clean, lint clean
+- Filed 4 new tasks (425-428) from deep codebase inspection
 
 ### Task 423: Extract chunked upload complete handler into smaller functions (2026-01-29)
 - Refactored `POST /api/upload/complete` handler from ~290 lines to ~160 lines
