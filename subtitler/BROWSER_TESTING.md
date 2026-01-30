@@ -92,9 +92,13 @@ Add to `frontend/package.json`:
 ```
 frontend/
 ├── e2e/
-│   ├── home.spec.ts
-│   ├── upload.spec.ts
 │   ├── auth.spec.ts
+│   ├── capture-design.spec.ts
+│   ├── chunked-upload.spec.ts
+│   ├── home.spec.ts
+│   ├── subtitle-download.spec.ts
+│   ├── upload-flow.spec.ts
+│   ├── videos.spec.ts
 │   └── fixtures/
 │       └── test-video.mp4
 ├── playwright.config.ts
@@ -372,6 +376,8 @@ The following E2E test files provide comprehensive coverage of critical user flo
 | Burn subtitles button | Verifies burn subtitles functionality |
 | Only accept video files | Validates accept="video/*" attribute |
 | Dropzone responds to drag events | Tests drag-and-drop interactivity |
+| Dropzone keyboard-accessible | Verifies role, tabindex, aria-label, focusability |
+| Oversized paste transcript error | Tests max-length validation for paste text |
 | Video stays visible during segment navigation | Regression test for scroll behavior |
 | Video stays visible during playback | Regression test for auto-scroll |
 | Re-transcribe with language change | Tests force re-transcription |

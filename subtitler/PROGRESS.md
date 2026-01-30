@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**428 tasks completed** as of 2026-01-29. 1 task pending.
+**429 tasks completed** as of 2026-01-29. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
 - **E2E:** Playwright tests (61 scenarios)
-- **Total:** 1421+ tests, 32 specification documents
+- **Total:** 1492+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -63,9 +63,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-1 task pending (428).
+0 tasks pending. All tasks completed.
 
 ## Recent Work
+
+### Task 428: Update TESTING.md test counts (2026-01-29)
+- Updated TESTING.md overview: 580 backend, 841 frontend, 71 E2E = 1,492+ total tests
+- Added 10 missing frontend test files to the test file table (30 total now)
+- Updated BROWSER_TESTING.md: added 2 new E2E test entries, updated directory structure
 
 ### Task 427: Add max-length validation for paste transcript text (2026-01-29)
 - Added `MAX_ALIGN_TEXT_LENGTH` constant (100KB) to upload-constants.ts, matching backend validation

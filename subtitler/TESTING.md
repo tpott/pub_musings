@@ -6,9 +6,10 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 585 tests across 26 test files
-- **Frontend (TypeScript)**: 498 tests across 20 test files
-- **Total**: 1,083 tests
+- **Backend (Go)**: 580 tests across 26 test files
+- **Frontend (TypeScript)**: 841 tests across 30 test files
+- **E2E (Playwright)**: 71 scenarios across 7 spec files
+- **Total**: 1,492+ tests
 
 ## Backend Tests
 
@@ -133,10 +134,20 @@ npm run test:watch
 | `src/utils/nav-auth.test.ts` | Navigation auth check utilities |
 | `src/utils/playback-speed.test.ts` | Playback speed constants and persistence |
 | `src/utils/processing-speed.test.ts` | Transcription time estimation |
+| `src/utils/segment-editor.test.ts` | Segment editing, undo/redo, feedback, navigation |
 | `src/utils/session.test.ts` | Session and upload session management |
+| `src/utils/settings-preferences.test.ts` | Bionic reading preferences setup |
+| `src/utils/settings-sessions.test.ts` | Session management, parseUserAgent, revoke flow |
+| `src/utils/settings-totp.test.ts` | TOTP setup, verification, disable, recovery codes |
 | `src/utils/speed-control.test.ts` | Speed control utility and cleanup |
+| `src/utils/subtitle-sync.test.ts` | Subtitle synchronization, speed UI, burn subtitles |
 | `src/utils/subtitles.test.ts` | Subtitle format generation (SRT, VTT, JSON) |
+| `src/utils/transcription-polling.test.ts` | Polling, ETA calculation, SRT parsing |
+| `src/utils/upload-file.test.ts` | File upload, chunked upload, progress tracking |
 | `src/utils/validation.test.ts` | Input validation (email, password, TOTP, files) |
+| `src/utils/videos-list.test.ts` | Video list rendering, date formatting, operations |
+| `src/utils/videos-modal.test.ts` | Modal lifecycle, kid mode, keyboard handling |
+| `src/utils/videos-subtitles.test.ts` | Subtitle caching (LRU), fetching, downloads |
 
 ### Test Categories
 
