@@ -792,6 +792,7 @@ import '../styles/upload.css';
 					return;
 				}
 
+				if (previewVideo.src.startsWith('blob:')) URL.revokeObjectURL(previewVideo.src);
 				previewVideo.src = URL.createObjectURL(file);
 				videoPreview.classList.add('visible');
 

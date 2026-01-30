@@ -29,6 +29,10 @@ const originalConsole = {
 // Track if we're currently sending a log to prevent infinite loops
 let isSending = false;
 
+// Store window listener references for cleanup
+let errorHandler: ((event: ErrorEvent) => void) | null = null;
+let rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null;
+
 // Queue for logs that occur while a send is in progress
 const logQueue: LogPayload[] = [];
 let isProcessingQueue = false;
@@ -157,7 +161,7 @@ export function installConsoleForwarder(isDev: boolean = false): void {
   console.debug = createInterceptor('debug');
 
   // Also capture unhandled errors
-  window.addEventListener('error', (event) => {
+  errorHandler = (event: ErrorEvent) => {
     const payload: LogPayload = {
       level: 'error',
       message: `Unhandled error: ${event.message}`,
@@ -166,10 +170,11 @@ export function installConsoleForwarder(isDev: boolean = false): void {
       column: event.colno,
     };
     sendLog(payload);
-  });
+  };
+  window.addEventListener('error', errorHandler);
 
   // Capture unhandled promise rejections
-  window.addEventListener('unhandledrejection', (event) => {
+  rejectionHandler = (event: PromiseRejectionEvent) => {
     const message =
       event.reason instanceof Error
         ? `Unhandled promise rejection: ${event.reason.message}\n${event.reason.stack || ''}`
@@ -181,7 +186,8 @@ export function installConsoleForwarder(isDev: boolean = false): void {
       url: window.location.href,
     };
     sendLog(payload);
-  });
+  };
+  window.addEventListener('unhandledrejection', rejectionHandler);
 
   // Log that the forwarder has been installed (using original to avoid recursion)
   originalConsole.log('[Console Forwarder] Installed - logs will be forwarded to backend');
@@ -197,6 +203,18 @@ export function uninstallConsoleForwarder(): void {
   console.error = originalConsole.error;
   console.info = originalConsole.info;
   console.debug = originalConsole.debug;
+
+  // Remove window listeners
+  if (typeof window !== 'undefined') {
+    if (errorHandler) {
+      window.removeEventListener('error', errorHandler);
+      errorHandler = null;
+    }
+    if (rejectionHandler) {
+      window.removeEventListener('unhandledrejection', rejectionHandler);
+      rejectionHandler = null;
+    }
+  }
 }
 
 // Export for testing

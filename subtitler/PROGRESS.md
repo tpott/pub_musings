@@ -4,11 +4,11 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**447 tasks completed** as of 2026-01-30. 5 tasks pending.
+**452 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
-- **Frontend:** Astro/TypeScript, 841 tests across 30 files
+- **Frontend:** Astro/TypeScript, 832 tests across 29 files
 - **E2E:** Playwright tests (71 scenarios)
 - **Total:** 1510+ tests, 32 specification documents
 
@@ -66,6 +66,16 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Tasks 447-448: Dead code removal and lock pattern refactor (2026-01-30)
+- **Task 447:** Deleted unused `speed-control.ts` and `speed-control.test.ts` — the speed control logic is duplicated inline in `subtitle-sync.ts` and `videos-modal.ts`, and `speed-control.ts` was never imported
+- **Task 448:** Extracted `loadKeysLocked()` from `LoadKeys()` in `crypto/multi.go` — `LoadOrInitialize()` now calls `loadKeysLocked()` directly instead of the fragile unlock-call-relock pattern. All 19 crypto tests pass
+
+### Tasks 444-446: Frontend memory leak and cleanup fixes (2026-01-30)
+- **Task 444:** Moved `feedbackList.addEventListener('change', handleStatusChange)` from inside `renderFeedback()` to top-level — was re-registering on every pagination/filter change
+- **Task 445:** Added `URL.revokeObjectURL()` before creating new blob URL in `upload.astro` `handleFile()` — previous blob URLs leaked when user selected a different file
+- **Task 446:** Stored `error` and `unhandledrejection` handler references in `console-forwarder.ts`; `uninstallConsoleForwarder()` now calls `removeEventListener()` to clean them up. Added test verifying listeners are removed
+- 842 frontend tests pass (1 new test added)
 
 ### Task 443: Fix N+1 query in video listing handler (2026-01-30)
 - **Performance:** `GET /api/videos` was making one `GetTranscription()` query per video to fetch transcription status, causing N+1 queries on the video list page

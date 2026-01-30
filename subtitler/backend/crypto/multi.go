@@ -41,7 +41,12 @@ func NewMultiKeyEncryptor(keysDir string) *MultiKeyEncryptor {
 func (m *MultiKeyEncryptor) LoadKeys() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.loadKeysLocked()
+}
 
+// loadKeysLocked loads all keys from the keys directory.
+// Caller must hold m.mu.
+func (m *MultiKeyEncryptor) loadKeysLocked() error {
 	// Ensure directory exists
 	if err := os.MkdirAll(m.keysDir, 0700); err != nil {
 		return fmt.Errorf("failed to create keys directory: %w", err)
@@ -175,11 +180,7 @@ func (m *MultiKeyEncryptor) LoadOrInitialize() error {
 		return nil
 	}
 
-	// Release lock before calling LoadKeys
-	m.mu.Unlock()
-	err = m.LoadKeys()
-	m.mu.Lock()
-	return err
+	return m.loadKeysLocked()
 }
 
 // GetCurrentVersion returns the current key version for new encryptions.
