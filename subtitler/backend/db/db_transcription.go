@@ -67,6 +67,45 @@ func (db *DB) GetTranscription(videoID string) (*Transcription, error) {
 	return t, nil
 }
 
+// GetTranscriptionStatuses returns a map of video_id -> transcription status
+// for the given video IDs in a single query, avoiding N+1 queries.
+func (db *DB) GetTranscriptionStatuses(videoIDs []string) (map[string]string, error) {
+	if len(videoIDs) == 0 {
+		return make(map[string]string), nil
+	}
+
+	ctx, cancel := db.queryContext()
+	defer cancel()
+
+	// Build placeholders: ?, ?, ?
+	placeholders := make([]byte, 0, len(videoIDs)*2)
+	args := make([]interface{}, len(videoIDs))
+	for i, id := range videoIDs {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`SELECT video_id, status FROM transcriptions WHERE video_id IN (%s)`, string(placeholders))
+	rows, err := db.conn.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transcription statuses: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]string, len(videoIDs))
+	for rows.Next() {
+		var videoID, status string
+		if err := rows.Scan(&videoID, &status); err != nil {
+			return nil, fmt.Errorf("failed to scan transcription status: %w", err)
+		}
+		result[videoID] = status
+	}
+	return result, rows.Err()
+}
+
 // UpdateTranscriptionStatus updates the status and message of a transcription.
 // Only updates if the current status is 'pending' or 'processing' to avoid race conditions
 // with completion/failure updates from the main goroutine. Once status becomes 'complete'

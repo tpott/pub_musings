@@ -1458,11 +1458,23 @@ func (ts *testServer) registerHandlers() {
 			ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 		}
 
+		// Batch fetch transcription statuses (single query instead of N+1)
+		videoIDs := make([]string, len(result.Videos))
+		for i, v := range result.Videos {
+			videoIDs[i] = v.ID
+		}
+		statusMap, err := ts.db.GetTranscriptionStatuses(videoIDs)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get transcription statuses"})
+			return
+		}
+
 		videos := make([]VideoWithStatus, len(result.Videos))
 		for i, v := range result.Videos {
 			videos[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
-			if t, err := ts.db.GetTranscription(v.ID); err == nil && t != nil {
-				videos[i].TranscriptionStatus = t.Status
+			if status, ok := statusMap[v.ID]; ok {
+				videos[i].TranscriptionStatus = status
 			}
 
 			// Calculate expiration time based on user type

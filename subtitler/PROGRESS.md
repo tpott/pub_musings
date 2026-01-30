@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**446 tasks completed** as of 2026-01-30. 6 tasks pending.
+**447 tasks completed** as of 2026-01-30. 5 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 443: Fix N+1 query in video listing handler (2026-01-30)
+- **Performance:** `GET /api/videos` was making one `GetTranscription()` query per video to fetch transcription status, causing N+1 queries on the video list page
+- Added `GetTranscriptionStatuses(videoIDs)` to `db/db_transcription.go` — fetches all statuses in a single `SELECT ... WHERE video_id IN (...)` query
+- Updated both production handler (`handlers_video.go`) and test handler (`api_test_helpers_test.go`) to use the batch query
+- All 598 backend tests pass (6 ListVideo API tests + 2 DB-level ListVideo tests)
 
 ### Task 442: Add expired auth token cleanup to scheduler (2026-01-30)
 - **Bug fix:** `runCleanup()` in `scheduler.go` was not cleaning up expired password reset tokens, email verification tokens, or magic link tokens, causing stale rows to accumulate

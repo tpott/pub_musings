@@ -92,11 +92,23 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 			EmbeddedSubtitles   []audio.SubtitleTrack `json:"embedded_subtitles,omitempty"`
 		}
 
+		// Batch fetch transcription statuses (single query instead of N+1)
+		videoIDs := make([]string, len(result.Videos))
+		for i, v := range result.Videos {
+			videoIDs[i] = v.ID
+		}
+		statusMap, err := database.GetTranscriptionStatuses(videoIDs)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting transcription statuses", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to list videos")
+			return
+		}
+
 		videos := make([]VideoWithStatus, len(result.Videos))
 		for i, v := range result.Videos {
 			videos[i] = VideoWithStatus{Video: v, TranscriptionStatus: "none"}
-			if t, err := database.GetTranscription(v.ID); err == nil && t != nil {
-				videos[i].TranscriptionStatus = t.Status
+			if status, ok := statusMap[v.ID]; ok {
+				videos[i].TranscriptionStatus = status
 			}
 
 			// Parse embedded subtitles JSON if present
