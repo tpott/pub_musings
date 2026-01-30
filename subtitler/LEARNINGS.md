@@ -42,6 +42,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Test handlers cannot simply reuse production handlers
+
+**Problem:** Task 431 aimed to replace the test `registerHandlers()` (~3,000 lines duplicating all production handlers) with calls to production `register*Handlers(mux)`. Investigation revealed this is NOT safe because: (1) test handlers intentionally stub complex operations (upload, transcription, burn) that require ffmpeg/filesystem/encryption; (2) test handlers use different DB methods (non-transactional) vs production (transactional, e.g., `EnableTOTPWithRecoveryCodes` vs separate `EnableTOTP` + `SaveRecoveryCodes`); (3) test handlers omit CAPTCHA, security audit logging, and per-email login rate limiting.
+
+**Solution:** Kept the test `registerHandlers()` in `api_test_helpers_test.go` and split only the test functions into category files. The duplicated handler code remains as intentional test infrastructure.
+
+**Lesson:** When test code duplicates production code, investigate WHY before trying to DRY it up. Test stubs exist for a reason — they isolate tests from external dependencies. The right approach is to split test files for readability, not to force test and production code to share handler implementations.
+
+---
+
 ### Go file splitting: extracting handlers from main()
 
 **Problem:** main.go grew to 6340 lines with all 50 HTTP handlers as inline closures inside main(). The test file api_test.go had a duplicate set of all handlers in its own testServer.registerHandlers() method.

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**435 tasks completed** as of 2026-01-30. 3 tasks pending.
+**436 tasks completed** as of 2026-01-30. 2 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 583 tests across 26 files
@@ -63,9 +63,19 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-3 tasks pending: 431 (split api_test.go), 432 (cross-language filesize linter), 433 (split oversized files).
+2 tasks pending: 432 (cross-language filesize linter), 433 (split oversized files).
 
 ## Recent Work
+
+### Task 431: Split api_test.go into smaller test files (2026-01-30)
+- Split `api_test.go` (10,863 lines) into 5 focused test files:
+  - `api_test_helpers_test.go` (3,334 lines): shared infrastructure (testServer, setupTestServer, registerHandlers, helper methods)
+  - `api_auth_test.go` (2,338 lines): 66 auth tests (login, register, sessions, TOTP, password reset, magic link, email verification, CSRF, CAPTCHA)
+  - `api_video_test.go` (2,760 lines): 84 video tests (list, delete, transcription, segments, burn, caching, range requests, thumbnails, align, language hints, embedded subtitles)
+  - `api_upload_test.go` (1,011 lines): 27 upload tests (single upload, chunked upload)
+  - `api_system_test.go` (1,562 lines): 45 system tests (health, logs, feedback, admin feedback, metrics, scripts, request ID, content-type)
+- Investigated replacing test `registerHandlers()` with production handlers: NOT feasible because tests intentionally stub upload/transcription/burn flows and use different (non-transactional) DB methods
+- All 222 test functions preserved, all tests pass, lint clean
 
 ### Tasks 434-435: Fix feedback list timestamp bug, increase video thumbnails (2026-01-30)
 - **Task 434:** Fixed `ListFeedback` `after` parameter: go-sqlite3 stores `time.Time` as RFC3339Nano with offset but formats query parameters differently, breaking SQLite text comparison. Used `datetime()` normalization on both sides. Added handler validation for RFC3339 format. Added 3 new tests (db + api level).
