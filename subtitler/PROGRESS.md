@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**400 tasks completed** as of 2026-01-29. All core features implemented and tested. 3 tasks pending.
+**401 tasks completed** as of 2026-01-29. All core features implemented and tested. 2 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -62,15 +62,21 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Recent Work
 
+### Task 403: Refactor videos.astro into smaller files (2026-01-29)
+- Split videos.astro from 1818 lines to 311 lines (under 1000 target)
+- Extracted CSS to `styles/videos.css` (702 lines)
+- Extracted video list rendering and operations to `utils/videos-list.ts` (248 lines)
+- Extracted modal playback, subtitle sync, speed controls to `utils/videos-modal.ts` (474 lines)
+- Extracted subtitle caching and download helpers to `utils/videos-subtitles.ts` (99 lines)
+- All 1080+ tests pass, build clean, lint clean
+
 ### Tasks 397-402: Fix 6 user-reported bugs from FEEDBACK.md (2026-01-29)
-- **Task 397:** Fixed night mode CTA text unreadable on home page. Changed `color: white` to `color: var(--bg-color)` on `.cta` in index.astro so text adapts to theme.
-- **Task 398:** Fixed re-transcribe button showing no progress feedback. Rewrote retranscribe flow to keep button disabled during polling and show status updates via transcription status text. Button re-enables on completion or error.
-- **Task 399:** Fixed bionic reading whitespace collapse in upload page current-subtitle. Changed `.current-subtitle` from `display: flex` to `display: table` in upload.css, added `.current-subtitle-inner` with `display: table-cell`, matching the fix already applied in videos.astro.
-- **Task 400:** Fixed subtitle segments scrolling too far ahead on videos page. Changed scroll positioning from 2/3 down (showing mostly past) to centered (showing equal past/future context).
-- **Task 401:** Fixed feedback modal interfering with video playback. FeedbackButton now saves/restores `body.style.overflow` instead of always clearing it. Videos page now sets `window.currentVideoId` for feedback context.
-- **Task 402:** Fixed playback speed not applying on videos page. Added `loadeddata` event handler to re-apply saved speed after video source loads (browsers reset playbackRate to 1.0 on source change).
-- Filed tasks 403-404 for splitting videos.astro and settings.astro into smaller files
-- All 1076+ tests pass, build clean, lint clean
+- **Task 397:** Fixed night mode CTA text unreadable on home page
+- **Task 398:** Fixed re-transcribe button showing no progress feedback
+- **Task 399:** Fixed bionic reading whitespace collapse in upload page
+- **Task 400:** Fixed subtitle segments scrolling too far ahead on videos page
+- **Task 401:** Fixed feedback modal interfering with video playback
+- **Task 402:** Fixed playback speed not applying on videos page
 
 ### Task 384: Add decision tracking process to LEARNINGS.md (2026-01-29)
 - Added "Decisions" section to LEARNINGS.md with Context/Options/Decision/Outcome format
