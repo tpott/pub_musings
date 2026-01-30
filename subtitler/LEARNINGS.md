@@ -693,3 +693,13 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 **Outcome:** Works well. Conditional enablement means dev/test environments don't need email config.
 
 ---
+
+### 2026-01-29: Shell script for doc sync linting
+
+**Context:** 5 documentation files (deps.md, ENV.md, API.md, RATE_LIMITS.md, ERROR_CODES.md) can drift out of sync with code. Need automated detection.
+
+**Options considered:** (1) Go program using `go/parser` AST — precise but heavy, new dependency; (2) ESLint custom rules — wrong language for Go backend; (3) Shell script with grep — zero deps, catches 80% of drift, matches project convention from `lint-frontend-filesize.sh`.
+
+**Decision:** Shell script (`scripts/lint-doc-sync.sh`). Five checks: deps vs go.mod/package.json, env vars vs os.Getenv calls, routes vs HandleFunc registrations, rate limits vs config. Errors for critical drift (deps, env vars), warnings for informational (routes). Integrated into lint.sh.
+
+**Outcome:** Immediately found missing Chunked Upload category in RATE_LIMITS.md and stale Configuration section. Validates the approach — even simple grep-based checks catch real drift.

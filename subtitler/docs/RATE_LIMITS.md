@@ -21,6 +21,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | **Script Conversion** | 10 requests | 1 minute | Script detection, Text conversion |
 | **Metrics** | 10 requests | 1 minute | Prometheus metrics endpoint |
 | **Feedback** | 5 requests | 1 minute | User feedback submission and admin management |
+| **Chunked Upload** | 60 requests | 1 minute | Upload chunks for large files |
 | **Log** | 30 requests | 1 minute | Frontend log forwarding |
 
 ## Endpoints by Category
@@ -103,6 +104,14 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | `PATCH /api/admin/feedback/{id}` | Update feedback status (admin only) |
 
 **Note**: All feedback endpoints share the same rate limit. Admin endpoints require admin role authentication. Requires authentication via API key (`X-Metrics-API-Key` header or `api_key` query param) or valid user session.
+
+### Chunked Upload (60 req/min)
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/upload/chunk` | Upload a single chunk of a large file |
+
+**Note**: Higher limit than regular upload because chunked uploads send many small requests as part of a single logical upload.
 
 ### Log (30 req/min)
 
@@ -207,21 +216,26 @@ async function fetchWithBackoff(url, options, maxRetries = 3) {
 
 ## Configuration
 
-Rate limits are configured in `backend/main.go`:
+Rate limits are configured via environment variables (see [ENV.md](ENV.md) for full reference). Defaults are defined in `backend/config.go`:
 
-```go
-var authLimiter = ratelimit.New(5, time.Minute)             // Auth: 5/min
-var passwordResetLimiter = ratelimit.New(3, 15*time.Minute) // Password: 3/15min
-var uploadLimiter = ratelimit.New(10, time.Minute)          // Upload: 10/min
-var transcribeLimiter = ratelimit.New(5, time.Minute)       // Transcribe: 5/min
-var burnLimiter = ratelimit.New(2, time.Minute)             // Burn: 2/min
-var scriptLimiter = ratelimit.New(10, time.Minute)          // Script: 10/min
-var metricsLimiter = ratelimit.New(10, time.Minute)         // Metrics: 10/min
-var feedbackLimiter = ratelimit.New(5, time.Minute)         // Feedback: 5/min
-var logLimiter = ratelimit.New(30, time.Minute)             // Log: 30/min
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTH_RATE_LIMIT` | `5,1m` | Authentication endpoints |
+| `PASSWORD_RESET_RATE_LIMIT` | `3,15m` | Password reset requests |
+| `UPLOAD_RATE_LIMIT` | `10,1m` | Video upload |
+| `TRANSCRIBE_RATE_LIMIT` | `5,1m` | Transcription requests |
+| `BURN_RATE_LIMIT` | `2,1m` | Subtitle burning |
+| `DOWNLOAD_RATE_LIMIT` | `30,1m` | Video/thumbnail downloads |
+| `SCRIPT_RATE_LIMIT` | `10,1m` | Script conversion |
+| `CHUNK_RATE_LIMIT` | `60,1m` | Chunked upload pieces |
+| `METRICS_RATE_LIMIT` | `10,1m` | Prometheus metrics |
+| `FEEDBACK_RATE_LIMIT` | `5,1m` | Feedback submission |
+| `LOG_RATE_LIMIT` | `30,1m` | Frontend log forwarding |
+| `USER_RATE_LIMIT` | `60,1m` | Per-user overall rate limit (reserved) |
 
-These values can be adjusted based on server capacity and usage patterns.
+Format: `count,window` (e.g., `5,1m` = 5 requests per 1 minute).
+
+**Note**: `USER_RATE_LIMIT` is configured but not currently applied to any endpoints. It is a per-user (not per-IP) limiter reserved for future use.
 
 ## Related Documentation
 

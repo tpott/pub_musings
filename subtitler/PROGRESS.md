@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**402 tasks completed** as of 2026-01-29. All core features implemented and tested. 1 task pending.
+**403 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 388: Doc sync linting (2026-01-29)
+- Created `scripts/lint-doc-sync.sh` to detect documentation drift
+- 5 automated checks: deps.md vs go.mod/package.json, ENV.md vs os.Getenv calls, API.md vs registered routes, RATE_LIMITS.md vs rate limit config
+- Integrated into `scripts/lint.sh` (runs as part of verification)
+- Fixed missing Chunked Upload and User rate limit categories in RATE_LIMITS.md
+- Updated RATE_LIMITS.md Configuration section (was referencing old main.go structure)
 
 ### Task 404: Refactor settings.astro into smaller files (2026-01-29)
 - Split settings.astro from 1663 lines to 441 lines (under 1000 target)
@@ -185,9 +192,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-| ID | Name |
-|----|------|
-| 388 | Research doc sync linting for docs/ files |
+No pending tasks. All tasks completed.
 
 ## Key Files
 

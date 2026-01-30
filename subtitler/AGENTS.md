@@ -33,7 +33,7 @@ cd frontend && npm run test:e2e
 # Or use the script:
 ./scripts/test-e2e.sh
 
-# Linting (Go fmt/vet + golangci-lint + frontend build + file size check)
+# Linting (Go fmt/vet + golangci-lint + frontend build + file size check + doc sync)
 ./scripts/lint.sh
 
 # Full Verification (lint + all unit tests)
@@ -46,8 +46,9 @@ All scripts are in the `scripts/` directory:
 
 | Script | Purpose |
 |--------|---------|
-| `lint.sh` | Run Go fmt/vet, golangci-lint (if installed), frontend build, and frontend file size check |
+| `lint.sh` | Run Go fmt/vet, golangci-lint (if installed), frontend build, file size check, and doc sync |
 | `lint-frontend-filesize.sh` | Check frontend source file sizes (error >4000, warn >1000 lines) |
+| `lint-doc-sync.sh` | Check docs (deps, env vars, routes, rate limits) stay in sync with code |
 | `test-backend.sh` | Run backend Go tests |
 | `test-frontend.sh` | Run frontend Vitest tests |
 | `test-e2e.sh` | Run Playwright E2E tests |

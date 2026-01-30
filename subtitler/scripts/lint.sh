@@ -33,4 +33,8 @@ echo "=== Checking Frontend File Sizes ==="
 "$SCRIPT_DIR/lint-frontend-filesize.sh"
 
 echo ""
+echo "=== Checking Documentation Sync ==="
+"$SCRIPT_DIR/lint-doc-sync.sh"
+
+echo ""
 echo "=== All linting passed ==="
