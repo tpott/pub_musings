@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**421 tasks completed** as of 2026-01-29. 1 task pending.
+**423 tasks completed** as of 2026-01-29. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
@@ -62,9 +62,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-- Task 423: Extract chunked upload complete handler into smaller functions
+No pending tasks. All tasks completed.
 
 ## Recent Work
+
+### Task 423: Extract chunked upload complete handler into smaller functions (2026-01-29)
+- Refactored `POST /api/upload/complete` handler from ~290 lines to ~160 lines
+- Extracted 4 helper functions: `assembleChunks`, `processVideoMetadata`, `encryptAndPersistVideo`, `finalizeUploadSession`
+- All 580 backend tests pass, golangci-lint clean (0 issues)
 
 ### Task 422: Extract burn subtitles handler into smaller functions (2026-01-29)
 - Refactored `POST /api/videos/{id}/burn` handler from 335 lines to 104 lines

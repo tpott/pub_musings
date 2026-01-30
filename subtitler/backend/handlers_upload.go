@@ -743,48 +743,12 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 
 		// Reassemble chunks into final file
 		destPath := filepath.Join(uploadDir, uploadID+ext)
-		destFile, err := os.Create(destPath)
+		totalWritten, err := assembleChunks(r.Context(), chunks, destPath)
 		if err != nil {
-			logging.ErrorContext(r.Context(), "Error creating destination file", "error", err)
 			metrics.RecordUploadFailed()
-			httputil.RespondError(w, http.StatusInternalServerError, "Failed to create destination file")
+			httputil.RespondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-
-		var totalWritten int64
-		for _, chunk := range chunks {
-			chunkFile, err := os.Open(chunk.ChunkPath)
-			if err != nil {
-				if closeErr := destFile.Close(); closeErr != nil {
-					logging.WarnContext(r.Context(), "Error closing dest file after chunk open failure", "error", closeErr)
-				}
-				removeWithLogging(destPath, "partial assembled file after chunk open failure")
-				logging.ErrorContext(r.Context(), "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
-				metrics.RecordUploadFailed()
-				httputil.RespondError(w, http.StatusInternalServerError, "Failed to read chunk")
-				return
-			}
-			written, err := io.Copy(destFile, chunkFile)
-			if closeErr := chunkFile.Close(); closeErr != nil {
-				logging.WarnContext(r.Context(), "Error closing chunk file", "chunk_index", chunk.ChunkIndex, "error", closeErr)
-			}
-			if err != nil {
-				if closeErr := destFile.Close(); closeErr != nil {
-					logging.WarnContext(r.Context(), "Error closing dest file after copy failure", "error", closeErr)
-				}
-				removeWithLogging(destPath, "partial assembled file after copy failure")
-				logging.ErrorContext(r.Context(), "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
-				metrics.RecordUploadFailed()
-				httputil.RespondError(w, http.StatusInternalServerError, "Failed to assemble file")
-				return
-			}
-			totalWritten += written
-		}
-		// Close assembled file - log any error but continue since data is written
-		if err := destFile.Close(); err != nil {
-			logging.WarnContext(r.Context(), "Error closing assembled file", "path", destPath, "error", err)
-		}
-
 		logging.InfoContext(r.Context(), "Reassembled chunks", "upload_id", uploadID, "total_bytes", totalWritten)
 
 		// Validate magic bytes (file signature) - defense against MIME spoofing
@@ -803,114 +767,21 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			return
 		}
 
-		// Generate thumbnail
-		thumbPath := filepath.Join(uploadDir, uploadID+"_thumb.jpg")
-		var encThumbPath *string
-		if err := audio.GenerateThumbnail(destPath, thumbPath); err != nil {
-			logging.WarnContext(r.Context(), "Failed to generate thumbnail", "path", destPath, "error", err)
-		} else {
-			encPath, _, err := multiEnc.EncryptFile(thumbPath)
-			if err != nil {
-				logging.WarnContext(r.Context(), "Failed to encrypt thumbnail", "error", err)
-				removeWithLogging(thumbPath, "unencrypted thumbnail after encryption failure")
-			} else {
-				removeWithLogging(thumbPath, "unencrypted thumbnail after successful encryption")
-				encThumbPath = &encPath
-			}
-		}
+		// Process video metadata (thumbnail, subtitles, language hints)
+		encThumbPath, embeddedSubtitlesJSON, languageHints := processVideoMetadata(r.Context(), destPath, uploadID, session.Filename)
 
-		// Detect embedded subtitle tracks before encryption
-		var embeddedSubtitlesJSON *string
-		subtitleTracks, err := audio.GetSubtitleTracks(destPath)
+		// Encrypt and persist to database
+		err = encryptAndPersistVideo(r.Context(), destPath, uploadID, totalWritten, session, encThumbPath, embeddedSubtitlesJSON)
 		if err != nil {
-			logging.WarnContext(r.Context(), "Failed to detect embedded subtitles", "error", err)
-		} else if len(subtitleTracks) > 0 {
-			subtitlesData, err := json.Marshal(subtitleTracks)
-			if err != nil {
-				logging.WarnContext(r.Context(), "Failed to serialize subtitle tracks", "error", err)
-			} else {
-				jsonStr := string(subtitlesData)
-				embeddedSubtitlesJSON = &jsonStr
-				logging.InfoContext(r.Context(), "Detected embedded subtitle tracks", "count", len(subtitleTracks))
-			}
-		}
-
-		// Detect language hints from video metadata and filename (before encryption)
-		languageHints := language.Detect(destPath, session.Filename)
-		if languageHints != nil && len(languageHints.Hints) > 0 {
-			logging.InfoContext(r.Context(), "Detected language hints",
-				"suggested_language", languageHints.SuggestedLanguage,
-				"confidence", languageHints.SuggestedConfidence,
-				"hint_count", len(languageHints.Hints))
-		}
-
-		// Encrypt the file with current key version
-		encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
-		if err != nil {
-			logging.ErrorContext(r.Context(), "Error encrypting file", "error", err)
-			removeWithLogging(destPath, "unencrypted assembled file after encryption failure")
 			metrics.RecordUploadFailed()
-			httputil.RespondError(w, http.StatusInternalServerError, "Failed to encrypt file")
-			return
-		}
-		removeWithLogging(destPath, "unencrypted assembled file after successful encryption")
-
-		// Save video to database with key version
-		video := &db.Video{
-			ID:                    uploadID,
-			Filename:              session.Filename,
-			Size:                  totalWritten,
-			ContentType:           session.ContentType,
-			FilePath:              encPath,
-			ThumbnailPath:         encThumbPath,
-			KeyVersion:            keyVersion,
-			EmbeddedSubtitlesJSON: embeddedSubtitlesJSON,
-			CreatedAt:             time.Now(),
-			UserID:                session.UserID,
-			SessionID:             session.SessionID,
-		}
-		if err := database.CreateVideo(video); err != nil {
-			logging.ErrorContext(r.Context(), "Error saving video to database", "error", err)
-			removeWithLogging(encPath, "encrypted file after DB save failure")
-			if encThumbPath != nil {
-				removeWithLogging(*encThumbPath, "encrypted thumbnail after DB save failure")
-			}
-			metrics.RecordUploadFailed()
-			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save video record")
+			httputil.RespondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		// Create transcription record
-		transcriptionID, err := generateID()
-		if err != nil {
-			logging.ErrorContext(r.Context(), "Error generating transcription ID", "error", err)
-		} else {
-			transcription := &db.Transcription{
-				ID:        transcriptionID,
-				VideoID:   uploadID,
-				Status:    "pending",
-				Message:   "Video uploaded, ready for transcription",
-				Progress:  0,
-				CreatedAt: time.Now(),
-			}
-			if err := database.CreateTranscription(transcription); err != nil {
-				logging.ErrorContext(r.Context(), "Error creating transcription record", "error", err)
-			}
-		}
+		// Create transcription record and clean up session
+		finalizeUploadSession(r.Context(), uploadID, req.UploadSessionID, chunks)
 
-		// Mark session as complete
-		if err := database.UpdateUploadSessionStatus(req.UploadSessionID, "complete"); err != nil {
-			logging.ErrorContext(r.Context(), "Error updating session status", "error", err)
-		}
-
-		// Clean up chunk files
-		chunksDir := filepath.Join(uploadDir, "chunks", req.UploadSessionID)
-		for _, chunk := range chunks {
-			removeWithLogging(chunk.ChunkPath, "uploaded chunk after successful assembly")
-		}
-		removeWithLogging(chunksDir, "empty chunks directory after cleanup")
-
-		// Record metrics
+		// Record metrics and respond
 		metrics.RecordUploadSuccess()
 		metrics.RecordUploadBytes(totalWritten)
 
@@ -920,7 +791,6 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			"filename", session.Filename,
 			"size", totalWritten)
 
-		// Return success with language hints
 		response := map[string]interface{}{
 			"status":    "success",
 			"upload_id": uploadID,
@@ -928,7 +798,6 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			"size":      totalWritten,
 			"message":   fmt.Sprintf("File uploaded successfully (%d bytes)", totalWritten),
 		}
-		// Include language hints if any were detected
 		if languageHints != nil && len(languageHints.Hints) > 0 {
 			response["language_hints"] = languageHints
 		}
@@ -1523,4 +1392,162 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		}
 		httputil.RespondJSON(w, http.StatusOK, response)
 	})
+}
+
+// assembleChunks copies chunk files into a single destination file in order.
+// Returns the total bytes written or an error. On error, the partial file is cleaned up.
+func assembleChunks(ctx context.Context, chunks []db.UploadChunk, destPath string) (int64, error) {
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		logging.ErrorContext(ctx, "Error creating destination file", "error", err)
+		return 0, fmt.Errorf("Failed to create destination file")
+	}
+
+	var totalWritten int64
+	for _, chunk := range chunks {
+		chunkFile, err := os.Open(chunk.ChunkPath)
+		if err != nil {
+			if closeErr := destFile.Close(); closeErr != nil {
+				logging.WarnContext(ctx, "Error closing dest file after chunk open failure", "error", closeErr)
+			}
+			removeWithLogging(destPath, "partial assembled file after chunk open failure")
+			logging.ErrorContext(ctx, "Error opening chunk file", "chunk_index", chunk.ChunkIndex, "error", err)
+			return 0, fmt.Errorf("Failed to read chunk")
+		}
+		written, err := io.Copy(destFile, chunkFile)
+		if closeErr := chunkFile.Close(); closeErr != nil {
+			logging.WarnContext(ctx, "Error closing chunk file", "chunk_index", chunk.ChunkIndex, "error", closeErr)
+		}
+		if err != nil {
+			if closeErr := destFile.Close(); closeErr != nil {
+				logging.WarnContext(ctx, "Error closing dest file after copy failure", "error", closeErr)
+			}
+			removeWithLogging(destPath, "partial assembled file after copy failure")
+			logging.ErrorContext(ctx, "Error copying chunk", "chunk_index", chunk.ChunkIndex, "error", err)
+			return 0, fmt.Errorf("Failed to assemble file")
+		}
+		totalWritten += written
+	}
+
+	if err := destFile.Close(); err != nil {
+		logging.WarnContext(ctx, "Error closing assembled file", "path", destPath, "error", err)
+	}
+	return totalWritten, nil
+}
+
+// processVideoMetadata generates a thumbnail, detects embedded subtitles,
+// and detects language hints from the video file before encryption.
+func processVideoMetadata(ctx context.Context, destPath, uploadID, filename string) (*string, *string, *language.DetectionResult) {
+	// Generate thumbnail
+	thumbPath := filepath.Join(uploadDir, uploadID+"_thumb.jpg")
+	var encThumbPath *string
+	if err := audio.GenerateThumbnail(destPath, thumbPath); err != nil {
+		logging.WarnContext(ctx, "Failed to generate thumbnail", "path", destPath, "error", err)
+	} else {
+		encPath, _, err := multiEnc.EncryptFile(thumbPath)
+		if err != nil {
+			logging.WarnContext(ctx, "Failed to encrypt thumbnail", "error", err)
+			removeWithLogging(thumbPath, "unencrypted thumbnail after encryption failure")
+		} else {
+			removeWithLogging(thumbPath, "unencrypted thumbnail after successful encryption")
+			encThumbPath = &encPath
+		}
+	}
+
+	// Detect embedded subtitle tracks
+	var embeddedSubtitlesJSON *string
+	subtitleTracks, err := audio.GetSubtitleTracks(destPath)
+	if err != nil {
+		logging.WarnContext(ctx, "Failed to detect embedded subtitles", "error", err)
+	} else if len(subtitleTracks) > 0 {
+		subtitlesData, err := json.Marshal(subtitleTracks)
+		if err != nil {
+			logging.WarnContext(ctx, "Failed to serialize subtitle tracks", "error", err)
+		} else {
+			jsonStr := string(subtitlesData)
+			embeddedSubtitlesJSON = &jsonStr
+			logging.InfoContext(ctx, "Detected embedded subtitle tracks", "count", len(subtitleTracks))
+		}
+	}
+
+	// Detect language hints from video metadata and filename
+	languageHints := language.Detect(destPath, filename)
+	if languageHints != nil && len(languageHints.Hints) > 0 {
+		logging.InfoContext(ctx, "Detected language hints",
+			"suggested_language", languageHints.SuggestedLanguage,
+			"confidence", languageHints.SuggestedConfidence,
+			"hint_count", len(languageHints.Hints))
+	}
+
+	return encThumbPath, embeddedSubtitlesJSON, languageHints
+}
+
+// encryptAndPersistVideo encrypts the assembled video file and saves
+// the video record to the database. On error, encrypted files are cleaned up.
+func encryptAndPersistVideo(ctx context.Context, destPath, uploadID string, totalWritten int64, session *db.UploadSession, encThumbPath, embeddedSubtitlesJSON *string) error {
+	encPath, keyVersion, err := multiEnc.EncryptFile(destPath)
+	if err != nil {
+		logging.ErrorContext(ctx, "Error encrypting file", "error", err)
+		removeWithLogging(destPath, "unencrypted assembled file after encryption failure")
+		return fmt.Errorf("Failed to encrypt file")
+	}
+	removeWithLogging(destPath, "unencrypted assembled file after successful encryption")
+
+	video := &db.Video{
+		ID:                    uploadID,
+		Filename:              session.Filename,
+		Size:                  totalWritten,
+		ContentType:           session.ContentType,
+		FilePath:              encPath,
+		ThumbnailPath:         encThumbPath,
+		KeyVersion:            keyVersion,
+		EmbeddedSubtitlesJSON: embeddedSubtitlesJSON,
+		CreatedAt:             time.Now(),
+		UserID:                session.UserID,
+		SessionID:             session.SessionID,
+	}
+	if err := database.CreateVideo(video); err != nil {
+		logging.ErrorContext(ctx, "Error saving video to database", "error", err)
+		removeWithLogging(encPath, "encrypted file after DB save failure")
+		if encThumbPath != nil {
+			removeWithLogging(*encThumbPath, "encrypted thumbnail after DB save failure")
+		}
+		return fmt.Errorf("Failed to save video record")
+	}
+
+	return nil
+}
+
+// finalizeUploadSession creates the transcription record, marks the upload
+// session as complete, and cleans up chunk files.
+func finalizeUploadSession(ctx context.Context, uploadID, sessionID string, chunks []db.UploadChunk) {
+	// Create transcription record
+	transcriptionID, err := generateID()
+	if err != nil {
+		logging.ErrorContext(ctx, "Error generating transcription ID", "error", err)
+	} else {
+		transcription := &db.Transcription{
+			ID:        transcriptionID,
+			VideoID:   uploadID,
+			Status:    "pending",
+			Message:   "Video uploaded, ready for transcription",
+			Progress:  0,
+			CreatedAt: time.Now(),
+		}
+		if err := database.CreateTranscription(transcription); err != nil {
+			logging.ErrorContext(ctx, "Error creating transcription record", "error", err)
+		}
+	}
+
+	// Mark session as complete
+	if err := database.UpdateUploadSessionStatus(sessionID, "complete"); err != nil {
+		logging.ErrorContext(ctx, "Error updating session status", "error", err)
+	}
+
+	// Clean up chunk files
+	chunksDir := filepath.Join(uploadDir, "chunks", sessionID)
+	for _, chunk := range chunks {
+		removeWithLogging(chunk.ChunkPath, "uploaded chunk after successful assembly")
+	}
+	removeWithLogging(chunksDir, "empty chunks directory after cleanup")
 }
