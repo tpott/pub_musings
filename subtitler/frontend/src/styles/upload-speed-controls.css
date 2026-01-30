@@ -1,0 +1,92 @@
+/**
+ * Speed control styles for the upload page.
+ * Extracted from upload.css to keep file sizes under 1000 lines.
+ */
+
+/* Playback speed control - overlay on video */
+.speed-dropdown-overlay {
+	position: absolute;
+	bottom: 50px;
+	right: 10px;
+	z-index: 10;
+}
+.speed-btn {
+	padding: 0.4rem 0.75rem;
+	background-color: rgba(0, 0, 0, 0.7);
+	color: white;
+	border: none;
+	border-radius: 4px;
+	font-size: 0.85rem;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.2s;
+	min-width: 50px;
+	text-align: center;
+}
+.speed-btn:hover {
+	background-color: rgba(0, 0, 0, 0.85);
+}
+.speed-btn:focus {
+	outline: 2px solid var(--accent-color);
+	outline-offset: 2px;
+}
+.speed-btn.active {
+	background-color: var(--accent-color);
+	color: #fff;
+	border-color: var(--accent-color);
+}
+.speed-dropdown {
+	position: relative;
+	display: inline-block;
+}
+.speed-options {
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	margin-bottom: 4px;
+	background-color: var(--secondary-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	display: none;
+	z-index: 100;
+	min-width: 80px;
+}
+.speed-options.visible {
+	display: block;
+}
+.speed-option {
+	display: block;
+	width: 100%;
+	padding: 0.5rem 0.75rem;
+	background: none;
+	border: none;
+	text-align: left;
+	font-size: 0.85rem;
+	color: var(--text-color);
+	cursor: pointer;
+	transition: background-color 0.15s;
+}
+.speed-option:first-child {
+	border-radius: 6px 6px 0 0;
+}
+.speed-option:last-child {
+	border-radius: 0 0 6px 6px;
+}
+.speed-option:hover,
+.speed-option.focused {
+	background-color: var(--hover-bg);
+}
+.speed-option:focus {
+	outline: 2px solid var(--accent-color);
+	outline-offset: -2px;
+}
+.speed-option.active {
+	background-color: var(--accent-color);
+	color: #fff;
+}
+.speed-option.active.focused {
+	background-color: var(--accent-color);
+	outline: 2px solid #fff;
+	outline-offset: -2px;
+}

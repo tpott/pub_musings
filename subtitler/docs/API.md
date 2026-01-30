@@ -342,7 +342,15 @@ Create a new user account.
 | `email` | string | Yes | Valid email format |
 | `password` | string | Yes | 8-72 characters |
 
-**Response** `200 OK`:
+**Response** `201 Created`:
+```json
+{
+  "message": "Account created. Please check your email to verify your account.",
+  "email_verification": true
+}
+```
+
+When email is disabled, a session token is returned instead:
 ```json
 {
   "user": {
@@ -1355,7 +1363,7 @@ curl -X POST "http://localhost:8080/api/videos/abc123/reprocess?session_id=your-
 
 Get language detection hints for a video based on metadata and filename patterns.
 
-**Authentication:** Not required
+**Authentication:** Required (owner via user session or `session_id` query parameter)
 
 **Rate Limited:** No
 
@@ -1402,12 +1410,14 @@ Get language detection hints for a video based on metadata and filename patterns
 
 **Error Responses:**
 - `400 Bad Request` - Invalid video ID format
+- `403 Forbidden` - User does not own this video
 - `404 Not Found` - Video not found
 - `500 Internal Server Error` - Database or decryption error
 
 **Example:**
 ```bash
-curl http://localhost:8080/api/videos/abc123def456.../language-hints
+curl http://localhost:8080/api/videos/abc123def456.../language-hints \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 **Notes:**
@@ -1840,7 +1850,7 @@ curl -X POST http://localhost:8080/api/upload/complete \
 
 Start transcription for an uploaded video.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Query Parameters**:
 | Parameter | Type | Default | Description |
@@ -1894,11 +1904,13 @@ curl -X POST "http://localhost:8080/api/transcribe/abc123?language=en"
 
 **Errors**:
 - `400 Bad Request`: Missing upload ID
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: Video not found
 
 **Example**:
 ```bash
-curl -X POST http://localhost:8080/api/transcribe/abc123
+curl -X POST http://localhost:8080/api/transcribe/abc123 \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -1907,7 +1919,7 @@ curl -X POST http://localhost:8080/api/transcribe/abc123
 
 Get transcription status or result.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Response** `200 OK`:
 ```json
@@ -1939,11 +1951,13 @@ Get transcription status or result.
 | `error` | Failed (check `message`) |
 
 **Errors**:
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No transcription found
 
 **Example**:
 ```bash
-curl http://localhost:8080/api/transcribe/abc123
+curl http://localhost:8080/api/transcribe/abc123 \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -1952,7 +1966,7 @@ curl http://localhost:8080/api/transcribe/abc123
 
 Update subtitle segments (edit subtitles).
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Request Body**:
 ```json
@@ -1988,12 +2002,14 @@ Update subtitle segments (edit subtitles).
 
 **Errors**:
 - `400 Bad Request`: Invalid timing or transcription not complete
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No transcription found
 
 **Example**:
 ```bash
 curl -X PUT http://localhost:8080/api/transcribe/abc123/segments \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_token_here" \
   -d '{"segments":[{"id":0,"start":0,"end":2.5,"text":"Hello"}]}'
 ```
 
@@ -2003,7 +2019,7 @@ curl -X PUT http://localhost:8080/api/transcribe/abc123/segments \
 
 Align user-provided transcript with whisper timing (paste-and-match).
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Request Body**:
 ```json
@@ -2041,12 +2057,14 @@ Align user-provided transcript with whisper timing (paste-and-match).
 
 **Errors**:
 - `400 Bad Request`: Empty text or transcription not complete
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No transcription found
 
 **Example**:
 ```bash
 curl -X POST http://localhost:8080/api/transcribe/abc123/align \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_token_here" \
   -d '{"text":"Hello world\nThis is line two","mode":"lyrics"}'
 ```
 
@@ -2058,7 +2076,7 @@ curl -X POST http://localhost:8080/api/transcribe/abc123/align \
 
 Download SRT subtitle file.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Response**: SRT file (`text/plain; charset=utf-8`)
 ```
@@ -2078,11 +2096,13 @@ This is line two
 
 **Errors**:
 - `400 Bad Request`: Transcription not complete
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No transcription or segments found
 
 **Example**:
 ```bash
-curl -o subtitles.srt http://localhost:8080/api/videos/abc123/subtitles.srt
+curl -o subtitles.srt http://localhost:8080/api/videos/abc123/subtitles.srt \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -2091,7 +2111,7 @@ curl -o subtitles.srt http://localhost:8080/api/videos/abc123/subtitles.srt
 
 Download WebVTT subtitle file.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Response**: VTT file (`text/vtt; charset=utf-8`)
 ```
@@ -2113,11 +2133,13 @@ This is line two
 
 **Errors**:
 - `400 Bad Request`: Transcription not complete
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No transcription or segments found
 
 **Example**:
 ```bash
-curl -o subtitles.vtt http://localhost:8080/api/videos/abc123/subtitles.vtt
+curl -o subtitles.vtt http://localhost:8080/api/videos/abc123/subtitles.vtt \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -2126,7 +2148,7 @@ curl -o subtitles.vtt http://localhost:8080/api/videos/abc123/subtitles.vtt
 
 Download JSON subtitle file with segments array.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Response** `200 OK`:
 ```json
@@ -2158,11 +2180,13 @@ Download JSON subtitle file with segments array.
 
 **Errors**:
 - `400 Bad Request`: Transcription not complete
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No transcription or segments found
 
 **Example**:
 ```bash
-curl -o subtitles.json http://localhost:8080/api/videos/abc123/subtitles.json
+curl -o subtitles.json http://localhost:8080/api/videos/abc123/subtitles.json \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -2171,7 +2195,7 @@ curl -o subtitles.json http://localhost:8080/api/videos/abc123/subtitles.json
 
 Start embedding subtitles into video file.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Query Parameters**:
 | Name | Type | Default | Description |
@@ -2202,15 +2226,18 @@ Start embedding subtitles into video file.
 
 **Errors**:
 - `400 Bad Request`: Transcription not complete, or invalid mode
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: Video or transcription not found
 
 **Examples**:
 ```bash
 # Burn subtitles into video (slower, always visible)
-curl -X POST http://localhost:8080/api/videos/abc123/burn
+curl -X POST http://localhost:8080/api/videos/abc123/burn \
+  -H "Authorization: Bearer your_token_here"
 
 # Embed soft subtitle track (faster, toggleable)
-curl -X POST "http://localhost:8080/api/videos/abc123/burn?mode=embed"
+curl -X POST "http://localhost:8080/api/videos/abc123/burn?mode=embed" \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -2219,7 +2246,7 @@ curl -X POST "http://localhost:8080/api/videos/abc123/burn?mode=embed"
 
 Get subtitle burn job status.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Response** `200 OK`:
 ```json
@@ -2237,11 +2264,13 @@ Get subtitle burn job status.
 | `error` | Failed (check `message`) |
 
 **Errors**:
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No burn job found
 
 **Example**:
 ```bash
-curl http://localhost:8080/api/videos/abc123/burn
+curl http://localhost:8080/api/videos/abc123/burn \
+  -H "Authorization: Bearer your_token_here"
 ```
 
 ---
@@ -2250,7 +2279,7 @@ curl http://localhost:8080/api/videos/abc123/burn
 
 Download video with burned-in subtitles.
 
-**Authentication**: Not required
+**Authentication**: Required (owner via user session or `session_id` query parameter)
 
 **Response**: Video file with `Content-Disposition: attachment`
 
@@ -2259,6 +2288,7 @@ Download video with burned-in subtitles.
 
 **Errors**:
 - `400 Bad Request`: Burn job not complete
+- `403 Forbidden`: User does not own this video
 - `404 Not Found`: No burn job or output file
 
 **Example**:

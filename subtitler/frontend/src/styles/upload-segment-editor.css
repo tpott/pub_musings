@@ -1,0 +1,270 @@
+/**
+ * Segment editor styles for the upload page.
+ * Includes edit mode, segment editing, undo/redo, feedback buttons,
+ * and unsaved indicator.
+ * Extracted from upload.css to keep file sizes under 1000 lines.
+ */
+
+/* Edit mode styles */
+.edit-btn {
+	display: inline-block;
+	padding: 0.5rem 1rem;
+	background-color: var(--btn-secondary-bg);
+	color: var(--text-color);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+.edit-btn:hover {
+	background-color: var(--btn-secondary-hover);
+}
+.edit-btn.active {
+	background-color: var(--accent-color);
+	color: #fff;
+	border-color: var(--accent-color);
+}
+.view-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.5rem 1rem;
+	background-color: var(--btn-success-color);
+	color: #fff;
+	border: none;
+	border-radius: 6px;
+	font-weight: 500;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+.view-btn:hover {
+	background-color: var(--btn-success-hover);
+}
+.view-btn svg {
+	width: 16px;
+	height: 16px;
+}
+.save-btn {
+	display: inline-block;
+	padding: 0.5rem 1rem;
+	background-color: var(--btn-success-color);
+	color: #fff;
+	border: none;
+	border-radius: 6px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+.save-btn:hover {
+	background-color: var(--btn-success-hover);
+}
+.save-btn:disabled {
+	background-color: var(--text-tertiary);
+	cursor: not-allowed;
+}
+.cancel-btn {
+	display: inline-block;
+	padding: 0.5rem 1rem;
+	background-color: var(--btn-secondary-bg);
+	color: var(--text-color);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+.cancel-btn:hover {
+	background-color: var(--btn-secondary-hover);
+}
+.undo-redo-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.5rem 0.75rem;
+	background-color: var(--btn-secondary-bg);
+	color: var(--text-color);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.2s, opacity 0.2s;
+	min-width: 40px;
+}
+.undo-redo-btn:hover:not(:disabled) {
+	background-color: var(--btn-secondary-hover);
+}
+.undo-redo-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+.undo-redo-btn svg {
+	width: 16px;
+	height: 16px;
+}
+.undo-redo-separator {
+	width: 1px;
+	height: 24px;
+	background-color: var(--border-color);
+	margin: 0 0.25rem;
+}
+.edit-actions {
+	display: none;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+	align-items: center;
+}
+.edit-actions.visible {
+	display: flex;
+}
+.segment-edit {
+	display: none;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+.segment.editing .segment-edit {
+	display: flex;
+	flex-direction: column;
+}
+.segment.editing .segment-text {
+	display: none;
+}
+.segment.editing .segment-time {
+	display: none;
+}
+.segment-edit textarea {
+	width: 100%;
+	min-height: 60px;
+	padding: 0.5rem;
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+	font-family: inherit;
+	font-size: 0.95rem;
+	resize: vertical;
+}
+.segment-edit textarea:focus {
+	outline: none;
+	border-color: var(--accent-color);
+}
+.time-inputs {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+.time-inputs label {
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+}
+.time-inputs input {
+	width: 100px;
+	padding: 0.25rem 0.5rem;
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+	font-family: monospace;
+	font-size: 0.8rem;
+}
+.time-inputs input:focus {
+	outline: none;
+	border-color: var(--accent-color);
+}
+.time-inputs input.error {
+	border-color: var(--error-color);
+	background-color: var(--error-bg);
+}
+.time-error {
+	color: var(--error-color);
+	font-size: 0.75rem;
+	margin-top: 0.25rem;
+	display: none;
+}
+.time-error.visible {
+	display: block;
+}
+.segment-actions {
+	display: flex;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+.segment-delete-btn {
+	padding: 0.25rem 0.5rem;
+	background-color: var(--delete-btn-bg);
+	color: var(--delete-btn-text);
+	border: 1px solid var(--delete-btn-border);
+	border-radius: 4px;
+	font-size: 0.75rem;
+	cursor: pointer;
+}
+.segment-delete-btn:hover {
+	background-color: var(--delete-btn-hover);
+}
+/* Subtitle feedback buttons (shown below the current subtitle display) */
+.subtitle-feedback {
+	display: flex;
+	gap: 0.25rem;
+	margin-top: 0.5rem;
+	justify-content: center;
+}
+.feedback-btn {
+	padding: 0.2rem 0.4rem;
+	background-color: var(--btn-secondary-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+	font-size: 0.7rem;
+	cursor: pointer;
+	transition: all 0.2s;
+	display: flex;
+	align-items: center;
+	gap: 0.2rem;
+}
+.feedback-btn:hover {
+	background-color: var(--btn-secondary-hover);
+}
+.feedback-btn.active {
+	background-color: var(--accent-color);
+	color: white;
+	border-color: var(--accent-color);
+}
+.feedback-btn.good.active {
+	background-color: #22c55e;
+	border-color: #22c55e;
+}
+.feedback-btn.misaligned.active {
+	background-color: #f59e0b;
+	border-color: #f59e0b;
+}
+.feedback-btn.missing.active {
+	background-color: #ef4444;
+	border-color: #ef4444;
+}
+.feedback-btn .emoji {
+	font-size: 0.85rem;
+}
+.add-segment-btn {
+	display: none;
+	width: 100%;
+	padding: 0.75rem;
+	background-color: var(--btn-secondary-bg);
+	border: 2px dashed var(--border-color);
+	border-radius: 4px;
+	color: var(--text-secondary);
+	cursor: pointer;
+	font-size: 0.9rem;
+	margin-top: 0.5rem;
+}
+.add-segment-btn:hover {
+	background-color: var(--btn-secondary-hover);
+	border-color: var(--text-tertiary);
+}
+.add-segment-btn.visible {
+	display: block;
+}
+.unsaved-indicator {
+	display: none;
+	color: var(--warning-color);
+	font-size: 0.8rem;
+	margin-left: 0.5rem;
+}
+.unsaved-indicator.visible {
+	display: inline;
+}

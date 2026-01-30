@@ -95,12 +95,15 @@ export function createSubtitleUpdater(
 export interface SpeedUIState {
 	speedMenuOpen: boolean;
 	speedIndicatorTimeout: ReturnType<typeof setTimeout> | null;
+	/** AbortController for document-level listeners; abort to clean up */
+	abortController: AbortController | null;
 }
 
 export function createSpeedUIState(): SpeedUIState {
 	return {
 		speedMenuOpen: false,
-		speedIndicatorTimeout: null
+		speedIndicatorTimeout: null,
+		abortController: null
 	};
 }
 
@@ -188,18 +191,25 @@ export function setupSpeedControls(
 		}
 	});
 
+	// Use AbortController for document-level listeners so they can be cleaned up
+	if (speedState.abortController) {
+		speedState.abortController.abort();
+	}
+	speedState.abortController = new AbortController();
+	const { signal } = speedState.abortController;
+
 	document.addEventListener('click', (e) => {
 		if (speedState.speedMenuOpen && !speedDropdown.contains(e.target as Node)) {
 			closeSpeedMenu(speedState, speedBtn, speedOptions);
 		}
-	});
+	}, { signal });
 
 	document.addEventListener('keydown', (e) => {
 		if (e.key === 'Escape' && speedState.speedMenuOpen) {
 			closeSpeedMenu(speedState, speedBtn, speedOptions);
 			speedBtn.focus();
 		}
-	});
+	}, { signal });
 }
 
 // --- Burn subtitles ---

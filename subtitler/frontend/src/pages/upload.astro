@@ -109,10 +109,10 @@ import '../styles/upload.css';
 				</div>
 				<div class="edit-actions" id="editActions">
 					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
 					</button>
 					<button class="undo-redo-btn" id="redoBtn" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo last undone edit">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
 					</button>
 					<div class="undo-redo-separator"></div>
 					<button class="save-btn" id="saveBtn">Save Changes</button>
@@ -126,7 +126,7 @@ import '../styles/upload.css';
 						<span class="collapsible-icon">▼</span>
 					</div>
 					<div class="collapsible-content" id="pasteTranscriptContent">
-					<textarea id="pasteText" placeholder="Paste your transcript or lyrics here..."></textarea>
+					<textarea id="pasteText" placeholder="Paste your transcript or lyrics here..." aria-label="Paste your transcript or lyrics here"></textarea>
 					<div class="lyrics-mode-toggle">
 						<label class="toggle-switch">
 							<input type="checkbox" id="lyricsMode" />
@@ -176,7 +176,7 @@ import '../styles/upload.css';
 				</div>
 				<div class="embedded-subtitles-notice" id="embeddedSubtitlesNotice" style="display: none;">
 					<div class="notice-content">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="notice-icon">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="notice-icon" aria-hidden="true">
 							<circle cx="12" cy="12" r="10"></circle>
 							<line x1="12" y1="16" x2="12" y2="12"></line>
 							<line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -186,13 +186,13 @@ import '../styles/upload.css';
 							<span id="embeddedSubtitlesList"></span>
 						</div>
 					</div>
-					<select id="embeddedTrackSelect" class="track-select">
+					<select id="embeddedTrackSelect" class="track-select" aria-label="Select embedded subtitle track">
 					</select>
 					<button class="use-embedded-btn" id="useEmbeddedBtn">Use Embedded Subtitles</button>
 				</div>
 				<div class="actions" id="actions" style="display: none;">
 					<a href="#" class="view-btn" id="viewBtn" aria-label="View in My Videos page">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 							<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
 							<circle cx="12" cy="12" r="3"></circle>
 						</svg>
@@ -206,7 +206,7 @@ import '../styles/upload.css';
 					</div>
 					<button class="burn-btn" id="burnBtn">Burn Subtitles into Video</button>
 					<button class="keyboard-help-btn" id="keyboardHelpBtn" aria-label="Show keyboard shortcuts">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M6 16h8"/></svg>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M6 16h8"/></svg>
 						Shortcuts
 					</button>
 				</div>
@@ -792,6 +792,7 @@ import '../styles/upload.css';
 					return;
 				}
 
+				if (previewVideo.src.startsWith('blob:')) URL.revokeObjectURL(previewVideo.src);
 				previewVideo.src = URL.createObjectURL(file);
 				videoPreview.classList.add('visible');
 
@@ -868,25 +869,15 @@ import '../styles/upload.css';
 			redoBtn.addEventListener('click', () => performRedo(editorState, editorEls));
 
 			// --- Subtitle download buttons ---
-			downloadSrt.addEventListener('click', (e) => {
+			function handleSubtitleOpen(e: Event, openFn: (segs: any[]) => void) {
 				e.preventDefault();
 				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
 				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
-				openSRT(segs);
-			});
-			downloadVtt.addEventListener('click', (e) => {
-				e.preventDefault();
-				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
-				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
-				openVTT(segs);
-			});
-			downloadJson.addEventListener('click', (e) => {
-				e.preventDefault();
-				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
-				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
-				openJSON(segs);
-			});
-
+				openFn(segs);
+			}
+			downloadSrt.addEventListener('click', (e) => handleSubtitleOpen(e, openSRT));
+			downloadVtt.addEventListener('click', (e) => handleSubtitleOpen(e, openVTT));
+			downloadJson.addEventListener('click', (e) => handleSubtitleOpen(e, openJSON));
 			// --- Burn subtitles ---
 			burnBtn.addEventListener('click', () => {
 				if (editorState.currentUploadId) {
@@ -895,14 +886,12 @@ import '../styles/upload.css';
 					});
 				}
 			});
-
 			// --- Speed controls and keyboard shortcuts ---
 			setupSpeedControls(previewVideo, speedBtn, speedOptions, speedDropdown, speedState);
 			setupKeyboardShortcuts(editorState, editorEls, {
 				keyboardHelpBtn, keyboardShortcutsModal, modalClose,
 				videoPreview, previewVideo, speedBtn, speedOptions, speedIndicator
 			}, speedState);
-
 			// --- Re-transcribe ---
 			async function retranscribe() {
 				if (!editorState.currentUploadId) return;

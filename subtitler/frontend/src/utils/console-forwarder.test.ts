@@ -97,6 +97,24 @@ describe('console forwarder installation', () => {
     expect(console.info).toBe(originalConsole.info);
     expect(console.debug).toBe(originalConsole.debug);
   });
+
+  it('should remove window event listeners on uninstall', () => {
+    const addSpy = vi.fn();
+    const removeSpy = vi.fn();
+    vi.stubGlobal('window', {
+      location: { href: 'http://localhost:4321/test' },
+      addEventListener: addSpy,
+      removeEventListener: removeSpy,
+    });
+
+    installConsoleForwarder(true);
+    expect(addSpy).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(addSpy).toHaveBeenCalledWith('unhandledrejection', expect.any(Function));
+
+    uninstallConsoleForwarder();
+    expect(removeSpy).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('unhandledrejection', expect.any(Function));
+  });
 });
 
 describe('console interception (when installed)', () => {
@@ -107,6 +125,7 @@ describe('console interception (when installed)', () => {
     vi.stubGlobal('window', {
       location: { href: 'http://localhost:4321/test' },
       addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     });
     installConsoleForwarder(true);
   });

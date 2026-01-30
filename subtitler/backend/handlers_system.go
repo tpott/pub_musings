@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -53,10 +52,11 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			status.Errors = append(status.Errors, diskErr)
 		}
 
-		// Determine overall status
+		// Determine overall status and HTTP status code
+		statusCode := http.StatusOK
 		if !status.DBConnected || !status.WhisperAvailable || !status.DiskSpaceOK {
 			status.Status = "degraded"
-			w.WriteHeader(http.StatusServiceUnavailable)
+			statusCode = http.StatusServiceUnavailable
 		}
 
 		// Check if user is authenticated
@@ -65,10 +65,10 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 
 		if user != nil {
 			// Authenticated: return full response
-			httputil.RespondJSON(w, http.StatusOK, status)
+			httputil.RespondJSON(w, statusCode, status)
 		} else {
 			// Unauthenticated: return minimal response
-			httputil.RespondJSON(w, http.StatusOK, map[string]string{
+			httputil.RespondJSON(w, statusCode, map[string]string{
 				"status": status.Status,
 			})
 		}
@@ -286,6 +286,14 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		limitStr := r.URL.Query().Get("limit")
 		offsetStr := r.URL.Query().Get("offset")
 		after := r.URL.Query().Get("after")
+		if after != "" {
+			if _, err := time.Parse(time.RFC3339, after); err != nil {
+				if _, err := time.Parse(time.RFC3339Nano, after); err != nil {
+					httputil.RespondError(w, http.StatusBadRequest, "Invalid after timestamp format (expected RFC3339)")
+					return
+				}
+			}
+		}
 
 		limit := 50
 		if limitStr != "" {
@@ -460,7 +468,7 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 	mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"enabled":  captchaVerifier.IsEnabled(),
-			"site_key": os.Getenv("CAPTCHA_SITE_KEY"),
+			"site_key": captchaVerifier.SiteKey(),
 		})
 	})
 }

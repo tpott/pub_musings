@@ -33,14 +33,11 @@ func runCleanup() {
 	security.CleanupStarted()
 	logging.Info("Running cleanup for expired videos")
 
-	// Get total count of expired videos for logging
+	// Get total count of expired videos for logging (non-fatal if this fails)
 	totalExpired, err := database.CountExpiredVideos()
 	if err != nil {
 		logging.Error("Error counting expired videos", "error", err)
-		return
-	}
-
-	if totalExpired == 0 {
+	} else if totalExpired == 0 {
 		logging.Debug("No expired videos to clean up")
 	} else {
 		logging.Info("Found expired videos to clean up", "count", totalExpired)
@@ -162,6 +159,28 @@ func runCleanup() {
 		if uploadSessionDeleteCount > 0 {
 			logging.Info("Deleted expired upload sessions", "count", uploadSessionDeleteCount)
 		}
+	}
+
+	// Clean up expired auth tokens (password reset, email verification, magic link)
+	passwordResetCount, err := database.DeleteExpiredPasswordResetTokens()
+	if err != nil {
+		logging.Error("Error deleting expired password reset tokens", "error", err)
+	} else if passwordResetCount > 0 {
+		logging.Info("Deleted expired password reset tokens", "count", passwordResetCount)
+	}
+
+	emailVerificationCount, err := database.DeleteExpiredEmailVerificationTokens()
+	if err != nil {
+		logging.Error("Error deleting expired email verification tokens", "error", err)
+	} else if emailVerificationCount > 0 {
+		logging.Info("Deleted expired email verification tokens", "count", emailVerificationCount)
+	}
+
+	magicLinkCount, err := database.DeleteExpiredMagicLinkTokens()
+	if err != nil {
+		logging.Error("Error deleting expired magic link tokens", "error", err)
+	} else if magicLinkCount > 0 {
+		logging.Info("Deleted expired magic link tokens", "count", magicLinkCount)
 	}
 
 	// Clean up orphan chunk directories (exist on disk but not in database)

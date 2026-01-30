@@ -38,20 +38,26 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 | `POST /api/auth/totp/recover` | Account recovery with recovery code |
 | `POST /api/auth/totp/codes` | Regenerate recovery codes |
 | `POST /api/auth/reset-password` | Complete password reset |
+| `GET /api/auth/verify` | Verify email address |
+| `GET /api/auth/magic-link/verify` | Verify magic link token |
 
 ### Password Reset (3 req/15min)
 
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/auth/forgot-password` | Request password reset email |
+| `POST /api/auth/resend-verification` | Resend email verification |
+| `POST /api/auth/magic-link` | Request magic link login |
 
-**Note**: This endpoint has stricter limits to prevent email enumeration attacks.
+**Note**: These endpoints have stricter limits to prevent email enumeration attacks.
 
 ### Upload (10 req/min)
 
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/upload` | Upload video file |
+| `POST /api/upload/init` | Initialize chunked upload session |
+| `POST /api/upload/complete` | Complete chunked upload |
 
 ### Transcription (5 req/min)
 
@@ -74,8 +80,10 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 |----------|-------------|
 | `GET /api/videos/{id}/video` | Download original video file |
 | `GET /api/videos/{id}/thumbnail` | Download video thumbnail |
+| `GET /api/videos/{id}/burn` | Check burn job status |
 | `GET /api/videos/{id}/burned` | Download video with burned subtitles |
 | `GET /api/videos/{id}/embedded-subtitles/{track}` | Extract embedded subtitle track |
+| `GET /api/upload/status/{session_id}` | Check chunked upload status |
 
 **Note**: These limits prevent bandwidth abuse and CPU exhaustion from repeated decryption operations.
 

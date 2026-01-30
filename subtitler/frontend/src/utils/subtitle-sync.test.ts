@@ -246,6 +246,7 @@ describe('createSpeedUIState', () => {
 		const state = createSpeedUIState();
 		expect(state.speedMenuOpen).toBe(false);
 		expect(state.speedIndicatorTimeout).toBeNull();
+		expect(state.abortController).toBeNull();
 	});
 });
 

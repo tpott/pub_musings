@@ -32,6 +32,14 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Backend
 
+### 2026-01-30: TOCTOU race in INSERT with prior existence check
+
+**Problem:** Chunked upload handler checked if a chunk existed (`GetUploadChunk`), then inserted if missing (`CreateUploadChunk`). Concurrent requests for the same chunk could both pass the check, then one fails with a UNIQUE constraint violation, returning 500 instead of idempotent 200.
+
+**Solution:** Changed `INSERT INTO` to `INSERT OR IGNORE INTO` and return `RowsAffected()` as a boolean. Handler checks if the insert was a no-op (rows=0) and treats it as idempotent success — cleans up the duplicate file and returns progress normally.
+
+**Lesson:** Never use check-then-insert patterns for idempotency. Use `INSERT OR IGNORE` / `ON CONFLICT DO NOTHING` and inspect `RowsAffected()` to detect duplicates. SQLite's UNIQUE constraint violations are errors, not silent no-ops, unless you use the IGNORE conflict resolution.
+
 ### golangci-lint v2: severity doesn't affect exit code
 
 **Problem:** Wanted `revive` file-length-limit to produce warnings (not errors) for existing large files. Set `severity: warning` in the revive rule config expecting golangci-lint to exit 0.
@@ -42,6 +50,26 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Test handlers cannot simply reuse production handlers
+
+**Problem:** Task 431 aimed to replace the test `registerHandlers()` (~3,000 lines duplicating all production handlers) with calls to production `register*Handlers(mux)`. Investigation revealed this is NOT safe because: (1) test handlers intentionally stub complex operations (upload, transcription, burn) that require ffmpeg/filesystem/encryption; (2) test handlers use different DB methods (non-transactional) vs production (transactional, e.g., `EnableTOTPWithRecoveryCodes` vs separate `EnableTOTP` + `SaveRecoveryCodes`); (3) test handlers omit CAPTCHA, security audit logging, and per-email login rate limiting.
+
+**Solution:** Kept the test `registerHandlers()` in `api_test_helpers_test.go` and split only the test functions into category files. The duplicated handler code remains as intentional test infrastructure.
+
+**Lesson:** When test code duplicates production code, investigate WHY before trying to DRY it up. Test stubs exist for a reason — they isolate tests from external dependencies. The right approach is to split test files for readability, not to force test and production code to share handler implementations.
+
+---
+
+### Go file splitting: side-effect imports must stay in the core file
+
+**Problem:** Splitting `db/db.go` into domain files dropped the `_ "github.com/mattn/go-sqlite3"` side-effect import. The `goimports` tool (used to fix imports after splitting) correctly removes unused imports — but side-effect imports (`_ "pkg"`) look unused because they have no direct references. All packages that depended on the sqlite3 driver registration (backend main tests, auth tests) failed with `sql: unknown driver "sqlite3"`.
+
+**Solution:** Restored the `_ "github.com/mattn/go-sqlite3"` import to `db/db.go` (the core file containing `sql.Open("sqlite3", ...)`). Side-effect imports must live in the file that depends on them, not be split away.
+
+**Lesson:** When splitting Go files, never trust `goimports` to handle side-effect imports. After any split, check that `_ "pkg"` imports remain in the file that uses the registered driver/codec/init. `goimports` treats them as unused and may remove them silently.
+
+---
+
 ### Go file splitting: extracting handlers from main()
 
 **Problem:** main.go grew to 6340 lines with all 50 HTTP handlers as inline closures inside main(). The test file api_test.go had a duplicate set of all handlers in its own testServer.registerHandlers() method.
@@ -49,6 +77,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 **Solution:** Extract handler closures into `registerXxxHandlers(mux *http.ServeMux)` functions in separate files. Since all handlers use only package-level globals (not local variables from main), they can be moved to any file in `package main` without changes.
 
 **Lesson:** When splitting a Go file within the same package, all unexported identifiers remain accessible across files. Test files that reference unexported functions continue to work. The api_test.go handler duplication is a separate refactoring concern — don't try to fix it in the same task. After splitting, all `go run main.go` references must change to `go run .` (compiles all files in the package).
+
+---
+
+### go-sqlite3 timestamp format inconsistency breaks comparisons
+
+**Problem:** `go-sqlite3` stores `time.Time` values as RFC3339Nano with timezone offset (e.g., `"2026-01-30T00:05:07.123-08:00"`), but formats `time.Time` query parameters differently (e.g., `"2026-01-30 09:05:07+00:00"` — space-separated, UTC, no nanoseconds). SQLite uses text comparison for `DATETIME` columns, so `created_at > ?` fails because the stored and parameter formats never match lexicographically.
+
+**Solution:** Use SQLite's `datetime()` function on both sides of the comparison: `datetime(created_at) > datetime(?)`. Parse the input RFC3339 string into `time.Time`, then format as UTC `"2006-01-02 15:04:05"` for the parameter. `datetime()` normalizes both the stored RFC3339Nano and the parameter to `"YYYY-MM-DD HH:MM:SS"` in UTC.
+
+**Lesson:** Never do raw text comparison on SQLite `DATETIME` columns when the values may come from different sources (Go time.Time storage vs API parameters). Always normalize with `datetime()`. Test timestamp filtering with actual database roundtrips, not just in-memory comparisons.
 
 ---
 
@@ -193,6 +231,14 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 ---
 
 ## Frontend
+
+### 2026-01-30: E2E test count: grep vs Playwright disagree on parameterized tests
+
+**Problem:** Grepping for `test(` declarations found 67, but Playwright reports 71 total (58 passed + 13 skipped). The capture-design.spec.ts uses a parameterized pattern where 1 `test()` call inside a `sites.forEach` loop generates 5 test instances.
+
+**Solution:** Trust the Playwright output (`npx playwright test`) for the authoritative count. Grep undercounts parameterized/dynamic tests.
+
+**Lesson:** When documenting E2E test counts, run `npx playwright test --list` or the actual test runner, not `grep -c 'test('`. Parameterized tests (forEach + test()) create more Playwright test entries than `test(` declarations.
 
 ### CRITICAL: Playback speeds must be 0.8x, 0.9x, 1.0x ONLY
 
@@ -713,3 +759,15 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 **Decision:** Shell script (`scripts/lint-doc-sync.sh`). Five checks: deps vs go.mod/package.json, env vars vs os.Getenv calls, routes vs HandleFunc registrations, rate limits vs config. Errors for critical drift (deps, env vars), warnings for informational (routes). Integrated into lint.sh.
 
 **Outcome:** Immediately found missing Chunked Upload category in RATE_LIMITS.md and stale Configuration section. Validates the approach — even simple grep-based checks catch real drift.
+
+---
+
+### 2026-01-30: Accept generateID duplication across packages
+
+**Context:** `generateID()` (5-line function generating 16-byte hex IDs) is duplicated in `helpers.go` (package `main`) and `db/db_auth.go` (package `db`). Both produce identical output using different formatting (`hex.EncodeToString` vs `fmt.Sprintf("%x")`).
+
+**Options considered:** (1) Create shared `idgen` package — clean dedup but over-engineering for a 5-line function; (2) Export from `db` package, import in `main` — backwards, `db` shouldn't be the canonical ID generator; (3) Accept duplication — both are simple, both work, both in separate packages.
+
+**Decision:** Accept duplication (wontfix). Go's package system means unexported functions can't be shared across packages. Creating a package for 5 lines violates the project's dependency policy ("Do not add a dependency for functionality that can be achieved with a small amount of straightforward code"). If either function needs changes, both must be updated — but the function is stable (last changed to increase entropy in task 464).
+
+**Outcome:** Documented in TASKS.jsonl as wontfix. Prefer simplicity over DRY when the duplication is trivial and cross-package.

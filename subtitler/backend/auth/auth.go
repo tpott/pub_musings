@@ -17,11 +17,20 @@ import (
 	"github.com/tpott/subtitler/backend/validation"
 )
 
-// IsHTTPSOnly returns true if HTTPS_ONLY env var is set to a truthy value.
+// httpsOnly caches the HTTPS_ONLY env var value, read once at startup.
+var httpsOnly bool
+
+// InitHTTPSOnly reads the HTTPS_ONLY env var and caches its value.
+// Call this once at startup (e.g., from initConfig).
+func InitHTTPSOnly() {
+	val := os.Getenv("HTTPS_ONLY")
+	httpsOnly = val == "1" || strings.ToLower(val) == "true"
+}
+
+// IsHTTPSOnly returns true if HTTPS_ONLY env var was set to a truthy value at startup.
 // When true, session cookies will have the Secure flag set.
 func IsHTTPSOnly() bool {
-	val := os.Getenv("HTTPS_ONLY")
-	return val == "1" || strings.ToLower(val) == "true"
+	return httpsOnly
 }
 
 const (

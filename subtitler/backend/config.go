@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tpott/subtitler/backend/auth"
 	"github.com/tpott/subtitler/backend/db"
 	"github.com/tpott/subtitler/backend/logging"
 	"github.com/tpott/subtitler/backend/validation"
@@ -52,6 +53,7 @@ const (
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
+	minChunkSize         = 1 << 20        // 1 MB minimum to prevent abuse
 	defaultSessionExpiry = 24 * time.Hour // 24 hours
 
 	// Database maintenance defaults
@@ -361,4 +363,7 @@ func initConfig() {
 	whisperThreads = getEnvIntOrDefault("WHISPER_THREADS", defaultWhisperThreads)
 	whisperTemperature = getEnvOrDefault("WHISPER_TEMPERATURE", "0.0")
 	whisperTimeout = getEnvDurationOrDefault("WHISPER_TIMEOUT", defaultWhisperTimeout)
+
+	// Cache HTTPS_ONLY for cookie and HSTS configuration
+	auth.InitHTTPSOnly()
 }

@@ -29,8 +29,8 @@ npm run build
 echo "Frontend build passed"
 
 echo ""
-echo "=== Checking Frontend File Sizes ==="
-"$SCRIPT_DIR/lint-frontend-filesize.sh"
+echo "=== Checking Source File Sizes ==="
+python3 "$SCRIPT_DIR/lint-filesize.py"
 
 echo ""
 echo "=== Checking Documentation Sync ==="

@@ -1,0 +1,146 @@
+/**
+ * Keyboard shortcuts modal styles for the upload page.
+ * Extracted from upload.css to keep file sizes under 1000 lines.
+ */
+
+/* Keyboard shortcuts help button */
+.keyboard-help-btn {
+	background: none;
+	border: 1px solid var(--border-color);
+	color: var(--text-secondary);
+	padding: 0.5rem 1rem;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	cursor: pointer;
+	transition: all 0.2s;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.keyboard-help-btn:hover {
+	background-color: var(--border-color);
+	color: var(--text-color);
+}
+.keyboard-help-btn:focus {
+	outline: 2px solid var(--accent-color);
+	outline-offset: 2px;
+}
+.keyboard-help-btn svg {
+	width: 16px;
+	height: 16px;
+}
+/* Keyboard shortcuts modal */
+.modal-overlay {
+	display: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.6);
+	z-index: 1000;
+	padding: 2rem;
+	overflow-y: auto;
+}
+.modal-overlay.visible {
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+}
+.modal-content {
+	background-color: var(--bg-color);
+	border-radius: 12px;
+	max-width: 500px;
+	width: 100%;
+	margin-top: 2rem;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+.modal-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 1rem 1.5rem;
+	border-bottom: 1px solid var(--border-color);
+}
+.modal-title {
+	font-size: 1.25rem;
+	font-weight: 600;
+	margin: 0;
+}
+.modal-close {
+	background: none;
+	border: none;
+	font-size: 1.5rem;
+	cursor: pointer;
+	color: var(--text-secondary);
+	padding: 0.25rem;
+	border-radius: 4px;
+	line-height: 1;
+}
+.modal-close:hover {
+	background-color: var(--border-color);
+	color: var(--text-color);
+}
+.modal-close:focus {
+	outline: 2px solid var(--accent-color);
+	outline-offset: 2px;
+}
+.modal-body {
+	padding: 1.5rem;
+}
+.shortcut-section {
+	margin-bottom: 1.5rem;
+}
+.shortcut-section:last-child {
+	margin-bottom: 0;
+}
+.shortcut-section-title {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: 0.75rem;
+}
+.shortcut-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+.shortcut-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid var(--border-color);
+}
+.shortcut-item:last-child {
+	border-bottom: none;
+}
+.shortcut-keys {
+	display: flex;
+	gap: 0.25rem;
+}
+.shortcut-key {
+	display: inline-block;
+	padding: 0.25rem 0.5rem;
+	background-color: var(--secondary-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+	font-family: monospace;
+	font-size: 0.85rem;
+	min-width: 1.5rem;
+	text-align: center;
+}
+.shortcut-description {
+	color: var(--text-color);
+	font-size: 0.9rem;
+}
+.shortcut-note {
+	margin-top: 1rem;
+	padding: 0.75rem;
+	background-color: var(--secondary-bg);
+	border-radius: 6px;
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+}

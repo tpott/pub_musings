@@ -539,9 +539,6 @@ import '../../styles/theme.css';
 						</div>
 					`;
 				}).join('');
-
-				// Add event listeners for status selects using event delegation
-				feedbackList.addEventListener('change', handleStatusChange);
 			}
 
 			// Render star rating
@@ -608,7 +605,9 @@ import '../../styles/theme.css';
 				}
 			}
 
-			// Event listeners
+			// Event listeners - register once using event delegation
+			feedbackList.addEventListener('change', handleStatusChange);
+
 			statusFilter.addEventListener('change', () => {
 				currentOffset = 0;
 				loadFeedback();
