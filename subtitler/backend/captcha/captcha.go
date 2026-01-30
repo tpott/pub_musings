@@ -35,6 +35,7 @@ var (
 type Verifier interface {
 	Verify(ctx context.Context, token string, remoteIP string) error
 	IsEnabled() bool
+	SiteKey() string
 }
 
 // Config holds CAPTCHA configuration
@@ -78,6 +79,11 @@ func New(cfg Config) Verifier {
 // IsEnabled returns true if CAPTCHA verification is active
 func (v *hCaptchaVerifier) IsEnabled() bool {
 	return true
+}
+
+// SiteKey returns the public site key for frontend use
+func (v *hCaptchaVerifier) SiteKey() string {
+	return v.siteKey
 }
 
 // Verify validates the CAPTCHA token with hCaptcha
@@ -129,6 +135,11 @@ func (v *disabledVerifier) IsEnabled() bool {
 	return false
 }
 
+// SiteKey returns an empty string for disabled verifier
+func (v *disabledVerifier) SiteKey() string {
+	return ""
+}
+
 // Verify always succeeds for disabled verifier
 func (v *disabledVerifier) Verify(ctx context.Context, token string, remoteIP string) error {
 	return nil
@@ -154,6 +165,11 @@ func NewMockVerifier(enabled bool) *MockVerifier {
 // IsEnabled returns the configured enabled state
 func (v *MockVerifier) IsEnabled() bool {
 	return v.MockEnabled
+}
+
+// SiteKey returns a test site key
+func (v *MockVerifier) SiteKey() string {
+	return "test-site-key"
 }
 
 // Verify records the call and returns based on configuration

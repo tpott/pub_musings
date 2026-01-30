@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**455 tasks completed** as of 2026-01-30. 0 tasks pending.
+**459 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Tasks 453-456: Rate limiter fix, docs, accessibility, and config cleanup (2026-01-30)
+- **Task 453:** Fixed `GET /api/upload/status/{session_id}` — was using `scriptLimiter` (10/min) instead of `downloadLimiter` (30/min) as documented. Code comment and API.md both specified 30/min
+- **Task 454:** Added 8 missing endpoints to `docs/RATE_LIMITS.md` — upload init/complete/status, auth verify, resend-verification, magic-link, magic-link/verify
+- **Task 455:** Added focus restoration to `dialog.ts` — saves `document.activeElement` before showing dialog, restores focus when dialog closes. Improves keyboard accessibility
+- **Task 456:** Added `SiteKey()` method to CAPTCHA `Verifier` interface — `/api/captcha/config` now reads site key from the verifier initialized at startup instead of calling `os.Getenv` on every request. Removed unused `os` import from `handlers_system.go`
 
 ### Tasks 450-452: Documentation sync and script cleanup (2026-01-30)
 - **Task 450:** Updated TESTING.md — backend: 598 tests / 45 files, frontend: 832 tests / 29 files, total: 1,501+. Removed deleted `speed-control.test.ts` reference. Updated backend test file table to reflect split files

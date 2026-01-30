@@ -3053,7 +3053,7 @@ func (ts *testServer) registerHandlers() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"enabled":  ts.captchaVerifier.IsEnabled(),
-			"site_key": "", // No site key in tests
+			"site_key": ts.captchaVerifier.SiteKey(),
 		})
 	})
 

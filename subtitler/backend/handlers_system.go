@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -469,7 +468,7 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 	mux.HandleFunc("GET /api/captcha/config", func(w http.ResponseWriter, r *http.Request) {
 		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
 			"enabled":  captchaVerifier.IsEnabled(),
-			"site_key": os.Getenv("CAPTCHA_SITE_KEY"),
+			"site_key": captchaVerifier.SiteKey(),
 		})
 	})
 }

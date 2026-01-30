@@ -800,7 +800,7 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 	}))
 
 	// Get chunked upload status (rate limited: 30/min per IP)
-	mux.HandleFunc("GET /api/upload/status/{session_id}", scriptLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/upload/status/{session_id}", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 
 		uploadSessionID := r.PathValue("session_id")
 		if uploadSessionID == "" {

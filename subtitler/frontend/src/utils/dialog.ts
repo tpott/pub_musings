@@ -9,6 +9,7 @@
 // This is intentional: the singleton pattern means listeners don't accumulate
 let dialogContainer: HTMLElement | null = null;
 let activeDialog: { resolve: (value: boolean) => void } | null = null;
+let previouslyFocusedElement: HTMLElement | null = null;
 
 // Store references to event handlers for cleanup
 let cancelClickHandler: (() => void) | null = null;
@@ -94,6 +95,10 @@ function closeDialog(confirmed: boolean): void {
 		dialogContainer.classList.remove('visible');
 		document.body.style.overflow = '';
 	}
+	if (previouslyFocusedElement) {
+		previouslyFocusedElement.focus();
+		previouslyFocusedElement = null;
+	}
 	if (activeDialog) {
 		activeDialog.resolve(confirmed);
 		activeDialog = null;
@@ -170,6 +175,9 @@ function showDialog(options: DialogOptions): Promise<boolean> {
 	if (options.type) {
 		content.classList.add(`dialog-${options.type}`);
 	}
+
+	// Save currently focused element for restoration on close
+	previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
 	// Show dialog
 	container.classList.add('visible');
