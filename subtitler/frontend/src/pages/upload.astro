@@ -868,25 +868,15 @@ import '../styles/upload.css';
 			redoBtn.addEventListener('click', () => performRedo(editorState, editorEls));
 
 			// --- Subtitle download buttons ---
-			downloadSrt.addEventListener('click', (e) => {
+			function handleSubtitleOpen(e: Event, openFn: (segs: any[]) => void) {
 				e.preventDefault();
 				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
 				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
-				openSRT(segs);
-			});
-			downloadVtt.addEventListener('click', (e) => {
-				e.preventDefault();
-				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
-				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
-				openVTT(segs);
-			});
-			downloadJson.addEventListener('click', (e) => {
-				e.preventDefault();
-				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
-				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
-				openJSON(segs);
-			});
-
+				openFn(segs);
+			}
+			downloadSrt.addEventListener('click', (e) => handleSubtitleOpen(e, openSRT));
+			downloadVtt.addEventListener('click', (e) => handleSubtitleOpen(e, openVTT));
+			downloadJson.addEventListener('click', (e) => handleSubtitleOpen(e, openJSON));
 			// --- Burn subtitles ---
 			burnBtn.addEventListener('click', () => {
 				if (editorState.currentUploadId) {
@@ -895,14 +885,12 @@ import '../styles/upload.css';
 					});
 				}
 			});
-
 			// --- Speed controls and keyboard shortcuts ---
 			setupSpeedControls(previewVideo, speedBtn, speedOptions, speedDropdown, speedState);
 			setupKeyboardShortcuts(editorState, editorEls, {
 				keyboardHelpBtn, keyboardShortcutsModal, modalClose,
 				videoPreview, previewVideo, speedBtn, speedOptions, speedIndicator
 			}, speedState);
-
 			// --- Re-transcribe ---
 			async function retranscribe() {
 				if (!editorState.currentUploadId) return;

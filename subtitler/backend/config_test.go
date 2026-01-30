@@ -1,0 +1,488 @@
+package main
+
+import (
+	"os"
+	"testing"
+	"time"
+)
+
+func TestGetEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue string
+		envValue     string
+		expected     string
+	}{
+		{
+			name:         "uses default when env not set",
+			key:          "TEST_CONFIG_NOT_SET",
+			defaultValue: "default-value",
+			envValue:     "",
+			expected:     "default-value",
+		},
+		{
+			name:         "uses env value when set",
+			key:          "TEST_CONFIG_SET",
+			defaultValue: "default-value",
+			envValue:     "env-value",
+			expected:     "env-value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the env var first
+			os.Unsetenv(tc.key)
+
+			// Set env if test case specifies a value
+			if tc.envValue != "" {
+				os.Setenv(tc.key, tc.envValue)
+				defer os.Unsetenv(tc.key)
+			}
+
+			result := getEnvOrDefault(tc.key, tc.defaultValue)
+			if result != tc.expected {
+				t.Errorf("getEnvOrDefault(%s, %s) = %s, expected %s",
+					tc.key, tc.defaultValue, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGetEnvIntOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue int
+		envValue     string
+		expected     int
+	}{
+		{
+			name:         "uses default when env not set",
+			key:          "TEST_INT_NOT_SET",
+			defaultValue: 10,
+			envValue:     "",
+			expected:     10,
+		},
+		{
+			name:         "parses valid integer",
+			key:          "TEST_INT_VALID",
+			defaultValue: 10,
+			envValue:     "42",
+			expected:     42,
+		},
+		{
+			name:         "parses zero",
+			key:          "TEST_INT_ZERO",
+			defaultValue: 10,
+			envValue:     "0",
+			expected:     0,
+		},
+		{
+			name:         "uses default for invalid value",
+			key:          "TEST_INT_INVALID",
+			defaultValue: 10,
+			envValue:     "not-a-number",
+			expected:     10,
+		},
+		{
+			name:         "uses default for negative value",
+			key:          "TEST_INT_NEGATIVE",
+			defaultValue: 10,
+			envValue:     "-5",
+			expected:     10,
+		},
+		{
+			name:         "uses default for float value",
+			key:          "TEST_INT_FLOAT",
+			defaultValue: 10,
+			envValue:     "3.14",
+			expected:     10,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the env var first
+			os.Unsetenv(tc.key)
+
+			// Set env if test case specifies a value
+			if tc.envValue != "" {
+				os.Setenv(tc.key, tc.envValue)
+				defer os.Unsetenv(tc.key)
+			}
+
+			result := getEnvIntOrDefault(tc.key, tc.defaultValue)
+			if result != tc.expected {
+				t.Errorf("getEnvIntOrDefault(%s, %d) = %d, expected %d",
+					tc.key, tc.defaultValue, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGetEnvSizeOrDefault(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue int64
+		envValue     string
+		expected     int64
+	}{
+		{
+			name:         "uses default when env not set",
+			key:          "TEST_SIZE_NOT_SET",
+			defaultValue: 100 << 20, // 100 MB
+			envValue:     "",
+			expected:     100 << 20,
+		},
+		{
+			name:         "parses MB suffix",
+			key:          "TEST_SIZE_MB",
+			defaultValue: 100 << 20,
+			envValue:     "500M",
+			expected:     500 << 20,
+		},
+		{
+			name:         "parses GB suffix",
+			key:          "TEST_SIZE_GB",
+			defaultValue: 100 << 20,
+			envValue:     "1G",
+			expected:     1 << 30,
+		},
+		{
+			name:         "handles lowercase suffix",
+			key:          "TEST_SIZE_LOWER",
+			defaultValue: 100 << 20,
+			envValue:     "500m",
+			expected:     500 << 20,
+		},
+		{
+			name:         "handles whitespace",
+			key:          "TEST_SIZE_WHITESPACE",
+			defaultValue: 100 << 20,
+			envValue:     " 500M ",
+			expected:     500 << 20,
+		},
+		{
+			name:         "uses default for invalid value",
+			key:          "TEST_SIZE_INVALID",
+			defaultValue: 100 << 20,
+			envValue:     "not-a-number",
+			expected:     100 << 20,
+		},
+		{
+			name:         "rejects value below minimum (1MB)",
+			key:          "TEST_SIZE_TOO_SMALL",
+			defaultValue: 100 << 20,
+			envValue:     "500K", // 500KB < 1MB minimum
+			expected:     100 << 20,
+		},
+		{
+			name:         "rejects value above maximum (10GB)",
+			key:          "TEST_SIZE_TOO_LARGE",
+			defaultValue: 100 << 20,
+			envValue:     "20G", // 20GB > 10GB maximum
+			expected:     100 << 20,
+		},
+		{
+			name:         "accepts exact minimum (1MB)",
+			key:          "TEST_SIZE_MIN",
+			defaultValue: 100 << 20,
+			envValue:     "1M",
+			expected:     1 << 20,
+		},
+		{
+			name:         "accepts exact maximum (10GB)",
+			key:          "TEST_SIZE_MAX",
+			defaultValue: 100 << 20,
+			envValue:     "10G",
+			expected:     10 << 30,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the env var first
+			os.Unsetenv(tc.key)
+
+			// Set env if test case specifies a value
+			if tc.envValue != "" {
+				os.Setenv(tc.key, tc.envValue)
+				defer os.Unsetenv(tc.key)
+			}
+
+			result := getEnvSizeOrDefault(tc.key, tc.defaultValue)
+			if result != tc.expected {
+				t.Errorf("getEnvSizeOrDefault(%s, %d) = %d, expected %d",
+					tc.key, tc.defaultValue, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestInitConfig(t *testing.T) {
+	// Save original values
+	origMaxUploadSize := maxUploadSize
+	origUploadDir := uploadDir
+	origDBPath := dbPath
+	origKeyPath := keyPath
+
+	// Restore after test
+	defer func() {
+		maxUploadSize = origMaxUploadSize
+		uploadDir = origUploadDir
+		dbPath = origDBPath
+		keyPath = origKeyPath
+	}()
+
+	// Set environment variables
+	os.Setenv("MAX_UPLOAD_SIZE", "100M")
+	os.Setenv("UPLOAD_DIR", "/custom/uploads")
+	os.Setenv("DB_PATH", "/custom/db.sqlite")
+	os.Setenv("KEY_PATH", "/custom/key.age")
+	defer func() {
+		os.Unsetenv("MAX_UPLOAD_SIZE")
+		os.Unsetenv("UPLOAD_DIR")
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("KEY_PATH")
+	}()
+
+	// Call initConfig
+	initConfig()
+
+	// Verify values
+	if maxUploadSize != 100*1024*1024 {
+		t.Errorf("maxUploadSize = %d, expected %d", maxUploadSize, 100*1024*1024)
+	}
+	if uploadDir != "/custom/uploads" {
+		t.Errorf("uploadDir = %s, expected /custom/uploads", uploadDir)
+	}
+	if dbPath != "/custom/db.sqlite" {
+		t.Errorf("dbPath = %s, expected /custom/db.sqlite", dbPath)
+	}
+	if keyPath != "/custom/key.age" {
+		t.Errorf("keyPath = %s, expected /custom/key.age", keyPath)
+	}
+}
+
+func TestInitConfigDefaults(t *testing.T) {
+	// Save original values
+	origMaxUploadSize := maxUploadSize
+	origUploadDir := uploadDir
+	origDBPath := dbPath
+	origKeyPath := keyPath
+
+	// Restore after test
+	defer func() {
+		maxUploadSize = origMaxUploadSize
+		uploadDir = origUploadDir
+		dbPath = origDBPath
+		keyPath = origKeyPath
+	}()
+
+	// Clear environment variables
+	os.Unsetenv("MAX_UPLOAD_SIZE")
+	os.Unsetenv("UPLOAD_DIR")
+	os.Unsetenv("DB_PATH")
+	os.Unsetenv("KEY_PATH")
+
+	// Call initConfig
+	initConfig()
+
+	// Verify defaults are used
+	if maxUploadSize != defaultMaxUploadSize {
+		t.Errorf("maxUploadSize = %d, expected default %d", maxUploadSize, defaultMaxUploadSize)
+	}
+	if uploadDir != defaultUploadDir {
+		t.Errorf("uploadDir = %s, expected default %s", uploadDir, defaultUploadDir)
+	}
+	if dbPath != defaultDBPath {
+		t.Errorf("dbPath = %s, expected default %s", dbPath, defaultDBPath)
+	}
+	if keyPath != defaultKeyPath {
+		t.Errorf("keyPath = %s, expected default %s", keyPath, defaultKeyPath)
+	}
+}
+
+func TestParseRateLimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		defaultCount  int
+		defaultWindow time.Duration
+		expectCount   int
+		expectWindow  time.Duration
+	}{
+		{
+			name:          "empty uses defaults",
+			input:         "",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "parse 5/min",
+			input:         "5/min",
+			defaultCount:  10,
+			defaultWindow: time.Hour,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "parse 10/minute",
+			input:         "10/minute",
+			defaultCount:  5,
+			defaultWindow: time.Second,
+			expectCount:   10,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "parse 3/hour",
+			input:         "3/hour",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   3,
+			expectWindow:  time.Hour,
+		},
+		{
+			name:          "parse 100/s",
+			input:         "100/s",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   100,
+			expectWindow:  time.Second,
+		},
+		{
+			name:          "parse 3/15m duration format",
+			input:         "3/15m",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   3,
+			expectWindow:  15 * time.Minute,
+		},
+		{
+			name:          "parse 2/30s duration format",
+			input:         "2/30s",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   2,
+			expectWindow:  30 * time.Second,
+		},
+		{
+			name:          "invalid format uses defaults",
+			input:         "invalid",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "invalid count uses defaults",
+			input:         "abc/min",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "zero count uses defaults",
+			input:         "0/min",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "negative count uses defaults",
+			input:         "-1/min",
+			defaultCount:  5,
+			defaultWindow: time.Minute,
+			expectCount:   5,
+			expectWindow:  time.Minute,
+		},
+		{
+			name:          "invalid window uses defaults",
+			input:         "5/xyz",
+			defaultCount:  3,
+			defaultWindow: time.Hour,
+			expectCount:   3,
+			expectWindow:  time.Hour,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			count, window := parseRateLimit(tc.input, tc.defaultCount, tc.defaultWindow)
+			if count != tc.expectCount {
+				t.Errorf("parseRateLimit(%q) count = %d, expected %d", tc.input, count, tc.expectCount)
+			}
+			if window != tc.expectWindow {
+				t.Errorf("parseRateLimit(%q) window = %v, expected %v", tc.input, window, tc.expectWindow)
+			}
+		})
+	}
+}
+
+func TestGetEnvRateLimitOrDefault(t *testing.T) {
+	key := "TEST_RATE_LIMIT"
+
+	// Clear any existing value
+	os.Unsetenv(key)
+
+	// Test default when not set
+	count, window := getEnvRateLimitOrDefault(key, 5, time.Minute)
+	if count != 5 || window != time.Minute {
+		t.Errorf("expected (5, 1m), got (%d, %v)", count, window)
+	}
+
+	// Test with env var set
+	os.Setenv(key, "10/hour")
+	defer os.Unsetenv(key)
+
+	count, window = getEnvRateLimitOrDefault(key, 5, time.Minute)
+	if count != 10 || window != time.Hour {
+		t.Errorf("expected (10, 1h), got (%d, %v)", count, window)
+	}
+}
+
+func TestInitRateLimiters(t *testing.T) {
+	// Save original config values
+	origAuthRateLimit := authRateLimit
+	origAuthRateWindow := authRateWindow
+
+	// Restore after test
+	defer func() {
+		authRateLimit = origAuthRateLimit
+		authRateWindow = origAuthRateWindow
+	}()
+
+	// Set custom values
+	authRateLimit = 100
+	authRateWindow = time.Hour
+
+	// Initialize rate limiters
+	initRateLimiters()
+
+	// Verify limiters were created (not nil)
+	if authLimiter == nil {
+		t.Error("authLimiter should not be nil after initRateLimiters")
+	}
+	if passwordResetLimiter == nil {
+		t.Error("passwordResetLimiter should not be nil after initRateLimiters")
+	}
+	if uploadLimiter == nil {
+		t.Error("uploadLimiter should not be nil after initRateLimiters")
+	}
+	if transcribeLimiter == nil {
+		t.Error("transcribeLimiter should not be nil after initRateLimiters")
+	}
+	if burnLimiter == nil {
+		t.Error("burnLimiter should not be nil after initRateLimiters")
+	}
+	if scriptLimiter == nil {
+		t.Error("scriptLimiter should not be nil after initRateLimiters")
+	}
+}

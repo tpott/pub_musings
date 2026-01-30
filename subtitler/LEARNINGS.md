@@ -52,6 +52,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Go file splitting: side-effect imports must stay in the core file
+
+**Problem:** Splitting `db/db.go` into domain files dropped the `_ "github.com/mattn/go-sqlite3"` side-effect import. The `goimports` tool (used to fix imports after splitting) correctly removes unused imports — but side-effect imports (`_ "pkg"`) look unused because they have no direct references. All packages that depended on the sqlite3 driver registration (backend main tests, auth tests) failed with `sql: unknown driver "sqlite3"`.
+
+**Solution:** Restored the `_ "github.com/mattn/go-sqlite3"` import to `db/db.go` (the core file containing `sql.Open("sqlite3", ...)`). Side-effect imports must live in the file that depends on them, not be split away.
+
+**Lesson:** When splitting Go files, never trust `goimports` to handle side-effect imports. After any split, check that `_ "pkg"` imports remain in the file that uses the registered driver/codec/init. `goimports` treats them as unused and may remove them silently.
+
+---
+
 ### Go file splitting: extracting handlers from main()
 
 **Problem:** main.go grew to 6340 lines with all 50 HTTP handlers as inline closures inside main(). The test file api_test.go had a duplicate set of all handlers in its own testServer.registerHandlers() method.

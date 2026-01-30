@@ -4,10 +4,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**436 tasks completed** as of 2026-01-30. 2 tasks pending.
+**437 tasks completed** as of 2026-01-30. 1 task pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (9 source files, ~6500 lines total), 583 tests across 26 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 583 tests across 45 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
 - **E2E:** Playwright tests (71 scenarios)
 - **Total:** 1492+ tests, 32 specification documents
@@ -63,9 +63,23 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-2 tasks pending: 432 (cross-language filesize linter), 433 (split oversized files).
+1 task pending: 432 (cross-language filesize linter).
 
 ## Recent Work
+
+### Task 433: Split/compact all source files over 1000 lines (2026-01-30)
+- Split all 8 files over 1000 lines to under 1000 lines each:
+  - `db/db.go` (2578 → 294 lines): split into 11 source files by domain (types, video, auth, user, session, upload, transcription, feedback, burnjob, maintenance)
+  - `db/db_test.go` (3411 → deleted): split into 11 test files by domain
+  - `main_test.go` (1621 → deleted): split into 6 focused test files (subtitle_format, config, middleware, helpers, video_helpers, goroutine)
+  - `handlers_video.go` (1565 → 623): extracted subtitles (356), burn (524), text (114)
+  - `handlers_upload.go` (1553 → 877): extracted transcribe (695)
+  - `handlers_auth.go` (1307 → 470): extracted TOTP (434), recovery (444)
+  - `upload.css` (1266 → 784): extracted speed-controls (92), segment-editor (270), keyboard-modal (146) via CSS @import
+  - `upload.astro` (1011 → 999): deduplicated subtitle download handlers
+- Fixed missing `_ "github.com/mattn/go-sqlite3"` import in db/db.go lost during split
+- Backend: 52 source files (was 9 monolithic), 45 test files (was 26)
+- All 583 backend + 841 frontend tests pass, verify-all.sh clean
 
 ### Task 431: Split api_test.go into smaller test files (2026-01-30)
 - Split `api_test.go` (10,863 lines) into 5 focused test files:
@@ -318,7 +332,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-No pending tasks. All tasks completed.
+1 task pending: 432 (cross-language filesize linter).
 
 ## Key Files
 
