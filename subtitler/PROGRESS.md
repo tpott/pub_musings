@@ -9,8 +9,8 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
 - **Frontend:** Astro/TypeScript, 832 tests across 29 files
-- **E2E:** Playwright tests (67 scenarios across 7 spec files)
-- **Total:** 1501+ tests, 32 specification documents
+- **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
+- **Total:** 1505+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -66,7 +66,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 ### Tasks 477-480: Chunk upload race fix, close error handling, doc updates (2026-01-30)
 - **Task 477:** Fixed TOCTOU race condition in chunked upload — `CreateUploadChunk` now uses `INSERT OR IGNORE` and returns `(bool, error)` indicating whether the row was actually inserted. Handler treats concurrent duplicate as idempotent success (cleans up duplicate file, returns 200). Added 2 tests (idempotent + concurrent). Prevents 500 errors from UNIQUE constraint violations during concurrent chunk uploads
 - **Task 478:** Updated PROGRESS.md — status summary, E2E count (71→67), removed duplicate pending section, compacted recent work
-- **Task 479:** Updated TESTING.md E2E count from 71 to 67 scenarios, backend count from 600 to 602
+- **Task 479:** Updated TESTING.md backend count from 600 to 602, clarified E2E count (71 total: 58 active + 13 skipped)
 - **Task 480:** Made chunk `destFile.Close()` error fatal — chunks have no downstream validation (unlike regular uploads which use `ValidateVideoFile`), so a close failure could leave corrupted data. Now removes chunk and returns 500 instead of continuing
 
 ### Tasks 469-475: Security, memory leaks, accessibility, and UX fixes (2026-01-30)

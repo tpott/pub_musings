@@ -232,6 +232,14 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Frontend
 
+### 2026-01-30: E2E test count: grep vs Playwright disagree on parameterized tests
+
+**Problem:** Grepping for `test(` declarations found 67, but Playwright reports 71 total (58 passed + 13 skipped). The capture-design.spec.ts uses a parameterized pattern where 1 `test()` call inside a `sites.forEach` loop generates 5 test instances.
+
+**Solution:** Trust the Playwright output (`npx playwright test`) for the authoritative count. Grep undercounts parameterized/dynamic tests.
+
+**Lesson:** When documenting E2E test counts, run `npx playwright test --list` or the actual test runner, not `grep -c 'test('`. Parameterized tests (forEach + test()) create more Playwright test entries than `test(` declarations.
+
 ### CRITICAL: Playback speeds must be 0.8x, 0.9x, 1.0x ONLY
 
 **Problem:** Speeds were expanded to 6 speeds (0.5x-2x) multiple times. Owner keeps reverting it.
