@@ -89,6 +89,8 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 		existingJob, err := database.GetBurnJob(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting burn job", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to check burn status")
+			return
 		}
 		if existingJob != nil {
 			if existingJob.Status == "processing" {

@@ -76,7 +76,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		if transcription.CompletedAt != nil {
 			completedAt = transcription.CompletedAt.Unix()
 		}
-		etag := generateETag(fmt.Sprintf("srt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+		etag := generateETag(fmt.Sprintf("srt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON))
 
 		// Check for conditional request (If-None-Match)
 		if handleConditionalRequest(w, r, etag) {
@@ -180,7 +180,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		if transcription.CompletedAt != nil {
 			completedAt = transcription.CompletedAt.Unix()
 		}
-		etag := generateETag(fmt.Sprintf("vtt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+		etag := generateETag(fmt.Sprintf("vtt-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON))
 
 		// Check for conditional request (If-None-Match)
 		if handleConditionalRequest(w, r, etag) {
@@ -282,7 +282,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		if transcription.CompletedAt != nil {
 			completedAt = transcription.CompletedAt.Unix()
 		}
-		etag := generateETag(fmt.Sprintf("json-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON[:min(100, len(transcription.SegmentsJSON))]))
+		etag := generateETag(fmt.Sprintf("json-%s-%d-%s", transcription.ID, completedAt, transcription.SegmentsJSON))
 
 		// Check for conditional request (If-None-Match)
 		if handleConditionalRequest(w, r, etag) {

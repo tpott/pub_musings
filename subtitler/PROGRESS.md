@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**480 tasks completed** as of 2026-01-30.
+**482 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
@@ -62,6 +62,10 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 481-482: Error handling and caching fixes (2026-01-30)
+- **Task 481:** Fixed burn job handler swallowing `GetBurnJob()` DB error — previously logged error but continued, potentially creating duplicate burn jobs. Now returns 500 on DB failure
+- **Task 482:** Fixed subtitle ETag using only first 100 chars of SegmentsJSON — editing segments beyond position 100 wouldn't invalidate cache. Now hashes full SegmentsJSON for reliable cache invalidation
 
 ### Tasks 477-480: Chunk upload race fix, close error handling, doc updates (2026-01-30)
 - **Task 477:** Fixed TOCTOU race condition in chunked upload — `CreateUploadChunk` now uses `INSERT OR IGNORE` and returns `(bool, error)` indicating whether the row was actually inserted. Handler treats concurrent duplicate as idempotent success (cleans up duplicate file, returns 200). Added 2 tests (idempotent + concurrent). Prevents 500 errors from UNIQUE constraint violations during concurrent chunk uploads
