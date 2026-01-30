@@ -41,6 +41,11 @@ h1 {
 	border-color: var(--accent-color);
 	background-color: var(--dropzone-hover-bg);
 }
+.dropzone:focus-visible {
+	outline: 2px solid var(--accent-color);
+	outline-offset: 2px;
+	border-color: var(--accent-color);
+}
 .dropzone-icon {
 	font-size: 3rem;
 	margin-bottom: 1rem;

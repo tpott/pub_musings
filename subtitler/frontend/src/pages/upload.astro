@@ -26,7 +26,7 @@ import '../styles/upload.css';
 				<h1>Upload Video</h1>
 			</div>
 
-			<div class="dropzone" id="dropzone">
+			<div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload video file. Drag and drop or press Enter to browse.">
 				<div class="dropzone-icon">📹</div>
 				<p class="dropzone-text">Drag and drop your video here</p>
 				<p class="dropzone-hint">or click to browse (MP4, MOV, WebM up to 500MB)</p>
@@ -752,8 +752,14 @@ import '../styles/upload.css';
 			}
 			alignBtn.addEventListener('click', alignTranscript);
 
-			// --- File upload (drag-and-drop + file input) ---
+			// --- File upload (drag-and-drop + file input + keyboard) ---
 			dropzone.addEventListener('click', () => fileInput.click());
+			dropzone.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					fileInput.click();
+				}
+			});
 			dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
 			dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
 			dropzone.addEventListener('drop', (e) => {

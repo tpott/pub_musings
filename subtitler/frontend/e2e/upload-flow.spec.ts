@@ -343,6 +343,21 @@ test.describe('Upload Validation', () => {
     // Verify it has click handler (clicking should trigger file input)
     await expect(dropzone).toHaveCSS('cursor', 'pointer');
   });
+
+  test('dropzone should be keyboard-accessible', async ({ page }) => {
+    await page.goto('/upload');
+
+    const dropzone = page.locator('#dropzone');
+
+    // Verify accessibility attributes
+    await expect(dropzone).toHaveAttribute('role', 'button');
+    await expect(dropzone).toHaveAttribute('tabindex', '0');
+    await expect(dropzone).toHaveAttribute('aria-label', /upload video/i);
+
+    // Verify dropzone can receive focus
+    await dropzone.focus();
+    await expect(dropzone).toBeFocused();
+  });
 });
 
 // Test video visibility during playback - REGRESSION TEST

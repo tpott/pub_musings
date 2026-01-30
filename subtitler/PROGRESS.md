@@ -4,12 +4,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**425 tasks completed** as of 2026-01-29. 4 tasks pending.
+**426 tasks completed** as of 2026-01-29. 3 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
-- **E2E:** Playwright tests (59 scenarios)
+- **E2E:** Playwright tests (60 scenarios)
 - **Total:** 1421+ tests, 32 specification documents
 
 ## Feature Summary
@@ -63,9 +63,16 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-4 tasks pending (425-428).
+3 tasks pending (426-428).
 
 ## Recent Work
+
+### Task 425: Make upload dropzone keyboard-accessible (2026-01-29)
+- Added `role="button"`, `tabindex="0"`, `aria-label` to dropzone div
+- Added keyboard handler: Enter/Space opens file picker
+- Added `focus-visible` CSS style for keyboard navigation
+- Added E2E test verifying accessibility attributes and focusability
+- E2E scenarios: 59 -> 60
 
 ### Task 429: Add kid mode (screen lock) to video modal (2026-01-29)
 - User feedback: kids tapping mobile screen accidentally click buttons during playback
