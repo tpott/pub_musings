@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**437 tasks completed** as of 2026-01-30. 1 task pending.
+**438 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 583 tests across 45 files
@@ -63,9 +63,16 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-1 task pending: 432 (cross-language filesize linter).
+No pending tasks. All tasks completed.
 
 ## Recent Work
+
+### Task 432: Cross-language file size linter (2026-01-30)
+- Created `scripts/lint-filesize.py`: checks all source files (Go, TS, Astro, CSS) for >1000 lines
+- Replaces frontend-only `lint-frontend-filesize.sh` with unified cross-language linter
+- 5 api_test files excepted with justification (task 431 split artifacts — shared test infrastructure)
+- Supports `--list-exceptions` flag for documenting exceptions
+- Integrated into `lint.sh` (replacing old frontend-only check)
 
 ### Task 433: Split/compact all source files over 1000 lines (2026-01-30)
 - Split all 8 files over 1000 lines to under 1000 lines each:
@@ -332,7 +339,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-1 task pending: 432 (cross-language filesize linter).
+No pending tasks. All tasks completed.
 
 ## Key Files
 
@@ -352,6 +359,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | Security checklist | `docs/SECURITY_CHECKLIST.md` |
 | Security events | `docs/SECURITY_EVENTS.md` |
 | Security query tool | `scripts/query-security-events.py` |
+| File size linter | `scripts/lint-filesize.py` |
 | Prometheus metrics | `docs/METRICS.md` |
 | Test documentation | `TESTING.md`, `BROWSER_TESTING.md` |
 | Learnings | `LEARNINGS.md` |
