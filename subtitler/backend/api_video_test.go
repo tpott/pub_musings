@@ -437,11 +437,12 @@ func TestGetTranscriptionStatus(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-transcription"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Get transcription status
-	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID, nil, "")
+	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID+"?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -475,6 +476,63 @@ func TestGetTranscriptionNotFound(t *testing.T) {
 	}
 }
 
+func TestGetTranscriptionAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "test-session-tx-denied"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// Without session_id should be forbidden
+	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID, nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 without session_id, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// With wrong session_id should be forbidden
+	resp = ts.doRequest("GET", "/api/transcribe/"+video.ID+"?session_id=wrong-session", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 with wrong session_id, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestUpdateSegmentsAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "test-session-seg-denied"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// Without session_id should be forbidden
+	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments", map[string]interface{}{
+		"segments": []db.Segment{
+			{ID: 0, Start: 0.0, End: 3.0, Text: "Updated text."},
+		},
+	}, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 without session_id, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAlignTranscriptAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "test-session-align-denied"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// Without session_id should be forbidden
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+		"text": "Hello world",
+	}, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 without session_id, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
 // TestTranscriptionErrorMessageSanitization verifies that whisper error messages
 // are sanitized before being sent to clients (Task 205)
 
@@ -487,7 +545,8 @@ func TestTranscriptionErrorMessageSanitization(t *testing.T) {
 	defer errmsg.SetVerbose(false)
 
 	// Create video and failing transcription with sensitive error message
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-sanitization"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	sensitiveError := "whisper-server request failed after 3 attempts: connection refused at 10.0.2.2:8765 for file /opt/subtitler/uploads/abc123.mp4"
 
 	transcription := &db.Transcription{
@@ -505,7 +564,7 @@ func TestTranscriptionErrorMessageSanitization(t *testing.T) {
 	}
 
 	// Get transcription status
-	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID, nil, "")
+	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID+"?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -552,7 +611,8 @@ func TestTranscriptionErrorVerboseMode(t *testing.T) {
 	defer errmsg.SetVerbose(false)
 
 	// Create video and failing transcription with sensitive error message
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-verbose"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	sensitiveError := "whisper-server request failed: connection refused at 10.0.2.2:8765"
 
 	transcription := &db.Transcription{
@@ -570,7 +630,7 @@ func TestTranscriptionErrorVerboseMode(t *testing.T) {
 	}
 
 	// Get transcription status
-	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID, nil, "")
+	resp := ts.doRequest("GET", "/api/transcribe/"+video.ID+"?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -820,7 +880,8 @@ func TestUpdateSegments(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-segments"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Update segments
@@ -829,7 +890,7 @@ func TestUpdateSegments(t *testing.T) {
 		{ID: 1, Start: 3.5, End: 6.0, Text: "Also updated."},
 	}
 
-	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments", map[string]interface{}{
+	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments?session_id="+sessionID, map[string]interface{}{
 		"segments": newSegments,
 	}, "")
 
@@ -856,11 +917,12 @@ func TestUpdateSegmentsInvalidTiming(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-invalid-timing"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Try with invalid timing (start > end)
-	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments", map[string]interface{}{
+	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments?session_id="+sessionID, map[string]interface{}{
 		"segments": []db.Segment{
 			{ID: 0, Start: 5.0, End: 2.0, Text: "Invalid"},
 		},
@@ -875,11 +937,12 @@ func TestUpdateSegmentsNegativeTiming(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-neg-timing"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Try with negative timing
-	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments", map[string]interface{}{
+	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments?session_id="+sessionID, map[string]interface{}{
 		"segments": []db.Segment{
 			{ID: 0, Start: -1.0, End: 2.0, Text: "Negative start"},
 		},
@@ -894,13 +957,14 @@ func TestUpdateSegmentsTextTooLong(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-text-long"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Create a text that exceeds the 10KB limit
 	longText := strings.Repeat("a", 11*1024) // 11KB
 
-	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments", map[string]interface{}{
+	resp := ts.doRequest("PUT", "/api/transcribe/"+video.ID+"/segments?session_id="+sessionID, map[string]interface{}{
 		"segments": []db.Segment{
 			{ID: 0, Start: 0.0, End: 2.0, Text: longText},
 		},
@@ -2105,11 +2169,12 @@ func TestAlignTranscriptStandard(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-std"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Align with standard mode (default)
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]string{
 		"text": "Hello world\nThis is a test",
 	}, "")
 
@@ -2143,11 +2208,12 @@ func TestAlignTranscriptLyricsMode(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-lyrics"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Align with lyrics mode
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]interface{}{
 		"text": "Hello world\nThis is a test",
 		"mode": "lyrics",
 	}, "")
@@ -2173,9 +2239,10 @@ func TestAlignTranscriptNoTranscription(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create video without transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-notx"
+	video := ts.createTestVideo(t, nil, &sessionID)
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]string{
 		"text": "Hello world",
 	}, "")
 
@@ -2197,7 +2264,8 @@ func TestAlignTranscriptIncomplete(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create video with pending transcription (not complete)
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-incomplete"
+	video := ts.createTestVideo(t, nil, &sessionID)
 
 	// Create a pending (incomplete) transcription
 	transcription := &db.Transcription{
@@ -2212,7 +2280,7 @@ func TestAlignTranscriptIncomplete(t *testing.T) {
 		t.Fatalf("Failed to create transcription: %v", err)
 	}
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]string{
 		"text": "Hello world",
 	}, "")
 
@@ -2252,10 +2320,11 @@ func TestAlignTranscriptEmptyText(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-empty"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]string{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]string{
 		"text": "",
 	}, "")
 
@@ -2270,10 +2339,11 @@ func TestAlignTranscriptInvalidMode(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-badmode"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]interface{}{
 		"text": "Hello world",
 		"mode": "invalid_mode",
 	}, "")
@@ -2289,10 +2359,11 @@ func TestAlignTranscriptWithScriptConversion(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-script"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]interface{}{
 		"text":              "namaste dost",
 		"convert_to_script": "Devanagari",
 		"language":          "hi",
@@ -2321,10 +2392,11 @@ func TestAlignTranscriptUnsupportedScript(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-unsup"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]interface{}{
 		"text":              "Hello world",
 		"convert_to_script": "UnsupportedScript",
 		"language":          "en",
@@ -2350,10 +2422,11 @@ func TestAlignTranscriptMissingLanguage(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-nolang"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align", map[string]interface{}{
+	resp := ts.doRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, map[string]interface{}{
 		"text":              "Hello world",
 		"convert_to_script": "Devanagari",
 		// No language specified
@@ -2376,10 +2449,11 @@ func TestAlignTranscriptInvalidBody(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-align-badbody"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	req := httptest.NewRequest("POST", "/api/transcribe/"+video.ID+"/align", strings.NewReader("not json"))
+	req := httptest.NewRequest("POST", "/api/transcribe/"+video.ID+"/align?session_id="+sessionID, strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	resp := httptest.NewRecorder()
 	ts.mux.ServeHTTP(resp, req)
