@@ -3,8 +3,10 @@ set -euo pipefail
 
 cd /home/trevor/pub_musings
 git fetch origin
-git checkout subtitler_v3
-git pull origin subtitler_v3
+
+# TODO run this in webhook-deployer's go code. leverage the config.yaml branch field
+git checkout trunk
+git pull origin trunk
 
 cd subtitler/frontend
 

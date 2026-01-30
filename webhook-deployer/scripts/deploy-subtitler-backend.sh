@@ -6,8 +6,8 @@ BACKEND_PORT="${BACKEND_PORT:-8060}"
 
 cd /home/trevor/pub_musings
 git fetch origin
-git checkout subtitler_v3
-git pull origin subtitler_v3
+git checkout trunk
+git pull origin trunk
 
 cd subtitler/backend
 
