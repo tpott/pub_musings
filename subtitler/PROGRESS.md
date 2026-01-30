@@ -4,12 +4,12 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**427 tasks completed** as of 2026-01-29. 2 tasks pending.
+**428 tasks completed** as of 2026-01-29. 1 task pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
-- **E2E:** Playwright tests (60 scenarios)
+- **E2E:** Playwright tests (61 scenarios)
 - **Total:** 1421+ tests, 32 specification documents
 
 ## Feature Summary
@@ -63,9 +63,16 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-2 tasks pending (427-428).
+1 task pending (428).
 
 ## Recent Work
+
+### Task 427: Add max-length validation for paste transcript text (2026-01-29)
+- Added `MAX_ALIGN_TEXT_LENGTH` constant (100KB) to upload-constants.ts, matching backend validation
+- Added client-side byte-length check using `new Blob([text]).size` before align API call
+- Shows inline error message with actual/max size when exceeded
+- Added E2E test verifying error message appears for oversized text
+- E2E scenarios: 60 -> 61
 
 ### Task 426: Replace alert() with styled dialog in admin feedback page (2026-01-29)
 - Replaced native `alert()` in admin/feedback.astro with `showAlert()` from `utils/dialog.ts`

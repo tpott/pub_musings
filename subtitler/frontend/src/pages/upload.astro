@@ -325,7 +325,8 @@ import '../styles/upload.css';
 				SCRIPT_LANGUAGE_NAMES,
 				PREFERRED_LANGUAGE_KEY,
 				PASTE_COLLAPSED_KEY,
-				FULLTEXT_COLLAPSED_KEY
+				FULLTEXT_COLLAPSED_KEY,
+				MAX_ALIGN_TEXT_LENGTH
 			} from '../utils/upload-constants';
 			import {
 				validateFile,
@@ -702,6 +703,12 @@ import '../styles/upload.css';
 				const text = pasteText.value.trim();
 				if (!text) {
 					alignStatus.textContent = 'Please paste some text first.';
+					alignStatus.className = 'align-status error';
+					return;
+				}
+				if (new Blob([text]).size > MAX_ALIGN_TEXT_LENGTH) {
+					const sizeKB = Math.round(new Blob([text]).size / 1024);
+					alignStatus.textContent = `Text is too long (${sizeKB}KB). Maximum is ${MAX_ALIGN_TEXT_LENGTH / 1024}KB.`;
 					alignStatus.className = 'align-status error';
 					return;
 				}

@@ -358,6 +358,44 @@ test.describe('Upload Validation', () => {
     await dropzone.focus();
     await expect(dropzone).toBeFocused();
   });
+
+  test('should show error for oversized paste transcript text', async ({ page }) => {
+    test.setTimeout(180000);
+    await acceptCookies(page);
+    await page.goto('/upload');
+
+    // Upload a test video and wait for transcription to complete
+    ensureTestVideo();
+    const fileInput = page.locator('#fileInput');
+    await fileInput.setInputFiles(TEST_VIDEO_PATH);
+
+    const result = await waitForTranscriptionStatus(page, 120000);
+    if (result === 'error' || result === 'timeout') {
+      test.skip(true, 'Whisper not available - skipping paste transcript validation test');
+      return;
+    }
+
+    // Paste transcript section should now be visible
+    const pasteSection = page.locator('#pasteTranscriptSection');
+    await expect(pasteSection).toBeVisible({ timeout: 5000 });
+
+    const alignBtn = page.locator('#alignBtn');
+    const alignStatus = page.locator('#alignStatus');
+
+    // Fill textarea with text exceeding 100KB via page.evaluate (faster than .fill for large text)
+    await page.evaluate(() => {
+      const textarea = document.getElementById('pasteText') as HTMLTextAreaElement;
+      textarea.value = 'a'.repeat(101 * 1024);
+    });
+
+    // Click align - should show error without making a network request
+    await alignBtn.click();
+
+    // Verify error message appears with size info
+    await expect(alignStatus).toContainText('too long');
+    await expect(alignStatus).toContainText('100KB');
+    await expect(alignStatus).toHaveClass(/error/);
+  });
 });
 
 // Test video visibility during playback - REGRESSION TEST

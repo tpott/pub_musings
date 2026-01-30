@@ -96,5 +96,8 @@ export const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 /** LocalStorage prefix for upload session resumability */
 export const UPLOAD_SESSION_PREFIX = 'subtitler:upload_session:';
 
+/** Maximum text length for transcript alignment (100KB, matches backend) */
+export const MAX_ALIGN_TEXT_LENGTH = 100 * 1024;
+
 /** Maximum undo/redo history entries */
 export const MAX_HISTORY_SIZE = 50;
