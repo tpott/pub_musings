@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**490 tasks completed** as of 2026-01-30.
+**493 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
@@ -62,6 +62,11 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 491-493: Error handling fixes — swallowed DB errors (2026-01-30)
+- **Task 491:** Fixed transcribe handler swallowing `GetTranscription()` DB error — previously logged error but continued, risking duplicate transcription starts or missing a "processing" state. Now returns 500
+- **Task 492:** Fixed burn status handler silently discarding `GetTranscription()` error with `_` — now logs warning so DB issues are visible in logs. Duration/ETA still gracefully omitted on failure
+- **Task 493:** Fixed `finalizeUploadSession()` swallowing critical DB errors — function now returns error when transcription record creation fails. Caller returns 500 instead of reporting upload success when transcription initialization failed. Session status and chunk cleanup remain best-effort
 
 ### Tasks 486-488: Spec, schema, and API doc drift fixes (2026-01-30)
 - **Task 486:** Fixed TOTP spec/schema drift — added `qr_code` to setup response in specs/totp.md, added `recovery_codes` and recovery code generation steps to verify response in spec, added `uri` and `issuer` optional fields to `TotpSetupResponseSchema`. Added test for full backend response shape

@@ -208,7 +208,10 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 		// If processing, calculate estimated time remaining
 		if job.Status == "processing" && job.Progress > 0 {
 			// Get transcription for duration info
-			transcription, _ := database.GetTranscription(uploadID)
+			transcription, err := database.GetTranscription(uploadID)
+			if err != nil {
+				logging.WarnContext(r.Context(), "Failed to get transcription for burn progress", "upload_id", uploadID, "error", err)
+			}
 			if transcription != nil && transcription.Duration > 0 {
 				response["duration"] = transcription.Duration
 

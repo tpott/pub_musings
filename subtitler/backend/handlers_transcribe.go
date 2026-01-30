@@ -80,6 +80,8 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		existingTranscription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to check transcription status")
+			return
 		}
 		if existingTranscription != nil {
 			if existingTranscription.Status == "processing" {
@@ -761,35 +763,41 @@ func encryptAndPersistVideo(ctx context.Context, destPath, uploadID string, tota
 }
 
 // finalizeUploadSession creates the transcription record, marks the upload
-// session as complete, and cleans up chunk files.
-func finalizeUploadSession(ctx context.Context, uploadID, sessionID string, chunks []db.UploadChunk) {
+// session as complete, and cleans up chunk files. Returns an error if the
+// transcription record cannot be created (the critical part of finalization).
+// Session status update and chunk cleanup are best-effort.
+func finalizeUploadSession(ctx context.Context, uploadID, sessionID string, chunks []db.UploadChunk) error {
 	// Create transcription record
 	transcriptionID, err := generateID()
 	if err != nil {
 		logging.ErrorContext(ctx, "Error generating transcription ID", "error", err)
-	} else {
-		transcription := &db.Transcription{
-			ID:        transcriptionID,
-			VideoID:   uploadID,
-			Status:    "pending",
-			Message:   "Video uploaded, ready for transcription",
-			Progress:  0,
-			CreatedAt: time.Now(),
-		}
-		if err := database.CreateTranscription(transcription); err != nil {
-			logging.ErrorContext(ctx, "Error creating transcription record", "error", err)
-		}
+		return fmt.Errorf("Failed to generate transcription ID")
 	}
 
-	// Mark session as complete
+	transcription := &db.Transcription{
+		ID:        transcriptionID,
+		VideoID:   uploadID,
+		Status:    "pending",
+		Message:   "Video uploaded, ready for transcription",
+		Progress:  0,
+		CreatedAt: time.Now(),
+	}
+	if err := database.CreateTranscription(transcription); err != nil {
+		logging.ErrorContext(ctx, "Error creating transcription record", "error", err)
+		return fmt.Errorf("Failed to create transcription record")
+	}
+
+	// Mark session as complete (best-effort)
 	if err := database.UpdateUploadSessionStatus(sessionID, "complete"); err != nil {
 		logging.ErrorContext(ctx, "Error updating session status", "error", err)
 	}
 
-	// Clean up chunk files
+	// Clean up chunk files (best-effort)
 	chunksDir := filepath.Join(uploadDir, "chunks", sessionID)
 	for _, chunk := range chunks {
 		removeWithLogging(chunk.ChunkPath, "uploaded chunk after successful assembly")
 	}
 	removeWithLogging(chunksDir, "empty chunks directory after cleanup")
+
+	return nil
 }
