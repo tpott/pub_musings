@@ -1055,238 +1055,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		}
 
 		// Process in background (capture key version and burn mode)
-		go func(kv int, mode string) {
-			// Panic recovery to prevent goroutine crashes from leaving jobs in stuck state
-			defer func() {
-				if r := recover(); r != nil {
-					logging.Error("Panic in burn goroutine", "upload_id", uploadID, "panic", r)
-					if err := database.FailBurnJob(uploadID, "Internal error: burn process crashed"); err != nil {
-						logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-					}
-				}
-			}()
-
-			// Check for shutdown before starting
-			if isShuttingDown() {
-				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
-				if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-
-			logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", kv, "mode", mode)
-
-			// Decrypt video if encrypted
-			workingVideoPath := videoPath
-			if strings.HasSuffix(videoPath, ".age") {
-				if err := database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5); err != nil {
-					logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
-				}
-				decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, kv)
-				if err != nil {
-					logging.Error("Video decryption failed", "error", err)
-					if err := database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err)); err != nil {
-						logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-					}
-					return
-				}
-				workingVideoPath = decryptedPath
-				defer removeWithLogging(decryptedPath, "decrypted video cleanup after burn")
-			}
-
-			// Check for shutdown after decryption
-			if isShuttingDown() {
-				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
-				if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-
-			// Get segments for SRT generation
-			segments, err := transcription.GetSegments()
-			if err != nil || len(segments) == 0 {
-				logging.Error("No segments available", "error", err)
-				if err := database.FailBurnJob(uploadID, "No subtitle segments available"); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-
-			if err := database.UpdateBurnJobStatus(uploadID, "processing", "Generating subtitles...", 10); err != nil {
-				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
-			}
-
-			// Convert to WhisperResult for SRT generation
-			whisperResult := &WhisperResult{
-				Language: transcription.Language,
-				Duration: transcription.Duration,
-				Text:     transcription.FullText,
-				Segments: make([]WhisperSegment, len(segments)),
-			}
-			for i, s := range segments {
-				whisperResult.Segments[i] = WhisperSegment{
-					ID:    s.ID,
-					Start: s.Start,
-					End:   s.End,
-					Text:  s.Text,
-				}
-			}
-
-			// Write SRT to temp file
-			srtContent := generateSRT(whisperResult)
-			srtPath := filepath.Join(uploadDir, uploadID+"_burn.srt")
-			if err := os.WriteFile(srtPath, []byte(srtContent), 0644); err != nil {
-				logging.Error("Failed to write SRT file", "error", err)
-				if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to write SRT file: %v", err)); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-			defer removeWithLogging(srtPath, "temp SRT file cleanup after burn")
-
-			progressMsg := "Burning subtitles into video..."
-			if mode == "embed" {
-				progressMsg = "Embedding subtitle track..."
-			}
-			if err := database.UpdateBurnJobStatus(uploadID, "processing", progressMsg, 20); err != nil {
-				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
-			}
-
-			// Output to a temp file first, then encrypt
-			outputPath := filepath.Join(uploadDir, uploadID+"_burned.mp4")
-			// Defer removal of unencrypted output file (cleaned up even on panic/error)
-			// Note: This is a no-op if the file doesn't exist or was already removed
-			defer removeWithLogging(outputPath, "unencrypted burn output cleanup")
-
-			// Check for shutdown before starting ffmpeg (the long-running operation)
-			if isShuttingDown() {
-				logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
-				if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-
-			var cmd *exec.Cmd
-			if mode == "embed" {
-				// Embed mode: Create soft subtitle track (much faster, no re-encoding)
-				// Uses mov_text codec which is compatible with MP4/MOV containers
-				// Subtitles can be toggled on/off by the player
-				cmd = exec.Command("ffmpeg",
-					"-i", workingVideoPath,
-					"-i", srtPath,
-					"-c:v", "copy", // Copy video stream (no re-encoding)
-					"-c:a", "copy", // Copy audio stream (no re-encoding)
-					"-c:s", "mov_text", // Embed subtitles as text track
-					"-y",
-					outputPath,
-				)
-			} else {
-				// Burn mode: Hardcode subtitles into video frames (slower, re-encodes video)
-				// Build subtitle style with optional font for Indic script support
-				// FontName is added if SUBTITLE_FONT env var is set, enabling proper rendering
-				// of Hindi, Tamil, Telugu and other scripts that require specific fonts
-				subtitleStyle := "FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2"
-				if subtitleFont != "" {
-					// Escape font name for ffmpeg filter syntax (remove quotes, colons, semicolons)
-					safeFontName := strings.NewReplacer(`'`, ``, `"`, ``, `:`, ``, `;`, ``).Replace(subtitleFont)
-					subtitleStyle = fmt.Sprintf("FontName=%s,%s", safeFontName, subtitleStyle)
-				}
-
-				cmd = exec.Command("ffmpeg",
-					"-i", workingVideoPath,
-					"-vf", fmt.Sprintf("subtitles='%s':force_style='%s'", escapeFFmpegFilterPath(srtPath), subtitleStyle),
-					"-c:a", "copy",
-					"-y",
-					outputPath,
-				)
-			}
-
-			// Start progress update goroutine for burn operation
-			// FFmpeg doesn't provide progress callbacks, so we simulate progress
-			// by incrementing from 20% to 85% in steps based on video duration
-			// Use context for cancellation so it's safe to call cancel multiple times
-			burnProgressCtx, cancelBurnProgress := context.WithCancel(context.Background())
-			defer cancelBurnProgress() // Ensure cleanup even if we panic
-			go func() {
-				// Use video duration to estimate tick interval
-				// Shorter videos = shorter intervals, longer videos = longer intervals
-				// Embed mode is much faster (no re-encoding), burn mode takes ~1x video duration
-				estimatedBurnTime := transcription.Duration
-				if mode == "embed" {
-					// Embed mode is fast - just copying streams plus adding subtitle track
-					// Estimate ~5-10 seconds for most videos
-					estimatedBurnTime = 10
-				}
-				if estimatedBurnTime < 10 {
-					estimatedBurnTime = 10 // Minimum 10 seconds
-				}
-				if estimatedBurnTime > 600 {
-					estimatedBurnTime = 600 // Cap at 10 minutes
-				}
-
-				// Calculate tick interval to go from 20% to 85% (65 points) during burn
-				numTicks := 13 // 65 / 5 = 13 updates of 5% each
-				tickInterval := time.Duration(estimatedBurnTime/float64(numTicks)) * time.Second
-				if tickInterval < time.Second {
-					tickInterval = time.Second
-				}
-
-				ticker := time.NewTicker(tickInterval)
-				defer ticker.Stop()
-				progress := 20
-				statusMsg := progressMsg
-				for {
-					select {
-					case <-burnProgressCtx.Done():
-						return
-					case <-shutdownCtx.Done():
-						return
-					case <-ticker.C:
-						if progress < 85 {
-							progress += 5
-							if err := database.UpdateBurnJobStatus(uploadID, "processing", statusMsg, progress); err != nil {
-								logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
-							}
-						}
-					}
-				}
-			}()
-
-			cmdOutput, err := cmd.CombinedOutput()
-			cancelBurnProgress() // Stop progress updates
-
-			if err != nil {
-				logging.Error("ffmpeg burn subtitles failed", "error", err, "output", string(cmdOutput))
-				if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err)); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-
-			if err := database.UpdateBurnJobStatus(uploadID, "processing", "Encrypting output...", 90); err != nil {
-				logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
-			}
-
-			// Encrypt the output file with current key version
-			encOutputPath, keyVersion, err := multiEnc.EncryptFile(outputPath)
-			if err != nil {
-				logging.Error("Failed to encrypt burned video", "error", err)
-				// Note: outputPath is cleaned up by defer above
-				if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err)); err != nil {
-					logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
-				}
-				return
-			}
-			// Note: outputPath (unencrypted file) is cleaned up by defer above
-
-			logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion, "mode", mode)
-			if err := database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion); err != nil {
-				logging.Error("Failed to complete burn job", "video_id", uploadID, "error", err)
-			}
-		}(keyVersion, string(burnMode))
+		go processBurnJob(uploadID, videoPath, keyVersion, string(burnMode), transcription)
 
 		// Return immediately with processing status
 		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
@@ -1544,4 +1313,253 @@ func registerTextHandlers(mux *http.ServeMux) {
 			"language":      req.Language,
 		})
 	}))
+}
+
+// processBurnJob runs the subtitle burn pipeline in a background goroutine.
+// It decrypts the video (if encrypted), generates an SRT file, runs ffmpeg
+// to burn or embed subtitles, encrypts the output, and updates the burn job status.
+func processBurnJob(uploadID, videoPath string, keyVersion int, mode string, transcription *db.Transcription) {
+	// Panic recovery to prevent goroutine crashes from leaving jobs in stuck state
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Error("Panic in burn goroutine", "upload_id", uploadID, "panic", r)
+			if err := database.FailBurnJob(uploadID, "Internal error: burn process crashed"); err != nil {
+				logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+			}
+		}
+	}()
+
+	if isShuttingDown() {
+		failBurnShutdown(uploadID)
+		return
+	}
+
+	logging.Info("Starting subtitle burn", "upload_id", uploadID, "key_version", keyVersion, "mode", mode)
+
+	// Decrypt video if encrypted
+	workingVideoPath, cleanup, err := decryptVideoForBurn(uploadID, videoPath, keyVersion)
+	if err != nil {
+		return // error already logged and job marked as failed
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	if isShuttingDown() {
+		failBurnShutdown(uploadID)
+		return
+	}
+
+	// Generate SRT temp file from transcription segments
+	srtPath, err := generateBurnSRTFile(uploadID, transcription)
+	if err != nil {
+		return // error already logged and job marked as failed
+	}
+	defer removeWithLogging(srtPath, "temp SRT file cleanup after burn")
+
+	progressMsg := "Burning subtitles into video..."
+	if mode == "embed" {
+		progressMsg = "Embedding subtitle track..."
+	}
+	if err := database.UpdateBurnJobStatus(uploadID, "processing", progressMsg, 20); err != nil {
+		logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+	}
+
+	outputPath := filepath.Join(uploadDir, uploadID+"_burned.mp4")
+	defer removeWithLogging(outputPath, "unencrypted burn output cleanup")
+
+	if isShuttingDown() {
+		failBurnShutdown(uploadID)
+		return
+	}
+
+	// Build and run ffmpeg
+	cmd := buildBurnFFmpegCmd(workingVideoPath, srtPath, outputPath, mode)
+	cancelProgress := startBurnProgressTracker(uploadID, progressMsg, transcription.Duration, mode)
+	defer cancelProgress()
+
+	cmdOutput, err := cmd.CombinedOutput()
+	cancelProgress()
+
+	if err != nil {
+		logging.Error("ffmpeg burn subtitles failed", "error", err, "output", string(cmdOutput))
+		if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to burn subtitles: %v", err)); err != nil {
+			logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+		}
+		return
+	}
+
+	// Encrypt the output
+	encryptBurnOutput(uploadID, outputPath, mode)
+}
+
+// failBurnShutdown marks a burn job as failed due to server shutdown.
+func failBurnShutdown(uploadID string) {
+	logging.Info("Burn cancelled due to server shutdown", "upload_id", uploadID)
+	if err := database.FailBurnJob(uploadID, "Server shutting down - burn interrupted"); err != nil {
+		logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+	}
+}
+
+// decryptVideoForBurn decrypts an encrypted video file to a temp location for burning.
+// Returns the working video path, a cleanup function (nil if no decryption needed), and any error.
+func decryptVideoForBurn(uploadID, videoPath string, keyVersion int) (string, func(), error) {
+	if !strings.HasSuffix(videoPath, ".age") {
+		return videoPath, nil, nil
+	}
+
+	if err := database.UpdateBurnJobStatus(uploadID, "processing", "Decrypting video...", 5); err != nil {
+		logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+	}
+
+	decryptedPath, err := multiEnc.DecryptToTempFile(videoPath, keyVersion)
+	if err != nil {
+		logging.Error("Video decryption failed", "error", err)
+		if err := database.FailBurnJob(uploadID, fmt.Sprintf("Video decryption failed: %v", err)); err != nil {
+			logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+		}
+		return "", nil, err
+	}
+
+	cleanup := func() {
+		removeWithLogging(decryptedPath, "decrypted video cleanup after burn")
+	}
+	return decryptedPath, cleanup, nil
+}
+
+// generateBurnSRTFile creates a temporary SRT file from transcription segments for ffmpeg.
+func generateBurnSRTFile(uploadID string, transcription *db.Transcription) (string, error) {
+	segments, err := transcription.GetSegments()
+	if err != nil || len(segments) == 0 {
+		logging.Error("No segments available", "error", err)
+		if err := database.FailBurnJob(uploadID, "No subtitle segments available"); err != nil {
+			logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+		}
+		return "", fmt.Errorf("no segments available")
+	}
+
+	if err := database.UpdateBurnJobStatus(uploadID, "processing", "Generating subtitles...", 10); err != nil {
+		logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+	}
+
+	whisperResult := &WhisperResult{
+		Language: transcription.Language,
+		Duration: transcription.Duration,
+		Text:     transcription.FullText,
+		Segments: make([]WhisperSegment, len(segments)),
+	}
+	for i, s := range segments {
+		whisperResult.Segments[i] = WhisperSegment{
+			ID:    s.ID,
+			Start: s.Start,
+			End:   s.End,
+			Text:  s.Text,
+		}
+	}
+
+	srtContent := generateSRT(whisperResult)
+	srtPath := filepath.Join(uploadDir, uploadID+"_burn.srt")
+	if err := os.WriteFile(srtPath, []byte(srtContent), 0644); err != nil {
+		logging.Error("Failed to write SRT file", "error", err)
+		if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to write SRT file: %v", err)); err != nil {
+			logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+		}
+		return "", err
+	}
+
+	return srtPath, nil
+}
+
+// buildBurnFFmpegCmd constructs the ffmpeg command for burning or embedding subtitles.
+func buildBurnFFmpegCmd(workingVideoPath, srtPath, outputPath, mode string) *exec.Cmd {
+	if mode == "embed" {
+		return exec.Command("ffmpeg",
+			"-i", workingVideoPath,
+			"-i", srtPath,
+			"-c:v", "copy",
+			"-c:a", "copy",
+			"-c:s", "mov_text",
+			"-y",
+			outputPath,
+		)
+	}
+
+	subtitleStyle := "FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2"
+	if subtitleFont != "" {
+		safeFontName := strings.NewReplacer(`'`, ``, `"`, ``, `:`, ``, `;`, ``).Replace(subtitleFont)
+		subtitleStyle = fmt.Sprintf("FontName=%s,%s", safeFontName, subtitleStyle)
+	}
+
+	return exec.Command("ffmpeg",
+		"-i", workingVideoPath,
+		"-vf", fmt.Sprintf("subtitles='%s':force_style='%s'", escapeFFmpegFilterPath(srtPath), subtitleStyle),
+		"-c:a", "copy",
+		"-y",
+		outputPath,
+	)
+}
+
+// startBurnProgressTracker spawns a goroutine that periodically updates burn job
+// progress from 20% to 85% based on estimated burn time. Returns a cancel function.
+func startBurnProgressTracker(uploadID, progressMsg string, duration float64, mode string) context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		estimatedBurnTime := duration
+		if mode == "embed" {
+			estimatedBurnTime = 10
+		}
+		if estimatedBurnTime < 10 {
+			estimatedBurnTime = 10
+		}
+		if estimatedBurnTime > 600 {
+			estimatedBurnTime = 600
+		}
+
+		numTicks := 13 // 65 / 5 = 13 updates of 5% each
+		tickInterval := time.Duration(estimatedBurnTime/float64(numTicks)) * time.Second
+		if tickInterval < time.Second {
+			tickInterval = time.Second
+		}
+
+		ticker := time.NewTicker(tickInterval)
+		defer ticker.Stop()
+		progress := 20
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-shutdownCtx.Done():
+				return
+			case <-ticker.C:
+				if progress < 85 {
+					progress += 5
+					if err := database.UpdateBurnJobStatus(uploadID, "processing", progressMsg, progress); err != nil {
+						logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+					}
+				}
+			}
+		}
+	}()
+	return cancel
+}
+
+// encryptBurnOutput encrypts the burned video output and completes the burn job.
+func encryptBurnOutput(uploadID, outputPath, mode string) {
+	if err := database.UpdateBurnJobStatus(uploadID, "processing", "Encrypting output...", 90); err != nil {
+		logging.Error("Failed to update burn job status", "video_id", uploadID, "error", err)
+	}
+
+	encOutputPath, keyVersion, err := multiEnc.EncryptFile(outputPath)
+	if err != nil {
+		logging.Error("Failed to encrypt burned video", "error", err)
+		if err := database.FailBurnJob(uploadID, fmt.Sprintf("Failed to encrypt output: %v", err)); err != nil {
+			logging.Error("Failed to mark burn job as failed", "video_id", uploadID, "error", err)
+		}
+		return
+	}
+
+	logging.Info("Subtitle burn complete", "upload_id", uploadID, "output_path", encOutputPath, "key_version", keyVersion, "mode", mode)
+	if err := database.CompleteBurnJobWithKeyVersion(uploadID, encOutputPath, keyVersion); err != nil {
+		logging.Error("Failed to complete burn job", "video_id", uploadID, "error", err)
+	}
 }

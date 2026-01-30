@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**420 tasks completed** as of 2026-01-29. 2 tasks pending.
+**421 tasks completed** as of 2026-01-29. 1 task pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
@@ -62,10 +62,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-- Task 422: Extract burn subtitles handler into smaller functions
 - Task 423: Extract chunked upload complete handler into smaller functions
 
 ## Recent Work
+
+### Task 422: Extract burn subtitles handler into smaller functions (2026-01-29)
+- Refactored `POST /api/videos/{id}/burn` handler from 335 lines to 104 lines
+- Extracted 6 helper functions: `processBurnJob`, `failBurnShutdown`, `decryptVideoForBurn`, `generateBurnSRTFile`, `buildBurnFFmpegCmd`, `startBurnProgressTracker`, `encryptBurnOutput`
+- All 580 backend tests pass, golangci-lint clean (0 issues)
 
 ### Task 421: Add fetch timeout via AbortController (2026-01-29)
 - Replaced bare `fetch()` calls with `fetchWithTimeout()` in 3 files:
