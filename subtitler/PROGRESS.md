@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**414 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
+**418 tasks completed** as of 2026-01-29. 4 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -60,7 +60,22 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - HTTP range requests for video streaming
 - Graceful shutdown with context cancellation
 
+## Pending Tasks
+
+- Task 419: Add pagination offset limit to prevent query abuse
+- Task 421: Add fetch timeout via AbortController to fetches missing timeouts
+- Task 422: Extract burn subtitles handler into smaller functions
+- Task 423: Extract chunked upload complete handler into smaller functions
+
 ## Recent Work
+
+### Tasks 417-418, 420: Code quality improvements from deep inspection (2026-01-29)
+- **Task 417:** Drain HTTP response body in whisper health check for TCP connection reuse
+- **Task 418:** Made login lockout constants configurable via `MAX_LOGIN_ATTEMPTS` and `LOGIN_LOCK_DURATION` env vars (previously hardcoded to 5 attempts / 15 min)
+- **Task 420:** Replaced all `JSON.parse(JSON.stringify(...))` deep clone patterns with `structuredClone()` across frontend source and test files
+- Filed 7 new tasks (417-423) from deep codebase inspection covering backend code quality, frontend improvements, and handler refactoring
+- Updated docs/ENV.md with new security configuration variables
+- All 1407+ tests pass, lint clean
 
 ### Tasks 415-416: Add unit tests for remaining untested frontend utility files (2026-01-29)
 - Added 57 tests across 2 new test files covering the last untested utility modules

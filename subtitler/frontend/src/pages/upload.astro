@@ -600,7 +600,7 @@ import '../styles/upload.css';
 				if (!result) return;
 
 				editorState.transcriptionSegments = result.segments || [];
-				editorState.editedSegments = JSON.parse(JSON.stringify(editorState.transcriptionSegments));
+				editorState.editedSegments = structuredClone(editorState.transcriptionSegments);
 
 				if (result.text) fullText.textContent = result.text;
 
@@ -679,7 +679,7 @@ import '../styles/upload.css';
 					if (parsedSegments.length === 0) throw new Error('No subtitles found in embedded track');
 
 					editorState.transcriptionSegments = parsedSegments;
-					editorState.editedSegments = JSON.parse(JSON.stringify(parsedSegments));
+					editorState.editedSegments = structuredClone(parsedSegments);
 					editorState.hasUnsavedChanges = true;
 					unsavedIndicator.classList.add('visible');
 
@@ -730,7 +730,7 @@ import '../styles/upload.css';
 					const transcriptionResult = await transcriptionResponse.json();
 					if (transcriptionResult.status === 'complete' && transcriptionResult.result) {
 						editorState.transcriptionSegments = transcriptionResult.result.segments || [];
-						editorState.editedSegments = JSON.parse(JSON.stringify(editorState.transcriptionSegments));
+						editorState.editedSegments = structuredClone(editorState.transcriptionSegments);
 						fullText.textContent = editorState.transcriptionSegments.map((s) => s.text).join(' ');
 						renderSegments(editorState, editorEls);
 					}

@@ -279,6 +279,7 @@ func checkWhisperServerHealth() (bool, string) {
 		return false, fmt.Sprintf("cannot reach whisper-server at %s: %v", serverURL, err)
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) // drain for connection reuse
 
 	// Any response means the server is reachable
 	return true, ""

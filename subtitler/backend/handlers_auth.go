@@ -147,10 +147,7 @@ func registerAuthHandlers(mux *http.ServeMux) { //nolint:funlen // route registr
 	}))
 
 	// Auth: Login (rate limited)
-	// Email rate limiting: 5 failed attempts = 15 minute lockout
-	const maxLoginAttempts = 5
-	const loginLockDuration = 15 * time.Minute
-
+	// Email rate limiting: configurable via MAX_LOGIN_ATTEMPTS and LOGIN_LOCK_DURATION env vars
 	mux.HandleFunc("POST /api/auth/login", authLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		// Parse request body (limited to 64KB - auth payloads are small)
 		var req struct {

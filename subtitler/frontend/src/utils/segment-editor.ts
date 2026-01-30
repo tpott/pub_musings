@@ -155,7 +155,7 @@ export function updateUndoRedoButtons(state: SegmentEditorState, els: SegmentEdi
 }
 
 export function pushToHistory(state: SegmentEditorState, els: SegmentEditorElements): void {
-	const snapshot = JSON.parse(JSON.stringify(state.editedSegments));
+	const snapshot = structuredClone(state.editedSegments);
 	state.undoStack.push(snapshot);
 
 	if (state.undoStack.length > MAX_HISTORY_SIZE) {
@@ -179,7 +179,7 @@ function clearUnsaved(state: SegmentEditorState, els: SegmentEditorElements): vo
 export function performUndo(state: SegmentEditorState, els: SegmentEditorElements): void {
 	if (state.undoStack.length === 0) return;
 
-	state.redoStack.push(JSON.parse(JSON.stringify(state.editedSegments)));
+	state.redoStack.push(structuredClone(state.editedSegments));
 	state.editedSegments = state.undoStack.pop()!;
 	state.editedSegments.forEach((seg, i) => seg.id = i);
 
@@ -196,7 +196,7 @@ export function performUndo(state: SegmentEditorState, els: SegmentEditorElement
 export function performRedo(state: SegmentEditorState, els: SegmentEditorElements): void {
 	if (state.redoStack.length === 0) return;
 
-	state.undoStack.push(JSON.parse(JSON.stringify(state.editedSegments)));
+	state.undoStack.push(structuredClone(state.editedSegments));
 	state.editedSegments = state.redoStack.pop()!;
 	state.editedSegments.forEach((seg, i) => seg.id = i);
 
@@ -367,7 +367,7 @@ export function enterEditMode(state: SegmentEditorState, els: SegmentEditorEleme
 	els.addSegmentBtn.classList.add('visible');
 	els.fullText.style.display = 'none';
 	els.subtitleFeedback.style.display = 'none';
-	state.editedSegments = JSON.parse(JSON.stringify(state.transcriptionSegments));
+	state.editedSegments = structuredClone(state.transcriptionSegments);
 	clearHistory(state, els);
 	renderSegments(state, els);
 }
@@ -406,7 +406,7 @@ export async function saveSegments(
 			throw new Error(result.error || 'Failed to save');
 		}
 
-		state.transcriptionSegments = JSON.parse(JSON.stringify(state.editedSegments));
+		state.transcriptionSegments = structuredClone(state.editedSegments);
 		els.fullText.textContent = state.editedSegments.map((s) => s.text).join(' ');
 		clearUnsaved(state, els);
 		callbacks.showStatus('Subtitles saved successfully!', 'success');

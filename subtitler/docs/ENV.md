@@ -11,7 +11,7 @@ Complete reference for all environment variables used by the Subtitler applicati
 | Chunked Uploads | `CHUNK_SIZE`, `UPLOAD_SESSION_EXPIRY` |
 | Whisper | `WHISPER_SERVER_URL`, `USE_WHISPER_SERVER`, `WHISPER_MODEL`, `WHISPER_THREADS`, `WHISPER_TEMPERATURE`, `WHISPER_TIMEOUT` |
 | Email | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ENABLED`, `APP_URL` |
-| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` |
+| Security | `HTTPS_ONLY`, `TRUST_PROXY`, `ENCRYPTION_ENABLED`, `LOG_VERBOSE`, `CSRF_SECRET`, `CSRF_SECRET_PATH`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY`, `MAX_LOGIN_ATTEMPTS`, `LOGIN_LOCK_DURATION` |
 | Admin | `INITIAL_ADMIN_EMAIL` |
 | Rate Limits | `AUTH_RATE_LIMIT`, `PASSWORD_RESET_RATE_LIMIT`, `UPLOAD_RATE_LIMIT`, `TRANSCRIBE_RATE_LIMIT`, `BURN_RATE_LIMIT`, `DOWNLOAD_RATE_LIMIT`, `SCRIPT_RATE_LIMIT`, `CHUNK_RATE_LIMIT`, `METRICS_RATE_LIMIT`, `USER_RATE_LIMIT`, `FEEDBACK_RATE_LIMIT`, `LOG_RATE_LIMIT` |
 | Debugging | `LOG_LEVEL`, `LOG_SLOW_QUERIES`, `SLOW_QUERY_THRESHOLD_MS` |
@@ -368,6 +368,26 @@ Secret hCaptcha key for server-side verification. When set (along with `CAPTCHA_
 **Behavior:**
 - **Not set:** CAPTCHA is disabled; registration and login work without CAPTCHA
 - **Set:** CAPTCHA required on registration and initial login (not required for TOTP code entry)
+
+### MAX_LOGIN_ATTEMPTS
+
+| Property | Value |
+|----------|-------|
+| Default | `5` |
+| Required | No |
+| Example | `MAX_LOGIN_ATTEMPTS=10` |
+
+Maximum number of failed login attempts before an email address is temporarily locked out. After this many failures within the lock duration window, further login attempts are rejected with HTTP 429.
+
+### LOGIN_LOCK_DURATION
+
+| Property | Value |
+|----------|-------|
+| Default | `15m` |
+| Required | No |
+| Example | `LOGIN_LOCK_DURATION=30m` |
+
+Duration of the lockout period after exceeding `MAX_LOGIN_ATTEMPTS`. Uses Go duration format (e.g., `15m`, `1h`, `30m`). Setting to `0` is not allowed and will use the default.
 
 ## Rate Limit Configuration
 

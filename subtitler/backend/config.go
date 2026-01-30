@@ -46,6 +46,10 @@ const (
 	defaultLogRateLimit           = 30
 	defaultLogRateWindow          = time.Minute
 
+	// Login lockout defaults
+	defaultMaxLoginAttempts  = 5
+	defaultLoginLockDuration = 15 * time.Minute
+
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
 	defaultSessionExpiry = 24 * time.Hour // 24 hours
@@ -115,6 +119,10 @@ var (
 	feedbackRateWindow     time.Duration
 	logRateLimit           int
 	logRateWindow          time.Duration
+
+	// Login lockout configuration
+	maxLoginAttempts  int
+	loginLockDuration time.Duration
 
 	// Chunked upload configuration
 	chunkSize     int64
@@ -317,6 +325,16 @@ func initConfig() {
 	metricsRateLimit, metricsRateWindow = getEnvRateLimitOrDefault("METRICS_RATE_LIMIT", defaultMetricsRateLimit, defaultMetricsRateWindow)
 	feedbackRateLimit, feedbackRateWindow = getEnvRateLimitOrDefault("FEEDBACK_RATE_LIMIT", defaultFeedbackRateLimit, defaultFeedbackRateWindow)
 	logRateLimit, logRateWindow = getEnvRateLimitOrDefault("LOG_RATE_LIMIT", defaultLogRateLimit, defaultLogRateWindow)
+
+	// Login lockout configuration
+	maxLoginAttempts = getEnvIntOrDefault("MAX_LOGIN_ATTEMPTS", defaultMaxLoginAttempts)
+	if maxLoginAttempts == 0 {
+		maxLoginAttempts = defaultMaxLoginAttempts
+	}
+	loginLockDuration = getEnvDurationOrDefault("LOGIN_LOCK_DURATION", defaultLoginLockDuration)
+	if loginLockDuration == 0 {
+		loginLockDuration = defaultLoginLockDuration
+	}
 
 	// Chunked upload configuration
 	chunkSize = getEnvSizeOrDefault("CHUNK_SIZE", defaultChunkSize)

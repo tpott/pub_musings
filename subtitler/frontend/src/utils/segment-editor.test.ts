@@ -359,7 +359,7 @@ describe('performUndo', () => {
 		const state = createSegmentEditorState();
 		const els = makeMockElements();
 		const previousSegments = makeSegments(2);
-		state.undoStack.push(JSON.parse(JSON.stringify(previousSegments)));
+		state.undoStack.push(structuredClone(previousSegments));
 		state.editedSegments = makeSegments(3);
 		state.transcriptionSegments = makeSegments(2);
 
@@ -402,8 +402,8 @@ describe('performUndo', () => {
 		const state = createSegmentEditorState();
 		const els = makeMockElements();
 		const segs = makeSegments(2);
-		state.transcriptionSegments = JSON.parse(JSON.stringify(segs));
-		state.undoStack.push(JSON.parse(JSON.stringify(segs)));
+		state.transcriptionSegments = structuredClone(segs);
+		state.undoStack.push(structuredClone(segs));
 		state.editedSegments = makeSegments(3);
 
 		performUndo(state, els);
