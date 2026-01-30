@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**459 tasks completed** as of 2026-01-30. 0 tasks pending.
+**461 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -63,9 +63,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-12 pending tasks (436-448) filed from deep codebase inspection.
+No pending tasks.
 
 ## Recent Work
+
+### Tasks 457-458: Transaction safety and code deduplication (2026-01-30)
+- **Task 457:** Wrapped `DeleteUploadSession` in `db.WithTransaction()` — the two DELETEs (chunks then session) were not atomic, risking orphaned records on partial failure. Matches the pattern from `DeleteVideo` (Task 441)
+- **Task 458:** Removed duplicate `formatTime` from `videos-modal.ts` — was identical to the copy in `transcription-polling.ts`. `videos-modal.ts` now imports from `transcription-polling.ts`. Test file updated to import from new location
 
 ### Tasks 453-456: Rate limiter fix, docs, accessibility, and config cleanup (2026-01-30)
 - **Task 453:** Fixed `GET /api/upload/status/{session_id}` — was using `scriptLimiter` (10/min) instead of `downloadLimiter` (30/min) as documented. Code comment and API.md both specified 30/min

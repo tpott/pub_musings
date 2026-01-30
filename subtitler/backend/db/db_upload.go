@@ -217,9 +217,6 @@ func (db *DB) GetExpiredUploadSessions() ([]UploadSession, error) {
 // DeleteUploadSession deletes an upload session and its chunks
 // Returns the chunk paths so caller can delete files
 func (db *DB) DeleteUploadSession(sessionID string) ([]string, error) {
-	ctx, cancel := db.queryContext()
-	defer cancel()
-
 	// Get chunk paths before deleting
 	chunks, err := db.GetUploadChunks(sessionID)
 	if err != nil {
@@ -231,16 +228,24 @@ func (db *DB) DeleteUploadSession(sessionID string) ([]string, error) {
 		paths = append(paths, chunk.ChunkPath)
 	}
 
-	// Delete chunks first (foreign key constraint)
-	_, err = db.conn.ExecContext(ctx, `DELETE FROM upload_chunks WHERE upload_session_id = ?`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete upload chunks: %w", err)
-	}
+	// Delete chunks and session atomically
+	err = db.WithTransaction(func(tx *Tx) error {
+		// Delete chunks first (foreign key constraint)
+		_, err := tx.tx.Exec(`DELETE FROM upload_chunks WHERE upload_session_id = ?`, sessionID)
+		if err != nil {
+			return fmt.Errorf("failed to delete upload chunks: %w", err)
+		}
 
-	// Delete session
-	_, err = db.conn.ExecContext(ctx, `DELETE FROM upload_sessions WHERE id = ?`, sessionID)
+		// Delete session
+		_, err = tx.tx.Exec(`DELETE FROM upload_sessions WHERE id = ?`, sessionID)
+		if err != nil {
+			return fmt.Errorf("failed to delete upload session: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete upload session: %w", err)
+		return nil, err
 	}
 
 	return paths, nil

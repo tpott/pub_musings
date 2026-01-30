@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
 	createModalState,
-	formatTime,
 	setupModalListeners,
 	enableKidMode,
 	disableKidMode,
 	type ModalElements,
 	type ModalState,
 } from './videos-modal';
+import { formatTime } from './transcription-polling';
 
 // --- Mocks ---
 
