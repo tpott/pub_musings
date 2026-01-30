@@ -5,7 +5,10 @@ Fetch new user feedback from production and write to FEEDBACK.md.
 Secrets resolution order:
   1. Environment variables (PROD_HOST, API_SESSION_ID)
   2. .env file in the project root (KEY=VALUE format, gitignored)
-  3. secrets.enc.yaml decrypted via sops (git-tracked, encrypted with age)
+
+Optional filtering:
+  TRUSTED_USERS - Comma-separated list of user IDs. When set, only feedback
+  from these users is included. Anonymous feedback (no user_id) is excluded.
 
 Uses .feedback-cursor (gitignored) to track the last-fetched timestamp
 so repeated runs only fetch new items.
@@ -16,10 +19,9 @@ Exit codes:
   2 - Error (auth failure, network, missing config)
 """
 
+import argparse
 import json
 import os
-import shutil
-import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -29,7 +31,6 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 CURSOR_FILE = PROJECT_DIR / ".feedback-cursor"
 OUTPUT_FILE = PROJECT_DIR / "FEEDBACK.md"
 ENV_FILE = PROJECT_DIR / ".env"
-SECRETS_ENC_FILE = PROJECT_DIR / "secrets.enc.yaml"
 
 REQUIRED_KEYS = ("PROD_HOST", "API_SESSION_ID")
 
@@ -52,65 +53,32 @@ def load_env_file(path: Path) -> dict[str, str]:
     return env
 
 
-def load_sops_secrets(path: Path) -> dict[str, str]:
-    """Decrypt secrets.enc.yaml via sops and return as dict."""
-    sops_bin = shutil.which("sops")
-    if sops_bin is None:
-        return {}
-    if not path.is_file():
-        return {}
-    try:
-        result = subprocess.run(
-            [sops_bin, "--decrypt", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode != 0:
-            print(f"Warning: sops decrypt failed: {result.stderr.strip()}", file=sys.stderr)
-            return {}
-    except subprocess.TimeoutExpired:
-        print("Warning: sops decrypt timed out", file=sys.stderr)
-        return {}
-
-    # Parse YAML manually (key: value format, no nesting expected)
-    secrets: dict[str, str] = {}
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if ":" not in line:
-            continue
-        key, _, value = line.partition(":")
-        key = key.strip()
-        value = value.strip().strip("'\"")
-        # Map yaml keys to env var names
-        env_key = key.upper()
-        secrets[env_key] = value
-    return secrets
-
-
 def resolve_secrets() -> dict[str, str]:
     """
     Resolve secrets from multiple sources in priority order:
-      1. Environment variables
+      1. Environment variables (highest priority)
       2. .env file
-      3. secrets.enc.yaml via sops
     """
-    # Start with sops (lowest priority)
-    secrets = load_sops_secrets(SECRETS_ENC_FILE)
-
-    # Layer .env file on top
-    env_vars = load_env_file(ENV_FILE)
-    secrets.update(env_vars)
+    # Start with .env file (lower priority)
+    secrets = load_env_file(ENV_FILE)
 
     # Layer actual environment on top (highest priority)
-    for key in REQUIRED_KEYS:
+    for key in (*REQUIRED_KEYS, "TRUSTED_USERS"):
         val = os.environ.get(key)
         if val:
             secrets[key] = val
 
     return secrets
+
+
+def parse_trusted_users(raw: str) -> set[str]:
+    """Parse a comma-separated TRUSTED_USERS string into a set of user IDs."""
+    return {u.strip() for u in raw.split(",") if u.strip()}
+
+
+def filter_trusted(items: list[dict], trusted: set[str]) -> list[dict]:
+    """Keep only feedback items whose user_id is in the trusted set."""
+    return [item for item in items if item.get("user_id") in trusted]
 
 
 def read_cursor() -> str | None:
@@ -138,6 +106,7 @@ def fetch_feedback_api(host: str, session_id: str, after: str | None) -> tuple[i
 
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {session_id}")
+    req.add_header("User-Agent", "subtitler-feedback/1.0")
 
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
@@ -162,8 +131,8 @@ def format_feedback(items: list[dict]) -> tuple[list[str], str]:
     newest_ts = ""
 
     for item in items:
-        fb_type = item.get("feedback_type", "general")
-        text = item.get("feedback_text", "").replace("\n", " ").strip()
+        fb_type = item.get("type", "general")
+        text = item.get("text", "").replace("\n", " ").strip()
         created = item.get("created_at", "")
         page = item.get("page_url", "")
         rating = item.get("rating")
@@ -184,28 +153,34 @@ def format_feedback(items: list[dict]) -> tuple[list[str], str]:
     return lines, newest_ts
 
 
+def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Secrets can be provided via:\n"
+            "  1. Environment variables: PROD_HOST, API_SESSION_ID\n"
+            "  2. .env file in the project root (KEY=VALUE)\n"
+            "\n"
+            "Optional environment variables:\n"
+            "  TRUSTED_USERS - Comma-separated user IDs to filter by\n"
+        ),
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main entry point. Returns exit code."""
-    if argv is None:
-        argv = sys.argv[1:]
-
-    if "--help" in argv or "-h" in argv:
-        print(__doc__.strip())
-        print()
-        print("Usage: fetch-feedback.py [--help]")
-        print()
-        print("Secrets can be provided via:")
-        print("  1. Environment variables: PROD_HOST, API_SESSION_ID")
-        print("  2. .env file in the project root (KEY=VALUE)")
-        print("  3. secrets.enc.yaml (decrypted via sops)")
-        return 0
+    parser = build_parser()
+    parser.parse_args(argv)
 
     secrets = resolve_secrets()
 
     missing = [k for k in REQUIRED_KEYS if k not in secrets or not secrets[k]]
     if missing:
         print(f"Error: Missing required secrets: {', '.join(missing)}", file=sys.stderr)
-        print("Provide them via environment variables, .env, or secrets.enc.yaml", file=sys.stderr)
+        print("Provide them via environment variables or .env file", file=sys.stderr)
         sys.exit(2)
 
     host = secrets["PROD_HOST"].rstrip("/")
@@ -233,6 +208,18 @@ def main(argv: list[str] | None = None) -> int:
     if not items:
         print("No new feedback found.")
         return 1
+
+    trusted_raw = secrets.get("TRUSTED_USERS", "")
+    trusted = parse_trusted_users(trusted_raw)
+    if len(trusted) > 0:
+        total = len(items)
+        items = filter_trusted(items, trusted)
+        skipped = total - len(items)
+        if skipped:
+            print(f"Filtered out {skipped} item(s) from non-trusted users.")
+        if not items:
+            print("No new feedback from trusted users.")
+            return 1
 
     lines, newest_ts = format_feedback(items)
 

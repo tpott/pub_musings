@@ -12,7 +12,7 @@ Production Server                 Dev VM (claude4)
 │ subtitler.pottingers │  HTTPS  │ scripts/fetch-feedback.py   │
 │ .us                  │◄────────│                             │
 │                      │         │ reads .env or env vars      │
-│ GET /api/admin/      │         │ (or sops secrets.enc.yaml)  │
+│ GET /api/admin/      │         │                             │
 │   feedback           │─────────│ writes FEEDBACK.md          │
 └─────────────────────┘         └─────────────────────────────┘
 ```
@@ -25,19 +25,13 @@ Secrets are resolved in priority order (highest wins):
 
 1. **Environment variables** - `PROD_HOST`, `API_SESSION_ID`
 2. **`.env` file** - standard `KEY=VALUE` format in project root (gitignored)
-3. **`secrets.enc.yaml`** - encrypted with age, decrypted via sops (git-tracked)
 
 Example `.env` file:
 ```bash
 # .env (gitignored)
 PROD_HOST=https://subtitler.pottingers.us
 API_SESSION_ID=<session cookie value>
-```
-
-Example `secrets.enc.yaml` (plaintext before encryption):
-```yaml
-prod_host: https://subtitler.pottingers.us
-api_session_id: <session cookie value>
+TRUSTED_USERS=user_abc123,user_def456
 ```
 
 ### 2. Fetch Script
@@ -45,14 +39,17 @@ api_session_id: <session cookie value>
 **File:** `scripts/fetch-feedback.py`
 
 **Behavior:**
-1. Resolve secrets from env vars, `.env`, or `secrets.enc.yaml` (via sops)
+1. Resolve secrets from env vars or `.env`
 2. Call `GET /api/admin/feedback?status=new&limit=50` with auth header
-3. Track last-fetched timestamp in `.feedback-cursor` (gitignored) to avoid repeats
-4. Format new feedback items as markdown
-5. Write to `FEEDBACK.md` (append if exists, create if not)
-6. Exit 0 if new feedback found, exit 1 if none, exit 2 on error
+3. If `TRUSTED_USERS` is set, filter results to only feedback from those user IDs (anonymous feedback is excluded)
+4. Track last-fetched timestamp in `.feedback-cursor` (gitignored) to avoid repeats
+5. Format new feedback items as markdown
+6. Write to `FEEDBACK.md` (append if exists, create if not)
+7. Exit 0 if new feedback found, exit 1 if none, exit 2 on error
 
 **Auth:** Uses `Authorization: Bearer <API_SESSION_ID>` header via urllib (no external dependencies).
+
+**Filtering:** When `TRUSTED_USERS` is set (comma-separated user IDs), only feedback items with a matching `user_id` are kept. Items without a `user_id` (anonymous) are excluded. When unset, all feedback is included.
 
 **Output format for FEEDBACK.md:**
 ```markdown
@@ -114,7 +111,7 @@ The `after` query parameter on `GET /api/admin/feedback` is already implemented 
 ## Security Considerations
 
 1. **Session ID rotation:** The API session ID will expire. The script detects 401 responses and prints a clear message to update credentials.
-2. **No secrets in git:** `.env` is gitignored. If using `secrets.enc.yaml`, only the encrypted form is committed.
+2. **No secrets in git:** `.env` is gitignored.
 3. **Rate limiting:** The admin endpoint has rate limiting. The script makes one call per Ralph iteration, well within limits.
 
 ## Testing
@@ -124,6 +121,8 @@ The `after` query parameter on `GET /api/admin/feedback` is already implemented 
 3. **No-new-feedback test:** Run twice, second run should exit 1 with no changes to FEEDBACK.md
 4. **Auth failure test:** Use invalid session ID, verify clear error message
 5. **Cursor test:** Verify `.feedback-cursor` is updated and subsequent runs only get newer items
+6. **Trusted users test:** Set `TRUSTED_USERS=user1,user2`, verify only feedback from those user IDs appears
+7. **No trusted users test:** Omit `TRUSTED_USERS`, verify all feedback is included
 
 ## Files
 

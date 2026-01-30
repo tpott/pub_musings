@@ -142,46 +142,50 @@ def process_claude_output(
     lines: Iterable[str], verbose: bool, log_file: Path | None
 ) -> str | None:
     """
-    Process lines from claude output, return the last line.
+    Process lines from claude output, return the result line.
 
+    Scans for the line containing '"type":"result","subtype":"success"'.
     If verbose, streams all output to stdout.
     If not verbose, prints session_id once, then '.' for each line received.
     If log_file is not None, writes all JSON lines to the log file.
     """
-    last_line = None
+    result_line = None
     session_id_printed = False
 
     for line in lines:
-        last_line = line.rstrip("\n")
+        stripped = line.rstrip("\n")
 
         # Log all JSON to file if log_file is provided
         if log_file is not None:
             with open(log_file, "a") as f:
-                f.write(f"{last_line}\n")
+                f.write(f"{stripped}\n")
 
         if verbose:
             print(line, end="", flush=True)
-            continue
+        else:
+            # Print session_id once before the dots
+            if not session_id_printed:
+                data: dict[str, str] = {}
+                try:
+                    data = json.loads(stripped)
+                except json.JSONDecodeError:
+                    pass
+                if "session_id" in data:
+                    print(f"session_id: {data['session_id']}")
+                    session_id_printed = True
+                elif "sessionId" in data:
+                    print(f"sessionId: {data['sessionId']}")
+                    session_id_printed = True
+            print(".", end="", flush=True)
 
-        # Print session_id once before the dots
-        if not session_id_printed:
-            data: dict[str, str] = {}
-            try:
-                data = json.loads(last_line)
-            except json.JSONDecodeError:
-                pass
-            if "session_id" in data:
-                print(f"session_id: {data['session_id']}")
-                session_id_printed = True
-            elif "sessionId" in data:
-                print(f"sessionId: {data['sessionId']}")
-                session_id_printed = True
-        print(".", end="", flush=True)
+        # Track the result line
+        if '"type":"result","subtype":"success"' in stripped:
+            result_line = stripped
 
     if not verbose:
         print()  # Newline after dots
 
-    return last_line
+    return result_line
 
 
 def run_claude(prompt_content: str, verbose: bool, log_file: Path | None) -> str | None:
