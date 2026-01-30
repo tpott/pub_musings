@@ -133,7 +133,7 @@ import '../styles/videos.css';
 				const button = target.closest('button') as HTMLButtonElement | null;
 				const thumbnail = target.closest('.clickable-thumbnail') as HTMLElement | null;
 
-				if (button?.classList.contains('btn-delete')) {
+				if (button?.classList.contains('btn-delete-sm')) {
 					const videoId = button.dataset.videoId;
 					const filename = button.dataset.filename;
 					if (videoId) {

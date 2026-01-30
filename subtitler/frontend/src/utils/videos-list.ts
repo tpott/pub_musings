@@ -119,28 +119,30 @@ export function renderVideo(video: Video): string {
 
 	return `
 		<div class="video-card" data-video-id="${video.id}">
-			${hasThumbnail
-				? `<img class="video-thumbnail${showViewBtn ? ' clickable-thumbnail' : ''}" src="/api/videos/${video.id}/thumbnail" alt="Thumbnail for ${escapeHtml(video.filename)}" loading="lazy" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" aria-label="Play video: ${escapeHtml(video.filename)}" style="cursor: pointer;"` : ''} />`
-				: `<div class="video-thumbnail-placeholder${showViewBtn ? ' clickable-thumbnail' : ''}" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" aria-label="Play video: ${escapeHtml(video.filename)}" style="cursor: pointer;"` : ''}>&#x1F3AC;</div>`
-			}
-			<div class="video-info">
-				<div class="video-filename">${escapeHtml(video.filename)}</div>
-				<div class="video-meta">
-					<span>${formatBytes(video.size)}</span>
-					<span>${formatDate(video.created_at)}</span>
-					${getStatusBadge(video.transcription_status)}
-					${getEmbeddedSubtitlesBadge(video)}
-					${formatRetention(video)}
+			<div class="video-top">
+				${hasThumbnail
+					? `<img class="video-thumbnail${showViewBtn ? ' clickable-thumbnail' : ''}" src="/api/videos/${video.id}/thumbnail" alt="Thumbnail for ${escapeHtml(video.filename)}" loading="lazy" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" aria-label="Play video: ${escapeHtml(video.filename)}" style="cursor: pointer;"` : ''} />`
+					: `<div class="video-thumbnail-placeholder${showViewBtn ? ' clickable-thumbnail' : ''}" ${showViewBtn ? `data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" role="button" tabindex="0" aria-label="Play video: ${escapeHtml(video.filename)}" style="cursor: pointer;"` : ''}>&#x1F3AC;</div>`
+				}
+				<div class="video-info">
+					<div class="video-filename">${escapeHtml(video.filename)}</div>
+					<div class="video-meta">
+						<span>${formatBytes(video.size)}</span>
+						<span>${formatDate(video.created_at)}</span>
+						${getStatusBadge(video.transcription_status)}
+						${getEmbeddedSubtitlesBadge(video)}
+						${formatRetention(video)}
+					</div>
 				</div>
 			</div>
 			<div class="video-actions">
 				${showViewBtn ? `<button class="btn btn-primary btn-view" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}">View</button>` : ''}
-				${showDownloadBtn ? `<button class="btn btn-secondary btn-download-srt" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in SRT format">SRT</button>` : ''}
-				${showDownloadBtn ? `<button class="btn btn-secondary btn-download-vtt" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in VTT format">VTT</button>` : ''}
-				${showDownloadBtn ? `<button class="btn btn-secondary btn-download-json" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in JSON format">JSON</button>` : ''}
+				${showDownloadBtn ? `<button class="btn btn-link btn-download-srt" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in SRT format">SRT</button>` : ''}
+				${showDownloadBtn ? `<button class="btn btn-link btn-download-vtt" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in VTT format">VTT</button>` : ''}
+				${showDownloadBtn ? `<button class="btn btn-link btn-download-json" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Download subtitles in JSON format">JSON</button>` : ''}
 				${video.transcription_status === 'pending' || video.transcription_status === 'none' ? `<a href="/upload?id=${video.id}" class="btn btn-primary">Transcribe</a>` : ''}
 				${showRetryBtn ? `<button class="btn btn-retry" data-video-id="${video.id}">Retry</button>` : ''}
-				<button class="btn btn-delete" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Delete ${escapeHtml(video.filename)}">Delete</button>
+				<button class="btn btn-delete-sm" data-video-id="${video.id}" data-filename="${escapeHtml(video.filename)}" aria-label="Delete ${escapeHtml(video.filename)}">Delete</button>
 			</div>
 		</div>
 	`;

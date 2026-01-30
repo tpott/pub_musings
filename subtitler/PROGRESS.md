@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**493 tasks completed** as of 2026-01-30.
+**494 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 842 tests across 29 files
+- **Frontend:** Astro/TypeScript, 844 tests across 29 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
-- **Total:** 1515+ tests, 32 specification documents
+- **Total:** 1517+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,18 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 496: My Videos page — larger thumbnails, less button prominence (2026-01-30)
+- Restructured video card layout: thumbnail (240x135, up from 160x90) and info in a `video-top` row, action buttons in a compact secondary row below
+- Download buttons (SRT, VTT, JSON) changed from full `btn-secondary` buttons to subtle text-style `btn-link` links
+- Delete button changed from prominent red `btn-delete` to compact text-only `btn-delete-sm` pushed right with `margin-left: auto`
+- Actions row separated from content by a subtle `border-top` divider
+- Mobile responsive: thumbnail goes full-width, actions wrap naturally
+- Added 2 tests (video-top structure, btn-link class usage). 844 frontend tests pass
+
+### Tasks 494-495: Filed from user feedback (2026-01-30)
+- **Task 494:** Re-transcribe button should show progress box with real-time updates (pending)
+- **Task 495:** My Videos page should show real-time transcription progress for processing videos (pending)
 
 ### Tasks 491-493: Error handling fixes — swallowed DB errors (2026-01-30)
 - **Task 491:** Fixed transcribe handler swallowing `GetTranscription()` DB error — previously logged error but continued, risking duplicate transcription starts or missing a "processing" state. Now returns 500
