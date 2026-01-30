@@ -8,8 +8,8 @@ The project has comprehensive test coverage across both backend and frontend:
 
 - **Backend (Go)**: 602 tests across 45 test files
 - **Frontend (TypeScript)**: 875 tests across 32 test files
-- **E2E (Playwright)**: 71 scenarios across 7 spec files (58 active, 13 skipped)
-- **Total**: 1,548+ tests
+- **E2E (Playwright)**: 71 scenarios across 7 spec files (66 active, 5 permanently skipped)
+- **Total**: 1,548 tests
 
 ## Backend Tests
 
@@ -165,7 +165,10 @@ npm run test:watch
 | `src/utils/validation.test.ts` | Input validation (email, password, TOTP, files) |
 | `src/utils/videos-list.test.ts` | Video list rendering, date formatting, operations |
 | `src/utils/videos-modal.test.ts` | Modal lifecycle, kid mode, keyboard handling |
+| `src/utils/videos-progress.test.ts` | Real-time transcription progress polling on My Videos page |
 | `src/utils/videos-subtitles.test.ts` | Subtitle caching (LRU), fetching, downloads |
+| `src/utils/retranscribe-progress.test.ts` | Re-transcribe progress box show/update/hide/collapse |
+| `src/utils/upload-collapsible.test.ts` | Collapsible section toggle with localStorage persistence |
 
 ### Test Categories
 

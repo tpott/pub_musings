@@ -32,6 +32,14 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Backend
 
+### 2026-01-30: defer Close() on write files silently discards data integrity errors
+
+**Problem:** `EncryptFile` and `DecryptToFile` in crypto/crypto.go used `defer dst.Close()` on files opened for writing. If `Close()` failed (unflushed buffers, disk full), the function returned success with a potentially corrupted file. This was inconsistent with the same fix already applied to chunk uploads (tasks 480, 490).
+
+**Solution:** Replaced `defer dst.Close()` with explicit `dst.Close()` calls in error paths and a final checked `dst.Close()` on the happy path. On close failure, the partial file is removed and an error is returned.
+
+**Lesson:** `defer file.Close()` is fine for read-only files but dangerous for write files. Always check `Close()` errors on files you've written to — `Close()` is where the final flush to disk happens. Grep for `defer.*Close()` on `os.Create` destinations in reviews.
+
 ### 2026-01-30: Zod schema must match backend response, not spec
 
 **Problem:** TOTP verify endpoint returned `{message, totp_enabled, recovery_codes}` but the frontend Zod schema expected `{success, recovery_codes}`. Users got "API response validation failed" when enabling 2FA.

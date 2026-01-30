@@ -4,6 +4,7 @@
  * and updates a compact progress indicator in each video card.
  */
 
+import { fetchWithTimeout } from './fetch-timeout';
 import { getOrCreateSessionId } from './session';
 import { renderVideo, type Video } from './videos-list';
 
@@ -52,7 +53,7 @@ export function startProgressPolling(
 					url += `?session_id=${encodeURIComponent(sessionId)}`;
 				}
 
-				const response = await fetch(url);
+				const response = await fetchWithTimeout(url, { timeoutMs: 15000 });
 				if (!response.ok) {
 					// Don't retry on auth/not-found errors
 					if (response.status === 403 || response.status === 404) {

@@ -86,6 +86,7 @@ import '../styles/videos.css';
 		<script>
 			import { getOrCreateSessionId } from '../utils/session';
 			import { getRequiredElement } from '../utils/dom';
+			import { fetchWithTimeout } from '../utils/fetch-timeout';
 			import { VideoListResponseSchema, safeParse } from '../utils/api-schemas';
 			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
 			import { renderVideo, reprocessVideo, deleteVideo, type Video } from '../utils/videos-list';
@@ -242,7 +243,7 @@ import '../styles/videos.css';
 						url += `&session_id=${encodeURIComponent(sessionId)}`;
 					}
 
-					const response = await fetch(url);
+					const response = await fetchWithTimeout(url);
 					if (!response.ok) {
 						const errorData = await response.json().catch(() => ({}));
 						throw new Error(errorData.error || `HTTP ${response.status}`);

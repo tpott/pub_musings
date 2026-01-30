@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { startProgressPolling } from './videos-progress';
 import type { Video } from './videos-list';
 
+vi.mock('./fetch-timeout', () => ({
+	fetchWithTimeout: vi.fn((...args: unknown[]) => (globalThis.fetch as Function)(...args)),
+}));
+
 vi.mock('./session', () => ({
 	getOrCreateSessionId: vi.fn(() => 'session-abc-123'),
 }));
@@ -156,7 +160,7 @@ describe('startProgressPolling', () => {
 		const poller = startProgressPolling(videoList, videos, true);
 		await flushPromises();
 
-		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v1');
+		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v1', expect.objectContaining({ timeoutMs: 15000 }));
 		poller.stop();
 	});
 
@@ -172,7 +176,7 @@ describe('startProgressPolling', () => {
 		const poller = startProgressPolling(videoList, videos, true);
 		await flushPromises();
 
-		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v1');
+		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v1', expect.objectContaining({ timeoutMs: 15000 }));
 		poller.stop();
 	});
 
@@ -189,7 +193,8 @@ describe('startProgressPolling', () => {
 		await flushPromises();
 
 		expect(fetchMock).toHaveBeenCalledWith(
-			expect.stringContaining('session_id=session-abc-123')
+			expect.stringContaining('session_id=session-abc-123'),
+			expect.objectContaining({ timeoutMs: 15000 })
 		);
 		poller.stop();
 	});
@@ -360,8 +365,8 @@ describe('startProgressPolling', () => {
 		await flushPromises();
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v1');
-		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v2');
+		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v1', expect.objectContaining({ timeoutMs: 15000 }));
+		expect(fetchMock).toHaveBeenCalledWith('/api/transcribe/v2', expect.objectContaining({ timeoutMs: 15000 }));
 		expect(videos[0].transcription_status).toBe('complete');
 		expect(videos[1].transcription_status).toBe('complete');
 

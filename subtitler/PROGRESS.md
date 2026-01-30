@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**496 tasks completed** as of 2026-01-30.
+**500 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
 - **Frontend:** Astro/TypeScript, 875 tests across 32 files
-- **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
-- **Total:** 1548+ tests, 32 specification documents
+- **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
+- **Total:** 1,548 tests, 32 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 497-500: Deep inspection fixes (2026-01-30)
+- **Task 497:** Fixed `EncryptFile` and `DecryptToFile` in crypto/crypto.go ignoring `dst.Close()` errors on write files. Both now check close error, remove partial/corrupted file, and return error. Consistent with close-error patterns from tasks 480, 490
+- **Task 498:** Fixed TESTING.md — E2E breakdown updated to 66 active / 5 permanently skipped (was 58/13). Added 3 missing frontend test files to table (videos-progress, retranscribe-progress, upload-collapsible)
+- **Task 499:** Added `fetchWithTimeout` (15s timeout) to `videos-progress.ts` polling fetch. Previously used bare `fetch()` which could hang indefinitely. Tests updated with mock
+- **Task 500:** Added `fetchWithTimeout` to `videos.astro` video list fetch. Previously used bare `fetch()`. Build verified
+- Filed tasks 501-504: TypeScript `any` cleanup, scheduler tests, PROGRESS.md update
 
 ### Task 494: Re-transcribe progress box with real-time updates (2026-01-30)
 - Added progress box HTML/CSS to upload page — shows bar, percentage, and status message during re-transcription
