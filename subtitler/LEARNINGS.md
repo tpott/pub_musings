@@ -743,3 +743,15 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 **Decision:** Shell script (`scripts/lint-doc-sync.sh`). Five checks: deps vs go.mod/package.json, env vars vs os.Getenv calls, routes vs HandleFunc registrations, rate limits vs config. Errors for critical drift (deps, env vars), warnings for informational (routes). Integrated into lint.sh.
 
 **Outcome:** Immediately found missing Chunked Upload category in RATE_LIMITS.md and stale Configuration section. Validates the approach — even simple grep-based checks catch real drift.
+
+---
+
+### 2026-01-30: Accept generateID duplication across packages
+
+**Context:** `generateID()` (5-line function generating 16-byte hex IDs) is duplicated in `helpers.go` (package `main`) and `db/db_auth.go` (package `db`). Both produce identical output using different formatting (`hex.EncodeToString` vs `fmt.Sprintf("%x")`).
+
+**Options considered:** (1) Create shared `idgen` package — clean dedup but over-engineering for a 5-line function; (2) Export from `db` package, import in `main` — backwards, `db` shouldn't be the canonical ID generator; (3) Accept duplication — both are simple, both work, both in separate packages.
+
+**Decision:** Accept duplication (wontfix). Go's package system means unexported functions can't be shared across packages. Creating a package for 5 lines violates the project's dependency policy ("Do not add a dependency for functionality that can be achieved with a small amount of straightforward code"). If either function needs changes, both must be updated — but the function is stable (last changed to increase entropy in task 464).
+
+**Outcome:** Documented in TASKS.jsonl as wontfix. Prefer simplicity over DRY when the duplication is trivial and cross-package.

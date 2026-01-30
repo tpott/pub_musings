@@ -53,6 +53,7 @@ const (
 
 	// Chunked upload defaults
 	defaultChunkSize     = 50 << 20       // 50 MB
+	minChunkSize         = 1 << 20        // 1 MB minimum to prevent abuse
 	defaultSessionExpiry = 24 * time.Hour // 24 hours
 
 	// Database maintenance defaults

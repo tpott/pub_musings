@@ -350,7 +350,7 @@ describe('openVideoModal', () => {
 		expect(els.modalEditLink.href).toBe('/upload?id=vid-abc');
 	});
 
-	it('should show error when fetch fails', async () => {
+	it('should show error and video container when fetch fails', async () => {
 		const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'));
 		vi.stubGlobal('fetch', mockFetch);
 
@@ -363,9 +363,11 @@ describe('openVideoModal', () => {
 		expect(els.modalLoading.style.display).toBe('none');
 		expect(els.modalError.style.display).toBe('block');
 		expect(els.modalError.textContent).toContain('Network error');
+		// Video container should still be shown so user can watch without subtitles
+		expect(els.modalVideoContainer.style.display).toBe('block');
 	});
 
-	it('should show error when response is not ok', async () => {
+	it('should show error and video container when response is not ok', async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: false,
 			json: async () => ({ error: 'Not found' }),
@@ -380,9 +382,10 @@ describe('openVideoModal', () => {
 
 		expect(els.modalError.style.display).toBe('block');
 		expect(els.modalError.textContent).toContain('Not found');
+		expect(els.modalVideoContainer.style.display).toBe('block');
 	});
 
-	it('should show error when transcription not complete', async () => {
+	it('should show error and video container when transcription not complete', async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true,
 			json: async () => ({ status: 'pending' }),
@@ -397,6 +400,7 @@ describe('openVideoModal', () => {
 
 		expect(els.modalError.style.display).toBe('block');
 		expect(els.modalError.textContent).toContain('not available');
+		expect(els.modalVideoContainer.style.display).toBe('block');
 	});
 
 	it('should abort previous keydown controller', async () => {

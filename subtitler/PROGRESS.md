@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**471 tasks completed** as of 2026-01-30. 0 tasks pending.
+**477 tasks completed** as of 2026-01-30. 1 task pending (archive).
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 599 tests across 45 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 600 tests across 45 files
 - **Frontend:** Astro/TypeScript, 832 tests across 29 files
 - **E2E:** Playwright tests (71 scenarios)
-- **Total:** 1510+ tests, 32 specification documents
+- **Total:** 1503+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -63,9 +63,18 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-No pending tasks.
+- Task 476: Archive completed tasks in TASKS.jsonl
 
 ## Recent Work
+
+### Tasks 469-475: Security, memory leaks, accessibility, and UX fixes (2026-01-30)
+- **Task 469:** Enforced minimum chunk size (1MB) in `POST /api/upload/init` — prevents abuse where `chunk_size=1` could create millions of DB records. Added `minChunkSize` constant in `config.go`. Test validates production handler rejects small values
+- **Task 470:** Fixed memory leak in `subtitle-sync.ts` — `setupSpeedControls()` added `document.addEventListener` for click/keydown without cleanup. Now uses `AbortController` stored in `SpeedUIState.abortController`; old controller aborted if `setupSpeedControls` called again
+- **Task 471:** Fixed `closeVideoModal()` in `videos-modal.ts` — speed indicator timeout (800ms) was not cleared on modal close, allowing callback to fire on disposed elements. Added `clearTimeout`/null in close
+- **Task 472:** Added `aria-label="Select embedded subtitle track"` to `<select id="embeddedTrackSelect">` in upload.astro
+- **Task 473:** Wontfix — `generateID()` duplication between `helpers.go` and `db/db_auth.go` is acceptable Go design (separate packages can't share unexported functions; creating a package for 5 lines is over-engineering)
+- **Task 474:** Fixed video modal hiding video container on subtitle load failure — catch block in `openVideoModal` now sets `modalVideoContainer.style.display = 'block'` so users can watch video without subtitles. Tests updated
+- **Task 475:** Updated TESTING.md — backend: 600 tests (was 598), total: 1503+
 
 ### Tasks 463-468: Accessibility, security, and input validation (2026-01-30)
 - **Task 463:** Fixed WCAG AA contrast — `--text-tertiary` changed from `#999999` (3.97:1) to `#767676` (4.54:1) against `#fafafa` background

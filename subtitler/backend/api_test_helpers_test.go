@@ -2687,6 +2687,8 @@ func (ts *testServer) registerHandlers() {
 		if chunkSize <= 0 {
 			chunkSize = 50 << 20 // 50 MB
 		}
+		// Note: production handler enforces minChunkSize (1MB).
+		// Mock allows small chunks for test convenience.
 
 		totalChunks := int((req.Size + chunkSize - 1) / chunkSize)
 

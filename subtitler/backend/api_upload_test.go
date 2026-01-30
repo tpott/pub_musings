@@ -327,6 +327,70 @@ func TestChunkedUploadInitFileTooLarge(t *testing.T) {
 	}
 }
 
+func TestChunkedUploadInitChunkSizeTooSmall(t *testing.T) {
+	// Verify the minChunkSize constant is set appropriately (1 MB)
+	if minChunkSize != 1<<20 {
+		t.Errorf("Expected minChunkSize to be 1MB (1048576), got %d", minChunkSize)
+	}
+
+	// Verify the production handler rejects chunk sizes below minimum.
+	// Save and restore globals used by the production handler.
+	origChunkSize := chunkSize
+	origUploadDir := uploadDir
+	origDatabase := database
+	origUploadLimiter := uploadLimiter
+	origChunkLimiter := chunkLimiter
+	origDownloadLimiter := downloadLimiter
+
+	tmpDir := t.TempDir()
+	chunkSize = 50 << 20 // 50 MB
+	uploadDir = tmpDir
+	uploadLimiter = ratelimit.New(100, time.Minute)
+	chunkLimiter = ratelimit.New(100, time.Minute)
+	downloadLimiter = ratelimit.New(100, time.Minute)
+
+	testDB, err := db.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+	defer testDB.Close()
+	database = testDB
+
+	mux := http.NewServeMux()
+	registerUploadHandlers(mux)
+
+	// Restore globals after test
+	defer func() {
+		chunkSize = origChunkSize
+		uploadDir = origUploadDir
+		database = origDatabase
+		uploadLimiter = origUploadLimiter
+		chunkLimiter = origChunkLimiter
+		downloadLimiter = origDownloadLimiter
+	}()
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"filename":     "test.mp4",
+		"size":         150000000,
+		"content_type": "video/mp4",
+		"chunk_size":   100, // Way below 1 MB minimum
+	})
+	req := httptest.NewRequest("POST", "/api/upload/init", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for tiny chunk size, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(rr.Body).Decode(&result)
+	if result["error"] == "" {
+		t.Error("Expected error message about minimum chunk size")
+	}
+}
+
 func TestChunkedUploadChunk(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()

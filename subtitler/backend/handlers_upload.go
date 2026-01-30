@@ -358,6 +358,11 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		if requestedChunkSize <= 0 {
 			requestedChunkSize = chunkSize
 		}
+		// Enforce minimum chunk size to prevent abuse (e.g. chunk_size=1 creating millions of records)
+		if requestedChunkSize < minChunkSize {
+			httputil.RespondErrorf(w, http.StatusBadRequest, "Chunk size must be at least %d bytes (1 MB)", minChunkSize)
+			return
+		}
 		// Cap chunk size at server's configured limit
 		if requestedChunkSize > chunkSize {
 			requestedChunkSize = chunkSize
