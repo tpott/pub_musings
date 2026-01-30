@@ -1731,6 +1731,21 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Check ownership
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+		sessionID := r.URL.Query().Get("session_id")
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
 		// Run language detection (no decryption needed in tests, just use filename)
 		result := language.Detect("", video.Filename)
 		json.NewEncoder(w).Encode(result)
@@ -2351,6 +2366,30 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Check ownership
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+		sessionID := r.URL.Query().Get("session_id")
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
 		job, err := ts.db.GetBurnJob(uploadID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -2410,9 +2449,33 @@ func (ts *testServer) registerHandlers() {
 			return
 		}
 
+		// Check ownership
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+		sessionID := r.URL.Query().Get("session_id")
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
 		// Validate burn mode
 		burnModeParam := r.URL.Query().Get("mode")
-		_, err := validation.ValidateBurnMode(burnModeParam)
+		_, err = validation.ValidateBurnMode(burnModeParam)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})

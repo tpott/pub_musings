@@ -1023,12 +1023,14 @@ func TestBurnStatusWithETA(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a video
+	sessionID := "test-session-burn-eta"
 	video := &db.Video{
 		ID:          testGenerateID(),
 		Filename:    "test.mp4",
 		Size:        1024,
 		ContentType: "video/mp4",
 		FilePath:    "/uploads/test.mp4",
+		SessionID:   &sessionID,
 		CreatedAt:   time.Now(),
 	}
 	if err := ts.db.CreateVideo(video); err != nil {
@@ -1064,7 +1066,7 @@ func TestBurnStatusWithETA(t *testing.T) {
 	}
 
 	// Get burn status
-	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn", nil)
+	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn?session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1107,12 +1109,14 @@ func TestBurnStatusComplete(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a video
+	sessionID := "test-session-burn-complete"
 	video := &db.Video{
 		ID:          testGenerateID(),
 		Filename:    "test.mp4",
 		Size:        1024,
 		ContentType: "video/mp4",
 		FilePath:    "/uploads/test.mp4",
+		SessionID:   &sessionID,
 		CreatedAt:   time.Now(),
 	}
 	if err := ts.db.CreateVideo(video); err != nil {
@@ -1133,7 +1137,7 @@ func TestBurnStatusComplete(t *testing.T) {
 	}
 
 	// Get burn status
-	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn", nil)
+	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn?session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1162,10 +1166,11 @@ func TestBurnStartSuccess(t *testing.T) {
 	defer ts.cleanup()
 
 	// Create a video with completed transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-burn-start"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1191,9 +1196,10 @@ func TestBurnStartNoTranscription(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-burn-notx"
+	video := ts.createTestVideo(t, nil, &sessionID)
 
-	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1208,7 +1214,8 @@ func TestBurnStartIncompleteTranscription(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-burn-incomplete"
+	video := ts.createTestVideo(t, nil, &sessionID)
 
 	// Create a pending transcription (not completed)
 	transcription := &db.Transcription{
@@ -1223,7 +1230,7 @@ func TestBurnStartIncompleteTranscription(t *testing.T) {
 		t.Fatalf("Failed to create transcription: %v", err)
 	}
 
-	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1246,10 +1253,11 @@ func TestBurnStartInvalidMode(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-burn-invalid"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?mode=invalid", nil)
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?mode=invalid&session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1264,10 +1272,11 @@ func TestBurnStartEmbedMode(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-burn-embed"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?mode=embed", nil)
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?mode=embed&session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1290,7 +1299,8 @@ func TestBurnStartAlreadyProcessing(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-burn-already"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Create an existing processing burn job
@@ -1306,7 +1316,7 @@ func TestBurnStartAlreadyProcessing(t *testing.T) {
 		t.Fatalf("Failed to create burn job: %v", err)
 	}
 
-	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?session_id="+sessionID, nil)
 	w := httptest.NewRecorder()
 	ts.mux.ServeHTTP(w, req)
 
@@ -1342,6 +1352,75 @@ func TestBurnStartNonexistentVideo(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("Expected status 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBurnStartAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "test-session-burn-denied"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// Without session_id should be forbidden
+	req := httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 without session_id, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// With wrong session_id should be forbidden
+	req = httptest.NewRequest("POST", "/api/videos/"+video.ID+"/burn?session_id=wrong-session", nil)
+	w = httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 with wrong session_id, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBurnStatusAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "test-session-burnstatus-denied"
+	video := ts.createTestVideo(t, nil, &sessionID)
+
+	// Without session_id should be forbidden
+	req := httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn", nil)
+	w := httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 without session_id, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// With wrong session_id should be forbidden
+	req = httptest.NewRequest("GET", "/api/videos/"+video.ID+"/burn?session_id=wrong-session", nil)
+	w = httptest.NewRecorder()
+	ts.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 with wrong session_id, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLanguageHintsAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "test-session-hints-denied"
+	video := ts.createTestVideo(t, nil, &sessionID)
+
+	// Without session_id should be forbidden
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 without session_id, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// With wrong session_id should be forbidden
+	resp = ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints?session_id=wrong-session", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 with wrong session_id, got %d: %s", resp.Code, resp.Body.String())
 	}
 }
 
@@ -2519,7 +2598,7 @@ func TestLanguageHintsEndpointFilenameDetection(t *testing.T) {
 	}
 
 	// Request language hints
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints?session_id="+sessionID, nil, "")
 
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
@@ -2575,7 +2654,7 @@ func TestLanguageHintsEndpointNoHints(t *testing.T) {
 	}
 
 	// Request language hints
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints?session_id="+sessionID, nil, "")
 
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
@@ -2621,7 +2700,7 @@ func TestLanguageHintsEndpointSpanishFilename(t *testing.T) {
 	}
 
 	// Request language hints
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints", nil, "")
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/language-hints?session_id="+sessionID, nil, "")
 
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())

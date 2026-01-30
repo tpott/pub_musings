@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**441 tasks completed** as of 2026-01-30. 11 tasks pending.
+**442 tasks completed** as of 2026-01-30. 10 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 595 tests across 45 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
 - **E2E:** Playwright tests (71 scenarios)
-- **Total:** 1504+ tests, 32 specification documents
+- **Total:** 1510+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -66,6 +66,15 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 438: Add ownership checks to burn and language-hints endpoints (2026-01-30)
+- **Security fix:** Burn endpoints (`POST /api/videos/{id}/burn`, `GET /api/videos/{id}/burn`) and language-hints endpoint (`GET /api/videos/{id}/language-hints`) now verify caller owns the video before allowing access
+- Access check matches the pattern from tasks 436-437: authenticated user must own the video or anonymous user must have matching session_id
+- Updated production handlers (`handlers_video_burn.go`, `handlers_video.go`) and test handlers (`api_test_helpers_test.go`)
+- Added 3 new access-denied tests, updated 10 existing tests to pass session_id
+- Optimized POST burn handler to reuse video fetched for access check (eliminated duplicate `getVideoForDecryption` call)
+- Optimized GET burned handler to reuse video and user from access check for filename and audit log
+- All 598 backend tests pass, lint clean
 
 ### Task 437: Add ownership checks to transcription endpoints (2026-01-30)
 - **Security fix:** All four transcription endpoints (`POST /api/transcribe/{id}`, `GET /api/transcribe/{id}`, `PUT /api/transcribe/{id}/segments`, `POST /api/transcribe/{id}/align`) now verify caller owns the video before allowing access

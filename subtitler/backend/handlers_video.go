@@ -594,6 +594,22 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 			return
 		}
 
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
 		// Get the decrypted video file path for metadata analysis
 		// We need the actual file to run ffprobe
 		var videoPath string
