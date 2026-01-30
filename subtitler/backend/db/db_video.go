@@ -223,9 +223,6 @@ func (db *DB) CountExpiredVideos() (int, error) {
 // DeleteVideo deletes a video and its associated transcription from the database.
 // Returns the file paths so the caller can delete the files from disk.
 func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
-	ctx, cancel := db.queryContext()
-	defer cancel()
-
 	// Get the file paths before deleting
 	video, err := db.GetVideo(videoID)
 	if err != nil {
@@ -245,22 +242,30 @@ func (db *DB) DeleteVideo(videoID string) (*DeletedVideoFiles, error) {
 		burnOutputPath = &burnJob.OutputPath
 	}
 
-	// Delete transcription first (foreign key constraint)
-	_, err = db.conn.ExecContext(ctx, `DELETE FROM transcriptions WHERE video_id = ?`, videoID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete transcription: %w", err)
-	}
+	// Delete all related records atomically
+	err = db.WithTransaction(func(tx *Tx) error {
+		// Delete transcription first (foreign key constraint)
+		_, err := tx.tx.Exec(`DELETE FROM transcriptions WHERE video_id = ?`, videoID)
+		if err != nil {
+			return fmt.Errorf("failed to delete transcription: %w", err)
+		}
 
-	// Delete burn jobs
-	_, err = db.conn.ExecContext(ctx, `DELETE FROM burn_jobs WHERE video_id = ?`, videoID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete burn jobs: %w", err)
-	}
+		// Delete burn jobs
+		_, err = tx.tx.Exec(`DELETE FROM burn_jobs WHERE video_id = ?`, videoID)
+		if err != nil {
+			return fmt.Errorf("failed to delete burn jobs: %w", err)
+		}
 
-	// Delete video record
-	_, err = db.conn.ExecContext(ctx, `DELETE FROM videos WHERE id = ?`, videoID)
+		// Delete video record
+		_, err = tx.tx.Exec(`DELETE FROM videos WHERE id = ?`, videoID)
+		if err != nil {
+			return fmt.Errorf("failed to delete video: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete video: %w", err)
+		return nil, err
 	}
 
 	return &DeletedVideoFiles{

@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**444 tasks completed** as of 2026-01-30. 8 tasks pending.
+**445 tasks completed** as of 2026-01-30. 7 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 441: Wrap DeleteVideo in a database transaction (2026-01-30)
+- **Bug fix:** `DeleteVideo` in `db/db_video.go` was executing 3 DELETE operations (transcriptions, burn_jobs, videos) without a transaction, risking orphaned records if the process crashed mid-deletion
+- Wrapped the 3 cascading DELETEs in `db.WithTransaction()`, keeping the read operations (GetVideo, GetBurnJob) outside the transaction
+- Removed unused `ctx, cancel := db.queryContext()` since the transaction creates its own context
+- All delete-related tests pass (6 API + 4 DB-level tests, 598 backend tests total)
 
 ### Task 440: Wrap SaveRecoveryCodes in a database transaction (2026-01-30)
 - **Bug fix:** `SaveRecoveryCodes` in `db/db_auth.go` was executing DELETE + INSERT operations without a transaction, risking partial writes if the process crashed between operations
