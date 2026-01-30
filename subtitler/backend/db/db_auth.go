@@ -50,33 +50,32 @@ func (db *DB) DisableTOTP(userID string) error {
 }
 
 // SaveRecoveryCodes stores hashed recovery codes for a user.
-// Deletes any existing unused codes first.
+// Deletes any existing unused codes first, atomically within a transaction.
 func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
-	ctx, cancel := db.queryContext()
-	defer cancel()
-
-	// Delete existing unused codes
-	_, err := db.conn.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id = ? AND used = 0`, userID)
-	if err != nil {
-		return fmt.Errorf("failed to delete old recovery codes: %w", err)
-	}
-
-	// Insert new codes
-	for _, hash := range codeHashes {
-		id, err := generateID()
+	return db.WithTransaction(func(tx *Tx) error {
+		// Delete existing unused codes
+		_, err := tx.tx.Exec(`DELETE FROM recovery_codes WHERE user_id = ? AND used = 0`, userID)
 		if err != nil {
-			return fmt.Errorf("failed to generate recovery code ID: %w", err)
+			return fmt.Errorf("failed to delete old recovery codes: %w", err)
 		}
-		_, err = db.conn.ExecContext(ctx, `
-			INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
-			VALUES (?, ?, ?, ?)
-		`, id, userID, hash, time.Now())
-		if err != nil {
-			return fmt.Errorf("failed to insert recovery code: %w", err)
-		}
-	}
 
-	return nil
+		// Insert new codes
+		for _, hash := range codeHashes {
+			id, err := generateID()
+			if err != nil {
+				return fmt.Errorf("failed to generate recovery code ID: %w", err)
+			}
+			_, err = tx.tx.Exec(`
+				INSERT INTO recovery_codes (id, user_id, code_hash, created_at)
+				VALUES (?, ?, ?, ?)
+			`, id, userID, hash, time.Now())
+			if err != nil {
+				return fmt.Errorf("failed to insert recovery code: %w", err)
+			}
+		}
+
+		return nil
+	})
 }
 
 // generateID generates a random 16-character hex ID

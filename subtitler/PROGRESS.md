@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**443 tasks completed** as of 2026-01-30. 9 tasks pending.
+**444 tasks completed** as of 2026-01-30. 8 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 440: Wrap SaveRecoveryCodes in a database transaction (2026-01-30)
+- **Bug fix:** `SaveRecoveryCodes` in `db/db_auth.go` was executing DELETE + INSERT operations without a transaction, risking partial writes if the process crashed between operations
+- Wrapped the DELETE (old codes) + INSERT (new codes) loop in `db.WithTransaction()` using the existing `Tx` pattern from `EnableTOTPWithRecoveryCodes`
+- Changed from `db.conn.ExecContext(ctx, ...)` to `tx.tx.Exec(...)` within the transaction closure
+- All recovery code and TOTP tests pass (598 backend tests total)
 
 ### Task 439: Fix double WriteHeader in health endpoint (2026-01-30)
 - **Bug fix:** Health endpoint (`GET /api/health`) was calling `w.WriteHeader(503)` followed by `httputil.RespondJSON(w, 200, ...)` when health was degraded, causing a superfluous WriteHeader warning
