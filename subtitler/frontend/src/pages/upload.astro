@@ -315,6 +315,7 @@ import '../styles/upload.css';
 			import { openSRT, openVTT, openJSON } from '../utils/subtitles';
 			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
 			import { getRequiredElement } from '../utils/dom';
+			import { fetchWithTimeout } from '../utils/fetch-timeout';
 			import type { TranscriptionResult } from '../types/transcription';
 			import type { LanguageHints } from '../types/transcription';
 
@@ -667,7 +668,7 @@ import '../styles/upload.css';
 				useEmbeddedBtn.textContent = 'Loading...';
 
 				try {
-					const response = await fetch(
+					const response = await fetchWithTimeout(
 						`/api/videos/${editorState.currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
 					);
 					if (!response.ok) {
@@ -726,7 +727,7 @@ import '../styles/upload.css';
 					const result = await response.json();
 					if (!response.ok) throw new Error(result.error || 'Alignment failed');
 
-					const transcriptionResponse = await fetch(`/api/transcribe/${editorState.currentUploadId}`);
+					const transcriptionResponse = await fetchWithTimeout(`/api/transcribe/${editorState.currentUploadId}`);
 					const transcriptionResult = await transcriptionResponse.json();
 					if (transcriptionResult.status === 'complete' && transcriptionResult.result) {
 						editorState.transcriptionSegments = transcriptionResult.result.segments || [];
@@ -950,7 +951,7 @@ import '../styles/upload.css';
 				editorState.currentUploadId = videoId;
 
 				try {
-					const response = await fetch(`/api/transcribe/${videoId}`);
+					const response = await fetchWithTimeout(`/api/transcribe/${videoId}`);
 					const result = await response.json();
 
 					if (result.status === 'complete' && result.result) {

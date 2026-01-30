@@ -16,6 +16,7 @@ import {
 } from './playback-speed';
 import { openSRT, openVTT, openJSON } from './subtitles';
 import { showAlert } from './dialog';
+import { fetchWithTimeout } from './fetch-timeout';
 import type { TranscriptionSegment } from '../types/transcription';
 import { TranscriptionStatusResponseSchema, safeParse } from './api-schemas';
 
@@ -338,7 +339,7 @@ export function setupModalListeners(els: ModalElements, state: ModalState): {
 		try {
 			els.modalVideo.src = `/api/videos/${videoId}/video`;
 
-			const response = await fetch(`/api/transcribe/${videoId}`);
+			const response = await fetchWithTimeout(`/api/transcribe/${videoId}`);
 			let rawData;
 			try {
 				rawData = await response.json();

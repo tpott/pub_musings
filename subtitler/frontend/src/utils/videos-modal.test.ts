@@ -42,6 +42,10 @@ vi.mock('./api-schemas', () => ({
 	safeParse: vi.fn((schema: unknown, data: unknown) => data),
 }));
 
+vi.mock('./fetch-timeout', () => ({
+	fetchWithTimeout: vi.fn((...args: unknown[]) => (globalThis.fetch as Function)(...args)),
+}));
+
 function makeMockModalElements(): ModalElements {
 	return {
 		videoModal: {
@@ -428,6 +432,26 @@ describe('openVideoModal', () => {
 
 		expect(state.subtitleSegments).toEqual(segments);
 		expect(state.subtitleSyncActive).toBe(true);
+	});
+
+	it('should use fetchWithTimeout for transcription request', async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				status: 'complete',
+				result: { segments: [{ id: 0, start: 0, end: 5, text: 'Hello' }] },
+			}),
+		});
+		vi.stubGlobal('fetch', mockFetch);
+
+		const els = makeMockModalElements();
+		const state = createModalState();
+		const { openVideoModal } = setupModalListeners(els, state);
+
+		await openVideoModal('video-timeout', 'test.mp4');
+
+		const { fetchWithTimeout } = await import('./fetch-timeout');
+		expect(fetchWithTimeout).toHaveBeenCalledWith('/api/transcribe/video-timeout');
 	});
 
 	it('should show video container and hide loading on success', async () => {

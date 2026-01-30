@@ -5,6 +5,7 @@
 
 import { downloadSRT, downloadVTT, downloadJSON } from './subtitles';
 import { showAlert } from './dialog';
+import { fetchWithTimeout } from './fetch-timeout';
 import type { TranscriptionSegment } from '../types/transcription';
 import { TranscriptionStatusResponseSchema, safeParse } from './api-schemas';
 
@@ -32,7 +33,7 @@ export async function getSubtitleSegments(videoId: string): Promise<Transcriptio
 	}
 
 	// Fetch from server
-	const response = await fetch(`/api/transcribe/${videoId}`);
+	const response = await fetchWithTimeout(`/api/transcribe/${videoId}`);
 	let rawData;
 	try {
 		rawData = await response.json();

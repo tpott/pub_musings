@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**419 tasks completed** as of 2026-01-29. 3 tasks pending.
+**420 tasks completed** as of 2026-01-29. 2 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
-- **Frontend:** Astro/TypeScript, 829 tests across 30 files
+- **Frontend:** Astro/TypeScript, 831 tests across 30 files
 - **E2E:** Playwright tests (59 scenarios)
-- **Total:** 1409+ tests, 31 specification documents
+- **Total:** 1411+ tests, 31 specification documents
 
 ## Feature Summary
 
@@ -62,11 +62,19 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-- Task 421: Add fetch timeout via AbortController to fetches missing timeouts
 - Task 422: Extract burn subtitles handler into smaller functions
 - Task 423: Extract chunked upload complete handler into smaller functions
 
 ## Recent Work
+
+### Task 421: Add fetch timeout via AbortController (2026-01-29)
+- Replaced bare `fetch()` calls with `fetchWithTimeout()` in 3 files:
+  - `upload.astro`: loadExistingVideo, embedded subtitles extraction, post-align transcription fetch
+  - `videos-modal.ts`: openVideoModal transcription fetch
+  - `videos-subtitles.ts`: getSubtitleSegments server fetch
+- Uses existing `fetchWithTimeout` utility (30s default timeout via AbortController)
+- Added 2 new tests verifying `fetchWithTimeout` is called in videos-modal and videos-subtitles
+- Frontend tests: 829 -> 831
 
 ### Task 419: Add pagination offset limit (2026-01-29)
 - Added `maxPaginationOffset` constant (100,000) in helpers.go

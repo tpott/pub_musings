@@ -18,6 +18,10 @@ vi.mock('./api-schemas', () => ({
 	safeParse: vi.fn((_, data: Record<string, unknown>) => data),
 }));
 
+vi.mock('./fetch-timeout', () => ({
+	fetchWithTimeout: vi.fn((...args: unknown[]) => (globalThis.fetch as Function)(...args)),
+}));
+
 function makeSegments(count: number) {
 	return Array.from({ length: count }, (_, i) => ({
 		id: i,
@@ -60,6 +64,28 @@ describe('getSubtitleSegments', () => {
 
 		expect(fetch).toHaveBeenCalledWith('/api/transcribe/fetch-test-1');
 		expect(result).toEqual(segments);
+	});
+
+	it('should use fetchWithTimeout for transcription request', async () => {
+		const segments = makeSegments(2);
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(() =>
+				Promise.resolve({
+					ok: true,
+					json: () =>
+						Promise.resolve({
+							status: 'complete',
+							result: { segments },
+						}),
+				})
+			)
+		);
+
+		await getSubtitleSegments('timeout-test-1');
+
+		const { fetchWithTimeout } = await import('./fetch-timeout');
+		expect(fetchWithTimeout).toHaveBeenCalledWith('/api/transcribe/timeout-test-1');
 	});
 
 	it('should return cached segments on second call', async () => {
