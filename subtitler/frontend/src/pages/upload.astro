@@ -95,7 +95,7 @@ import '../styles/upload.css';
 			<div class="transcription" id="transcription">
 				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
-				<div class="current-subtitle" id="currentSubtitle" aria-live="polite" aria-atomic="true"></div>
+				<div class="current-subtitle" aria-live="polite" aria-atomic="true"><span class="current-subtitle-inner" id="currentSubtitle"></span></div>
 				<div class="subtitle-feedback" id="subtitleFeedback" style="display: none;">
 					<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
 						<span class="emoji">👍</span>
@@ -889,7 +889,7 @@ import '../styles/upload.css';
 			}, speedState);
 
 			// --- Re-transcribe ---
-			async function retranscribe() {
+			function retranscribe() {
 				if (!editorState.currentUploadId) return;
 				const selectedLanguage = transcriptionLanguageSelect.value;
 				if (selectedLanguage === 'auto') {
@@ -911,12 +911,33 @@ import '../styles/upload.css';
 				fullTextSection.style.display = 'none';
 				detectedLanguage.style.display = 'none';
 
-				try {
-					await startTranscription(editorState.currentUploadId, selectedLanguage, true);
-				} finally {
+				transcriptionEl.classList.add('visible');
+				transcriptionStatus.textContent = 'Starting re-transcription...';
+
+				const uploadId = editorState.currentUploadId;
+				const language = selectedLanguage !== 'auto' ? selectedLanguage : undefined;
+				if (language) {
+					localStorage.setItem(PREFERRED_LANGUAGE_KEY, language);
+				}
+
+				function resetRetranscribeBtn() {
 					retranscribeBtn.disabled = false;
 					retranscribeBtn.textContent = 'Re-transcribe';
 				}
+
+				startTranscriptionPoll(uploadId, transcriptionState, {
+					setTranscriptionStatus: (text) => {
+						transcriptionStatus.textContent = text;
+						// Re-enable button on terminal states (error)
+						if (text.startsWith('Error:') || text.startsWith('Failed') || text.startsWith('Polling error:')) {
+							resetRetranscribeBtn();
+						}
+					},
+					displayTranscription: (result) => {
+						resetRetranscribeBtn();
+						displayTranscription(result);
+					},
+				}, language, true);
 			}
 			retranscribeBtn.addEventListener('click', retranscribe);
 

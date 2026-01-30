@@ -204,6 +204,26 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ---
 
+### Browsers reset playbackRate when video source changes
+
+**Problem:** Setting `video.playbackRate` before the video finishes loading doesn't persist. When a new `src` is assigned, browsers reset `playbackRate` to 1.0 after the media loads.
+
+**Solution:** Set `playbackRate` immediately for responsiveness, then add a `loadeddata` event listener (with `{ once: true }`) to re-apply the saved speed after the browser resets it.
+
+**Lesson:** Always re-apply `playbackRate` on `loadeddata` when setting `video.src`. The initial assignment before load is a no-op.
+
+---
+
+### Feedback modal must preserve parent modal overflow state
+
+**Problem:** FeedbackButton's `closeModal()` set `document.body.style.overflow = ''`, which removed the `overflow: hidden` that a parent video modal had set. This broke scrolling behavior when feedback was opened over the video player.
+
+**Solution:** Save `document.body.style.overflow` before opening the feedback modal, restore it on close instead of always clearing to empty string.
+
+**Lesson:** Any modal that modifies `document.body.style.overflow` should save/restore the previous value, not assume it was empty. Multiple overlapping modals each need their own overflow state management.
+
+---
+
 ### NEVER use scrollIntoView() for elements in scrollable containers
 
 **Problem:** Video scrolled out of view during playback. **Reported THREE TIMES.** `scrollIntoView()` scrolls ALL ancestor containers including the page.

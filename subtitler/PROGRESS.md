@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**394 tasks completed** as of 2026-01-29. All core features implemented and tested. 1 task pending.
+**400 tasks completed** as of 2026-01-29. All core features implemented and tested. 3 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,16 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 397-402: Fix 6 user-reported bugs from FEEDBACK.md (2026-01-29)
+- **Task 397:** Fixed night mode CTA text unreadable on home page. Changed `color: white` to `color: var(--bg-color)` on `.cta` in index.astro so text adapts to theme.
+- **Task 398:** Fixed re-transcribe button showing no progress feedback. Rewrote retranscribe flow to keep button disabled during polling and show status updates via transcription status text. Button re-enables on completion or error.
+- **Task 399:** Fixed bionic reading whitespace collapse in upload page current-subtitle. Changed `.current-subtitle` from `display: flex` to `display: table` in upload.css, added `.current-subtitle-inner` with `display: table-cell`, matching the fix already applied in videos.astro.
+- **Task 400:** Fixed subtitle segments scrolling too far ahead on videos page. Changed scroll positioning from 2/3 down (showing mostly past) to centered (showing equal past/future context).
+- **Task 401:** Fixed feedback modal interfering with video playback. FeedbackButton now saves/restores `body.style.overflow` instead of always clearing it. Videos page now sets `window.currentVideoId` for feedback context.
+- **Task 402:** Fixed playback speed not applying on videos page. Added `loadeddata` event handler to re-apply saved speed after video source loads (browsers reset playbackRate to 1.0 on source change).
+- Filed tasks 403-404 for splitting videos.astro and settings.astro into smaller files
+- All 1076+ tests pass, build clean, lint clean
 
 ### Task 384: Add decision tracking process to LEARNINGS.md (2026-01-29)
 - Added "Decisions" section to LEARNINGS.md with Context/Options/Decision/Outcome format
@@ -164,6 +174,8 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | ID | Name |
 |----|------|
 | 388 | Research doc sync linting for docs/ files |
+| 403 | Refactor: Split videos.astro into smaller files |
+| 404 | Refactor: Split settings.astro into smaller files |
 
 ## Key Files
 

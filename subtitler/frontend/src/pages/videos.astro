@@ -1354,6 +1354,13 @@ import '../styles/theme.css';
 				const savedSpeed = getSavedSpeed();
 				modalVideo.playbackRate = savedSpeed;
 				updateModalSpeedUI(savedSpeed);
+
+				// Re-apply speed after video loads, since browsers reset
+				// playbackRate to 1.0 when a new source is loaded
+				modalVideo.addEventListener('loadeddata', () => {
+					const speed = getSavedSpeed();
+					modalVideo.playbackRate = speed;
+				}, { once: true });
 			}
 
 			// Speed button click toggles dropdown
@@ -1447,6 +1454,7 @@ import '../styles/theme.css';
 
 			async function openVideoModal(videoId: string, filename: string) {
 				currentModalVideoId = videoId;
+				(window as any).currentVideoId = videoId;
 				modalSubtitleSegments = [];
 
 				// Reset modal state
@@ -1594,14 +1602,12 @@ import '../styles/theme.css';
 						const segmentEl = cachedModalSegmentElements[currentIndex];
 						segmentEl.classList.add('active');
 
-						// Position active segment in lower portion of container
-						// This shows more "already played" context above, less "upcoming" below
+						// Center active segment vertically in the container
 						const containerHeight = modalSegments.clientHeight;
 						const segmentTop = segmentEl.offsetTop;
 						const segmentHeight = segmentEl.offsetHeight;
 
-						// Target: position segment 2/3 down the container (more past, less future)
-						const targetScrollTop = segmentTop - (containerHeight * 2 / 3) + (segmentHeight / 2);
+						const targetScrollTop = segmentTop - (containerHeight / 2) + (segmentHeight / 2);
 						modalSegments.scrollTop = Math.max(0, targetScrollTop);
 					}
 					lastActiveModalSegmentIndex = currentIndex;
@@ -1629,6 +1635,7 @@ import '../styles/theme.css';
 				}
 
 				currentModalVideoId = null;
+				(window as any).currentVideoId = null;
 				modalSubtitleSegments = [];
 				cachedModalSegmentElements = []; // Clear cached DOM references to prevent memory leak
 

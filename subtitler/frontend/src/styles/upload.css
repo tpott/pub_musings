@@ -272,9 +272,14 @@ h1 {
 	font-size: 1.25rem;
 	text-align: center;
 	min-height: 3.5rem;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	/* Use table display for vertical centering instead of flex
+	   to prevent bionic <strong> tags from breaking word spacing */
+	display: table;
+	width: 100%;
+}
+.current-subtitle-inner {
+	display: table-cell;
+	vertical-align: middle;
 }
 .download-btn {
 	display: inline-block;

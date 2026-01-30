@@ -428,15 +428,21 @@
 
 	// Open modal
 	function openModal() {
+		// Save current overflow state so we can restore it on close
+		previousOverflow = document.body.style.overflow;
 		feedbackModal.classList.add('visible');
 		document.body.style.overflow = 'hidden';
 		feedbackClose.focus();
 	}
 
+	// Track whether body overflow was already hidden before opening
+	let previousOverflow = '';
+
 	// Close modal
 	function closeModal() {
 		feedbackModal.classList.remove('visible');
-		document.body.style.overflow = '';
+		// Restore previous overflow state instead of always clearing
+		document.body.style.overflow = previousOverflow;
 		feedbackBtn.focus();
 	}
 
