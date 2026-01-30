@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**401 tasks completed** as of 2026-01-29. All core features implemented and tested. 2 tasks pending.
+**402 tasks completed** as of 2026-01-29. All core features implemented and tested. 1 task pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
@@ -61,6 +61,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 404: Refactor settings.astro into smaller files (2026-01-29)
+- Split settings.astro from 1663 lines to 441 lines (under 1000 target)
+- Extracted CSS to `styles/settings.css` (623 lines)
+- Extracted TOTP setup/verify/disable/recovery code logic to `utils/settings-totp.ts` (458 lines)
+- Extracted session management to `utils/settings-sessions.ts` (133 lines)
+- Extracted bionic reading preferences to `utils/settings-preferences.ts` (61 lines)
+- All 1080+ tests pass, build clean, lint clean
 
 ### Task 403: Refactor videos.astro into smaller files (2026-01-29)
 - Split videos.astro from 1818 lines to 311 lines (under 1000 target)
@@ -180,8 +188,6 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 | ID | Name |
 |----|------|
 | 388 | Research doc sync linting for docs/ files |
-| 403 | Refactor: Split videos.astro into smaller files |
-| 404 | Refactor: Split settings.astro into smaller files |
 
 ## Key Files
 

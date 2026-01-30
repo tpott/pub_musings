@@ -4,6 +4,7 @@ import ThemeInit from '../components/ThemeInit.astro';
 import Navigation from '../components/Navigation.astro';
 import FeedbackButton from '../components/FeedbackButton.astro';
 import '../styles/theme.css';
+import '../styles/settings.css';
 ---
 
 <html lang="en">
@@ -15,631 +16,6 @@ import '../styles/theme.css';
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Settings - Subtitler</title>
-		<style>
-			.container {
-				max-width: 600px;
-				margin: 0 auto;
-				padding: 2rem;
-			}
-			.header {
-				display: flex;
-				align-items: center;
-				gap: 1rem;
-				margin-bottom: 1.5rem;
-			}
-			.back-link {
-				text-decoration: none;
-				color: var(--text-color);
-				font-size: 1.5rem;
-			}
-			.back-link:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: 2px;
-			}
-			h1 {
-				font-size: 2rem;
-				font-weight: 600;
-			}
-			/* Tab navigation */
-			.tabs {
-				display: flex;
-				gap: 0;
-				margin-bottom: 1.5rem;
-				border-bottom: 1px solid var(--border-color);
-			}
-			.tab {
-				padding: 0.75rem 1.25rem;
-				border: none;
-				background: none;
-				font-size: 0.95rem;
-				font-weight: 500;
-				color: var(--text-secondary);
-				cursor: pointer;
-				border-bottom: 2px solid transparent;
-				margin-bottom: -1px;
-				transition: color 0.2s, border-color 0.2s;
-			}
-			.tab:hover {
-				color: var(--text-color);
-			}
-			.tab:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: -2px;
-			}
-			.tab.active {
-				color: var(--accent-color);
-				border-bottom-color: var(--accent-color);
-			}
-			.tab-content {
-				display: none;
-			}
-			.tab-content.active {
-				display: block;
-			}
-			.card {
-				background-color: var(--secondary-bg);
-				border: 1px solid var(--border-color);
-				border-radius: 12px;
-				padding: 1.5rem;
-				margin-bottom: 1.5rem;
-			}
-			.card-header {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				margin-bottom: 1rem;
-			}
-			.card-title {
-				font-size: 1.25rem;
-				font-weight: 600;
-			}
-			.status-badge {
-				display: inline-block;
-				padding: 0.25rem 0.75rem;
-				border-radius: 4px;
-				font-size: 0.8rem;
-				font-weight: 500;
-			}
-			.status-enabled {
-				background-color: var(--success-bg);
-				color: var(--success-color);
-			}
-			.status-disabled {
-				background-color: var(--badge-pending-bg);
-				color: var(--badge-pending-text);
-			}
-			.card-description {
-				color: var(--text-secondary);
-				font-size: 0.95rem;
-				margin-bottom: 1rem;
-			}
-			.btn {
-				padding: 0.75rem 1.25rem;
-				border: none;
-				border-radius: 6px;
-				font-size: 0.95rem;
-				font-weight: 500;
-				cursor: pointer;
-				transition: background-color 0.2s, opacity 0.2s;
-			}
-			.btn-primary {
-				background-color: var(--accent-color);
-				color: white;
-			}
-			.btn-primary:hover:not(:disabled) {
-				background-color: var(--accent-hover);
-			}
-			.btn-danger {
-				background-color: var(--btn-danger-color);
-				color: white;
-			}
-			.btn-danger:hover:not(:disabled) {
-				background-color: var(--btn-danger-hover);
-			}
-			.btn:disabled {
-				opacity: 0.6;
-				cursor: not-allowed;
-			}
-			.btn:focus {
-				outline: 2px solid var(--accent-color);
-				outline-offset: 2px;
-			}
-			.loading {
-				text-align: center;
-				padding: 3rem;
-				color: var(--text-secondary);
-			}
-			.error-message {
-				background-color: var(--error-bg);
-				border: 1px solid var(--error-border);
-				color: var(--error-color);
-				padding: 0.75rem 1rem;
-				border-radius: 6px;
-				margin-bottom: 1rem;
-				font-size: 0.9rem;
-			}
-			.success-message {
-				background-color: var(--success-bg);
-				border: 1px solid var(--success-border);
-				color: var(--success-color);
-				padding: 0.75rem 1rem;
-				border-radius: 6px;
-				margin-bottom: 1rem;
-				font-size: 0.9rem;
-			}
-			.hidden {
-				display: none !important;
-			}
-			.setup-section {
-				margin-top: 1.5rem;
-			}
-			.qr-container {
-				text-align: center;
-				margin: 1.5rem 0;
-			}
-			.qr-placeholder {
-				background-color: var(--bg-color);
-				border: 1px solid var(--border-color);
-				border-radius: 8px;
-				padding: 1rem;
-				display: inline-block;
-			}
-			.secret-display {
-				font-family: 'Menlo', 'Monaco', monospace;
-				font-size: 1.1rem;
-				letter-spacing: 0.1rem;
-				background-color: var(--bg-color);
-				padding: 0.75rem 1rem;
-				border-radius: 6px;
-				text-align: center;
-				margin: 1rem 0;
-				user-select: all;
-			}
-			.form-group {
-				margin-bottom: 1.25rem;
-			}
-			label {
-				display: block;
-				font-weight: 500;
-				margin-bottom: 0.5rem;
-				font-size: 0.9rem;
-			}
-			input[type="text"],
-			input[type="password"] {
-				width: 100%;
-				padding: 0.75rem 1rem;
-				border: 1px solid var(--border-color);
-				border-radius: 6px;
-				font-size: 1rem;
-				transition: border-color 0.2s, box-shadow 0.2s;
-			}
-			input:focus {
-				outline: none;
-				border-color: var(--accent-color);
-				box-shadow: 0 0 0 3px var(--focus-ring);
-			}
-			input.input-error {
-				border-color: var(--error-color);
-			}
-			input.input-error:focus {
-				box-shadow: 0 0 0 3px var(--error-focus-ring);
-			}
-			.field-error {
-				color: var(--error-color);
-				font-size: 0.8rem;
-				margin-top: 0.25rem;
-				display: none;
-			}
-			.totp-input {
-				font-family: 'Menlo', 'Monaco', monospace;
-				font-size: 1.5rem;
-				letter-spacing: 0.3rem;
-				text-align: center;
-			}
-			.setup-instructions {
-				font-size: 0.9rem;
-				color: var(--text-secondary);
-				margin-bottom: 1rem;
-			}
-			.setup-instructions ol {
-				margin-left: 1.5rem;
-			}
-			.setup-instructions li {
-				margin-bottom: 0.5rem;
-			}
-			.qr-code {
-				width: 200px;
-				height: 200px;
-			}
-			.btn-group {
-				display: flex;
-				gap: 0.75rem;
-				margin-top: 1rem;
-			}
-			.btn-secondary {
-				background-color: var(--bg-color);
-				color: var(--text-color);
-				border: 1px solid var(--border-color);
-			}
-			.btn-secondary:hover:not(:disabled) {
-				background-color: var(--btn-secondary-hover);
-			}
-			.recovery-codes-section {
-				margin-top: 1.5rem;
-			}
-			.recovery-warning {
-				background-color: var(--warning-bg);
-				border: 1px solid var(--warning-border);
-				color: var(--warning-color);
-				padding: 0.75rem 1rem;
-				border-radius: 6px;
-				margin-bottom: 1rem;
-				font-size: 0.9rem;
-			}
-			.recovery-warning strong {
-				display: block;
-				margin-bottom: 0.25rem;
-			}
-			.recovery-codes-grid {
-				display: grid;
-				grid-template-columns: repeat(2, 1fr);
-				gap: 0.5rem;
-				margin: 1rem 0;
-			}
-			.recovery-code {
-				font-family: 'Menlo', 'Monaco', monospace;
-				font-size: 1.1rem;
-				background-color: var(--bg-color);
-				padding: 0.5rem 0.75rem;
-				border-radius: 4px;
-				text-align: center;
-				user-select: all;
-			}
-			.recovery-actions {
-				display: flex;
-				gap: 0.5rem;
-				margin-top: 1rem;
-			}
-			.confirmation-checkbox {
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-				margin-top: 1.5rem;
-				padding: 0.75rem 1rem;
-				background-color: var(--bg-color);
-				border-radius: 6px;
-			}
-			.confirmation-checkbox input[type="checkbox"] {
-				width: 18px;
-				height: 18px;
-				cursor: pointer;
-			}
-			.confirmation-checkbox label {
-				margin-bottom: 0;
-				cursor: pointer;
-				font-size: 0.95rem;
-			}
-			/* Sessions management */
-			.session-list {
-				display: flex;
-				flex-direction: column;
-				gap: 0.75rem;
-			}
-			.session-item {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 0.75rem;
-				background-color: var(--bg-color);
-				border-radius: 6px;
-			}
-			.session-item.current {
-				border: 2px solid var(--current-session-border);
-				background-color: var(--current-session-bg);
-			}
-			.session-info {
-				flex: 1;
-			}
-			.session-device {
-				font-weight: 500;
-				font-size: 0.95rem;
-				margin-bottom: 0.25rem;
-			}
-			.session-meta {
-				font-size: 0.8rem;
-				color: var(--text-secondary);
-			}
-			.session-current-badge {
-				display: inline-block;
-				background-color: var(--accent-color);
-				color: white;
-				padding: 0.125rem 0.5rem;
-				border-radius: 3px;
-				font-size: 0.7rem;
-				margin-left: 0.5rem;
-				font-weight: 500;
-			}
-			.btn-revoke {
-				padding: 0.375rem 0.75rem;
-				font-size: 0.8rem;
-				background-color: var(--revoke-btn-bg);
-				color: var(--revoke-btn-text);
-				border: 1px solid var(--revoke-btn-border);
-			}
-			.btn-revoke:hover:not(:disabled) {
-				background-color: var(--revoke-btn-hover);
-			}
-			.no-sessions {
-				color: var(--text-secondary);
-				font-size: 0.9rem;
-				text-align: center;
-				padding: 1rem;
-			}
-			/* Placeholder tab content */
-			.placeholder-content {
-				text-align: center;
-				padding: 3rem 1.5rem;
-				color: var(--text-secondary);
-			}
-			.placeholder-content h3 {
-				font-size: 1.1rem;
-				font-weight: 600;
-				margin-bottom: 0.5rem;
-				color: var(--text-color);
-			}
-			.placeholder-content p {
-				font-size: 0.95rem;
-			}
-			/* Toggle switch */
-			.toggle-row {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 0.75rem 0;
-			}
-			.toggle-label-group {
-				flex: 1;
-			}
-			.toggle-label {
-				font-weight: 500;
-				font-size: 0.95rem;
-				margin-bottom: 0.25rem;
-				display: block;
-			}
-			.toggle-description {
-				color: var(--text-secondary);
-				font-size: 0.85rem;
-				line-height: 1.4;
-			}
-			.toggle-switch {
-				position: relative;
-				width: 48px;
-				height: 26px;
-				margin-left: 1rem;
-				flex-shrink: 0;
-			}
-			.toggle-switch input {
-				opacity: 0;
-				width: 0;
-				height: 0;
-			}
-			.toggle-slider {
-				position: absolute;
-				cursor: pointer;
-				top: 0;
-				left: 0;
-				right: 0;
-				bottom: 0;
-				background-color: var(--border-color);
-				transition: 0.2s;
-				border-radius: 26px;
-			}
-			.toggle-slider:before {
-				position: absolute;
-				content: "";
-				height: 20px;
-				width: 20px;
-				left: 3px;
-				bottom: 3px;
-				background-color: white;
-				transition: 0.2s;
-				border-radius: 50%;
-			}
-			.toggle-switch input:checked + .toggle-slider {
-				background-color: var(--accent-color);
-			}
-			.toggle-switch input:focus + .toggle-slider {
-				box-shadow: 0 0 0 3px var(--focus-ring);
-			}
-			.toggle-switch input:checked + .toggle-slider:before {
-				transform: translateX(22px);
-			}
-			/* Fixation slider */
-			.slider-row {
-				padding: 1rem 0;
-				border-top: 1px solid var(--border-color);
-				margin-top: 0.5rem;
-			}
-			.slider-header {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				margin-bottom: 0.5rem;
-			}
-			.slider-label {
-				font-weight: 500;
-				font-size: 0.9rem;
-			}
-			.slider-value {
-				font-size: 0.85rem;
-				color: var(--text-secondary);
-				background-color: var(--bg-color);
-				padding: 0.125rem 0.5rem;
-				border-radius: 4px;
-			}
-			.slider-input {
-				width: 100%;
-				height: 6px;
-				border-radius: 3px;
-				background: var(--border-color);
-				outline: none;
-				-webkit-appearance: none;
-				appearance: none;
-			}
-			.slider-input::-webkit-slider-thumb {
-				-webkit-appearance: none;
-				appearance: none;
-				width: 18px;
-				height: 18px;
-				border-radius: 50%;
-				background: var(--accent-color);
-				cursor: pointer;
-			}
-			.slider-input::-moz-range-thumb {
-				width: 18px;
-				height: 18px;
-				border-radius: 50%;
-				background: var(--accent-color);
-				cursor: pointer;
-				border: none;
-			}
-			.slider-input:focus::-webkit-slider-thumb {
-				box-shadow: 0 0 0 3px var(--focus-ring);
-			}
-			.slider-labels {
-				display: flex;
-				justify-content: space-between;
-				margin-top: 0.5rem;
-				font-size: 0.75rem;
-				color: var(--text-secondary);
-			}
-			/* Preview section */
-			.preview-section {
-				margin-top: 1rem;
-				padding: 1rem;
-				background-color: var(--bg-color);
-				border-radius: 8px;
-				border: 1px solid var(--border-color);
-			}
-			.preview-label {
-				font-size: 0.8rem;
-				color: var(--text-secondary);
-				margin-bottom: 0.5rem;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-			.preview-text {
-				font-size: 1.1rem;
-				line-height: 1.6;
-			}
-			.preview-text strong {
-				font-weight: 700;
-			}
-			/* Disclaimer */
-			.disclaimer {
-				margin-top: 1rem;
-				padding: 0.75rem 1rem;
-				background-color: var(--warning-bg);
-				border: 1px solid var(--warning-border);
-				border-radius: 6px;
-				font-size: 0.85rem;
-				color: var(--warning-color);
-				line-height: 1.4;
-			}
-			.disabled-section {
-				opacity: 0.5;
-				pointer-events: none;
-			}
-			/* Mobile responsive styles */
-			@media (max-width: 480px) {
-				.container {
-					padding: 1rem;
-				}
-				h1 {
-					font-size: 1.5rem;
-				}
-				.tabs {
-					gap: 0;
-				}
-				.tab {
-					padding: 0.6rem 0.75rem;
-					font-size: 0.85rem;
-					flex: 1;
-					text-align: center;
-				}
-				.card {
-					padding: 1.25rem;
-				}
-				.card-title {
-					font-size: 1.1rem;
-				}
-				.card-header {
-					flex-direction: column;
-					align-items: flex-start;
-					gap: 0.5rem;
-				}
-				.btn {
-					min-height: 44px;
-					width: 100%;
-				}
-				.btn-group {
-					flex-direction: column;
-				}
-				.qr-code {
-					width: 180px;
-					height: 180px;
-				}
-				.secret-display {
-					font-size: 0.9rem;
-					letter-spacing: 0.05rem;
-					word-break: break-all;
-				}
-				.totp-input {
-					font-size: 1.25rem;
-					letter-spacing: 0.2rem;
-				}
-				.recovery-codes-grid {
-					grid-template-columns: 1fr;
-				}
-				.recovery-code {
-					font-size: 1rem;
-				}
-				.recovery-actions {
-					flex-direction: column;
-				}
-				.session-item {
-					flex-direction: column;
-					align-items: flex-start;
-					gap: 0.5rem;
-				}
-				.btn-revoke {
-					width: 100%;
-					min-height: 44px;
-				}
-				.setup-instructions ol {
-					margin-left: 1.25rem;
-				}
-			}
-			@media (max-width: 375px) {
-				h1 {
-					font-size: 1.25rem;
-				}
-				.container {
-					padding: 0.75rem;
-				}
-				.card {
-					padding: 1rem;
-				}
-				.qr-code {
-					width: 160px;
-					height: 160px;
-				}
-				.tab {
-					padding: 0.5rem 0.5rem;
-					font-size: 0.8rem;
-				}
-			}
-		</style>
 	</head>
 	<body>
 		<Navigation />
@@ -874,104 +250,126 @@ import '../styles/theme.css';
 		</div>
 
 		<script>
-			import { validatePassword, validateTotpCode } from '../utils/validation';
-			import { csrfFetch } from '../utils/csrf';
-			import { escapeHtml } from '../utils/html';
-			import { clearFieldError, showFieldError } from '../utils/form-errors';
-			import { setupBlurValidation } from '../utils/form-validation';
-			import {
-				isBionicEnabled,
-				getBionicFixation,
-				setBionicEnabled,
-				setBionicFixation,
-				toBionicHTML,
-			} from '../utils/bionic';
-			import {
-				TotpSetupResponseSchema,
-				TotpVerifyResponseSchema,
-				RecoveryCodesResponseSchema,
-				SessionListResponseSchema,
-				safeParse,
-			} from '../utils/api-schemas';
 			import { getRequiredElement, queryAllElements } from '../utils/dom';
+			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
+			import { setupTotp, type TotpElements } from '../utils/settings-totp';
+			import { setupSessions, type SessionsElements } from '../utils/settings-sessions';
+			import { setupPreferences, type PreferencesElements } from '../utils/settings-preferences';
 
-			// Get all required elements with type checking
+			// Page-level elements
 			const loading = getRequiredElement('loading', HTMLElement);
 			const notLoggedIn = getRequiredElement('notLoggedIn', HTMLElement);
 			const content = getRequiredElement('content', HTMLElement);
-			const totpStatus = getRequiredElement('totpStatus', HTMLElement);
-			const enableSection = getRequiredElement('enableSection', HTMLElement);
-			const setupSection = getRequiredElement('setupSection', HTMLElement);
-			const disableSection = getRequiredElement('disableSection', HTMLElement);
 			const errorMessage = getRequiredElement('errorMessage', HTMLElement);
 			const successMessage = getRequiredElement('successMessage', HTMLElement);
-			const startSetupBtn = getRequiredElement('startSetupBtn', HTMLButtonElement);
-			const cancelSetupBtn = getRequiredElement('cancelSetupBtn', HTMLButtonElement);
-			const verifyForm = getRequiredElement('verifyForm', HTMLFormElement);
-			const verifyBtn = getRequiredElement('verifyBtn', HTMLButtonElement);
-			const verifyCode = getRequiredElement('verifyCode', HTMLInputElement);
-			const verifyCodeError = getRequiredElement('verifyCodeError', HTMLElement);
-			const disableForm = getRequiredElement('disableForm', HTMLFormElement);
-			const disableBtn = getRequiredElement('disableBtn', HTMLButtonElement);
-			const disablePassword = getRequiredElement('disablePassword', HTMLInputElement);
-			const disablePasswordError = getRequiredElement('disablePasswordError', HTMLElement);
-			const disableCode = getRequiredElement('disableCode', HTMLInputElement);
-			const disableCodeError = getRequiredElement('disableCodeError', HTMLElement);
-			const qrCode = getRequiredElement('qrCode', HTMLImageElement);
-			const secretDisplay = getRequiredElement('secretDisplay', HTMLElement);
-			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
-			const recoveryCodesSection = getRequiredElement('recoveryCodesSection', HTMLElement);
-			const recoveryCodesGrid = getRequiredElement('recoveryCodesGrid', HTMLElement);
-			const copyCodesBtn = getRequiredElement('copyCodesBtn', HTMLButtonElement);
-			const downloadCodesBtn = getRequiredElement('downloadCodesBtn', HTMLButtonElement);
-			const savedCodesCheckbox = getRequiredElement('savedCodesCheckbox', HTMLInputElement);
-			const continueBtn = getRequiredElement('continueBtn', HTMLButtonElement);
-
-			// Elements for regenerate/disable flow
-			const managementOptions = getRequiredElement('managementOptions', HTMLElement);
-			const regenSection = getRequiredElement('regenSection', HTMLElement);
-			const disableFormSection = getRequiredElement('disableFormSection', HTMLElement);
-			const startRegenBtn = getRequiredElement('startRegenBtn', HTMLButtonElement);
-			const startDisableBtn = getRequiredElement('startDisableBtn', HTMLButtonElement);
-			const cancelRegenBtn = getRequiredElement('cancelRegenBtn', HTMLButtonElement);
-			const cancelDisableBtn = getRequiredElement('cancelDisableBtn', HTMLButtonElement);
-			const regenForm = getRequiredElement('regenForm', HTMLFormElement);
-			const regenBtn = getRequiredElement('regenBtn', HTMLButtonElement);
-			const regenPassword = getRequiredElement('regenPassword', HTMLInputElement);
-			const regenPasswordError = getRequiredElement('regenPasswordError', HTMLElement);
-			const regenCode = getRequiredElement('regenCode', HTMLInputElement);
-			const regenCodeError = getRequiredElement('regenCodeError', HTMLElement);
 
 			// Tab elements
 			const tabButtons = queryAllElements('.tab', HTMLButtonElement);
 			const tabContents = queryAllElements('.tab-content', HTMLElement);
 
-			let isRegenerating = false;
+			// Shared state
+			const state = {
+				currentUser: null as { id: string; email: string; totp_enabled: boolean } | null,
+			};
 
-			let currentUser: { id: string; email: string; totp_enabled: boolean } | null = null;
-			let setupSecret: string = '';
-			let recoveryCodes: string[] = [];
+			// Message helpers shared across modules
+			function showError(message: string) {
+				errorMessage.textContent = message;
+				errorMessage.classList.remove('hidden');
+				successMessage.classList.add('hidden');
+			}
+
+			function showSuccess(message: string) {
+				successMessage.textContent = message;
+				successMessage.classList.remove('hidden');
+				errorMessage.classList.add('hidden');
+			}
+
+			function hideMessages() {
+				errorMessage.classList.add('hidden');
+				successMessage.classList.add('hidden');
+			}
+
+			const callbacks = { showError, showSuccess, hideMessages };
+
+			// Set up TOTP module
+			const totpElements: TotpElements = {
+				totpStatus: getRequiredElement('totpStatus', HTMLElement),
+				enableSection: getRequiredElement('enableSection', HTMLElement),
+				setupSection: getRequiredElement('setupSection', HTMLElement),
+				disableSection: getRequiredElement('disableSection', HTMLElement),
+				startSetupBtn: getRequiredElement('startSetupBtn', HTMLButtonElement),
+				cancelSetupBtn: getRequiredElement('cancelSetupBtn', HTMLButtonElement),
+				verifyForm: getRequiredElement('verifyForm', HTMLFormElement),
+				verifyBtn: getRequiredElement('verifyBtn', HTMLButtonElement),
+				verifyCode: getRequiredElement('verifyCode', HTMLInputElement),
+				verifyCodeError: getRequiredElement('verifyCodeError', HTMLElement),
+				disableForm: getRequiredElement('disableForm', HTMLFormElement),
+				disableBtn: getRequiredElement('disableBtn', HTMLButtonElement),
+				disablePassword: getRequiredElement('disablePassword', HTMLInputElement),
+				disablePasswordError: getRequiredElement('disablePasswordError', HTMLElement),
+				disableCode: getRequiredElement('disableCode', HTMLInputElement),
+				disableCodeError: getRequiredElement('disableCodeError', HTMLElement),
+				qrCode: getRequiredElement('qrCode', HTMLImageElement),
+				secretDisplay: getRequiredElement('secretDisplay', HTMLElement),
+				recoveryCodesSection: getRequiredElement('recoveryCodesSection', HTMLElement),
+				recoveryCodesGrid: getRequiredElement('recoveryCodesGrid', HTMLElement),
+				copyCodesBtn: getRequiredElement('copyCodesBtn', HTMLButtonElement),
+				downloadCodesBtn: getRequiredElement('downloadCodesBtn', HTMLButtonElement),
+				savedCodesCheckbox: getRequiredElement('savedCodesCheckbox', HTMLInputElement),
+				continueBtn: getRequiredElement('continueBtn', HTMLButtonElement),
+				managementOptions: getRequiredElement('managementOptions', HTMLElement),
+				regenSection: getRequiredElement('regenSection', HTMLElement),
+				disableFormSection: getRequiredElement('disableFormSection', HTMLElement),
+				startRegenBtn: getRequiredElement('startRegenBtn', HTMLButtonElement),
+				startDisableBtn: getRequiredElement('startDisableBtn', HTMLButtonElement),
+				cancelRegenBtn: getRequiredElement('cancelRegenBtn', HTMLButtonElement),
+				cancelDisableBtn: getRequiredElement('cancelDisableBtn', HTMLButtonElement),
+				regenForm: getRequiredElement('regenForm', HTMLFormElement),
+				regenBtn: getRequiredElement('regenBtn', HTMLButtonElement),
+				regenPassword: getRequiredElement('regenPassword', HTMLInputElement),
+				regenPasswordError: getRequiredElement('regenPasswordError', HTMLElement),
+				regenCode: getRequiredElement('regenCode', HTMLInputElement),
+				regenCodeError: getRequiredElement('regenCodeError', HTMLElement),
+			};
+
+			const totp = setupTotp(totpElements, callbacks, state);
+
+			// Set up sessions module
+			const sessionsElements: SessionsElements = {
+				sessionsLoading: getRequiredElement('sessionsLoading', HTMLElement),
+				sessionsList: getRequiredElement('sessionsList', HTMLElement),
+			};
+
+			const sessions = setupSessions(sessionsElements, callbacks);
+
+			// Set up preferences module
+			const preferencesElements: PreferencesElements = {
+				bionicToggle: getRequiredElement('bionicToggle', HTMLInputElement),
+				bionicOptions: getRequiredElement('bionicOptions', HTMLElement),
+				fixationSlider: getRequiredElement('fixationSlider', HTMLInputElement),
+				fixationValue: getRequiredElement('fixationValue', HTMLElement),
+				previewText: getRequiredElement('previewText', HTMLElement),
+			};
+
+			setupPreferences(preferencesElements);
 
 			// Tab switching logic
 			function switchTab(tabName: string) {
-				// Update button states
 				tabButtons.forEach(btn => {
 					const isActive = btn.dataset.tab === tabName;
 					btn.classList.toggle('active', isActive);
 					btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
 				});
 
-				// Update content visibility
 				tabContents.forEach(content => {
 					const isActive = content.id === `${tabName}-tab`;
 					content.classList.toggle('active', isActive);
 				});
 
-				// Save to localStorage
 				localStorage.setItem('subtitler:settings-tab', tabName);
 			}
 
-			// Initialize tab from URL hash or localStorage
 			function initTabs() {
 				const hash = window.location.hash.slice(1);
 				const savedTab = localStorage.getItem('subtitler:settings-tab');
@@ -987,13 +385,11 @@ import '../styles/theme.css';
 				switchTab(initialTab);
 			}
 
-			// Add click handlers to tabs
 			tabButtons.forEach(btn => {
 				btn.addEventListener('click', () => {
 					const tab = btn.dataset.tab;
 					if (tab) {
 						switchTab(tab);
-						// Update URL hash without scrolling
 						history.replaceState(null, '', `#${tab}`);
 					}
 				});
@@ -1020,643 +416,25 @@ import '../styles/theme.css';
 				});
 			});
 
-			// Add blur validation for verify code
-			setupBlurValidation({ input: verifyCode, errorEl: verifyCodeError, validate: validateTotpCode });
+			// Auth check and initialization
+			loading.classList.add('hidden');
 
-			// Add blur validation for disable form
-			setupBlurValidation({ input: disablePassword, errorEl: disablePasswordError, validate: validatePassword });
-			setupBlurValidation({ input: disableCode, errorEl: disableCodeError, validate: validateTotpCode });
-
-			// Add blur validation for regen form
-			setupBlurValidation({ input: regenPassword, errorEl: regenPasswordError, validate: validatePassword });
-			setupBlurValidation({ input: regenCode, errorEl: regenCodeError, validate: validateTotpCode });
-
-			function showError(message: string) {
-				errorMessage.textContent = message;
-				errorMessage.classList.remove('hidden');
-				successMessage.classList.add('hidden');
-			}
-
-			function showSuccess(message: string) {
-				successMessage.textContent = message;
-				successMessage.classList.remove('hidden');
-				errorMessage.classList.add('hidden');
-			}
-
-			function hideMessages() {
-				errorMessage.classList.add('hidden');
-				successMessage.classList.add('hidden');
-			}
-
-			function updateUI() {
-				if (!currentUser) return;
-
-				if (currentUser.totp_enabled) {
-					totpStatus.textContent = 'Enabled';
-					totpStatus.className = 'status-badge status-enabled';
-					enableSection.classList.add('hidden');
-					setupSection.classList.add('hidden');
-					disableSection.classList.remove('hidden');
-					// Show management options, hide forms
-					managementOptions.classList.remove('hidden');
-					regenSection.classList.add('hidden');
-					disableFormSection.classList.add('hidden');
-				} else {
-					totpStatus.textContent = 'Disabled';
-					totpStatus.className = 'status-badge status-disabled';
-					enableSection.classList.remove('hidden');
-					setupSection.classList.add('hidden');
-					disableSection.classList.add('hidden');
+			checkAuthAndUpdateNav({
+				onAuthenticated: (user) => {
+					state.currentUser = user;
+					content.classList.remove('hidden');
+					totp.updateUI();
+					initTabs();
+					sessions.loadSessions();
+				},
+				onUnauthenticated: () => {
+					notLoggedIn.classList.remove('hidden');
 				}
-			}
-
-			async function checkAuth() {
-				loading.classList.add('hidden');
-
-				const result = await checkAuthAndUpdateNav({
-					onAuthenticated: (user) => {
-						currentUser = user;
-						content.classList.remove('hidden');
-						updateUI();
-						initTabs();
-					},
-					onUnauthenticated: () => {
-						notLoggedIn.classList.remove('hidden');
-					}
-				});
-
+			}).then(result => {
 				if (!result.isAuthenticated) {
 					notLoggedIn.classList.remove('hidden');
 				}
-			}
-
-			async function startSetup() {
-				hideMessages();
-				startSetupBtn.disabled = true;
-				startSetupBtn.textContent = 'Setting up...';
-
-				try {
-					const response = await csrfFetch('/api/auth/totp/setup', {
-						method: 'POST',
-					});
-
-					const rawData = await response.json();
-
-					if (!response.ok) {
-						showError(rawData.error || 'Failed to start setup');
-						startSetupBtn.disabled = false;
-						startSetupBtn.textContent = 'Enable 2FA';
-						return;
-					}
-
-					// Validate response structure
-					const data = safeParse(TotpSetupResponseSchema, rawData);
-					if (!data) {
-						showError('Invalid response from server');
-						startSetupBtn.disabled = false;
-						startSetupBtn.textContent = 'Enable 2FA';
-						return;
-					}
-
-					setupSecret = data.secret;
-					secretDisplay.textContent = data.secret_display || data.secret;
-
-					// Use QR code from backend (self-hosted, no external requests)
-					qrCode.src = data.qr_code;
-
-					enableSection.classList.add('hidden');
-					setupSection.classList.remove('hidden');
-					verifyCode.focus();
-
-				} catch (err) {
-					showError('Network error. Please try again.');
-					startSetupBtn.disabled = false;
-					startSetupBtn.textContent = 'Enable 2FA';
-				}
-			}
-
-			function cancelSetup() {
-				hideMessages();
-				setupSecret = '';
-				verifyCode.value = '';
-				setupSection.classList.add('hidden');
-				enableSection.classList.remove('hidden');
-				startSetupBtn.disabled = false;
-				startSetupBtn.textContent = 'Enable 2FA';
-			}
-
-			function displayRecoveryCodes(codes: string[]) {
-				recoveryCodes = codes;
-				recoveryCodesGrid.innerHTML = '';
-				codes.forEach(code => {
-					const codeDiv = document.createElement('div');
-					codeDiv.className = 'recovery-code';
-					codeDiv.textContent = code;
-					recoveryCodesGrid.appendChild(codeDiv);
-				});
-				setupSection.classList.add('hidden');
-				recoveryCodesSection.classList.remove('hidden');
-				savedCodesCheckbox.checked = false;
-				continueBtn.disabled = true;
-			}
-
-			async function copyAllCodes() {
-				const codesText = recoveryCodes.join('\n');
-				try {
-					await navigator.clipboard.writeText(codesText);
-					copyCodesBtn.textContent = 'Copied!';
-					setTimeout(() => {
-						copyCodesBtn.textContent = 'Copy All Codes';
-					}, 2000);
-				} catch (err) {
-					// Fallback for browsers without clipboard API
-					const textarea = document.createElement('textarea');
-					textarea.value = codesText;
-					document.body.appendChild(textarea);
-					textarea.select();
-					document.execCommand('copy');
-					document.body.removeChild(textarea);
-					copyCodesBtn.textContent = 'Copied!';
-					setTimeout(() => {
-						copyCodesBtn.textContent = 'Copy All Codes';
-					}, 2000);
-				}
-			}
-
-			function downloadCodes() {
-				const codesText = `Subtitler 2FA Recovery Codes
-============================
-Generated: ${new Date().toISOString()}
-
-Each code can only be used once.
-Store these codes in a safe place.
-
-${recoveryCodes.join('\n')}
-`;
-				const blob = new Blob([codesText], { type: 'text/plain' });
-				const url = URL.createObjectURL(blob);
-				const link = document.createElement('a');
-				link.href = url;
-				link.download = 'subtitler-recovery-codes.txt';
-				document.body.appendChild(link);
-				link.click();
-				document.body.removeChild(link);
-				URL.revokeObjectURL(url);
-
-				downloadCodesBtn.textContent = 'Downloaded!';
-				setTimeout(() => {
-					downloadCodesBtn.textContent = 'Download as File';
-				}, 2000);
-			}
-
-			function onSavedCodesChange() {
-				continueBtn.disabled = !savedCodesCheckbox.checked;
-			}
-
-			function finishSetup() {
-				recoveryCodesSection.classList.add('hidden');
-				recoveryCodes = [];
-				if (isRegenerating) {
-					isRegenerating = false;
-					showSuccess('Recovery codes have been regenerated successfully!');
-					regenBtn.disabled = false;
-					regenBtn.textContent = 'Regenerate Codes';
-				} else {
-					showSuccess('Two-factor authentication has been enabled successfully!');
-				}
-				updateUI();
-			}
-
-			async function verifyAndEnable(e: Event) {
-				e.preventDefault();
-				hideMessages();
-
-				const code = verifyCode.value.trim();
-				const codeValidation = validateTotpCode(code);
-				if (codeValidation) {
-					showFieldError(verifyCode, verifyCodeError, codeValidation);
-					return;
-				}
-
-				verifyBtn.disabled = true;
-				verifyBtn.textContent = 'Verifying...';
-
-				try {
-					const response = await csrfFetch('/api/auth/totp/verify', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ code }),
-					});
-
-					const rawData = await response.json();
-
-					if (!response.ok) {
-						showError(rawData.error || 'Verification failed');
-						verifyBtn.disabled = false;
-						verifyBtn.textContent = 'Verify & Enable';
-						return;
-					}
-
-					// Validate response structure
-					const data = safeParse(TotpVerifyResponseSchema, rawData);
-					if (!data) {
-						showError('Invalid response from server');
-						verifyBtn.disabled = false;
-						verifyBtn.textContent = 'Verify & Enable';
-						return;
-					}
-
-					// Success - now display recovery codes
-					if (currentUser) {
-						currentUser.totp_enabled = true;
-					}
-					setupSecret = '';
-					verifyCode.value = '';
-
-					// Show recovery codes if returned
-					if (data.recovery_codes && data.recovery_codes.length > 0) {
-						displayRecoveryCodes(data.recovery_codes);
-					} else {
-						showSuccess('Two-factor authentication has been enabled successfully!');
-						updateUI();
-					}
-
-				} catch (err) {
-					showError('Network error. Please try again.');
-					verifyBtn.disabled = false;
-					verifyBtn.textContent = 'Verify & Enable';
-				}
-			}
-
-			async function disable2FA(e: Event) {
-				e.preventDefault();
-				hideMessages();
-
-				const password = disablePassword.value;
-				const code = disableCode.value.trim();
-
-				let hasErrors = false;
-
-				const passwordValidation = validatePassword(password);
-				if (passwordValidation) {
-					showFieldError(disablePassword, disablePasswordError, passwordValidation);
-					hasErrors = true;
-				}
-
-				const codeValidation = validateTotpCode(code);
-				if (codeValidation) {
-					showFieldError(disableCode, disableCodeError, codeValidation);
-					hasErrors = true;
-				}
-
-				if (hasErrors) {
-					return;
-				}
-
-				disableBtn.disabled = true;
-				disableBtn.textContent = 'Disabling...';
-
-				try {
-					const response = await csrfFetch('/api/auth/totp/disable', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ password, code }),
-					});
-
-					const data = await response.json();
-
-					if (!response.ok) {
-						showError(data.error || 'Failed to disable 2FA');
-						disableBtn.disabled = false;
-						disableBtn.textContent = 'Disable 2FA';
-						return;
-					}
-
-					// Success!
-					if (currentUser) {
-						currentUser.totp_enabled = false;
-					}
-					disablePassword.value = '';
-					disableCode.value = '';
-					showSuccess('Two-factor authentication has been disabled.');
-					updateUI();
-
-				} catch (err) {
-					showError('Network error. Please try again.');
-				} finally {
-					disableBtn.disabled = false;
-					disableBtn.textContent = 'Disable 2FA';
-				}
-			}
-
-		// Show regenerate form
-			function showRegenForm() {
-				hideMessages();
-				managementOptions.classList.add('hidden');
-				regenSection.classList.remove('hidden');
-				disableFormSection.classList.add('hidden');
-				regenPassword.focus();
-			}
-
-			// Show disable form
-			function showDisableForm() {
-				hideMessages();
-				managementOptions.classList.add('hidden');
-				regenSection.classList.add('hidden');
-				disableFormSection.classList.remove('hidden');
-				disablePassword.focus();
-			}
-
-			// Cancel regenerate
-			function cancelRegen() {
-				hideMessages();
-				regenPassword.value = '';
-				regenCode.value = '';
-				managementOptions.classList.remove('hidden');
-				regenSection.classList.add('hidden');
-			}
-
-			// Cancel disable
-			function cancelDisable() {
-				hideMessages();
-				disablePassword.value = '';
-				disableCode.value = '';
-				managementOptions.classList.remove('hidden');
-				disableFormSection.classList.add('hidden');
-			}
-
-			// Regenerate recovery codes
-			async function regenerateCodes(e: Event) {
-				e.preventDefault();
-				hideMessages();
-
-				const password = regenPassword.value;
-				const code = regenCode.value.trim();
-
-				let hasErrors = false;
-
-				const passwordValidation = validatePassword(password);
-				if (passwordValidation) {
-					showFieldError(regenPassword, regenPasswordError, passwordValidation);
-					hasErrors = true;
-				}
-
-				const codeValidation = validateTotpCode(code);
-				if (codeValidation) {
-					showFieldError(regenCode, regenCodeError, codeValidation);
-					hasErrors = true;
-				}
-
-				if (hasErrors) {
-					return;
-				}
-
-				regenBtn.disabled = true;
-				regenBtn.textContent = 'Regenerating...';
-
-				try {
-					const response = await csrfFetch('/api/auth/totp/codes', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ password, code }),
-					});
-
-					const rawData = await response.json();
-
-					if (!response.ok) {
-						showError(rawData.error || 'Failed to regenerate recovery codes');
-						regenBtn.disabled = false;
-						regenBtn.textContent = 'Regenerate Codes';
-						return;
-					}
-
-					// Validate response structure
-					const data = safeParse(RecoveryCodesResponseSchema, rawData);
-					if (!data) {
-						showError('Invalid response from server');
-						regenBtn.disabled = false;
-						regenBtn.textContent = 'Regenerate Codes';
-						return;
-					}
-
-					// Success - show the new recovery codes
-					regenPassword.value = '';
-					regenCode.value = '';
-					regenSection.classList.add('hidden');
-					isRegenerating = true;
-					displayRecoveryCodes(data.recovery_codes);
-
-				} catch (err) {
-					showError('Network error. Please try again.');
-					regenBtn.disabled = false;
-					regenBtn.textContent = 'Regenerate Codes';
-				}
-			}
-
-			startSetupBtn.addEventListener('click', startSetup);
-			cancelSetupBtn.addEventListener('click', cancelSetup);
-			verifyForm.addEventListener('submit', verifyAndEnable);
-			disableForm.addEventListener('submit', disable2FA);
-			copyCodesBtn.addEventListener('click', copyAllCodes);
-			downloadCodesBtn.addEventListener('click', downloadCodes);
-			savedCodesCheckbox.addEventListener('change', onSavedCodesChange);
-			continueBtn.addEventListener('click', finishSetup);
-
-			// New event listeners for regenerate/disable flow
-			startRegenBtn.addEventListener('click', showRegenForm);
-			startDisableBtn.addEventListener('click', showDisableForm);
-			cancelRegenBtn.addEventListener('click', cancelRegen);
-			cancelDisableBtn.addEventListener('click', cancelDisable);
-			regenForm.addEventListener('submit', regenerateCodes);
-
-			// Sessions management elements
-			const sessionsLoading = getRequiredElement('sessionsLoading', HTMLElement);
-			const sessionsList = getRequiredElement('sessionsList', HTMLElement);
-
-			interface Session {
-				id: string;
-				ip_address: string;
-				user_agent: string;
-				created_at: string;
-				expires_at: string;
-				is_current: boolean;
-			}
-
-			function parseUserAgent(ua: string): string {
-				if (!ua) return 'Unknown device';
-				// Simple user agent parsing
-				if (ua.includes('Chrome')) return 'Chrome Browser';
-				if (ua.includes('Firefox')) return 'Firefox Browser';
-				if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari Browser';
-				if (ua.includes('Edge')) return 'Edge Browser';
-				if (ua.includes('MSIE') || ua.includes('Trident')) return 'Internet Explorer';
-				return 'Web Browser';
-			}
-
-			function formatDate(dateStr: string): string {
-				const date = new Date(dateStr);
-				return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-			}
-
-			async function loadSessions() {
-				// Use AbortController for fetch timeout to prevent hanging on slow networks
-				const controller = new AbortController();
-				const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-				try {
-					const response = await fetch('/api/auth/sessions', {
-						signal: controller.signal,
-					});
-					clearTimeout(timeoutId);
-
-					if (!response.ok) {
-						sessionsLoading.textContent = 'Failed to load sessions';
-						return;
-					}
-
-					const rawData = await response.json();
-
-					// Validate response structure
-					const data = safeParse(SessionListResponseSchema, rawData);
-					if (!data) {
-						sessionsLoading.textContent = 'Invalid response from server';
-						return;
-					}
-
-					const sessions: Session[] = data.sessions;
-
-					sessionsLoading.classList.add('hidden');
-					sessionsList.classList.remove('hidden');
-
-					if (sessions.length === 0) {
-						sessionsList.innerHTML = '<div class="no-sessions">No active sessions found</div>';
-						return;
-					}
-
-					sessionsList.innerHTML = sessions.map(session => `
-						<div class="session-item ${session.is_current ? 'current' : ''}" data-id="${session.id}">
-							<div class="session-info">
-								<div class="session-device">
-									${escapeHtml(parseUserAgent(session.user_agent))}
-									${session.is_current ? '<span class="session-current-badge">Current</span>' : ''}
-								</div>
-								<div class="session-meta">
-									${escapeHtml(session.ip_address || 'Unknown IP')} · Created ${formatDate(session.created_at)}
-								</div>
-							</div>
-							${!session.is_current ? `<button class="btn btn-revoke" data-session-id="${session.id}">Revoke</button>` : ''}
-						</div>
-					`).join('');
-
-				} catch (err) {
-					clearTimeout(timeoutId);
-					if (err instanceof Error && err.name === 'AbortError') {
-						sessionsLoading.textContent = 'Request timed out. Please try again.';
-					} else {
-						sessionsLoading.textContent = 'Failed to load sessions';
-					}
-				}
-			}
-
-			// Use event delegation for revoke button clicks to prevent memory leaks
-			// This single listener handles all revoke buttons, even after list refreshes
-			sessionsList.addEventListener('click', async (e) => {
-				const target = e.target as HTMLElement;
-				if (!target.classList.contains('btn-revoke')) return;
-
-				const btn = target as HTMLButtonElement;
-				const sessionId = btn.dataset.sessionId;
-				if (!sessionId) return;
-
-				btn.disabled = true;
-				btn.textContent = 'Revoking...';
-
-				try {
-					const response = await csrfFetch(`/api/auth/sessions/${sessionId}`, {
-						method: 'DELETE',
-					});
-
-					if (!response.ok) {
-						const data = await response.json();
-						showError(data.error || 'Failed to revoke session');
-						btn.disabled = false;
-						btn.textContent = 'Revoke';
-						return;
-					}
-
-					showSuccess('Session revoked successfully');
-					loadSessions(); // Refresh the list
-				} catch (err) {
-					showError('Network error. Please try again.');
-					btn.disabled = false;
-					btn.textContent = 'Revoke';
-				}
 			});
-
-			// Modify checkAuth to also load sessions after successful auth
-			const originalCheckAuth = checkAuth;
-			checkAuth = async function() {
-				await originalCheckAuth();
-				if (currentUser) {
-					loadSessions();
-				}
-			};
-
-			// Bionic Reading preferences
-			const bionicToggle = getRequiredElement('bionicToggle', HTMLInputElement);
-			const bionicOptions = getRequiredElement('bionicOptions', HTMLElement);
-			const fixationSlider = getRequiredElement('fixationSlider', HTMLInputElement);
-			const fixationValue = getRequiredElement('fixationValue', HTMLElement);
-			const previewText = getRequiredElement('previewText', HTMLElement);
-
-			const PREVIEW_SAMPLE = 'The quick brown fox jumps over the lazy dog.';
-
-			function updateBionicPreview() {
-				const enabled = bionicToggle.checked;
-				const fixation = parseInt(fixationSlider.value, 10) / 100;
-
-				if (enabled) {
-					previewText.innerHTML = toBionicHTML(PREVIEW_SAMPLE, { fixationPercent: fixation });
-				} else {
-					previewText.textContent = PREVIEW_SAMPLE;
-				}
-
-				// Update options visibility
-				if (enabled) {
-					bionicOptions.classList.remove('disabled-section');
-				} else {
-					bionicOptions.classList.add('disabled-section');
-				}
-			}
-
-			function initBionicSettings() {
-				// Load saved settings
-				const enabled = isBionicEnabled();
-				const fixation = getBionicFixation();
-
-				bionicToggle.checked = enabled;
-				fixationSlider.value = Math.round(fixation * 100).toString();
-				fixationValue.textContent = Math.round(fixation * 100) + '%';
-
-				updateBionicPreview();
-			}
-
-			bionicToggle.addEventListener('change', () => {
-				setBionicEnabled(bionicToggle.checked);
-				updateBionicPreview();
-			});
-
-			fixationSlider.addEventListener('input', () => {
-				const value = parseInt(fixationSlider.value, 10);
-				fixationValue.textContent = value + '%';
-				setBionicFixation(value / 100);
-				updateBionicPreview();
-			});
-
-			// Initialize bionic settings when page loads
-			initBionicSettings();
-
-			checkAuth();
 		</script>
 		<FeedbackButton />
 	</body>
