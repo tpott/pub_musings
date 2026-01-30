@@ -57,7 +57,8 @@ Initiates 2FA setup. Generates secret but does NOT enable 2FA.
   "secret": "JBSWY3DPEHPK3PXP...",
   "secret_display": "JBSW Y3DP EHPK 3PXP ...",
   "uri": "otpauth://totp/Subtitler:user@example.com?secret=JBSWY3DP...&issuer=Subtitler&algorithm=SHA1&digits=6&period=30",
-  "issuer": "Subtitler"
+  "issuer": "Subtitler",
+  "qr_code": "<base64-encoded PNG>"
 }
 ```
 
@@ -83,8 +84,9 @@ Verifies code and enables 2FA.
 **Response (200):**
 ```json
 {
-  "message": "2FA enabled successfully",
-  "totp_enabled": true
+  "message": "2FA has been enabled successfully",
+  "totp_enabled": true,
+  "recovery_codes": ["CODE1-CODE2", "CODE3-CODE4", ...]
 }
 ```
 
@@ -95,7 +97,9 @@ Verifies code and enables 2FA.
 **Processing:**
 1. Validate code against stored secret
 2. Check current time window ± 1 period
-3. Set `totp_enabled = 1` in database
+3. Generate recovery codes (8 codes, bcrypt-hashed for storage)
+4. Enable 2FA and save recovery code hashes in a transaction
+5. Return plaintext recovery codes (shown once only)
 
 ### POST /api/auth/totp/disable
 

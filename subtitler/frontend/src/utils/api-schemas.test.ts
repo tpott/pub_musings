@@ -156,6 +156,17 @@ describe('api-schemas', () => {
 			};
 			expect(TotpSetupResponseSchema.safeParse(response).success).toBe(true);
 		});
+
+		it('validates full backend response with uri and issuer', () => {
+			const response = {
+				secret: 'ABCDEFGHIJKLMNOP',
+				secret_display: 'ABCD EFGH IJKL MNOP',
+				uri: 'otpauth://totp/Subtitler:user@example.com?secret=ABCDEFGHIJKLMNOP&issuer=Subtitler&algorithm=SHA1&digits=6&period=30',
+				issuer: 'Subtitler',
+				qr_code: 'data:image/png;base64,abc123',
+			};
+			expect(TotpSetupResponseSchema.safeParse(response).success).toBe(true);
+		});
 	});
 
 	describe('TotpVerifyResponseSchema', () => {

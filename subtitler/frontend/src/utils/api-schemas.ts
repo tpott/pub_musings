@@ -60,6 +60,8 @@ export type RecoveryCodesResponse = z.infer<typeof RecoveryCodesResponseSchema>;
 export const TotpSetupResponseSchema = z.object({
 	secret: z.string(),
 	secret_display: z.string().optional(),
+	uri: z.string().optional(),
+	issuer: z.string().optional(),
 	qr_code: z.string(),
 	recovery_codes: z.array(z.string()).optional(),
 });
