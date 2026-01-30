@@ -362,6 +362,11 @@ func (ts *testServer) registerHandlers() {
 				offset = o
 			}
 		}
+		if offset > maxPaginationOffset {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Offset exceeds maximum allowed value"})
+			return
+		}
 
 		// List feedback
 		feedbackList, total, err := ts.db.ListFeedback(status, feedbackType, limit, offset, after)
@@ -1434,6 +1439,11 @@ func (ts *testServer) registerHandlers() {
 			if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
 				offset = o
 			}
+		}
+		if offset > maxPaginationOffset {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Offset exceeds maximum allowed value"})
+			return
 		}
 
 		result, err := ts.db.ListVideosPaginated(userPtr, sessionPtr, limit, offset)
@@ -4030,6 +4040,31 @@ func TestListVideosPagination(t *testing.T) {
 	resp = ts.doRequest("GET", "/api/videos?limit=invalid&offset=invalid", nil, token)
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200 with invalid params, got %d", resp.Code)
+	}
+}
+
+func TestListVideosExcessiveOffset(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	_, token := ts.createTestUserWithID(t, "offset@example.com", "Password123!")
+
+	// Offset at the maximum should succeed
+	resp := ts.doRequest("GET", "/api/videos?offset=100000", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for offset at max, got %d", resp.Code)
+	}
+
+	// Offset exceeding the maximum should return 400
+	resp = ts.doRequest("GET", "/api/videos?offset=100001", nil, token)
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for excessive offset, got %d", resp.Code)
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Offset exceeds maximum allowed value" {
+		t.Errorf("Expected offset error message, got '%s'", result["error"])
 	}
 }
 
@@ -10407,6 +10442,31 @@ func TestAdminFeedbackListPagination(t *testing.T) {
 
 	if result.Offset != 2 {
 		t.Errorf("Expected offset 2, got %d", result.Offset)
+	}
+}
+
+func TestAdminFeedbackListExcessiveOffset(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	_, token := ts.createTestAdminUser(t, "adminoffset@example.com", "Password123!")
+
+	// Offset at the maximum should succeed
+	resp := ts.doRequest("GET", "/api/admin/feedback?offset=100000", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for offset at max, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Offset exceeding the maximum should return 400
+	resp = ts.doRequest("GET", "/api/admin/feedback?offset=100001", nil, token)
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for excessive offset, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] != "Offset exceeds maximum allowed value" {
+		t.Errorf("Expected offset error message, got '%s'", result["error"])
 	}
 }
 

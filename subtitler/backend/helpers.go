@@ -28,6 +28,10 @@ import (
 	"github.com/tpott/subtitler/backend/validation"
 )
 
+// maxPaginationOffset is the maximum allowed offset for paginated queries
+// to prevent query abuse (e.g., scanning the entire database).
+const maxPaginationOffset = 100000
+
 // isShuttingDown checks if the server is shutting down.
 // Background goroutines should call this at key checkpoints to exit gracefully.
 func isShuttingDown() bool {

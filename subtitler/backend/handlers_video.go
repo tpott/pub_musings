@@ -408,6 +408,10 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 				offset = o
 			}
 		}
+		if offset > maxPaginationOffset {
+			httputil.RespondError(w, http.StatusBadRequest, "Offset exceeds maximum allowed value")
+			return
+		}
 
 		result, err := database.ListVideosPaginated(userPtr, sessionPtr, limit, offset)
 		if err != nil {

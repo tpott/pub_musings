@@ -300,6 +300,10 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 				offset = o
 			}
 		}
+		if offset > maxPaginationOffset {
+			httputil.RespondError(w, http.StatusBadRequest, "Offset exceeds maximum allowed value")
+			return
+		}
 
 		// List feedback
 		feedbackList, total, err := database.ListFeedback(status, feedbackType, limit, offset, after)

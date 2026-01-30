@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**418 tasks completed** as of 2026-01-29. 4 tasks pending.
+**419 tasks completed** as of 2026-01-29. 3 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
+- **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
 - **Frontend:** Astro/TypeScript, 829 tests across 30 files
 - **E2E:** Playwright tests (59 scenarios)
-- **Total:** 1407+ tests, 31 specification documents
+- **Total:** 1409+ tests, 31 specification documents
 
 ## Feature Summary
 
@@ -62,12 +62,17 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-- Task 419: Add pagination offset limit to prevent query abuse
 - Task 421: Add fetch timeout via AbortController to fetches missing timeouts
 - Task 422: Extract burn subtitles handler into smaller functions
 - Task 423: Extract chunked upload complete handler into smaller functions
 
 ## Recent Work
+
+### Task 419: Add pagination offset limit (2026-01-29)
+- Added `maxPaginationOffset` constant (100,000) in helpers.go
+- Both paginated endpoints (`GET /api/videos`, `GET /api/admin/feedback`) now return 400 for offsets exceeding the limit
+- Added 2 new tests (`TestListVideosExcessiveOffset`, `TestAdminFeedbackListExcessiveOffset`)
+- Backend tests: 578 -> 580
 
 ### Tasks 417-418, 420: Code quality improvements from deep inspection (2026-01-29)
 - **Task 417:** Drain HTTP response body in whisper health check for TCP connection reuse
