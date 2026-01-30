@@ -392,3 +392,35 @@ func TestValidateFilePath(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSessionID(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"empty", "", ""},
+		{"valid 32-char hex", "abcdef0123456789abcdef0123456789", "abcdef0123456789abcdef0123456789"},
+		{"valid uppercase hex", "ABCDEF0123456789ABCDEF0123456789", "ABCDEF0123456789ABCDEF0123456789"},
+		{"valid short hex", "abcdef01", "abcdef01"},
+		{"valid with hyphens", "test-session-id-abc123", "test-session-id-abc123"},
+		{"valid alphanumeric", "mySessionID42", "mySessionID42"},
+		{"too long", strings.Repeat("a", MaxSessionIDLength+1), ""},
+		{"max length", strings.Repeat("a", MaxSessionIDLength), strings.Repeat("a", MaxSessionIDLength)},
+		{"contains space", "abcdef 0123456789", ""},
+		{"contains slash", "abcdef/0123456789", ""},
+		{"contains underscore", "test_session", ""},
+		{"contains null byte", "abcdef\x000123456789", ""},
+		{"sql injection attempt", "' OR 1=1 --", ""},
+		{"contains dot", "test.session", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ValidateSessionID(tt.input)
+			if got != tt.want {
+				t.Errorf("ValidateSessionID(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

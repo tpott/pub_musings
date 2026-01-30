@@ -78,9 +78,9 @@ func (db *DB) SaveRecoveryCodes(userID string, codeHashes []string) error {
 	})
 }
 
-// generateID generates a random 16-character hex ID
+// generateID generates a random 32-character hex ID (128-bit entropy)
 func generateID() (string, error) {
-	b := make([]byte, 8)
+	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to generate ID: %w", err)
 	}

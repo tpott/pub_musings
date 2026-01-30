@@ -30,7 +30,7 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		user, _, _ := auth.ValidateSession(database, token)
 
 		// Get session_id from form for anonymous session tracking
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		// Enforce upload limit for anonymous users (2 uploads max)
 		if user == nil && sessionID != "" {
@@ -340,7 +340,7 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		}
 
 		// Get session_id from query for anonymous tracking
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		// Enforce upload limit for anonymous users
 		if user == nil && sessionID != "" {

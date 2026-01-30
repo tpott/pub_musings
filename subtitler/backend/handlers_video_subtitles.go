@@ -37,7 +37,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -142,7 +142,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -244,7 +244,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -375,7 +375,7 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		// Check access (user owns video or has matching session_id)
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {

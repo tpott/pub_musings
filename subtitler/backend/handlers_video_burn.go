@@ -44,7 +44,7 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -149,8 +149,8 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 		})
 	}))
 
-	// Get burn job status
-	mux.HandleFunc("GET /api/videos/{id}/burn", func(w http.ResponseWriter, r *http.Request) {
+	// Get burn job status (rate limited: 30/min per IP)
+	mux.HandleFunc("GET /api/videos/{id}/burn", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
 
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
@@ -171,7 +171,7 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -226,7 +226,7 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 		}
 
 		httputil.RespondJSON(w, http.StatusOK, response)
-	})
+	}))
 
 	// Download burned video (rate limited: 30/min per IP)
 	mux.HandleFunc("GET /api/videos/{id}/burned", downloadLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +249,7 @@ func registerVideoBurnHandlers(mux *http.ServeMux) { //nolint:funlen // route re
 
 		token := auth.GetTokenFromRequest(r)
 		accessUser, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if accessUser != nil && videoForAccess.UserID != nil && *videoForAccess.UserID == accessUser.ID {

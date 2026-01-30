@@ -37,7 +37,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		user, _, _ := auth.ValidateSession(database, token)
 
 		// Get optional session_id from query params (for anonymous user filtering)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 		var sessionPtr *string
 		if sessionID != "" {
 			sessionPtr = &sessionID
@@ -161,7 +161,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
 
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -234,7 +234,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
 
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -479,7 +479,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		}
 
 		// Audit log: file access
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 		var userID string
 		if token := auth.GetTokenFromRequest(r); token != "" {
 			if session, err := database.GetSessionByToken(token); err == nil && session != nil {
@@ -567,7 +567,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		w.Header().Set("Content-Type", "image/jpeg")
 
 		// Audit log: file access
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 		var userID string
 		if token := auth.GetTokenFromRequest(r); token != "" {
 			if session, err := database.GetSessionByToken(token); err == nil && session != nil {
@@ -609,7 +609,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 		// Check ownership - either authenticated user owns it, or anonymous session matches
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {

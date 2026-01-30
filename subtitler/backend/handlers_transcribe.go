@@ -57,7 +57,7 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		// Check ownership - either authenticated user owns it, or anonymous session matches
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -305,7 +305,7 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -364,7 +364,7 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {
@@ -462,7 +462,7 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 
 		token := auth.GetTokenFromRequest(r)
 		user, _, _ := auth.ValidateSession(database, token)
-		sessionID := r.URL.Query().Get("session_id")
+		sessionID := getValidSessionID(r)
 
 		hasAccess := false
 		if user != nil && video.UserID != nil && *video.UserID == user.ID {

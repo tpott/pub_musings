@@ -201,6 +201,12 @@ func validatePathID(w http.ResponseWriter, id string, fieldName string) (string,
 	return id, true
 }
 
+// getValidSessionID extracts and validates the session_id query parameter.
+// Returns the validated session_id, or empty string if missing or invalid.
+func getValidSessionID(r *http.Request) string {
+	return validation.ValidateSessionID(r.URL.Query().Get("session_id"))
+}
+
 // removeWithLogging removes a file and logs a warning if the removal fails.
 // This is used for cleanup operations where failure is not critical but should be logged.
 func removeWithLogging(path string, description string) {

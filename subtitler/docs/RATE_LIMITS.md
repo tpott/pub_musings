@@ -80,6 +80,7 @@ All rate limits are applied **per IP address** using a sliding window algorithm.
 |----------|-------------|
 | `GET /api/videos/{id}/video` | Download original video file |
 | `GET /api/videos/{id}/thumbnail` | Download video thumbnail |
+| `GET /api/videos/{id}/burn` | Check burn job status |
 | `GET /api/videos/{id}/burned` | Download video with burned subtitles |
 | `GET /api/videos/{id}/embedded-subtitles/{track}` | Extract embedded subtitle track |
 | `GET /api/upload/status/{session_id}` | Check chunked upload status |

@@ -4,10 +4,10 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**465 tasks completed** as of 2026-01-30. 0 tasks pending.
+**471 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 599 tests across 45 files
 - **Frontend:** Astro/TypeScript, 832 tests across 29 files
 - **E2E:** Playwright tests (71 scenarios)
 - **Total:** 1510+ tests, 32 specification documents
@@ -66,6 +66,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 No pending tasks.
 
 ## Recent Work
+
+### Tasks 463-468: Accessibility, security, and input validation (2026-01-30)
+- **Task 463:** Fixed WCAG AA contrast — `--text-tertiary` changed from `#999999` (3.97:1) to `#767676` (4.54:1) against `#fafafa` background
+- **Task 464:** Increased `generateID()` entropy from 8 bytes (64-bit) to 16 bytes (128-bit) in `db_auth.go` for better collision resistance
+- **Task 465:** Added `aria-hidden="true"` to decorative SVGs in FeedbackButton, ThemeToggle, and upload.astro (undo/redo, info, view, keyboard icons)
+- **Task 466:** Added `aria-label` to paste transcript textarea in upload.astro for screen reader accessibility
+- **Task 467:** Added `downloadLimiter` (30/min) rate limiting to `GET /api/videos/{id}/burn` status endpoint. Updated `RATE_LIMITS.md`
+- **Task 468:** Added `ValidateSessionID()` to validation package — rejects session_ids over 64 chars or containing non-alphanumeric/hyphen characters. All handlers now use `getValidSessionID(r)` instead of raw `r.URL.Query().Get("session_id")`
 
 ### Tasks 459-462: Docs accuracy, config caching, and scheduler bug fix (2026-01-30)
 - **Task 459:** Fixed API.md `POST /api/auth/register` — documented `200 OK` but code returns `201 Created` with email verification message. Updated to match actual handler behavior
