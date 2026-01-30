@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**442 tasks completed** as of 2026-01-30. 10 tasks pending.
+**443 tasks completed** as of 2026-01-30. 9 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 439: Fix double WriteHeader in health endpoint (2026-01-30)
+- **Bug fix:** Health endpoint (`GET /api/health`) was calling `w.WriteHeader(503)` followed by `httputil.RespondJSON(w, 200, ...)` when health was degraded, causing a superfluous WriteHeader warning
+- Fixed by using a single `statusCode` variable and passing it to `RespondJSON` — the separate `w.WriteHeader()` call was removed
+- Same fix applied to the test handler in `api_test_helpers_test.go`
+- All 598 backend tests pass (including 4 health endpoint tests covering OK and degraded states)
 
 ### Task 438: Add ownership checks to burn and language-hints endpoints (2026-01-30)
 - **Security fix:** Burn endpoints (`POST /api/videos/{id}/burn`, `GET /api/videos/{id}/burn`) and language-hints endpoint (`GET /api/videos/{id}/language-hints`) now verify caller owns the video before allowing access

@@ -53,10 +53,11 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			status.Errors = append(status.Errors, diskErr)
 		}
 
-		// Determine overall status
+		// Determine overall status and HTTP status code
+		statusCode := http.StatusOK
 		if !status.DBConnected || !status.WhisperAvailable || !status.DiskSpaceOK {
 			status.Status = "degraded"
-			w.WriteHeader(http.StatusServiceUnavailable)
+			statusCode = http.StatusServiceUnavailable
 		}
 
 		// Check if user is authenticated
@@ -65,10 +66,10 @@ func registerSystemHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 
 		if user != nil {
 			// Authenticated: return full response
-			httputil.RespondJSON(w, http.StatusOK, status)
+			httputil.RespondJSON(w, statusCode, status)
 		} else {
 			// Unauthenticated: return minimal response
-			httputil.RespondJSON(w, http.StatusOK, map[string]string{
+			httputil.RespondJSON(w, statusCode, map[string]string{
 				"status": status.Status,
 			})
 		}
