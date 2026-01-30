@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**445 tasks completed** as of 2026-01-30. 7 tasks pending.
+**446 tasks completed** as of 2026-01-30. 6 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 442: Add expired auth token cleanup to scheduler (2026-01-30)
+- **Bug fix:** `runCleanup()` in `scheduler.go` was not cleaning up expired password reset tokens, email verification tokens, or magic link tokens, causing stale rows to accumulate
+- Added calls to `DeleteExpiredPasswordResetTokens()`, `DeleteExpiredEmailVerificationTokens()`, and `DeleteExpiredMagicLinkTokens()` alongside existing session and login attempt cleanup
+- Each cleanup logs deletion count when tokens are found, and logs errors without aborting the rest of cleanup
+- All 598 backend tests pass
 
 ### Task 441: Wrap DeleteVideo in a database transaction (2026-01-30)
 - **Bug fix:** `DeleteVideo` in `db/db_video.go` was executing 3 DELETE operations (transcriptions, burn_jobs, videos) without a transaction, risking orphaned records if the process crashed mid-deletion

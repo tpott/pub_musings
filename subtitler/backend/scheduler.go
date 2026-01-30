@@ -164,6 +164,28 @@ func runCleanup() {
 		}
 	}
 
+	// Clean up expired auth tokens (password reset, email verification, magic link)
+	passwordResetCount, err := database.DeleteExpiredPasswordResetTokens()
+	if err != nil {
+		logging.Error("Error deleting expired password reset tokens", "error", err)
+	} else if passwordResetCount > 0 {
+		logging.Info("Deleted expired password reset tokens", "count", passwordResetCount)
+	}
+
+	emailVerificationCount, err := database.DeleteExpiredEmailVerificationTokens()
+	if err != nil {
+		logging.Error("Error deleting expired email verification tokens", "error", err)
+	} else if emailVerificationCount > 0 {
+		logging.Info("Deleted expired email verification tokens", "count", emailVerificationCount)
+	}
+
+	magicLinkCount, err := database.DeleteExpiredMagicLinkTokens()
+	if err != nil {
+		logging.Error("Error deleting expired magic link tokens", "error", err)
+	} else if magicLinkCount > 0 {
+		logging.Info("Deleted expired magic link tokens", "count", magicLinkCount)
+	}
+
 	// Clean up orphan chunk directories (exist on disk but not in database)
 	orphanCleanupCount := cleanupOrphanChunkDirectories()
 	if orphanCleanupCount > 0 {
