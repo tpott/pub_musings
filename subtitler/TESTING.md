@@ -6,10 +6,10 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 580 tests across 26 test files
-- **Frontend (TypeScript)**: 841 tests across 30 test files
+- **Backend (Go)**: 598 tests across 45 test files
+- **Frontend (TypeScript)**: 832 tests across 29 test files
 - **E2E (Playwright)**: 71 scenarios across 7 spec files
-- **Total**: 1,492+ tests
+- **Total**: 1,501+ tests
 
 ## Backend Tests
 
@@ -39,8 +39,17 @@ go test -run TestAuthLogin -v
 
 | File | Package | Description |
 |------|---------|-------------|
-| `api_test.go` | main | API integration tests (endpoints, auth, sessions) |
-| `main_test.go` | main | Unit tests (SRT formatting, video upload form) |
+| `api_auth_test.go` | main | Auth API tests (login, register, sessions, TOTP, password reset, magic link) |
+| `api_upload_test.go` | main | Upload API tests (single + chunked uploads) |
+| `api_video_test.go` | main | Video API tests (list, delete, transcription, segments, burn, caching) |
+| `api_system_test.go` | main | System API tests (health, logs, feedback, admin, metrics) |
+| `api_test_helpers_test.go` | main | Shared test infrastructure (testServer, registerHandlers) |
+| `subtitle_format_test.go` | main | SRT formatting unit tests |
+| `config_test.go` | main | Configuration and environment variable tests |
+| `middleware_test.go` | main | HTTP middleware tests |
+| `helpers_test.go` | main | Helper function tests |
+| `video_helpers_test.go` | main | Video helper function tests |
+| `goroutine_test.go` | main | Goroutine management tests |
 | `align/align_test.go` | align | Transcript alignment algorithm |
 | `align/lyrics_test.go` | align | Lyrics mode alignment tests |
 | `audio/audio_test.go` | audio | Audio extraction and magic byte validation |
@@ -49,7 +58,17 @@ go test -run TestAuthLogin -v
 | `crypto/crypto_test.go` | crypto | File encryption/decryption with age library |
 | `crypto/multi_test.go` | crypto | Multi-key encryption for key rotation |
 | `csrf/csrf_test.go` | csrf | CSRF token generation and validation |
-| `db/db_test.go` | db | Database CRUD, video/transcription/burn job lifecycle |
+| `db/db_video_test.go` | db | Video CRUD operations |
+| `db/db_transcription_test.go` | db | Transcription lifecycle tests |
+| `db/db_auth_password_test.go` | db | Password reset and email verification tests |
+| `db/db_auth_totp_test.go` | db | TOTP secret storage and recovery codes |
+| `db/db_session_test.go` | db | Session management tests |
+| `db/db_burnjob_test.go` | db | Burn job lifecycle tests |
+| `db/db_feedback_test.go` | db | Feedback CRUD tests |
+| `db/db_upload_test.go` | db | Upload and chunked upload tests |
+| `db/db_maintenance_test.go` | db | Maintenance and cleanup query tests |
+| `db/db_transaction_test.go` | db | Transaction wrapper tests |
+| `db/db_helpers_test.go` | db | Database helper function tests |
 | `db/migrate_test.go` | db | Database migration tests |
 | `db/profiler_test.go` | db | Query performance profiler tests |
 | `email/email_test.go` | email | Email service and Resend API tests |
@@ -139,7 +158,6 @@ npm run test:watch
 | `src/utils/settings-preferences.test.ts` | Bionic reading preferences setup |
 | `src/utils/settings-sessions.test.ts` | Session management, parseUserAgent, revoke flow |
 | `src/utils/settings-totp.test.ts` | TOTP setup, verification, disable, recovery codes |
-| `src/utils/speed-control.test.ts` | Speed control utility and cleanup |
 | `src/utils/subtitle-sync.test.ts` | Subtitle synchronization, speed UI, burn subtitles |
 | `src/utils/subtitles.test.ts` | Subtitle format generation (SRT, VTT, JSON) |
 | `src/utils/transcription-polling.test.ts` | Polling, ETA calculation, SRT parsing |

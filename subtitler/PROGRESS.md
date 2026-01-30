@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**452 tasks completed** as of 2026-01-30. 0 tasks pending.
+**455 tasks completed** as of 2026-01-30. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 598 tests across 45 files
@@ -66,6 +66,11 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Tasks 450-452: Documentation sync and script cleanup (2026-01-30)
+- **Task 450:** Updated TESTING.md — backend: 598 tests / 45 files, frontend: 832 tests / 29 files, total: 1,501+. Removed deleted `speed-control.test.ts` reference. Updated backend test file table to reflect split files
+- **Task 451:** Updated `docs/deps.md` vitest entry from "498 tests across 20 files" to "832 tests across 29 files"
+- **Task 452:** Deleted obsolete `scripts/lint-frontend-filesize.sh` (superseded by `lint-filesize.py`). Updated CLAUDE.md script table
 
 ### Tasks 447-448: Dead code removal and lock pattern refactor (2026-01-30)
 - **Task 447:** Deleted unused `speed-control.ts` and `speed-control.test.ts` — the speed control logic is duplicated inline in `subtitle-sync.ts` and `videos-modal.ts`, and `speed-control.ts` was never imported
