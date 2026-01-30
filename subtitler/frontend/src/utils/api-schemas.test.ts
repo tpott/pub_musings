@@ -161,15 +161,21 @@ describe('api-schemas', () => {
 	describe('TotpVerifyResponseSchema', () => {
 		it('validates TOTP verify response', () => {
 			const response = {
-				success: true,
+				message: '2FA has been enabled successfully',
+				totp_enabled: true,
 				recovery_codes: ['CODE1', 'CODE2'],
 			};
 			expect(TotpVerifyResponseSchema.safeParse(response).success).toBe(true);
 		});
 
 		it('validates response without recovery codes', () => {
-			const response = { success: true };
+			const response = { message: '2FA has been enabled successfully', totp_enabled: true };
 			expect(TotpVerifyResponseSchema.safeParse(response).success).toBe(true);
+		});
+
+		it('rejects response missing required fields', () => {
+			const response = { success: true };
+			expect(TotpVerifyResponseSchema.safeParse(response).success).toBe(false);
 		});
 	});
 

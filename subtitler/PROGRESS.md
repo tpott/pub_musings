@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**482 tasks completed** as of 2026-01-30.
+**485 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 832 tests across 29 files
+- **Frontend:** Astro/TypeScript, 833 tests across 29 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
-- **Total:** 1505+ tests, 32 specification documents
+- **Total:** 1506+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,11 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 483-485: User-reported bugs from FEEDBACK.md (2026-01-30)
+- **Task 483:** Fixed TOTP 2FA enable returning "API response validation failed" — frontend Zod schema expected `{success: boolean}` but backend returned `{message, totp_enabled, recovery_codes}`. Updated `TotpVerifyResponseSchema` to match backend. Added regression test
+- **Task 484:** Fixed session IP showing 127.0.0.1 behind cloudflared — `GetClientIP()` now checks `CF-Connecting-IP` header first (Cloudflare tunnel sets this), before `X-Forwarded-For` and `X-Real-IP`. This also fixes security events recording localhost IPs. Added 3 tests (CF-Connecting-IP trusted/untrusted/precedence)
+- **Task 485:** Added journalctl troubleshooting section to SECURITY_EVENTS.md (6 diagnostic steps). Added `StandardOutput=journal`, `StandardError=journal`, `SyslogIdentifier=subtitler` to deployment.md systemd service file
 
 ### Tasks 481-482: Error handling and caching fixes (2026-01-30)
 - **Task 481:** Fixed burn job handler swallowing `GetBurnJob()` DB error — previously logged error but continued, potentially creating duplicate burn jobs. Now returns 500 on DB failure

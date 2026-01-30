@@ -67,7 +67,8 @@ export const TotpSetupResponseSchema = z.object({
 export type TotpSetupResponse = z.infer<typeof TotpSetupResponseSchema>;
 
 export const TotpVerifyResponseSchema = z.object({
-	success: z.boolean(),
+	message: z.string(),
+	totp_enabled: z.boolean(),
 	recovery_codes: z.array(z.string()).optional(),
 });
 
