@@ -397,6 +397,7 @@ import '../../styles/theme.css';
 			import { checkAuthAndUpdateNav, type User } from '../../utils/nav-auth';
 			import { csrfFetch } from '../../utils/csrf';
 			import { escapeHtml } from '../../utils/html';
+			import { showAlert } from '../../utils/dialog';
 
 			interface Feedback {
 				id: string;
@@ -586,7 +587,7 @@ import '../../styles/theme.css';
 					}
 				} catch (err) {
 					console.error('Failed to update feedback status:', err);
-					alert('Failed to update status. Please try again.');
+					await showAlert('Failed to update status. Please try again.', 'error');
 					// Reload to reset
 					loadFeedback();
 				}

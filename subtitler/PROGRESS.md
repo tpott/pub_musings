@@ -4,7 +4,7 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**426 tasks completed** as of 2026-01-29. 3 tasks pending.
+**427 tasks completed** as of 2026-01-29. 2 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 580 tests across 26 files
@@ -63,9 +63,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-3 tasks pending (426-428).
+2 tasks pending (427-428).
 
 ## Recent Work
+
+### Task 426: Replace alert() with styled dialog in admin feedback page (2026-01-29)
+- Replaced native `alert()` in admin/feedback.astro with `showAlert()` from `utils/dialog.ts`
+- Error message for failed status updates now shows as a styled error dialog instead of browser-native alert
+- Build passes
 
 ### Task 425: Make upload dropzone keyboard-accessible (2026-01-29)
 - Added `role="button"`, `tabindex="0"`, `aria-label` to dropzone div
