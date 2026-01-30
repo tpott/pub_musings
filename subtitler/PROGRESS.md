@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**438 tasks completed** as of 2026-01-30. 0 tasks pending.
+**440 tasks completed** as of 2026-01-30. 12 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 583 tests across 45 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 587 tests across 45 files
 - **Frontend:** Astro/TypeScript, 841 tests across 30 files
 - **E2E:** Playwright tests (71 scenarios)
-- **Total:** 1492+ tests, 32 specification documents
+- **Total:** 1496+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -63,9 +63,22 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Pending Tasks
 
-No pending tasks. All tasks completed.
+12 pending tasks (436-448) filed from deep codebase inspection.
 
 ## Recent Work
+
+### Task 449: Fix flaky E2E re-transcribe auto-language confirmation test (2026-01-30)
+- **Bug fix:** E2E test `should show confirmation when re-transcribing with auto language` was using `page.on('dialog')` to listen for a native browser confirm dialog, but the app uses a custom `showConfirm()` from `dialog.ts` which creates an HTML overlay
+- Updated test to wait for `#dialog-container.visible`, verify `#dialog-message` text, and click `#dialog-cancel`
+- Test now passes reliably instead of timing out waiting for a native dialog that never appears
+
+### Task 436: Add ownership checks to subtitle download endpoints (2026-01-30)
+- **Security fix:** SRT/VTT/JSON subtitle download endpoints (`GET /api/videos/{id}/subtitles.*`) now verify the caller owns the video before returning subtitle data
+- Access check matches the pattern used by embedded-subtitles endpoint: authenticated user must own the video (via user_id) or anonymous user must have matching session_id
+- Updated both production handlers (`handlers_video_subtitles.go`) and test handlers (`api_test_helpers_test.go`)
+- Added 4 new tests: `TestDownloadSRTAccessDenied`, `TestDownloadSRTAuthenticatedUserAccess`, `TestDownloadVTTAccessDenied`, `TestDownloadJSONAccessDenied`
+- Updated 10 existing subtitle tests to use session_id for access
+- All 587 backend tests pass, lint clean
 
 ### Task 432: Cross-language file size linter (2026-01-30)
 - Created `scripts/lint-filesize.py`: checks all source files (Go, TS, Astro, CSS) for >1000 lines

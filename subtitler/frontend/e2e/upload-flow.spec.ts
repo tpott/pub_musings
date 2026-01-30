@@ -652,21 +652,23 @@ test.describe('Re-transcribe with Language Change', () => {
     const languageSelect = page.locator('#transcriptionLanguageSelect');
     await languageSelect.selectOption('auto');
 
-    // Set up dialog handler to track confirmation
-    let dialogHandled = false;
-    page.on('dialog', async (dialog) => {
-      expect(dialog.type()).toBe('confirm');
-      expect(dialog.message()).toContain('Auto-detect will likely produce the same result');
-      dialogHandled = true;
-      await dialog.dismiss(); // Cancel the re-transcription
-    });
-
     // Click re-transcribe
     const retranscribeBtn = page.locator('#retranscribeBtn');
     await retranscribeBtn.click();
 
-    // Verify confirmation was shown
-    await page.waitForTimeout(500);
-    expect(dialogHandled).toBe(true);
+    // The app uses a custom dialog (showConfirm from dialog.ts), not native confirm().
+    // Wait for the custom dialog overlay to become visible.
+    const dialogOverlay = page.locator('#dialog-container.visible');
+    await expect(dialogOverlay).toBeVisible({ timeout: 5000 });
+
+    // Verify the dialog message mentions auto-detect
+    const dialogMessage = page.locator('#dialog-message');
+    await expect(dialogMessage).toContainText('Auto-detect will likely produce the same result');
+
+    // Dismiss by clicking Cancel
+    await page.locator('#dialog-cancel').click();
+
+    // Verify dialog is dismissed
+    await expect(dialogOverlay).not.toBeVisible();
   });
 });

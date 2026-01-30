@@ -591,12 +591,13 @@ func TestDownloadSRT(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-srt"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	// Download SRT
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	// Download SRT with matching session_id
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -617,12 +618,58 @@ func TestDownloadSRT(t *testing.T) {
 	}
 }
 
+func TestDownloadSRTAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create video owned by a session
+	sessionID := "owner-session"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// Try to download without session_id - should be denied
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Try with wrong session_id - should be denied
+	resp = ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id=wrong-session", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 for wrong session, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestDownloadSRTAuthenticatedUserAccess(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	// Create authenticated user and their video
+	userID, token := ts.createTestUserWithID(t, "srt-user@example.com", "Password123!")
+	video := ts.createTestVideo(t, &userID, nil)
+	ts.createTestTranscription(t, video.ID)
+
+	// Download SRT with auth token - should succeed
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, token)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	// Different user should be denied
+	_, token2 := ts.createTestUserWithID(t, "srt-other@example.com", "Password123!")
+	resp = ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, token2)
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403 for different user, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestDownloadSRTNotComplete(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
 	// Create video with pending transcription
-	video := ts.createTestVideo(t, nil, nil)
+	sessionID := "test-session-srt-nc"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	transcription := &db.Transcription{
 		ID:        testGenerateID(),
 		VideoID:   video.ID,
@@ -634,7 +681,7 @@ func TestDownloadSRTNotComplete(t *testing.T) {
 	ts.db.CreateTranscription(transcription)
 
 	// Try to download SRT
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", resp.Code)
 	}
@@ -644,12 +691,13 @@ func TestDownloadVTT(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-vtt"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	// Download VTT
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
+	// Download VTT with matching session_id
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -674,6 +722,21 @@ func TestDownloadVTT(t *testing.T) {
 	}
 }
 
+func TestDownloadVTTAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "owner-session-vtt"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// No session_id - should be denied
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestDownloadVTTNotFound(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
@@ -689,12 +752,13 @@ func TestDownloadJSON(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-json"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	// Download JSON
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+	// Download JSON with matching session_id
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -722,6 +786,21 @@ func TestDownloadJSON(t *testing.T) {
 	segments, ok := jsonResp["segments"].([]interface{})
 	if !ok || len(segments) == 0 {
 		t.Error("Expected non-empty segments array in response")
+	}
+}
+
+func TestDownloadJSONAccessDenied(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.cleanup()
+
+	sessionID := "owner-session-json"
+	video := ts.createTestVideo(t, nil, &sessionID)
+	ts.createTestTranscription(t, video.ID)
+
+	// No session_id - should be denied
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status 403, got %d: %s", resp.Code, resp.Body.String())
 	}
 }
 
@@ -1335,12 +1414,13 @@ func TestSRTDownloadCachingHeaders(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-cache-srt"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	// Download SRT
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	// Download SRT with matching session_id
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", resp.Code, resp.Body.String())
 	}
@@ -1368,12 +1448,13 @@ func TestSRTDownloadConditionalRequest(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-cond-srt"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// First request to get ETag
-	resp1 := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
+	resp1 := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id="+sessionID, nil, "")
 	if resp1.Code != http.StatusOK {
 		t.Fatalf("Expected status 200, got %d", resp1.Code)
 	}
@@ -1383,7 +1464,7 @@ func TestSRTDownloadConditionalRequest(t *testing.T) {
 	}
 
 	// Second request with If-None-Match should return 304
-	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil)
+	req, _ := http.NewRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id="+sessionID, nil)
 	req.Header.Set("If-None-Match", etag)
 	resp2 := httptest.NewRecorder()
 	ts.mux.ServeHTTP(resp2, req)
@@ -1402,12 +1483,13 @@ func TestVTTDownloadCachingHeaders(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-cache-vtt"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	// Download VTT
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
+	// Download VTT with matching session_id
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.Code)
 	}
@@ -1429,12 +1511,13 @@ func TestJSONDownloadCachingHeaders(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-cache-json"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
-	// Download JSON
-	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+	// Download JSON with matching session_id
+	resp := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json?session_id="+sessionID, nil, "")
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.Code)
 	}
@@ -1456,14 +1539,15 @@ func TestDifferentFormatsHaveDifferentETags(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.cleanup()
 
-	// Create video and transcription
-	video := ts.createTestVideo(t, nil, nil)
+	// Create video with session ID and transcription
+	sessionID := "test-session-etag-diff"
+	video := ts.createTestVideo(t, nil, &sessionID)
 	ts.createTestTranscription(t, video.ID)
 
 	// Get ETags for all formats
-	respSRT := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt", nil, "")
-	respVTT := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt", nil, "")
-	respJSON := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json", nil, "")
+	respSRT := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.srt?session_id="+sessionID, nil, "")
+	respVTT := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.vtt?session_id="+sessionID, nil, "")
+	respJSON := ts.doRequest("GET", "/api/videos/"+video.ID+"/subtitles.json?session_id="+sessionID, nil, "")
 
 	etagSRT := respSRT.Header().Get("ETag")
 	etagVTT := respVTT.Header().Get("ETag")

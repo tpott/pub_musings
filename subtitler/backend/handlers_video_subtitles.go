@@ -23,6 +23,33 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 			return
 		}
 
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
@@ -101,6 +128,33 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 			return
 		}
 
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
 		transcription, err := database.GetTranscription(uploadID)
 		if err != nil {
 			logging.ErrorContext(r.Context(), "Error getting transcription", "error", err)
@@ -173,6 +227,33 @@ func registerVideoSubtitleHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 	mux.HandleFunc("GET /api/videos/{id}/subtitles.json", func(w http.ResponseWriter, r *http.Request) {
 		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
 		if !valid {
+			return
+		}
+
+		// Check ownership - either authenticated user owns it, or anonymous session matches
+		video, err := database.GetVideo(uploadID)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Error getting video", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to get video")
+			return
+		}
+		if video == nil {
+			httputil.RespondError(w, http.StatusNotFound, "Video not found")
+			return
+		}
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
 			return
 		}
 
