@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**408 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
+**412 tasks completed** as of 2026-01-29. All core features implemented and tested. 0 tasks pending.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (9 source files, ~6500 lines total), 578 tests across 26 files
-- **Frontend:** Astro/TypeScript, 658 tests across 25 files
+- **Frontend:** Astro/TypeScript, 772 tests across 28 files
 - **E2E:** Playwright tests (59 scenarios)
-- **Total:** 1240+ tests, 31 specification documents
+- **Total:** 1350+ tests, 31 specification documents
 
 ## Feature Summary
 
@@ -61,6 +61,15 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 410-413: More unit tests + backend DRY improvement (2026-01-29)
+- Added 114 tests across 3 new test files covering remaining untested utility modules
+- `transcription-polling.test.ts` (49 tests): formatTime, formatDuration, parseSRT, getLanguageDisplayName, startTranscription, pollTranscriptionStatus
+- `videos-list.test.ts` (48 tests): formatBytes, formatDate, formatRetention, getStatusBadge, getEmbeddedSubtitlesBadge, renderVideo, reprocessVideo, deleteVideo
+- `videos-subtitles.test.ts` (17 tests): getSubtitleSegments (LRU cache, error handling), handleDownloadClick (SRT/VTT/JSON)
+- Backend: Extracted duplicated MIME type whitelist to shared `allowedMIMETypes` variable in config.go (was defined twice in handlers_upload.go)
+- Task 414 (shared CSS extraction) marked wontfix: CSS differences between pages are intentional design choices for different contexts
+- Frontend tests: 658 -> 772 (28 test files)
 
 ### Tasks 405-409: Add unit tests for 5 untested frontend utility files (2026-01-29)
 - Added 160 tests across 5 new test files covering the largest untested utility modules

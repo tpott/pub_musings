@@ -78,16 +78,6 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 
 		// Validate file type by checking content type against whitelist
 		contentType := header.Header.Get("Content-Type")
-		allowedMIMETypes := map[string]bool{
-			"video/mp4":        true,
-			"video/webm":       true,
-			"video/quicktime":  true, // .mov files
-			"video/x-m4v":      true, // .m4v files
-			"video/mpeg":       true, // .mpeg, .mpg files
-			"video/x-msvideo":  true, // .avi files
-			"video/x-matroska": true, // .mkv files
-			"video/ogg":        true, // .ogv files
-		}
 		if !allowedMIMETypes[contentType] {
 			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
@@ -340,16 +330,6 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		}
 
 		// Validate MIME type
-		allowedMIMETypes := map[string]bool{
-			"video/mp4":        true,
-			"video/webm":       true,
-			"video/quicktime":  true,
-			"video/x-m4v":      true,
-			"video/mpeg":       true,
-			"video/x-msvideo":  true,
-			"video/x-matroska": true,
-			"video/ogg":        true,
-		}
 		if !allowedMIMETypes[req.ContentType] {
 			httputil.RespondJSON(w, http.StatusBadRequest, map[string]string{
 				"error":             "Unsupported video format. Allowed formats: MP4, WebM, MOV, M4V, MPEG, AVI, MKV, OGV",
