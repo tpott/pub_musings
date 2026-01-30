@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**494 tasks completed** as of 2026-01-30.
+**496 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 844 tests across 29 files
+- **Frontend:** Astro/TypeScript, 875 tests across 32 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
-- **Total:** 1517+ tests, 32 specification documents
+- **Total:** 1548+ tests, 32 specification documents
 
 ## Feature Summary
 
@@ -63,6 +63,21 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Recent Work
 
+### Task 494: Re-transcribe progress box with real-time updates (2026-01-30)
+- Added progress box HTML/CSS to upload page — shows bar, percentage, and status message during re-transcription
+- Progress box animates closed (collapse transition) after 1.5s on completion, hides immediately on error
+- Extracted `retranscribe-progress.ts` utility (show/update/hide/collapse functions) and `upload-collapsible.ts` (section toggle with localStorage persistence)
+- Kept `upload.astro` at 1000 lines (within lint limit) by extracting collapsible logic
+- Added 17 tests: 9 for retranscribe-progress, 8 for upload-collapsible. 875 frontend tests across 32 files pass
+
+### Task 495: My Videos page — real-time transcription progress (2026-01-30)
+- Added `videos-progress.ts` utility that polls `GET /api/transcribe/{id}` for processing/pending videos
+- Shows compact progress bar (4px height, max 200px wide) with status text and percentage in each video card
+- Polls every 3 seconds, stops on completion/error. Handles 403/404 (permanent stop) vs 500/network (retry)
+- When transcription completes, re-renders the video card in-place with new buttons (View, SRT, VTT, JSON)
+- Supports both authenticated and anonymous users (includes session_id for anonymous)
+- Added 14 tests in `videos-progress.test.ts`. 858 frontend tests across 30 files pass
+
 ### Task 496: My Videos page — larger thumbnails, less button prominence (2026-01-30)
 - Restructured video card layout: thumbnail (240x135, up from 160x90) and info in a `video-top` row, action buttons in a compact secondary row below
 - Download buttons (SRT, VTT, JSON) changed from full `btn-secondary` buttons to subtle text-style `btn-link` links
@@ -71,8 +86,7 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Mobile responsive: thumbnail goes full-width, actions wrap naturally
 - Added 2 tests (video-top structure, btn-link class usage). 844 frontend tests pass
 
-### Tasks 494-495: Filed from user feedback (2026-01-30)
-- **Task 494:** Re-transcribe button should show progress box with real-time updates (pending)
+### Tasks 494-496: Filed from user feedback (2026-01-30)
 - **Task 495:** My Videos page should show real-time transcription progress for processing videos (pending)
 
 ### Tasks 491-493: Error handling fixes — swallowed DB errors (2026-01-30)

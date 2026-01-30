@@ -88,7 +88,8 @@ import '../styles/videos.css';
 			import { getRequiredElement } from '../utils/dom';
 			import { VideoListResponseSchema, safeParse } from '../utils/api-schemas';
 			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
-			import { renderVideo, reprocessVideo, deleteVideo } from '../utils/videos-list';
+			import { renderVideo, reprocessVideo, deleteVideo, type Video } from '../utils/videos-list';
+		import { startProgressPolling } from '../utils/videos-progress';
 			import { handleDownloadClick } from '../utils/videos-subtitles';
 			import { createModalState, setupModalListeners, type ModalElements } from '../utils/videos-modal';
 
@@ -201,6 +202,9 @@ import '../styles/videos.css';
 				}
 			});
 
+			// Progress polling state
+			let progressPoller: { stop: () => void } | null = null;
+
 			// Pagination state
 			const VIDEOS_PER_PAGE = 20;
 			let currentPage = 0;
@@ -274,6 +278,12 @@ import '../styles/videos.css';
 					videoList.innerHTML = data.videos.map(renderVideo).join('');
 					videoList.style.display = 'flex';
 					updatePaginationUI();
+
+					// Start polling for any processing/pending videos
+					if (progressPoller) {
+						progressPoller.stop();
+					}
+					progressPoller = startProgressPolling(videoList, data.videos as Video[], isAuthenticated);
 
 				} catch (err) {
 					loading.style.display = 'none';

@@ -266,6 +266,31 @@ h1 {
 	background-color: var(--badge-none-bg);
 	color: var(--badge-none-text);
 }
+/* Transcription progress indicator */
+.video-progress {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.video-progress-bar {
+	flex: 1;
+	height: 4px;
+	background-color: var(--border-color);
+	border-radius: 2px;
+	overflow: hidden;
+	max-width: 200px;
+}
+.video-progress-fill {
+	height: 100%;
+	background-color: var(--accent-color);
+	border-radius: 2px;
+	transition: width 0.3s ease;
+}
+.video-progress-text {
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
 .retention-badge {
 	display: inline-block;
 	padding: 0.125rem 0.5rem;
