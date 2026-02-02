@@ -23,6 +23,7 @@ import { z } from 'zod';
 export const UserSchema = z.object({
 	email: z.string().email(),
 	totp_enabled: z.boolean().optional(),
+	email_verified: z.boolean().optional(),
 	role: z.string().optional(),
 });
 
@@ -39,7 +40,7 @@ export const SessionSchema = z.object({
 	user_agent: z.string().optional(),
 	ip_address: z.string().optional(),
 	created_at: z.string(),
-	last_used_at: z.string().optional(),
+	expires_at: z.string().optional(),
 	is_current: z.boolean().optional(),
 });
 
@@ -60,6 +61,8 @@ export type RecoveryCodesResponse = z.infer<typeof RecoveryCodesResponseSchema>;
 export const TotpSetupResponseSchema = z.object({
 	secret: z.string(),
 	secret_display: z.string().optional(),
+	uri: z.string().optional(),
+	issuer: z.string().optional(),
 	qr_code: z.string(),
 	recovery_codes: z.array(z.string()).optional(),
 });
@@ -67,7 +70,8 @@ export const TotpSetupResponseSchema = z.object({
 export type TotpSetupResponse = z.infer<typeof TotpSetupResponseSchema>;
 
 export const TotpVerifyResponseSchema = z.object({
-	success: z.boolean(),
+	message: z.string(),
+	totp_enabled: z.boolean(),
 	recovery_codes: z.array(z.string()).optional(),
 });
 
@@ -117,13 +121,16 @@ export const LanguageHintSchema = z.object({
 	language: z.string(),
 	source: z.string(),
 	confidence: z.string(),
+	language_name: z.string().optional(),
+	raw_value: z.string().optional(),
 });
 
 export type LanguageHint = z.infer<typeof LanguageHintSchema>;
 
 export const LanguageHintsResponseSchema = z.object({
 	hints: z.array(LanguageHintSchema),
-	recommended: z.string().optional(),
+	suggested_language: z.string().optional(),
+	suggested_confidence: z.string().optional(),
 });
 
 export type LanguageHintsResponse = z.infer<typeof LanguageHintsResponseSchema>;
@@ -155,6 +162,7 @@ export const TranscriptionStatusResponseSchema = z.object({
 	message: z.string().optional(),
 	progress: z.number().optional(),
 	result: TranscriptionResultSchema.optional(),
+	embedded_subtitles: z.array(EmbeddedSubtitleTrackSchema).optional(),
 });
 
 export type TranscriptionStatusResponse = z.infer<typeof TranscriptionStatusResponseSchema>;
@@ -182,12 +190,11 @@ export const UploadInitResponseSchema = z.object({
 export type UploadInitResponse = z.infer<typeof UploadInitResponseSchema>;
 
 export const UploadCompleteResponseSchema = z.object({
-	id: z.string(),
+	upload_id: z.string(),
 	filename: z.string(),
 	size: z.number(),
 	message: z.string().optional(),
-	language_hints: z.array(LanguageHintSchema).optional(),
-	recommended_language: z.string().optional(),
+	language_hints: LanguageHintsResponseSchema.optional(),
 });
 
 export type UploadCompleteResponse = z.infer<typeof UploadCompleteResponseSchema>;

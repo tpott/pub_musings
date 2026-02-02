@@ -173,12 +173,12 @@ func (e *Encryptor) EncryptFile(srcPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create encrypted file: %w", err)
 	}
-	defer dst.Close()
 
 	e.mu.RLock()
 	w, err := age.Encrypt(dst, e.recipient)
 	e.mu.RUnlock()
 	if err != nil {
+		dst.Close()
 		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
 			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
 		}
@@ -186,6 +186,7 @@ func (e *Encryptor) EncryptFile(srcPath string) (string, error) {
 	}
 
 	if _, err := io.Copy(w, src); err != nil {
+		dst.Close()
 		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
 			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
 		}
@@ -193,10 +194,18 @@ func (e *Encryptor) EncryptFile(srcPath string) (string, error) {
 	}
 
 	if err := w.Close(); err != nil {
+		dst.Close()
 		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
 			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
 		}
 		return "", fmt.Errorf("failed to finalize encryption: %w", err)
+	}
+
+	if err := dst.Close(); err != nil {
+		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove partial encrypted file", "path", dstPath, "error", removeErr)
+		}
+		return "", fmt.Errorf("failed to close encrypted file: %w", err)
 	}
 
 	return dstPath, nil
@@ -244,13 +253,20 @@ func (e *Encryptor) DecryptToFile(encPath, dstPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
 
 	if _, err := io.Copy(dst, reader); err != nil {
+		dst.Close()
 		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
 			logging.Warn("Failed to remove partial decrypted file", "path", dstPath, "error", removeErr)
 		}
 		return fmt.Errorf("failed to write decrypted data: %w", err)
+	}
+
+	if err := dst.Close(); err != nil {
+		if removeErr := os.Remove(dstPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			logging.Warn("Failed to remove partial decrypted file", "path", dstPath, "error", removeErr)
+		}
+		return fmt.Errorf("failed to close decrypted file: %w", err)
 	}
 
 	return nil

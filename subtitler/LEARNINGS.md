@@ -32,6 +32,34 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Backend
 
+### 2026-01-30: defer Close() on write files silently discards data integrity errors
+
+**Problem:** `EncryptFile` and `DecryptToFile` in crypto/crypto.go used `defer dst.Close()` on files opened for writing. If `Close()` failed (unflushed buffers, disk full), the function returned success with a potentially corrupted file. This was inconsistent with the same fix already applied to chunk uploads (tasks 480, 490).
+
+**Solution:** Replaced `defer dst.Close()` with explicit `dst.Close()` calls in error paths and a final checked `dst.Close()` on the happy path. On close failure, the partial file is removed and an error is returned.
+
+**Lesson:** `defer file.Close()` is fine for read-only files but dangerous for write files. Always check `Close()` errors on files you've written to — `Close()` is where the final flush to disk happens. Grep for `defer.*Close()` on `os.Create` destinations in reviews.
+
+### 2026-01-30: Zod schema must match backend response, not spec
+
+**Problem:** TOTP verify endpoint returned `{message, totp_enabled, recovery_codes}` but the frontend Zod schema expected `{success, recovery_codes}`. Users got "API response validation failed" when enabling 2FA.
+
+**Solution:** Updated `TotpVerifyResponseSchema` to match the actual backend response fields (`message: string, totp_enabled: boolean, recovery_codes: string[] optional`).
+
+**Lesson:** Zod schemas are runtime contracts with the actual backend response, not the spec document. When adding Zod validation, test against a real backend response (or the handler code), not the spec. The spec said `success` but the handler sent `totp_enabled`.
+
+---
+
+### 2026-01-30: Cloudflare tunnel requires CF-Connecting-IP header support
+
+**Problem:** Sessions and security events recorded IP as `127.0.0.1` in production. The app was behind cloudflared tunnel + Caddy reverse proxy. `TRUST_PROXY=true` was set, but `GetClientIP()` only checked `X-Forwarded-For` and `X-Real-IP`, not `CF-Connecting-IP` which cloudflared sets.
+
+**Solution:** Added `CF-Connecting-IP` as the highest-priority header in `GetClientIP()` (checked before `X-Forwarded-For` and `X-Real-IP` when `TRUST_PROXY=true`).
+
+**Lesson:** When deploying behind Cloudflare (tunnel or proxy), always check `CF-Connecting-IP` first — it contains the original client IP set by Cloudflare's edge. `X-Forwarded-For` may contain intermediate proxy IPs. The priority should be: `CF-Connecting-IP` > `X-Forwarded-For` > `X-Real-IP` > `RemoteAddr`.
+
+---
+
 ### 2026-01-30: TOCTOU race in INSERT with prior existence check
 
 **Problem:** Chunked upload handler checked if a chunk existed (`GetUploadChunk`), then inserted if missing (`CreateUploadChunk`). Concurrent requests for the same chunk could both pass the check, then one fails with a UNIQUE constraint violation, returning 500 instead of idempotent 200.

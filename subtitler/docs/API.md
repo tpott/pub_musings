@@ -346,20 +346,13 @@ Create a new user account.
 ```json
 {
   "message": "Account created. Please check your email to verify your account.",
-  "email_verification": true
-}
-```
-
-When email is disabled, a session token is returned instead:
-```json
-{
+  "email_verification": true,
   "user": {
     "id": "abc123...",
     "email": "user@example.com",
     "created_at": "2026-01-22T10:00:00Z",
-    "totp_enabled": false
-  },
-  "token": "session_token_here"
+    "email_verified": false
+  }
 }
 ```
 

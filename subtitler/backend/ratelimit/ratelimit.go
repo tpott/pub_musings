@@ -107,11 +107,17 @@ func (l *Limiter) cleanup() {
 }
 
 // GetClientIP extracts the client IP address from an HTTP request.
-// When TRUST_PROXY is enabled, it checks X-Forwarded-For and X-Real-IP headers
-// for proxied requests. Otherwise, it only uses RemoteAddr to prevent IP spoofing.
+// When TRUST_PROXY is enabled, it checks CF-Connecting-IP (Cloudflare),
+// X-Forwarded-For, and X-Real-IP headers for proxied requests.
+// Otherwise, it only uses RemoteAddr to prevent IP spoofing.
 func GetClientIP(r *http.Request) string {
 	// Only trust proxy headers when explicitly configured
 	if trustProxy {
+		// Check CF-Connecting-IP header (Cloudflare tunnel sets this)
+		if cfIP := r.Header.Get("CF-Connecting-IP"); cfIP != "" {
+			return cfIP
+		}
+
 		// Check X-Forwarded-For header (may contain multiple IPs)
 		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 			// Take the first IP (original client)

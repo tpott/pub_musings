@@ -267,6 +267,29 @@ describe('renderVideo', () => {
 		expect(html).toContain('data-video-id="v1"');
 	});
 
+	it('should wrap thumbnail and info in video-top container', () => {
+		const video = makeVideo({ transcription_status: 'complete', thumbnail_path: '/thumb.jpg' });
+		const html = renderVideo(video);
+		expect(html).toContain('video-top');
+		// Thumbnail and info should be inside video-top
+		const topStart = html.indexOf('video-top');
+		const thumbStart = html.indexOf('video-thumbnail');
+		const infoStart = html.indexOf('video-info');
+		const actionsStart = html.indexOf('video-actions');
+		expect(topStart).toBeLessThan(thumbStart);
+		expect(topStart).toBeLessThan(infoStart);
+		// Actions should be outside video-top (after it closes)
+		expect(actionsStart).toBeGreaterThan(infoStart);
+	});
+
+	it('should use btn-link class for download buttons', () => {
+		const video = makeVideo({ transcription_status: 'complete' });
+		const html = renderVideo(video);
+		expect(html).toContain('btn-link btn-download-srt');
+		expect(html).toContain('btn-link btn-download-vtt');
+		expect(html).toContain('btn-link btn-download-json');
+	});
+
 	it('should show View button for complete transcription', () => {
 		const video = makeVideo({ transcription_status: 'complete' });
 		const html = renderVideo(video);
@@ -299,7 +322,7 @@ describe('renderVideo', () => {
 	it('should always show Delete button', () => {
 		const video = makeVideo({ transcription_status: 'processing' });
 		const html = renderVideo(video);
-		expect(html).toContain('btn-delete');
+		expect(html).toContain('btn-delete-sm');
 		expect(html).toContain('Delete');
 	});
 

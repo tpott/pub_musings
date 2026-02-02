@@ -212,6 +212,11 @@ Environment=HTTPS_ONLY=true
 Environment=TRUST_PROXY=true
 Environment=DB_MAINTENANCE_INTERVAL=24h
 
+# Logging — stdout/stderr go to systemd journal (queryable via journalctl -u subtitler)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=subtitler
+
 # Security
 NoNewPrivileges=true
 ProtectSystem=strict

@@ -121,11 +121,18 @@ func TestGetClientIP(t *testing.T) {
 					expected:   "10.0.0.1",
 				},
 				{
+					name:       "ignores CF-Connecting-IP when untrusted",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"CF-Connecting-IP": "203.0.113.75"},
+					expected:   "10.0.0.1",
+				},
+				{
 					name:       "ignores all proxy headers when untrusted",
 					remoteAddr: "10.0.0.1:12345",
 					headers: map[string]string{
-						"X-Forwarded-For": "203.0.113.50",
-						"X-Real-IP":       "203.0.113.100",
+						"CF-Connecting-IP": "203.0.113.75",
+						"X-Forwarded-For":  "203.0.113.50",
+						"X-Real-IP":        "203.0.113.100",
 					},
 					expected: "10.0.0.1",
 				},
@@ -194,7 +201,23 @@ func TestGetClientIP(t *testing.T) {
 					expected:   "203.0.113.100",
 				},
 				{
-					name:       "X-Forwarded-For takes precedence",
+					name:       "CF-Connecting-IP",
+					remoteAddr: "10.0.0.1:12345",
+					headers:    map[string]string{"CF-Connecting-IP": "203.0.113.75"},
+					expected:   "203.0.113.75",
+				},
+				{
+					name:       "CF-Connecting-IP takes precedence over X-Forwarded-For",
+					remoteAddr: "10.0.0.1:12345",
+					headers: map[string]string{
+						"CF-Connecting-IP": "203.0.113.75",
+						"X-Forwarded-For":  "203.0.113.50",
+						"X-Real-IP":        "203.0.113.100",
+					},
+					expected: "203.0.113.75",
+				},
+				{
+					name:       "X-Forwarded-For takes precedence over X-Real-IP",
 					remoteAddr: "10.0.0.1:12345",
 					headers: map[string]string{
 						"X-Forwarded-For": "203.0.113.50",

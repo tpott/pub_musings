@@ -15,6 +15,8 @@ import {
 	TranscriptionSegmentSchema,
 	TranscriptionResultSchema,
 	TranscriptionStatusResponseSchema,
+	LanguageHintSchema,
+	LanguageHintsResponseSchema,
 	UploadInitResponseSchema,
 	UploadCompleteResponseSchema,
 	CsrfTokenResponseSchema,
@@ -104,10 +106,11 @@ describe('api-schemas', () => {
 			expect(UserSchema.safeParse(user).success).toBe(true);
 		});
 
-		it('validates user with optional fields', () => {
+		it('validates user with all fields matching backend /api/auth/me response', () => {
 			const user = {
 				email: 'test@example.com',
 				totp_enabled: true,
+				email_verified: true,
 				role: 'admin',
 			};
 			expect(UserSchema.safeParse(user).success).toBe(true);
@@ -145,6 +148,22 @@ describe('api-schemas', () => {
 			};
 			expect(SessionListResponseSchema.safeParse(response).success).toBe(true);
 		});
+
+		it('validates session with all fields matching backend response', () => {
+			const response = {
+				sessions: [
+					{
+						id: 'sess123',
+						ip_address: '203.0.113.1',
+						user_agent: 'Mozilla/5.0',
+						created_at: '2024-01-01T00:00:00Z',
+						expires_at: '2024-02-01T00:00:00Z',
+						is_current: true,
+					},
+				],
+			};
+			expect(SessionListResponseSchema.safeParse(response).success).toBe(true);
+		});
 	});
 
 	describe('TotpSetupResponseSchema', () => {
@@ -156,20 +175,37 @@ describe('api-schemas', () => {
 			};
 			expect(TotpSetupResponseSchema.safeParse(response).success).toBe(true);
 		});
+
+		it('validates full backend response with uri and issuer', () => {
+			const response = {
+				secret: 'ABCDEFGHIJKLMNOP',
+				secret_display: 'ABCD EFGH IJKL MNOP',
+				uri: 'otpauth://totp/Subtitler:user@example.com?secret=ABCDEFGHIJKLMNOP&issuer=Subtitler&algorithm=SHA1&digits=6&period=30',
+				issuer: 'Subtitler',
+				qr_code: 'data:image/png;base64,abc123',
+			};
+			expect(TotpSetupResponseSchema.safeParse(response).success).toBe(true);
+		});
 	});
 
 	describe('TotpVerifyResponseSchema', () => {
 		it('validates TOTP verify response', () => {
 			const response = {
-				success: true,
+				message: '2FA has been enabled successfully',
+				totp_enabled: true,
 				recovery_codes: ['CODE1', 'CODE2'],
 			};
 			expect(TotpVerifyResponseSchema.safeParse(response).success).toBe(true);
 		});
 
 		it('validates response without recovery codes', () => {
-			const response = { success: true };
+			const response = { message: '2FA has been enabled successfully', totp_enabled: true };
 			expect(TotpVerifyResponseSchema.safeParse(response).success).toBe(true);
+		});
+
+		it('rejects response missing required fields', () => {
+			const response = { success: true };
+			expect(TotpVerifyResponseSchema.safeParse(response).success).toBe(false);
 		});
 	});
 
@@ -193,9 +229,83 @@ describe('api-schemas', () => {
 			expect(TranscriptionStatusResponseSchema.safeParse(response).success).toBe(true);
 		});
 
+		it('validates response with embedded subtitles', () => {
+			const response = {
+				status: 'complete',
+				result: {
+					segments: [{ id: 0, start: 0, end: 1, text: 'Hello' }],
+				},
+				embedded_subtitles: [
+					{ index: 0, language: 'en', title: 'English', codec: 'subrip', default: true, forced: false, text_based: true },
+				],
+			};
+			expect(TranscriptionStatusResponseSchema.safeParse(response).success).toBe(true);
+		});
+
 		it('rejects invalid status', () => {
 			const response = { status: 'invalid' };
 			expect(TranscriptionStatusResponseSchema.safeParse(response).success).toBe(false);
+		});
+	});
+
+	describe('LanguageHintSchema', () => {
+		it('validates minimal language hint', () => {
+			const hint = { language: 'en', source: 'metadata', confidence: 'high' };
+			expect(LanguageHintSchema.safeParse(hint).success).toBe(true);
+		});
+
+		it('validates full language hint matching backend struct', () => {
+			const hint = {
+				language: 'en',
+				source: 'metadata',
+				confidence: 'high',
+				language_name: 'English',
+				raw_value: 'eng',
+			};
+			expect(LanguageHintSchema.safeParse(hint).success).toBe(true);
+		});
+	});
+
+	describe('LanguageHintsResponseSchema', () => {
+		it('validates language detection result matching backend DetectionResult', () => {
+			const response = {
+				hints: [{ language: 'en', source: 'metadata', confidence: 'high' }],
+				suggested_language: 'en',
+				suggested_confidence: 'high',
+			};
+			expect(LanguageHintsResponseSchema.safeParse(response).success).toBe(true);
+		});
+
+		it('validates empty hints', () => {
+			const response = { hints: [] };
+			expect(LanguageHintsResponseSchema.safeParse(response).success).toBe(true);
+		});
+	});
+
+	describe('UploadCompleteResponseSchema', () => {
+		it('validates upload complete response', () => {
+			const response = {
+				upload_id: 'abc123',
+				filename: 'test.mp4',
+				size: 1024,
+				message: 'File uploaded successfully (1024 bytes)',
+			};
+			expect(UploadCompleteResponseSchema.safeParse(response).success).toBe(true);
+		});
+
+		it('validates upload complete with language hints', () => {
+			const response = {
+				upload_id: 'abc123',
+				filename: 'test.mp4',
+				size: 1024,
+				message: 'File uploaded successfully',
+				language_hints: {
+					hints: [{ language: 'en', source: 'metadata', confidence: 'high' }],
+					suggested_language: 'en',
+					suggested_confidence: 'high',
+				},
+			};
+			expect(UploadCompleteResponseSchema.safeParse(response).success).toBe(true);
 		});
 	});
 

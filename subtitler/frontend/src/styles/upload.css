@@ -650,6 +650,59 @@ h1 {
 .detected-language .detected-value.confidence-low {
 	color: var(--text-secondary);
 }
+/* Re-transcription progress box */
+.retranscribe-progress {
+	background-color: var(--secondary-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	padding: 1rem 1.25rem;
+	margin-bottom: 1rem;
+	overflow: hidden;
+	transition: max-height 0.5s ease, opacity 0.4s ease, padding 0.5s ease, margin 0.5s ease;
+	max-height: 200px;
+}
+.retranscribe-progress.collapsing {
+	max-height: 0;
+	opacity: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+	margin-bottom: 0;
+	border-width: 0;
+}
+.retranscribe-progress-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 0.5rem;
+}
+.retranscribe-progress-title {
+	font-weight: 500;
+	font-size: 0.9rem;
+}
+.retranscribe-progress-pct {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--accent-color);
+}
+.retranscribe-progress-bar {
+	height: 6px;
+	background-color: var(--border-color);
+	border-radius: 3px;
+	overflow: hidden;
+	margin-bottom: 0.5rem;
+}
+.retranscribe-progress-fill {
+	height: 100%;
+	background-color: var(--accent-color);
+	border-radius: 3px;
+	transition: width 0.3s ease;
+	width: 0%;
+}
+.retranscribe-progress-msg {
+	font-size: 0.8rem;
+	color: var(--text-secondary);
+	margin: 0;
+}
 .retranscribe-btn {
 	padding: 0.5rem 1rem;
 	background-color: var(--accent-color);

@@ -36,6 +36,7 @@ export interface AlignmentResponse {
   mode: 'standard' | 'lyrics';
   script_converted?: boolean;
   target_script?: string;
+  conversion_failed_indices?: number[];
   stats?: {
     match_rate?: number;
   };
@@ -49,6 +50,8 @@ export interface BurnStatusResponse {
   status: 'pending' | 'processing' | 'complete' | 'error';
   message?: string;
   progress?: number;
+  duration?: number;
+  estimated_remaining_seconds?: number;
 }
 
 /**

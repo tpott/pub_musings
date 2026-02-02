@@ -85,6 +85,17 @@ import '../styles/upload.css';
 				</div>
 			</div>
 
+			<div class="retranscribe-progress" id="retranscribeProgress" style="display: none;" role="status" aria-live="polite">
+				<div class="retranscribe-progress-header">
+					<span class="retranscribe-progress-title">Re-transcribing...</span>
+					<span class="retranscribe-progress-pct" id="retranscribeProgressPct"></span>
+				</div>
+				<div class="retranscribe-progress-bar">
+					<div class="retranscribe-progress-fill" id="retranscribeProgressFill"></div>
+				</div>
+				<p class="retranscribe-progress-msg" id="retranscribeProgressMsg">Starting...</p>
+			</div>
+
 			<div class="status" id="status" role="status" aria-live="polite">
 				<p id="statusText">Ready to upload</p>
 				<div class="progress-bar" id="progressBar" style="display: none;">
@@ -315,9 +326,15 @@ import '../styles/upload.css';
 			import { openSRT, openVTT, openJSON } from '../utils/subtitles';
 			import { checkAuthAndUpdateNav } from '../utils/nav-auth';
 			import { getRequiredElement } from '../utils/dom';
+			import {
+				showRetranscribeProgress,
+				updateRetranscribeProgress,
+				hideRetranscribeProgress,
+				collapseRetranscribeProgress,
+				type RetranscribeProgressElements,
+			} from '../utils/retranscribe-progress';
 			import { fetchWithTimeout } from '../utils/fetch-timeout';
-			import type { TranscriptionResult } from '../types/transcription';
-			import type { LanguageHints } from '../types/transcription';
+			import type { TranscriptionResult, LanguageHints } from '../types/transcription';
 
 			import {
 				LANGUAGE_DISPLAY_NAMES,
@@ -328,6 +345,7 @@ import '../styles/upload.css';
 				FULLTEXT_COLLAPSED_KEY,
 				MAX_ALIGN_TEXT_LENGTH
 			} from '../utils/upload-constants';
+			import { setupCollapsible } from '../utils/upload-collapsible';
 			import {
 				validateFile,
 				uploadFile,
@@ -417,6 +435,10 @@ import '../styles/upload.css';
 			const languageSection = getRequiredElement('languageSection', HTMLElement);
 			const transcriptionLanguageSelect = getRequiredElement('transcriptionLanguageSelect', HTMLSelectElement);
 			const retranscribeBtn = getRequiredElement('retranscribeBtn', HTMLButtonElement);
+			const retranscribeProgress = getRequiredElement('retranscribeProgress', HTMLElement);
+			const retranscribeProgressFill = getRequiredElement('retranscribeProgressFill', HTMLElement);
+			const retranscribeProgressPct = getRequiredElement('retranscribeProgressPct', HTMLElement);
+			const retranscribeProgressMsg = getRequiredElement('retranscribeProgressMsg', HTMLElement);
 			const detectedLanguage = getRequiredElement('detectedLanguage', HTMLElement);
 			const detectedLanguageValue = getRequiredElement('detectedLanguageValue', HTMLElement);
 			const keyboardHelpBtn = getRequiredElement('keyboardHelpBtn', HTMLButtonElement);
@@ -469,43 +491,8 @@ import '../styles/upload.css';
 			}
 
 			// --- Collapsible sections ---
-			function setupCollapsible(section: HTMLElement, header: HTMLElement, storageKey: string) {
-				const savedState = localStorage.getItem(storageKey);
-				const defaultCollapsed = storageKey === FULLTEXT_COLLAPSED_KEY;
-				const isCollapsed = savedState !== null ? savedState === 'true' : defaultCollapsed;
-
-				if (isCollapsed) {
-					section.classList.add('collapsed');
-					header.setAttribute('aria-expanded', 'false');
-				} else {
-					section.classList.remove('collapsed');
-					header.setAttribute('aria-expanded', 'true');
-				}
-
-				const toggle = () => {
-					const collapsed = section.classList.contains('collapsed');
-					if (collapsed) {
-						section.classList.remove('collapsed');
-						header.setAttribute('aria-expanded', 'true');
-						localStorage.setItem(storageKey, 'false');
-					} else {
-						section.classList.add('collapsed');
-						header.setAttribute('aria-expanded', 'false');
-						localStorage.setItem(storageKey, 'true');
-					}
-				};
-
-				header.addEventListener('click', toggle);
-				header.addEventListener('keydown', (e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
-						e.preventDefault();
-						toggle();
-					}
-				});
-			}
-
-			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY);
-			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY);
+			setupCollapsible(pasteTranscriptSection, pasteTranscriptHeader, PASTE_COLLAPSED_KEY, false);
+			setupCollapsible(fullTextSection, fullTextHeader, FULLTEXT_COLLAPSED_KEY, true);
 
 			// --- Language hints ---
 			function handleLanguageHints(languageHints: LanguageHints | undefined) {
@@ -893,6 +880,13 @@ import '../styles/upload.css';
 				videoPreview, previewVideo, speedBtn, speedOptions, speedIndicator
 			}, speedState);
 			// --- Re-transcribe ---
+			const rtProgressEls: RetranscribeProgressElements = {
+				container: retranscribeProgress,
+				fill: retranscribeProgressFill,
+				pct: retranscribeProgressPct,
+				msg: retranscribeProgressMsg,
+			};
+
 			async function retranscribe() {
 				if (!editorState.currentUploadId) return;
 				const selectedLanguage = transcriptionLanguageSelect.value;
@@ -915,6 +909,9 @@ import '../styles/upload.css';
 				fullTextSection.style.display = 'none';
 				detectedLanguage.style.display = 'none';
 
+				// Show progress box
+				showRetranscribeProgress(rtProgressEls);
+
 				transcriptionEl.classList.add('visible');
 				transcriptionStatus.textContent = 'Starting re-transcription...';
 
@@ -932,13 +929,16 @@ import '../styles/upload.css';
 				startTranscriptionPoll(uploadId, transcriptionState, {
 					setTranscriptionStatus: (text) => {
 						transcriptionStatus.textContent = text;
+						updateRetranscribeProgress(rtProgressEls, text);
 						// Re-enable button on terminal states (error)
 						if (text.startsWith('Error:') || text.startsWith('Failed') || text.startsWith('Polling error:')) {
 							resetRetranscribeBtn();
+							hideRetranscribeProgress(rtProgressEls);
 						}
 					},
 					displayTranscription: (result) => {
 						resetRetranscribeBtn();
+						collapseRetranscribeProgress(rtProgressEls);
 						displayTranscription(result);
 					},
 				}, language, true);

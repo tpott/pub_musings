@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**482 tasks completed** as of 2026-01-30.
+**500 tasks completed** as of 2026-01-30.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 832 tests across 29 files
-- **E2E:** Playwright tests (71 scenarios across 7 spec files, 58 active + 13 skipped)
-- **Total:** 1505+ tests, 32 specification documents
+- **Frontend:** Astro/TypeScript, 875 tests across 32 files
+- **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
+- **Total:** 1,548 tests, 32 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,56 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 497-500: Deep inspection fixes (2026-01-30)
+- **Task 497:** Fixed `EncryptFile` and `DecryptToFile` in crypto/crypto.go ignoring `dst.Close()` errors on write files. Both now check close error, remove partial/corrupted file, and return error. Consistent with close-error patterns from tasks 480, 490
+- **Task 498:** Fixed TESTING.md — E2E breakdown updated to 66 active / 5 permanently skipped (was 58/13). Added 3 missing frontend test files to table (videos-progress, retranscribe-progress, upload-collapsible)
+- **Task 499:** Added `fetchWithTimeout` (15s timeout) to `videos-progress.ts` polling fetch. Previously used bare `fetch()` which could hang indefinitely. Tests updated with mock
+- **Task 500:** Added `fetchWithTimeout` to `videos.astro` video list fetch. Previously used bare `fetch()`. Build verified
+- Filed tasks 501-504: TypeScript `any` cleanup, scheduler tests, PROGRESS.md update
+
+### Task 494: Re-transcribe progress box with real-time updates (2026-01-30)
+- Added progress box HTML/CSS to upload page — shows bar, percentage, and status message during re-transcription
+- Progress box animates closed (collapse transition) after 1.5s on completion, hides immediately on error
+- Extracted `retranscribe-progress.ts` utility (show/update/hide/collapse functions) and `upload-collapsible.ts` (section toggle with localStorage persistence)
+- Kept `upload.astro` at 1000 lines (within lint limit) by extracting collapsible logic
+- Added 17 tests: 9 for retranscribe-progress, 8 for upload-collapsible. 875 frontend tests across 32 files pass
+
+### Task 495: My Videos page — real-time transcription progress (2026-01-30)
+- Added `videos-progress.ts` utility that polls `GET /api/transcribe/{id}` for processing/pending videos
+- Shows compact progress bar (4px height, max 200px wide) with status text and percentage in each video card
+- Polls every 3 seconds, stops on completion/error. Handles 403/404 (permanent stop) vs 500/network (retry)
+- When transcription completes, re-renders the video card in-place with new buttons (View, SRT, VTT, JSON)
+- Supports both authenticated and anonymous users (includes session_id for anonymous)
+- Added 14 tests in `videos-progress.test.ts`. 858 frontend tests across 30 files pass
+
+### Task 496: My Videos page — larger thumbnails, less button prominence (2026-01-30)
+- Restructured video card layout: thumbnail (240x135, up from 160x90) and info in a `video-top` row, action buttons in a compact secondary row below
+- Download buttons (SRT, VTT, JSON) changed from full `btn-secondary` buttons to subtle text-style `btn-link` links
+- Delete button changed from prominent red `btn-delete` to compact text-only `btn-delete-sm` pushed right with `margin-left: auto`
+- Actions row separated from content by a subtle `border-top` divider
+- Mobile responsive: thumbnail goes full-width, actions wrap naturally
+- Added 2 tests (video-top structure, btn-link class usage). 844 frontend tests pass
+
+### Tasks 494-496: Filed from user feedback (2026-01-30)
+- **Task 495:** My Videos page should show real-time transcription progress for processing videos (pending)
+
+### Tasks 491-493: Error handling fixes — swallowed DB errors (2026-01-30)
+- **Task 491:** Fixed transcribe handler swallowing `GetTranscription()` DB error — previously logged error but continued, risking duplicate transcription starts or missing a "processing" state. Now returns 500
+- **Task 492:** Fixed burn status handler silently discarding `GetTranscription()` error with `_` — now logs warning so DB issues are visible in logs. Duration/ETA still gracefully omitted on failure
+- **Task 493:** Fixed `finalizeUploadSession()` swallowing critical DB errors — function now returns error when transcription record creation fails. Caller returns 500 instead of reporting upload success when transcription initialization failed. Session status and chunk cleanup remain best-effort
+
+### Tasks 486-488: Spec, schema, and API doc drift fixes (2026-01-30)
+- **Task 486:** Fixed TOTP spec/schema drift — added `qr_code` to setup response in specs/totp.md, added `recovery_codes` and recovery code generation steps to verify response in spec, added `uri` and `issuer` optional fields to `TotpSetupResponseSchema`. Added test for full backend response shape
+- **Task 487:** Fixed 5 Zod schema mismatches: SessionSchema `last_used_at` → `expires_at`, LanguageHintsResponseSchema `recommended` → `suggested_language`/`suggested_confidence`, LanguageHintSchema added `language_name`/`raw_value`, UploadCompleteResponseSchema `id` → `upload_id` and `language_hints` from array to DetectionResult object, UserSchema added `email_verified`. Added 7 tests
+- **Task 488:** Fixed API.md register response — showed full `user` object with `email_verified` field matching backend. Removed false "email disabled returns token" section (never implemented in code)
+- **Task 489:** Fixed frontend type drift — added `embedded_subtitles` to `TranscriptionStatusResponseSchema`, `duration`/`estimated_remaining_seconds` to `BurnStatusResponse`, `conversion_failed_indices` to `AlignmentResponse`. Added test
+- **Task 490:** Made `assembleChunks` `destFile.Close()` error fatal — removes partial file and returns error instead of silently continuing with potentially corrupted assembled file (same pattern as Task 480 for chunk uploads)
+
+### Tasks 483-485: User-reported bugs from FEEDBACK.md (2026-01-30)
+- **Task 483:** Fixed TOTP 2FA enable returning "API response validation failed" — frontend Zod schema expected `{success: boolean}` but backend returned `{message, totp_enabled, recovery_codes}`. Updated `TotpVerifyResponseSchema` to match backend. Added regression test
+- **Task 484:** Fixed session IP showing 127.0.0.1 behind cloudflared — `GetClientIP()` now checks `CF-Connecting-IP` header first (Cloudflare tunnel sets this), before `X-Forwarded-For` and `X-Real-IP`. This also fixes security events recording localhost IPs. Added 3 tests (CF-Connecting-IP trusted/untrusted/precedence)
+- **Task 485:** Added journalctl troubleshooting section to SECURITY_EVENTS.md (6 diagnostic steps). Added `StandardOutput=journal`, `StandardError=journal`, `SyslogIdentifier=subtitler` to deployment.md systemd service file
 
 ### Tasks 481-482: Error handling and caching fixes (2026-01-30)
 - **Task 481:** Fixed burn job handler swallowing `GetBurnJob()` DB error — previously logged error but continued, potentially creating duplicate burn jobs. Now returns 500 on DB failure

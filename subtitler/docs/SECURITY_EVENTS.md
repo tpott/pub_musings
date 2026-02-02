@@ -180,6 +180,49 @@ Track these metrics on your monitoring dashboard:
 - Password reset frequency
 - Session revocations per user
 
+## Troubleshooting: No Logs in journalctl
+
+If `journalctl -u subtitler --since "1 day ago"` returns nothing:
+
+1. **Verify service is running:**
+   ```bash
+   sudo systemctl status subtitler
+   ```
+   If the service is stopped or failed, no new logs will appear.
+
+2. **Verify the unit name matches:**
+   ```bash
+   systemctl list-units --type=service | grep subtitler
+   ```
+
+3. **Check all-time logs (no time filter):**
+   ```bash
+   sudo journalctl -u subtitler -n 50
+   ```
+   If this shows output, the service is logging but there were no events in your time window.
+
+4. **Verify journal is configured to persist:**
+   ```bash
+   sudo mkdir -p /var/log/journal
+   sudo systemd-tmpfiles --create --prefix /var/log/journal
+   sudo systemctl restart systemd-journald
+   ```
+   Without persistent journal storage, logs are lost on reboot.
+
+5. **Verify systemd captures stdout/stderr:**
+   The service file should include `StandardOutput=journal` and `StandardError=journal`
+   (see [specs/deployment.md](../specs/deployment.md) for the complete service file).
+
+6. **Test that logging works:**
+   ```bash
+   # Restart and immediately check
+   sudo systemctl restart subtitler
+   sudo journalctl -u subtitler -n 20 --no-pager
+   ```
+   You should see startup messages like `Server starting on port 8060`.
+
+**Note:** LOG_LEVEL defaults to `info` when not set, which includes all security events. Setting `LOG_LEVEL=error` would suppress security events (logged at INFO/WARN).
+
 ## Real-World Monitoring Examples
 
 ### Journalctl Commands

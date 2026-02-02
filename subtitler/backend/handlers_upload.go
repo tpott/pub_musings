@@ -790,7 +790,11 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 		}
 
 		// Create transcription record and clean up session
-		finalizeUploadSession(r.Context(), uploadID, req.UploadSessionID, chunks)
+		if err := finalizeUploadSession(r.Context(), uploadID, req.UploadSessionID, chunks); err != nil {
+			metrics.RecordUploadFailed()
+			httputil.RespondError(w, http.StatusInternalServerError, "Upload saved but failed to initialize transcription")
+			return
+		}
 
 		// Record metrics and respond
 		metrics.RecordUploadSuccess()
