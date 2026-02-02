@@ -13,9 +13,6 @@ npm run dev
 
 # Build for production
 npm run build
-
-# Preview production build
-npm run preview
 ```
 
 ## Testing
@@ -24,8 +21,14 @@ npm run preview
 # Unit tests
 npm run test
 
+# Content tests (lint, spelling, narrative checks)
+npm run test:content
+
 # E2E tests (requires build first)
 npm run build && npm run test:e2e
+
+# LLM evals (reads ANTHROPIC_API_KEY from .env, costs money)
+npm run test:eval
 
 # All tests
 npm run test:all

@@ -10,8 +10,12 @@
     "astro": "astro",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:content": "vitest run --config vitest.content.config.ts",
+    "test:spell": "cspell \"src/content/blog/**/*.md\"",
     "test:e2e": "playwright test",
-    "test:all": "vitest run && playwright test"
+    "test:eval": "vitest run --config vitest.eval.config.ts",
+    "test:fast": "vitest run --config vitest.content.config.ts && playwright test",
+    "test:all": "vitest run --config vitest.content.config.ts && playwright test && vitest run --config vitest.eval.config.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.0",
@@ -22,12 +26,16 @@
     "typescript": "^5.6.0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@playwright/test": "^1.48.0",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "cspell": "^8.0.0",
+    "gray-matter": "^4.0.3",
     "jsdom": "^25.0.0",
+    "markdownlint": "^0.37.0",
     "vitest": "^2.1.0"
   }
 }

@@ -1,0 +1,22 @@
+# Project-specific and technical terms
+Astro
+Caddy
+sops
+cloudflared
+Plaid
+Anthropic
+ChatGPT
+frontmatter
+MCP
+pdb
+ffmpeg
+Pottinger
+tpott
+pseudoterminal
+vitest
+cspell
+devDependencies
+webhooks
+webhook
+mdash
+Gemini

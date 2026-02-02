@@ -1,0 +1,14 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "files": ["src/content/blog/**/*.md"],
+  "dictionaryDefinitions": [
+    {
+      "name": "project-words",
+      "path": "./tests/content/helpers/dictionary.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": ["project-words"],
+  "ignorePaths": ["node_modules", "dist", ".astro"]
+}
