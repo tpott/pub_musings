@@ -203,7 +203,7 @@ source.connect(analyser);
 
 ```bash
 # In backend directory
-go mod init github.com/tpott/peekaboo/backend
+go mod init github.com/tpott/pub_musings/peekaboo/backend
 
 # Core dependencies
 go get github.com/coder/websocket@v1.8.14
