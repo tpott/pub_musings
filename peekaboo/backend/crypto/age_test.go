@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -307,5 +308,80 @@ func TestDecryptReaderWithWrongKey(t *testing.T) {
 	_, err = DecryptReader(reader, identity2)
 	if err == nil {
 		t.Error("DecryptReader should fail with wrong key")
+	}
+}
+
+func TestLoadIdentityFromFile_InsecurePermissions(t *testing.T) {
+	dir := t.TempDir()
+
+	// Generate a key
+	identity, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	keyFile := filepath.Join(dir, "age.key")
+	keyContent := identity.String() + "\n"
+
+	// Test with world-readable (0644)
+	if err := os.WriteFile(keyFile, []byte(keyContent), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, err = LoadIdentityFromFile(keyFile)
+	if err == nil {
+		t.Error("LoadIdentityFromFile should fail for world-readable key (0644)")
+	}
+	if !errors.Is(err, ErrInsecureKeyPermissions) {
+		t.Errorf("Expected ErrInsecureKeyPermissions, got: %v", err)
+	}
+
+	// Test with group-readable (0640)
+	if err := os.Chmod(keyFile, 0640); err != nil {
+		t.Fatalf("Chmod failed: %v", err)
+	}
+
+	_, err = LoadIdentityFromFile(keyFile)
+	if err == nil {
+		t.Error("LoadIdentityFromFile should fail for group-readable key (0640)")
+	}
+
+	// Test with correct permissions (0600)
+	if err := os.Chmod(keyFile, 0600); err != nil {
+		t.Fatalf("Chmod failed: %v", err)
+	}
+
+	loaded, err := LoadIdentityFromFile(keyFile)
+	if err != nil {
+		t.Fatalf("LoadIdentityFromFile should succeed with 0600: %v", err)
+	}
+	if loaded.String() != identity.String() {
+		t.Error("Loaded identity doesn't match original")
+	}
+}
+
+func TestLoadIdentityFromFile_OwnerOnlyPermissions(t *testing.T) {
+	dir := t.TempDir()
+
+	// Generate a key
+	identity, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	keyFile := filepath.Join(dir, "age.key")
+	keyContent := identity.String() + "\n"
+
+	// Test with owner-read-only (0400) - should succeed
+	if err := os.WriteFile(keyFile, []byte(keyContent), 0400); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	loaded, err := LoadIdentityFromFile(keyFile)
+	if err != nil {
+		t.Fatalf("LoadIdentityFromFile should succeed with 0400: %v", err)
+	}
+	if loaded.String() != identity.String() {
+		t.Error("Loaded identity doesn't match original")
 	}
 }

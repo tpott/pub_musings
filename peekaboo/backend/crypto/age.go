@@ -162,9 +162,28 @@ func DecryptReader(src io.Reader, identity *age.X25519Identity) (io.Reader, erro
 	return r, nil
 }
 
+// ErrInsecureKeyPermissions is returned when the key file has permissions
+// that allow others to read it (mode > 0600).
+var ErrInsecureKeyPermissions = fmt.Errorf("key file has insecure permissions (should be 0600 or stricter)")
+
 // LoadIdentityFromFile loads an X25519 identity from a file.
 // The file should contain a line with the format: AGE-SECRET-KEY-1...
+// Returns ErrInsecureKeyPermissions if the file is world-readable or group-readable.
 func LoadIdentityFromFile(path string) (*age.X25519Identity, error) {
+	// Check file permissions before reading
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat key file: %w", err)
+	}
+
+	// Get file mode and check if it's too permissive
+	// We want mode <= 0600 (only owner can read/write)
+	mode := info.Mode().Perm()
+	if mode&0077 != 0 {
+		// File is readable/writable by group or others
+		return nil, fmt.Errorf("%w: got mode %04o, want 0600 or stricter", ErrInsecureKeyPermissions, mode)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read key file: %w", err)

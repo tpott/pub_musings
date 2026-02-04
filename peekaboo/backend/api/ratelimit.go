@@ -7,25 +7,38 @@ import (
 	"time"
 )
 
+// DefaultMaxEntries is the default maximum number of IPs tracked by the rate limiter.
+// This prevents memory exhaustion from many unique IPs hitting the server.
+const DefaultMaxEntries = 10000
+
 // RateLimiter implements a sliding window rate limiter per IP.
 type RateLimiter struct {
-	mu       sync.Mutex
-	requests map[string][]time.Time
-	limit    int           // max requests per window
-	window   time.Duration // time window
+	mu         sync.Mutex
+	requests   map[string][]time.Time
+	limit      int           // max requests per window
+	window     time.Duration // time window
+	maxEntries int           // max IPs to track (prevents memory exhaustion)
 }
 
-// NewRateLimiter creates a new rate limiter.
+// NewRateLimiter creates a new rate limiter with default max entries.
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
+	return NewRateLimiterWithMaxEntries(limit, window, DefaultMaxEntries)
+}
+
+// NewRateLimiterWithMaxEntries creates a new rate limiter with custom max entries.
+// maxEntries limits how many unique IPs can be tracked to prevent memory exhaustion.
+func NewRateLimiterWithMaxEntries(limit int, window time.Duration, maxEntries int) *RateLimiter {
 	return &RateLimiter{
-		requests: make(map[string][]time.Time),
-		limit:    limit,
-		window:   window,
+		requests:   make(map[string][]time.Time),
+		limit:      limit,
+		window:     window,
+		maxEntries: maxEntries,
 	}
 }
 
 // Allow checks if a request from the given IP should be allowed.
 // Returns true if allowed, false if rate limited.
+// If maxEntries is reached and this is a new IP, the oldest IP entry is evicted.
 func (rl *RateLimiter) Allow(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -48,9 +61,41 @@ func (rl *RateLimiter) Allow(ip string) bool {
 		return false
 	}
 
+	// If this is a new IP and we're at max entries, evict oldest
+	if len(reqs) == 0 && len(rl.requests) >= rl.maxEntries {
+		rl.evictOldest(cutoff)
+	}
+
 	// Add new request
 	rl.requests[ip] = append(valid, now)
 	return true
+}
+
+// evictOldest removes the IP with the oldest last request time.
+// Must be called with rl.mu held.
+func (rl *RateLimiter) evictOldest(cutoff time.Time) {
+	var oldestIP string
+	var oldestTime time.Time
+
+	for ip, reqs := range rl.requests {
+		// Find the most recent request for this IP
+		var mostRecent time.Time
+		for _, t := range reqs {
+			if t.After(mostRecent) {
+				mostRecent = t
+			}
+		}
+
+		// If this IP's most recent request is older than our current oldest, update
+		if oldestIP == "" || mostRecent.Before(oldestTime) {
+			oldestIP = ip
+			oldestTime = mostRecent
+		}
+	}
+
+	if oldestIP != "" {
+		delete(rl.requests, oldestIP)
+	}
 }
 
 // Cleanup removes old entries from the rate limiter.

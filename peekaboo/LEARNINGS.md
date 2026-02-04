@@ -71,3 +71,40 @@ vite: {
 ```
 
 **Lesson:** When a frontend dev server runs on a different port than the backend API server, proxy configuration is required. Relative API URLs (`/api/*`) in frontend code won't magically reach a backend on a different port. Always test the full development workflow (frontend + backend together) before marking setup as complete.
+
+---
+
+### 2026-02-04: Rate limiter memory exhaustion prevention
+
+**Context:** The in-memory rate limiter stored request timestamps per IP in an unbounded map. An attacker could exhaust server memory by sending requests from many unique (spoofed) IPs.
+
+**Solution:** Added `maxEntries` field to `RateLimiter` (default 10,000 IPs). When a new IP arrives and the map is full, the IP with the oldest last-request time is evicted. Existing IPs don't trigger eviction.
+
+**Design choices:**
+- Evict oldest by "most recent request time" not "first request time" - penalizes IPs that stopped being active
+- Default 10,000 entries chosen as reasonable for typical deployment (10K IPs × ~10 timestamps × ~8 bytes ≈ 800KB)
+- Eviction happens only when adding NEW IPs, not on every request
+
+**Lesson:** Unbounded maps in rate limiters are a classic memory exhaustion vector. Always cap the size of per-client state structures.
+
+---
+
+### 2026-02-04: Validate private key file permissions
+
+**Context:** The age encryption key file (`data/age.key`) is loaded via `crypto.LoadIdentityFromFile()`. If this file is world-readable (mode > 0600), anyone on the system can read the private key and decrypt all media files.
+
+**Solution:** Added permission check in `LoadIdentityFromFile()`:
+```go
+mode := info.Mode().Perm()
+if mode&0077 != 0 {
+    return nil, ErrInsecureKeyPermissions
+}
+```
+
+**Behavior:**
+- Mode 0600 (owner rw): Allowed
+- Mode 0400 (owner r): Allowed
+- Mode 0640 (group readable): Rejected
+- Mode 0644 (world readable): Rejected
+
+**Lesson:** Private key files should always validate permissions before loading. Many tools (SSH, age CLI, GPG) do this by default. Custom loading code must implement the same check.

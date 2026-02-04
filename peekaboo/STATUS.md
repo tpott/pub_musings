@@ -41,6 +41,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 56: Validate age key file permissions on startup (2026-02-04)
+- Task 57: Remove viewport zoom restrictions for WCAG compliance (2026-02-04)
+- Task 55: Add max entries limit to rate limiter (2026-02-04)
+- Task 54: Validate actual upload size during streaming (2026-02-04)
 - Task 53: Add E2E test for error recovery flow - transcribe succeeds, intent fails, then retry succeeds (2026-02-04)
 - Task 52: Create docs/SECURITY.md with threat model and mitigations (2026-02-04)
 - FEEDBACK: Fixed go.mod module path (trevorsmith -> tpott), added Astro proxy config for API routes, documented API key requirement (2026-02-04)

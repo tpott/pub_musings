@@ -44,6 +44,13 @@ type WhisperSegment struct {
 	Text  string  `json:"text"`
 }
 
+// maxAudioSize is the maximum allowed audio file size (5MB).
+// This limit is enforced both via Content-Length header and actual stream bytes.
+const maxAudioSize = 5 << 20
+
+// minAudioSize is the minimum allowed audio file size (1KB).
+const minAudioSize = 1024
+
 // TranscribeHandler handles POST /api/transcribe requests.
 // It accepts audio as multipart/form-data and forwards to whisper-server.
 type TranscribeHandler struct {
@@ -90,22 +97,27 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Validate minimum file size (1KB) to reject empty or too-small files
-	const minFileSize = 1024 // 1KB
-	if header.Size < minFileSize {
+	if header.Size < minAudioSize {
 		writeJSON(w, http.StatusBadRequest, TranscribeResponse{Error: "audio file too small (minimum 1KB)"})
 		return
 	}
 
-	// Validate maximum file size (5MB) to prevent resource exhaustion
-	const maxFileSize = 5 << 20 // 5MB
-	if header.Size > maxFileSize {
+	// Validate maximum file size (5MB) via Content-Length header
+	// Note: We also enforce this limit on the actual stream in forwardToWhisper
+	// to prevent attackers from lying about Content-Length
+	if header.Size > maxAudioSize {
 		writeJSON(w, http.StatusRequestEntityTooLarge, TranscribeResponse{Error: "audio file too large (maximum 5MB)"})
 		return
 	}
 
-	// Forward to whisper-server
+	// Forward to whisper-server with stream size limit enforcement
 	text, err := h.forwardToWhisper(file)
 	if err != nil {
+		// Check if stream exceeded size limit (attacker lied about Content-Length)
+		if err == errStreamTooLarge {
+			writeJSON(w, http.StatusRequestEntityTooLarge, TranscribeResponse{Error: "audio file too large (maximum 5MB)"})
+			return
+		}
 		slog.Error("transcription failed",
 			"error", err,
 			"request_id", logging.GetRequestID(r.Context()))
@@ -116,19 +128,34 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, TranscribeResponse{Text: text})
 }
 
+// errStreamTooLarge is returned when the audio stream exceeds the max size limit.
+var errStreamTooLarge = fmt.Errorf("audio stream exceeds maximum size of %d bytes", maxAudioSize)
+
 // forwardToWhisper sends audio to whisper-server and returns the transcript.
+// It enforces a maximum stream size of maxAudioSize bytes to prevent attacks
+// that lie about Content-Length.
 func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (string, error) {
 	// Create multipart form
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
-	// Add audio file
+	// Add audio file with size limit enforcement.
+	// We read maxAudioSize+1 bytes to detect if the stream exceeds the limit.
 	part, err := writer.CreateFormFile("file", "audio.webm")
 	if err != nil {
 		return "", fmt.Errorf("create form file: %w", err)
 	}
-	if _, err := io.Copy(part, audio); err != nil {
+
+	// Use LimitReader to cap the read, but read one extra byte to detect overflow
+	limitedReader := io.LimitReader(audio, maxAudioSize+1)
+	n, err := io.Copy(part, limitedReader)
+	if err != nil {
 		return "", fmt.Errorf("copy audio: %w", err)
+	}
+
+	// If we read more than maxAudioSize, the stream exceeded the limit
+	if n > maxAudioSize {
+		return "", errStreamTooLarge
 	}
 
 	// Add required fields
