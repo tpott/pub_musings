@@ -1,10 +1,99 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fixturesDir = path.join(__dirname, '..', '..', '..', 'tests', 'fixtures');
+
+// Helper to set up mocks and test animal media display
+async function setupMocksAndTestAnimal(
+  page: Page,
+  animal: string,
+  phrase: string
+) {
+  // Mock MediaRecorder and getUserMedia BEFORE page loads
+  await page.addInitScript(() => {
+    class MockMediaRecorder {
+      state = 'inactive';
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      stream: MediaStream | null = null;
+
+      constructor(stream: MediaStream) {
+        this.stream = stream;
+      }
+
+      static isTypeSupported(type: string) {
+        return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+      }
+
+      start() {
+        this.state = 'recording';
+      }
+
+      stop() {
+        this.state = 'inactive';
+        setTimeout(() => {
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }, 10);
+      }
+    }
+
+    const mockStream = {
+      getTracks: () => [{ stop: () => {} }],
+      getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+      getVideoTracks: () => [],
+      active: true,
+      id: 'mock-stream-id',
+    };
+
+    navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+    (window as any).MediaRecorder = MockMediaRecorder;
+  });
+
+  // Mock transcribe API
+  await page.route('**/api/transcribe', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: phrase }),
+    })
+  );
+
+  // Mock intent API
+  await page.route('**/api/intent', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ subject: animal }),
+    })
+  );
+
+  // Mock media endpoint
+  await page.route(`**/api/media/${animal}`, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        photo_url: `/fixtures/mock-${animal}-photo.jpg`,
+        audio_url: `/fixtures/mock-${animal}-audio.mp3`,
+      }),
+    })
+  );
+
+  // Serve test fixtures as static files
+  await page.route('**/fixtures/**', async route => {
+    const url = new URL(route.request().url());
+    const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+    await route.fulfill({ path: filePath });
+  });
+}
 
 test.describe('Peekaboo voice command flow', () => {
   test('voice command shows cat media', async ({ page }) => {
@@ -190,5 +279,47 @@ test.describe('Peekaboo voice command flow', () => {
 
     // Media should not be displayed after an error
     await expect(page.locator('[data-testid="media-image"]')).not.toBeVisible();
+  });
+
+  test('voice command shows dog media', async ({ page }) => {
+    await setupMocksAndTestAnimal(page, 'dog', 'show me a dog');
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    await micButton.dispatchEvent('mousedown');
+    await page.waitForTimeout(200);
+    await micButton.dispatchEvent('mouseup');
+
+    await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
+
+    const img = page.locator('[data-testid="media-image"]');
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-dog-photo.jpg');
+
+    const audio = page.locator('[data-testid="media-audio"]');
+    await expect(audio).toHaveAttribute('src', '/fixtures/mock-dog-audio.mp3');
+  });
+
+  test('voice command shows duck media', async ({ page }) => {
+    await setupMocksAndTestAnimal(page, 'duck', 'I want to see a duck');
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    await micButton.dispatchEvent('mousedown');
+    await page.waitForTimeout(200);
+    await micButton.dispatchEvent('mouseup');
+
+    await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
+
+    const img = page.locator('[data-testid="media-image"]');
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-duck-photo.jpg');
+
+    const audio = page.locator('[data-testid="media-audio"]');
+    await expect(audio).toHaveAttribute('src', '/fixtures/mock-duck-audio.mp3');
   });
 });

@@ -12,6 +12,26 @@ Source: Internet Archive
 URL: https://archive.org/details/animal_201701
 License: CC0 / Public Domain
 
+## mock-dog-photo.jpg
+Source: Wikimedia Commons
+URL: https://commons.wikimedia.org/wiki/File:Dog_-_%E0%B4%A8%E0%B4%BE%E0%B4%AF-6.JPG
+License: CC0 / Public Domain
+
+## mock-dog-audio.mp3
+Source: Internet Archive
+URL: https://archive.org/details/animal_201701
+License: CC0 / Public Domain
+
+## mock-duck-photo.jpg
+Source: Wikimedia Commons
+URL: https://commons.wikimedia.org/wiki/File:Bucephala-albeola-010.jpg
+License: CC0 / Public Domain
+
+## mock-duck-audio.mp3
+Source: Internet Archive
+URL: https://archive.org/details/duck-sounds
+License: CC0 / Public Domain
+
 ## show-me-cat.webm
 Generated: ffmpeg sine wave (synthetic audio)
 Purpose: Placeholder for e2e tests (transcribe API is mocked)
