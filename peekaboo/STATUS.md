@@ -11,6 +11,7 @@ This file tracks high level progress on the peekaboo project.
 - **Age encryption** - crypto package with EncryptFile/DecryptFile using filippo.io/age
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
 - **LLM Intent API** - api/intent.go extracts subject from voice commands using Anthropic tool calls
+- **LLM Provider abstraction** - llm package supports both Anthropic and OpenAI function calling
 - **Media lookup API** - api/media.go returns random media set for a concept
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
@@ -23,6 +24,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 18: Add OpenAI function calling support (2026-02-04)
 - Task 17: Research piper TTS deployment (2026-02-04)
 - Task 19: Deploy peekaboo via webhook-deployer (2026-02-04)
 - Task 16: Add webhook-deployer config (2026-02-04) - config already existed, completed with task 19
