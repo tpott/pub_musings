@@ -1,5 +1,5 @@
 {"id": 1, "description": "Scaffold Go backend with main.go, go.mod, health endpoint", "status": "done", "done_when": "curl localhost:8080/health returns 200 OK"}
-{"id": 2, "description": "Scaffold Astro frontend with mobile-first layout, large touch button, media display area", "status": "todo", "done_when": "npm run dev serves page at localhost:4321 with visible mic button and display area"}
+{"id": 2, "description": "Scaffold Astro frontend with mobile-first layout, large touch button, media display area", "status": "done", "done_when": "npm run dev serves page at localhost:4321 with visible mic button and display area"}
 {"id": 3, "description": "Create .gitignore with .env and data/ entries", "status": "done", "done_when": "git status shows .env and data/ are ignored when files exist there"}
 {"id": 4, "description": "Write scripts/source-media.sh to download CC0/public domain photos and audio for cat, dog, duck, pig, chicken, cow into data/media/", "status": "todo", "done_when": "Running scripts/source-media.sh creates data/media/{cat,dog,duck,pig,chicken,cow}/set1/ each with photo.jpg, audio.mp3, and LICENSE.txt"}
 {"id": 5, "description": "Implement SQLite media database with concepts and media_sets tables, seed 6 animals", "status": "todo", "done_when": "go test ./db passes with tests verifying GetRandomMediaSet returns valid data for each animal"}

@@ -1,0 +1,47 @@
+---
+// MediaDisplay - Area to show photos/videos in response to voice commands
+---
+
+<div class="media-display" data-testid="media-display">
+  <div class="placeholder">
+    <p>Say something like "show me a cat"</p>
+  </div>
+</div>
+
+<style>
+  .media-display {
+    width: 100%;
+    max-width: 500px;
+    aspect-ratio: 4 / 3;
+    background: #2a2a4a;
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .placeholder {
+    color: #888;
+    text-align: center;
+    padding: 1rem;
+    font-size: 1.125rem;
+  }
+
+  .media-display :global(img),
+  .media-display :global(video) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (min-width: 768px) {
+    .media-display {
+      max-width: 600px;
+    }
+
+    .placeholder {
+      font-size: 1.25rem;
+    }
+  }
+</style>

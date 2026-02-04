@@ -19,3 +19,7 @@ Thumbs.db
 
 # Python virtualenv
 .venv/
+
+# Node
+node_modules/
+dist/
