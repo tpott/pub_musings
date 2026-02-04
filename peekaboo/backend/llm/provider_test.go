@@ -60,6 +60,49 @@ func TestNewProvider_Unknown(t *testing.T) {
 	}
 }
 
+func TestNewProvider_MissingAnthropicKey(t *testing.T) {
+	_, err := NewProvider(Config{
+		Provider: "anthropic",
+		APIKey:   "",
+	})
+	if err == nil {
+		t.Fatal("Expected error for missing API key")
+	}
+	expected := "ANTHROPIC_API_KEY is required for anthropic provider"
+	if err.Error() != expected {
+		t.Errorf("Expected error %q, got %q", expected, err.Error())
+	}
+}
+
+func TestNewProvider_MissingOpenAIKey(t *testing.T) {
+	_, err := NewProvider(Config{
+		Provider: "openai",
+		APIKey:   "",
+	})
+	if err == nil {
+		t.Fatal("Expected error for missing API key")
+	}
+	expected := "OPENAI_API_KEY is required for openai provider"
+	if err.Error() != expected {
+		t.Errorf("Expected error %q, got %q", expected, err.Error())
+	}
+}
+
+func TestNewProvider_MissingDefaultProviderKey(t *testing.T) {
+	// Empty provider defaults to anthropic, should require ANTHROPIC_API_KEY
+	_, err := NewProvider(Config{
+		Provider: "",
+		APIKey:   "",
+	})
+	if err == nil {
+		t.Fatal("Expected error for missing API key with default provider")
+	}
+	expected := "ANTHROPIC_API_KEY is required for anthropic provider"
+	if err.Error() != expected {
+		t.Errorf("Expected error %q, got %q", expected, err.Error())
+	}
+}
+
 func TestNewProvider_CustomModel(t *testing.T) {
 	provider, err := NewProvider(Config{
 		Provider: "anthropic",

@@ -11,7 +11,7 @@ This file tracks high level progress on the peekaboo project.
 - **Age encryption** - crypto package with EncryptFile/DecryptFile/DecryptReader, encrypted media serving via EncryptedFileServer
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
 - **LLM Intent API** - api/intent.go uses llm.Provider interface for intent extraction
-- **LLM Provider abstraction** - llm package supports Anthropic and OpenAI; main.go creates provider from env
+- **LLM Provider abstraction** - llm package supports Anthropic and OpenAI; validates API keys at initialization
 - **Media lookup API** - api/media.go returns random media set for a concept, with input validation
 - **Environment config** - .env.example documents all required environment variables
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
@@ -29,6 +29,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 33: Validate API key format in LLM provider initialization (2026-02-04)
 - Task 32: Add minimum audio file size validation (1KB) to transcribe endpoint (2026-02-04)
 - Task 31: Add liveness and readiness health probes with database connectivity check (2026-02-04)
 - Task 30: Create docs/API.md with comprehensive endpoint documentation including curl examples (2026-02-04)

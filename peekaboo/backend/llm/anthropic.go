@@ -22,6 +22,10 @@ type anthropicProvider struct {
 }
 
 func newAnthropicProvider(cfg Config) (*anthropicProvider, error) {
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY is required for anthropic provider")
+	}
+
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
 		baseURL = defaultAnthropicURL

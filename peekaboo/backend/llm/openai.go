@@ -22,6 +22,10 @@ type openaiProvider struct {
 }
 
 func newOpenAIProvider(cfg Config) (*openaiProvider, error) {
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY is required for openai provider")
+	}
+
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
 		baseURL = defaultOpenAIURL
