@@ -21,7 +21,7 @@ This file tracks high level progress on the peekaboo project.
 - **Playwright e2e tests** - 5 tests verify cat/dog/duck media display, error handling, and error recovery
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
-- **Piper TTS spec** - specs/piper.md documents installation, voice selection, HTTP API
+- **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint (optional, requires PIPER_SERVER_URL)
 - **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database and whisper-server checks
@@ -47,6 +47,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 60: Implement Piper TTS integration with /api/speak endpoint (2026-02-04)
 - Task 59: Add visible error message when MediaRecorder unavailable (2026-02-04)
 - Task 58: Add URL validation for media URLs to prevent XSS (2026-02-04)
 - Task 56: Validate age key file permissions on startup (2026-02-04)

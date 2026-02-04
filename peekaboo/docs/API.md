@@ -309,6 +309,79 @@ curl http://localhost:8080/data/media/cat/set1/audio.mp3 -o cat.mp3
 
 ---
 
+### Synthesize Speech (TTS)
+
+Convert text to speech using the Piper TTS server. This endpoint is optional and only available when `PIPER_SERVER_URL` is configured.
+
+```
+POST /api/speak
+```
+
+#### Request
+
+- **Content-Type**: `application/json`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | string | Yes | The text to synthesize (max 256 characters) |
+
+#### Response
+
+**Success (200 OK)**:
+- **Content-Type**: `audio/wav`
+- Returns raw WAV audio data (16-bit PCM)
+
+**Error (400 Bad Request)**:
+```json
+{
+  "error": "invalid JSON body"
+}
+```
+
+```json
+{
+  "error": "missing text field"
+}
+```
+
+```json
+{
+  "error": "text too long (max 256 characters)"
+}
+```
+
+**Error (500 Internal Server Error)**:
+```json
+{
+  "error": "speech synthesis failed"
+}
+```
+
+#### Example
+
+```bash
+# Synthesize speech and save to file
+curl -X POST http://localhost:8080/api/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Here is a cat!"}' \
+  -o speech.wav
+
+# Play the audio (requires aplay on Linux)
+aplay speech.wav
+```
+
+#### Configuration
+
+TTS is disabled by default. To enable it, set the `PIPER_SERVER_URL` environment variable:
+
+```bash
+export PIPER_SERVER_URL=http://localhost:5000
+```
+
+See [specs/piper.md](../specs/piper.md) for Piper server setup instructions.
+
+---
+
 ## CORS
 
 The API supports CORS with the following configuration:
@@ -321,10 +394,10 @@ The API supports CORS with the following configuration:
 
 ## Rate Limiting
 
-Expensive endpoints (`/api/transcribe` and `/api/intent`) are rate limited to prevent abuse.
+Expensive endpoints (`/api/transcribe`, `/api/intent`, and `/api/speak`) are rate limited to prevent abuse.
 
 - **Limit**: 10 requests per minute per IP address
-- **Applies to**: `POST /api/transcribe`, `POST /api/intent`
+- **Applies to**: `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`
 - **Response when limited**: HTTP 429 Too Many Requests
 
 ```json

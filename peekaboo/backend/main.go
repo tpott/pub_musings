@@ -16,6 +16,7 @@ import (
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
+	"github.com/tpott/pub_musings/peekaboo/backend/tts"
 )
 
 func main() {
@@ -93,6 +94,23 @@ func main() {
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
 	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
+
+	// TTS endpoint (optional - only enabled if PIPER_SERVER_URL is set)
+	piperURL := os.Getenv("PIPER_SERVER_URL")
+	if piperURL != "" {
+		ttsProvider, err := tts.NewProvider(tts.Config{
+			Provider:  "piper",
+			ServerURL: piperURL,
+		})
+		if err != nil {
+			slog.Error("failed to create TTS provider", "error", err)
+			os.Exit(1)
+		}
+		mux.Handle("POST /api/speak", api.RateLimitMiddleware(api.NewSpeakHandler(ttsProvider), rateLimiter))
+		slog.Info("TTS enabled", "server", piperURL)
+	} else {
+		slog.Debug("TTS disabled (PIPER_SERVER_URL not set)")
+	}
 
 	// Static file server for media files
 	mediaDir := os.Getenv("MEDIA_DIR")

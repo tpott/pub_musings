@@ -30,6 +30,7 @@ cd backend && go test ./api
 cd backend && go test ./crypto
 cd backend && go test ./db
 cd backend && go test ./llm
+cd backend && go test ./tts
 
 # Start the server (requires env vars)
 cd backend && go run main.go
@@ -95,6 +96,7 @@ sops -d secrets.enc.yaml > .env
 | `ANTHROPIC_API_KEY` | Anthropic API key | - |
 | `OPENAI_API_KEY` | OpenAI API key | - |
 | `WHISPER_SERVER_URL` | Whisper server URL | - |
+| `PIPER_SERVER_URL` | Piper TTS server URL (optional) | - |
 | `ALLOWED_ORIGIN` | CORS allowed origin (e.g., `https://peekaboo.example.com`) | `*` (dev only) |
 | `LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
 | `LOG_FORMAT` | Log format (`text` or `json`) | `text` |
