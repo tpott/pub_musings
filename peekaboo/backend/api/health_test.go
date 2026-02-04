@@ -171,4 +171,106 @@ func TestReadinessHandler(t *testing.T) {
 			t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, w.Code)
 		}
 	})
+
+	t.Run("returns 200 with piper when all dependencies available", func(t *testing.T) {
+		// Create mock piper server
+		mockPiper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer mockPiper.Close()
+
+		handler := NewReadinessHandlerWithURLs(database, mockWhisper.URL, mockPiper.URL)
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if resp.Status != "ok" {
+			t.Errorf("expected status 'ok', got %q", resp.Status)
+		}
+
+		// Check all details
+		if resp.Details["database"] != "ok" {
+			t.Errorf("expected database status 'ok', got %q", resp.Details["database"])
+		}
+		if resp.Details["whisper"] != "ok" {
+			t.Errorf("expected whisper status 'ok', got %q", resp.Details["whisper"])
+		}
+		if resp.Details["piper"] != "ok" {
+			t.Errorf("expected piper status 'ok', got %q", resp.Details["piper"])
+		}
+	})
+
+	t.Run("returns 503 when piper-server is unavailable", func(t *testing.T) {
+		// Use an invalid URL that will fail connection
+		handler := NewReadinessHandlerWithURLs(database, mockWhisper.URL, "http://127.0.0.1:1")
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if resp.Status != "unavailable" {
+			t.Errorf("expected status 'unavailable', got %q", resp.Status)
+		}
+
+		if resp.Error != "piper-server unavailable" {
+			t.Errorf("expected error 'piper-server unavailable', got %q", resp.Error)
+		}
+
+		if resp.Details["database"] != "ok" {
+			t.Errorf("expected database detail 'ok', got %q", resp.Details["database"])
+		}
+
+		if resp.Details["whisper"] != "ok" {
+			t.Errorf("expected whisper detail 'ok', got %q", resp.Details["whisper"])
+		}
+
+		if resp.Details["piper"] != "unavailable" {
+			t.Errorf("expected piper detail 'unavailable', got %q", resp.Details["piper"])
+		}
+	})
+
+	t.Run("skips piper check when URL is empty", func(t *testing.T) {
+		// Empty piper URL means TTS is disabled - should skip check
+		handler := NewReadinessHandlerWithURLs(database, mockWhisper.URL, "")
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		// Piper should not be in details when disabled
+		if _, exists := resp.Details["piper"]; exists {
+			t.Errorf("expected no piper detail when disabled, got %q", resp.Details["piper"])
+		}
+	})
 }

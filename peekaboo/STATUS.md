@@ -24,7 +24,7 @@ This file tracks high level progress on the peekaboo project.
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
 - **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
-- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database and whisper-server checks
+- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, and optional Piper checks
 - **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
 - **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent with cleanup goroutine
 - **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
@@ -47,6 +47,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 62: Add Piper connectivity check to /health/ready endpoint (2026-02-04)
 - Task 61: Integrate TTS into frontend - speakSubject() called after media display (2026-02-04)
 - Task 60: Implement Piper TTS integration with /api/speak endpoint (2026-02-04)
 - Task 59: Add visible error message when MediaRecorder unavailable (2026-02-04)
