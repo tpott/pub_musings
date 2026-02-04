@@ -53,16 +53,34 @@ var seedData = []struct {
 
 // Open opens a connection to the SQLite database at the given path.
 // If the database doesn't exist, it will be created.
+// Configures WAL mode, busy timeout, and connection limits for production use.
 func Open(path string) (*DB, error) {
 	conn, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
+	// Limit connections to 1 - SQLite doesn't handle concurrent writers well
+	// With WAL mode, we can have concurrent readers but still only one writer
+	conn.SetMaxOpenConns(1)
+
 	// Test connection
 	if err := conn.Ping(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
+	}
+
+	// Configure SQLite for better performance and reliability
+	pragmas := []string{
+		"PRAGMA busy_timeout = 5000",  // Wait up to 5 seconds if database is locked
+		"PRAGMA journal_mode = WAL",   // Write-Ahead Logging for better concurrency
+		"PRAGMA synchronous = NORMAL", // Balance between safety and performance
+	}
+	for _, pragma := range pragmas {
+		if _, err := conn.Exec(pragma); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("set %s: %w", pragma, err)
+		}
 	}
 
 	return &DB{conn: conn}, nil

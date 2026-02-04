@@ -7,7 +7,7 @@ This file tracks high level progress on the peekaboo project.
 - **Go backend fully wired** - main.go with all API handlers, database init, static files, CORS via ALLOWED_ORIGIN env
 - **Astro frontend scaffolded** - mobile-first layout with mic button and media display
 - **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
-- **SQLite database** - db package with concepts/media_sets tables, GetRandomMediaSet, tests pass
+- **SQLite database** - db package with concepts/media_sets tables, WAL mode, busy timeout, tests pass
 - **Age encryption** - crypto package with EncryptFile/DecryptFile/DecryptReader, encrypted media serving via EncryptedFileServer
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
 - **LLM Intent API** - api/intent.go uses llm.Provider interface for intent extraction
@@ -24,6 +24,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 24: Optimize SQLite configuration with WAL mode, busy timeout, connection limits (2026-02-04)
 - Task 23: Configure CORS properly with ALLOWED_ORIGIN env var (2026-02-04)
 - Task 22: Integrate media encryption - encrypted .age files served with on-demand decryption (2026-02-04)
 - Task 21: Wire up LLM provider abstraction - api/intent.go now uses llm.Provider (2026-02-04)

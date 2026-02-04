@@ -25,6 +25,47 @@ func TestOpenAndClose(t *testing.T) {
 	}
 }
 
+func TestSQLiteConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	// Verify busy_timeout is set
+	var busyTimeout int
+	err = db.conn.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout)
+	if err != nil {
+		t.Fatalf("Failed to query busy_timeout: %v", err)
+	}
+	if busyTimeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", busyTimeout)
+	}
+
+	// Verify journal_mode is WAL
+	var journalMode string
+	err = db.conn.QueryRow("PRAGMA journal_mode").Scan(&journalMode)
+	if err != nil {
+		t.Fatalf("Failed to query journal_mode: %v", err)
+	}
+	if journalMode != "wal" {
+		t.Errorf("journal_mode = %q, want %q", journalMode, "wal")
+	}
+
+	// Verify synchronous is NORMAL (1)
+	var synchronous int
+	err = db.conn.QueryRow("PRAGMA synchronous").Scan(&synchronous)
+	if err != nil {
+		t.Fatalf("Failed to query synchronous: %v", err)
+	}
+	if synchronous != 1 {
+		t.Errorf("synchronous = %d, want 1 (NORMAL)", synchronous)
+	}
+}
+
 func TestInit(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
