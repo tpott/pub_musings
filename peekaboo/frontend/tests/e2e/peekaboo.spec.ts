@@ -322,4 +322,140 @@ test.describe('Peekaboo voice command flow', () => {
     const audio = page.locator('[data-testid="media-audio"]');
     await expect(audio).toHaveAttribute('src', '/fixtures/mock-duck-audio.mp3');
   });
+
+  test('error recovery: transcribe succeeds but intent fails, then retry succeeds', async ({ page }) => {
+    // Track API call count to simulate failure then success
+    let intentCallCount = 0;
+
+    // Mock MediaRecorder BEFORE page loads
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive';
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+
+        constructor(stream: MediaStream) {
+          this.stream = stream;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start() {
+          this.state = 'recording';
+        }
+
+        stop() {
+          this.state = 'inactive';
+          setTimeout(() => {
+            if (this.ondataavailable) {
+              this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
+            }
+            if (this.onstop) {
+              this.onstop();
+            }
+          }, 10);
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+    });
+
+    // Mock transcribe API to always succeed
+    await page.route('**/api/transcribe', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'show me a cat' }),
+      })
+    );
+
+    // Mock intent API to fail first user attempt, then succeed
+    // Use 400 (Bad Request) which is NOT retried by fetchWithRetry (only 429, 500-504 are retried)
+    await page.route('**/api/intent', route => {
+      intentCallCount++;
+      if (intentCallCount === 1) {
+        route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'invalid request' }),
+        });
+      } else {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ subject: 'cat' }),
+        });
+      }
+    });
+
+    // Mock media endpoint
+    await page.route('**/api/media/cat', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          photo_url: '/fixtures/mock-cat-photo.jpg',
+          audio_url: '/fixtures/mock-cat-audio.mp3',
+        }),
+      })
+    );
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const mediaDisplay = page.locator('[data-testid="media-display"]');
+
+    // First attempt - should fail on intent
+    await micButton.dispatchEvent('mousedown');
+    await page.waitForTimeout(200);
+    await micButton.dispatchEvent('mouseup');
+
+    // Wait for error state
+    await page.waitForTimeout(1000);
+
+    // Verify error message is shown (media display contains error text)
+    // 400 errors show the error from the response body
+    await expect(mediaDisplay).toContainText(/invalid request|something went wrong|try again/i);
+
+    // Verify mic button indicates retry option via aria-label
+    await expect(micButton).toHaveAttribute('aria-label', /try again/i);
+
+    // Image should NOT be visible after error
+    await expect(page.locator('[data-testid="media-image"]')).not.toBeVisible();
+
+    // Wait for automatic reset to idle state (3 seconds)
+    await page.waitForTimeout(3500);
+
+    // Retry - second attempt should succeed
+    await micButton.dispatchEvent('mousedown');
+    await page.waitForTimeout(200);
+    await micButton.dispatchEvent('mouseup');
+
+    // Wait for success - image should now be visible
+    await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
+
+    // Verify the cat image is displayed after retry
+    const img = page.locator('[data-testid="media-image"]');
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+  });
 });

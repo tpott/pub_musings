@@ -18,7 +18,7 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
-- **Playwright e2e tests** - 4 tests verify cat/dog/duck media display and error handling
+- **Playwright e2e tests** - 5 tests verify cat/dog/duck media display, error handling, and error recovery
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS spec** - specs/piper.md documents installation, voice selection, HTTP API
@@ -41,6 +41,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 53: Add E2E test for error recovery flow - transcribe succeeds, intent fails, then retry succeeds (2026-02-04)
 - Task 52: Create docs/SECURITY.md with threat model and mitigations (2026-02-04)
 - FEEDBACK: Fixed go.mod module path (trevorsmith -> tpott), added Astro proxy config for API routes, documented API key requirement (2026-02-04)
 - Task 51: Add differentiated error messages for network vs server failures in frontend (2026-02-04)
