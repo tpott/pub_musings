@@ -15,9 +15,11 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display
+- **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
 
 ## Last Completed
 
+- Task 13: Create test fixtures for Playwright e2e tests (2026-02-04)
 - Task 12: Wire up full frontend flow with state management (2026-02-04)
 - Task 11: Frontend media display with image/video/audio support (2026-02-04)
 - Task 10: Frontend microphone recording with MediaRecorder (2026-02-04)
