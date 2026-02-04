@@ -45,8 +45,27 @@ This opens the decrypted file in your editor. When you save and exit, sops re-en
 
 | Variable | Description |
 |----------|-------------|
+| `PORT` | Backend server port (default: 8080, production: 8070) |
 | `WHISPER_SERVER_URL` | URL to whisper-server (e.g., `http://10.0.2.2:8765`) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for LLM intent recognition |
+
+## Systemd Service Setup
+
+Install the user service for automatic restarts:
+
+```bash
+cp docs/peekaboo.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable peekaboo
+systemctl --user start peekaboo
+```
+
+Check status:
+
+```bash
+systemctl --user status peekaboo
+journalctl --user -u peekaboo -f
+```
 
 ## Deployment Steps
 
@@ -83,7 +102,29 @@ npm run build
 
 Configure Caddy to serve:
 - Frontend static files from `frontend/dist/`
-- Proxy `/api/*` to Go backend on port 8080
+- Proxy `/api/*` to Go backend on port 8070
+
+Example Caddyfile block:
+
+```caddy
+peekaboo.pottingers.us {
+    root * /home/trevor/pub_musings/peekaboo/frontend/dist
+    encode gzip
+
+    handle /api/* {
+        reverse_proxy localhost:8070
+    }
+
+    handle /health {
+        reverse_proxy localhost:8070
+    }
+
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
+```
 
 ## Webhook Deployer
 

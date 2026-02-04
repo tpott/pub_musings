@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-- **Go backend scaffolded** - main.go with /health endpoint, listens on :8080
+- **Go backend scaffolded** - main.go with /health endpoint, configurable PORT (default 8080)
 - **Astro frontend scaffolded** - mobile-first layout with mic button and media display
 - **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
 - **SQLite database** - db package with concepts/media_sets tables, GetRandomMediaSet, tests pass
@@ -18,9 +18,12 @@ This file tracks high level progress on the peekaboo project.
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
 - **Playwright e2e tests** - 2 tests verify full voice-to-media flow and error handling
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
+- **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 
 ## Last Completed
 
+- Task 19: Deploy peekaboo via webhook-deployer (2026-02-04)
+- Task 16: Add webhook-deployer config (2026-02-04) - config already existed, completed with task 19
 - Task 15: Setup sops for env var encryption (2026-02-04)
 - Task 14: Create Playwright e2e test with mocked APIs (2026-02-04)
 - Task 13: Create test fixtures for Playwright e2e tests (2026-02-04)
