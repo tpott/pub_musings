@@ -28,7 +28,7 @@ This file tracks high level progress on the peekaboo project.
 - **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
 - **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent with cleanup goroutine
 - **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
-- **Security headers** - X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
+- **Security headers** - Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
 - **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
 - **Structured logging** - slog with configurable log levels (LOG_LEVEL), JSON output (LOG_FORMAT=json), request ID middleware
 - **Request timing** - RequestLoggerMiddleware logs method, path, status code, duration_ms for all requests
@@ -37,6 +37,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 47: Add Content-Security-Policy header with script-src, style-src, img-src, media-src directives (2026-02-04)
 - Task 46: Add database index on media_sets.concept_id (2026-02-04)
 - Task 42: Add retry with exponential backoff to frontend API calls (2026-02-04)
 - Task 45: Add request timing metrics to API handlers (2026-02-04)

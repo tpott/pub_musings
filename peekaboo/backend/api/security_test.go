@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -33,6 +34,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		header string
 		want   string
 	}{
+		{"Content-Security-Policy", ContentSecurityPolicy},
 		{"X-Frame-Options", "DENY"},
 		{"X-Content-Type-Options", "nosniff"},
 		{"X-XSS-Protection", "1; mode=block"},
@@ -67,5 +69,24 @@ func TestSecurityHeadersMiddleware_PassesThrough(t *testing.T) {
 
 	if rec.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d", rec.Code)
+	}
+}
+
+func TestContentSecurityPolicy_Directives(t *testing.T) {
+	// Verify CSP contains all required directives
+	directives := []string{
+		"default-src 'self'",
+		"script-src 'self'",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob:",
+		"media-src 'self' blob:",
+		"connect-src 'self'",
+		"frame-ancestors 'none'",
+	}
+
+	for _, directive := range directives {
+		if !strings.Contains(ContentSecurityPolicy, directive) {
+			t.Errorf("CSP missing directive: %q", directive)
+		}
 	}
 }
