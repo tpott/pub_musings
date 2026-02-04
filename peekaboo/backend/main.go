@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/trevorsmith/peekaboo/api"
 	"github.com/trevorsmith/peekaboo/crypto"
@@ -57,9 +58,12 @@ func main() {
 	mux.Handle("GET /health/live", api.NewLivenessHandler())
 	mux.Handle("GET /health/ready", api.NewReadinessHandler(database))
 
+	// Create rate limiter for expensive endpoints (10 requests per minute per IP)
+	rateLimiter := api.NewRateLimiter(10, time.Minute)
+
 	// API endpoints
-	mux.Handle("POST /api/transcribe", api.NewTranscribeHandler(""))
-	mux.Handle("POST /api/intent", api.NewIntentHandlerWithProvider(llmProvider))
+	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
+	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
 	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
 
 	// Static file server for media files

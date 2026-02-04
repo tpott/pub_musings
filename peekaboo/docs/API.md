@@ -319,6 +319,24 @@ The API supports CORS with the following configuration:
 
 ---
 
+## Rate Limiting
+
+Expensive endpoints (`/api/transcribe` and `/api/intent`) are rate limited to prevent abuse.
+
+- **Limit**: 10 requests per minute per IP address
+- **Applies to**: `POST /api/transcribe`, `POST /api/intent`
+- **Response when limited**: HTTP 429 Too Many Requests
+
+```json
+{
+  "error": "rate limit exceeded, try again later"
+}
+```
+
+The `Retry-After: 60` header is included in rate-limited responses.
+
+---
+
 ## Error Handling
 
 All API errors return JSON responses with an `error` field containing a sanitized error message. Internal details are logged server-side but not exposed to clients.
@@ -331,6 +349,7 @@ Common HTTP status codes:
 | 400 | Bad Request (invalid input) |
 | 404 | Not Found (concept or media not found) |
 | 405 | Method Not Allowed |
+| 429 | Too Many Requests (rate limited) |
 | 500 | Internal Server Error |
 | 503 | Service Unavailable (dependency unavailable) |
 

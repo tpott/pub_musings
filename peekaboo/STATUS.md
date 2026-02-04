@@ -26,9 +26,11 @@ This file tracks high level progress on the peekaboo project.
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints
 - **Input validation** - Minimum audio file size (1KB) for transcription
+- **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent
 
 ## Last Completed
 
+- Task 34: Add rate limiting (10 req/min per IP) to expensive API endpoints (2026-02-04)
 - Task 33: Validate API key format in LLM provider initialization (2026-02-04)
 - Task 32: Add minimum audio file size validation (1KB) to transcribe endpoint (2026-02-04)
 - Task 31: Add liveness and readiness health probes with database connectivity check (2026-02-04)
