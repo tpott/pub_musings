@@ -34,9 +34,11 @@ This file tracks high level progress on the peekaboo project.
 - **Request timing** - RequestLoggerMiddleware logs method, path, status code, duration_ms for all requests
 - **Frontend retry** - fetchWithRetry utility with exponential backoff (1s, 2s, 4s) on 429/5xx responses
 - **Database index** - idx_media_sets_concept_id for faster media lookups
+- **Troubleshooting guide** - docs/TROUBLESHOOTING.md with microphone, whisper, database, and LLM debugging
 
 ## Last Completed
 
+- Task 48: Create docs/TROUBLESHOOTING.md with common issues and solutions (2026-02-04)
 - Task 47: Add Content-Security-Policy header with script-src, style-src, img-src, media-src directives (2026-02-04)
 - Task 46: Add database index on media_sets.concept_id (2026-02-04)
 - Task 42: Add retry with exponential backoff to frontend API calls (2026-02-04)
