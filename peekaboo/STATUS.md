@@ -17,9 +17,11 @@ This file tracks high level progress on the peekaboo project.
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
 - **Playwright e2e tests** - 2 tests verify full voice-to-media flow and error handling
+- **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 
 ## Last Completed
 
+- Task 15: Setup sops for env var encryption (2026-02-04)
 - Task 14: Create Playwright e2e test with mocked APIs (2026-02-04)
 - Task 13: Create test fixtures for Playwright e2e tests (2026-02-04)
 - Task 12: Wire up full frontend flow with state management (2026-02-04)
