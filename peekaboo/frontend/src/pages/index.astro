@@ -26,6 +26,26 @@ import '../styles/global.css';
   import { PeekabooFlow } from '../lib/peekaboo-flow';
   import { AudioRecorder } from '../lib/audio-recorder';
 
+  /**
+   * Show a visible error message when the browser doesn't support voice recording
+   */
+  function showBrowserSupportError(container: HTMLElement): void {
+    container.innerHTML = `
+      <div class="browser-error" role="alert">
+        <h2>Browser Not Supported</h2>
+        <p>Your browser doesn't support voice recording.</p>
+        <p>Please try one of these browsers:</p>
+        <ul>
+          <li>Chrome (version 49+)</li>
+          <li>Firefox (version 25+)</li>
+          <li>Safari (version 14.1+)</li>
+          <li>Edge (version 79+)</li>
+        </ul>
+      </div>
+    `;
+    container.setAttribute('aria-label', 'Browser not supported error');
+  }
+
   // Initialize the flow when DOM is ready
   document.addEventListener('DOMContentLoaded', () => {
     const micButton = document.querySelector('[data-testid="mic-button"]') as HTMLButtonElement;
@@ -40,6 +60,10 @@ import '../styles/global.css';
     if (!AudioRecorder.isSupported()) {
       micButton.disabled = true;
       micButton.title = 'Microphone not supported in this browser';
+      micButton.setAttribute('aria-label', 'Microphone not supported');
+
+      // Show visible error banner instead of just a tooltip
+      showBrowserSupportError(mediaContainer);
       return;
     }
 
@@ -71,5 +95,37 @@ import '../styles/global.css';
     .title {
       font-size: 3rem;
     }
+  }
+
+  /* Browser support error styling */
+  .browser-error {
+    text-align: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    border-radius: 1rem;
+    color: #991b1b;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .browser-error h2 {
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+  }
+
+  .browser-error p {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+  }
+
+  .browser-error ul {
+    text-align: left;
+    display: inline-block;
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .browser-error li {
+    margin: 0.25rem 0;
   }
 </style>
