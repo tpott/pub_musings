@@ -37,9 +37,11 @@ This file tracks high level progress on the peekaboo project.
 - **Troubleshooting guide** - docs/TROUBLESHOOTING.md with microphone, whisper, database, and LLM debugging
 - **Differentiated error messages** - Frontend errors.ts module with ApiError class, user-friendly messages for network/rate-limit/server errors
 - **Astro dev proxy** - Vite proxy config in astro.config.mjs forwards /api/* and /data/media/* to Go backend at port 8080
+- **Security documentation** - docs/SECURITY.md with threat model, mitigation references, and security testing commands
 
 ## Last Completed
 
+- Task 52: Create docs/SECURITY.md with threat model and mitigations (2026-02-04)
 - FEEDBACK: Fixed go.mod module path (trevorsmith -> tpott), added Astro proxy config for API routes, documented API key requirement (2026-02-04)
 - Task 51: Add differentiated error messages for network vs server failures in frontend (2026-02-04)
 - Task 50: Add loading state indicators - Listening, Processing, Searching (2026-02-04)
