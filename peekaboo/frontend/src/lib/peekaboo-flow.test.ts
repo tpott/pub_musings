@@ -186,11 +186,55 @@ describe('PeekabooFlow', () => {
       // Verify media fetch was called with subject
       expect(mediaDisplay.fetchMedia).toHaveBeenCalledWith('cat');
 
-      // Verify display.show was called with media
-      expect(mockShow).toHaveBeenCalledWith({
-        photoUrl: '/data/media/cat/photo.jpg',
-        audioUrl: '/data/media/cat/audio.mp3',
-      });
+      // Verify display.show was called with media and subject
+      expect(mockShow).toHaveBeenCalledWith(
+        {
+          photoUrl: '/data/media/cat/photo.jpg',
+          audioUrl: '/data/media/cat/audio.mp3',
+        },
+        'cat'
+      );
+    });
+  });
+
+  describe('accessibility', () => {
+    it('updates aria-pressed attribute when recording', async () => {
+      expect(micButton.getAttribute('aria-pressed')).toBe('false');
+
+      await flow.startRecording();
+
+      expect(micButton.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('resets aria-pressed when not recording', async () => {
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(micButton.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('updates aria-label based on state', async () => {
+      // Initial idle state
+      expect(micButton.getAttribute('aria-label')).toContain('Press and hold');
+
+      // Recording state
+      await flow.startRecording();
+      expect(micButton.getAttribute('aria-label')).toContain('Recording');
+
+      // Processing state is brief, but we can check displaying state
+      await flow.stopRecordingAndProcess();
+      expect(micButton.getAttribute('aria-label')).toContain('Showing result');
+    });
+
+    it('updates aria-label to error message on failure', async () => {
+      (audioRecorder.transcribeAudio as Mock).mockRejectedValue(
+        new Error('Test error')
+      );
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(micButton.getAttribute('aria-label')).toContain('error');
     });
   });
 

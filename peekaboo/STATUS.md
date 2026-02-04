@@ -22,9 +22,11 @@ This file tracks high level progress on the peekaboo project.
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS spec** - specs/piper.md documents installation, voice selection, HTTP API
+- **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support
 
 ## Last Completed
 
+- Task 29: Add accessibility features - ARIA labels on mic button, role=region and aria-live=polite on media display (2026-02-04)
 - Task 28: Sanitize error messages in API responses to prevent info leakage (2026-02-04)
 - Task 27: api/media_test.go was already complete (2026-02-04)
 - FEEDBACK: Move backend code to backend/ subdirectory (2026-02-04)

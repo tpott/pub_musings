@@ -22,8 +22,9 @@ export class MediaDisplay {
   /**
    * Display media content in the container
    * @param media Object with photoUrl, videoUrl, audioUrl
+   * @param concept Optional concept name for accessibility
    */
-  show(media: MediaContent): void {
+  show(media: MediaContent, concept?: string): void {
     // Stop any existing audio
     this.stopAudio();
 
@@ -32,24 +33,28 @@ export class MediaDisplay {
 
     // Show video if available, otherwise show photo
     if (media.videoUrl) {
-      this.showVideo(media.videoUrl);
+      this.showVideo(media.videoUrl, concept);
     } else if (media.photoUrl) {
-      this.showImage(media.photoUrl);
+      this.showImage(media.photoUrl, concept);
     }
 
     // Play audio if available
     if (media.audioUrl) {
       this.playAudio(media.audioUrl);
     }
+
+    // Update aria-label for the container
+    const description = concept ? `Showing ${concept}` : 'Showing media content';
+    this.container.setAttribute('aria-label', description);
   }
 
   /**
    * Show an image in the container
    */
-  private showImage(url: string): void {
+  private showImage(url: string, concept?: string): void {
     const img = document.createElement('img');
     img.src = url;
-    img.alt = 'Media content';
+    img.alt = concept ? `Photo of a ${concept}` : 'Media content';
     img.dataset.testid = 'media-image';
     this.container.appendChild(img);
   }
@@ -57,7 +62,7 @@ export class MediaDisplay {
   /**
    * Show a video in the container
    */
-  private showVideo(url: string): void {
+  private showVideo(url: string, concept?: string): void {
     const video = document.createElement('video');
     video.src = url;
     video.autoplay = true;
@@ -65,6 +70,7 @@ export class MediaDisplay {
     video.muted = true; // Required for autoplay
     video.playsInline = true;
     video.dataset.testid = 'media-video';
+    video.setAttribute('aria-label', concept ? `Video of a ${concept}` : 'Video content');
     this.container.appendChild(video);
   }
 
@@ -103,6 +109,7 @@ export class MediaDisplay {
   reset(placeholderText: string = 'Say something like "show me a cat"'): void {
     this.stopAudio();
     this.container.innerHTML = `<div class="placeholder"><p>${placeholderText}</p></div>`;
+    this.container.setAttribute('aria-label', 'Media display area');
   }
 
   /**

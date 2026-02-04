@@ -147,6 +147,55 @@ describe('MediaDisplay', () => {
       expect(video.playsInline).toBe(true);
     });
   });
+
+  describe('accessibility', () => {
+    it('sets aria-label on container when showing media with concept', () => {
+      display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
+
+      expect(container.getAttribute('aria-label')).toBe('Showing cat');
+    });
+
+    it('sets generic aria-label when no concept provided', () => {
+      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+
+      expect(container.getAttribute('aria-label')).toBe('Showing media content');
+    });
+
+    it('resets aria-label when reset is called', () => {
+      display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
+      display.reset();
+
+      expect(container.getAttribute('aria-label')).toBe('Media display area');
+    });
+
+    it('sets descriptive alt text on images when concept is provided', () => {
+      display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
+
+      const img = container.querySelector('img');
+      expect(img?.getAttribute('alt')).toBe('Photo of a cat');
+    });
+
+    it('sets generic alt text on images when no concept provided', () => {
+      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+
+      const img = container.querySelector('img');
+      expect(img?.getAttribute('alt')).toBe('Media content');
+    });
+
+    it('sets aria-label on video when concept is provided', () => {
+      display.show({ videoUrl: '/data/media/cat/video.mp4' }, 'cat');
+
+      const video = container.querySelector('video');
+      expect(video?.getAttribute('aria-label')).toBe('Video of a cat');
+    });
+
+    it('sets generic aria-label on video when no concept provided', () => {
+      display.show({ videoUrl: '/data/media/cat/video.mp4' });
+
+      const video = container.querySelector('video');
+      expect(video?.getAttribute('aria-label')).toBe('Video content');
+    });
+  });
 });
 
 describe('fetchMedia', () => {
