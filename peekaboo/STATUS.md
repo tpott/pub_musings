@@ -38,6 +38,12 @@ This file tracks high level progress on the peekaboo project.
 - **Differentiated error messages** - Frontend errors.ts module with ApiError class, user-friendly messages for network/rate-limit/server errors
 - **Astro dev proxy** - Vite proxy config in astro.config.mjs forwards /api/* and /data/media/* to Go backend at port 8080
 - **Security documentation** - docs/SECURITY.md with threat model, mitigation references, and security testing commands
+- **Stream size enforcement** - api/transcribe.go uses io.LimitReader to validate actual upload size, not just Content-Length
+- **Rate limiter memory cap** - MaxEntries limit (10K IPs) prevents memory exhaustion from many unique IPs
+- **Key file permissions** - crypto/age.go validates key file mode <= 0600 before loading
+- **WCAG zoom compliance** - Viewport meta allows user zoom (no maximum-scale restriction)
+- **URL validation** - Frontend validates media URLs to prevent javascript: XSS attacks
+- **Browser support error** - Visible error banner when MediaRecorder is unavailable
 
 ## Last Completed
 
