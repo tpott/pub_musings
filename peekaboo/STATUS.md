@@ -10,9 +10,11 @@ This file tracks high level progress on the peekaboo project.
 - **SQLite database** - db package with concepts/media_sets tables, GetRandomMediaSet, tests pass
 - **Age encryption** - crypto package with EncryptFile/DecryptFile using filippo.io/age
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
+- **LLM Intent API** - api/intent.go extracts subject from voice commands using Anthropic tool calls
 
 ## Last Completed
 
+- Task 8: LLM intent recognition with Anthropic tool calls (2026-02-04)
 - Task 7: Whisper-server integration (2026-02-03)
 - Task 6: Age encryption (2026-02-03)
 - Task 5: SQLite media database (2026-02-03)
