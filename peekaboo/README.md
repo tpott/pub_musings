@@ -44,9 +44,11 @@ Go Backend
    cd ../frontend && npm install
    ```
 
-2. Download media assets:
+2. Download media assets (requires bash 4+):
    ```bash
-   ./scripts/source-media.sh
+   bash scripts/source-media.sh
+   # On macOS with zsh default shell, this ensures bash is used
+   # If you get a version error, install newer bash: brew install bash
    ```
 
 3. (Optional) Encrypt media:

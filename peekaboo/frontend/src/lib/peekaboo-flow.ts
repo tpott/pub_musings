@@ -40,12 +40,33 @@ export class PeekabooFlow {
   }
 
   private setupEventListeners(): void {
+    // Mouse events
     this.micButton.addEventListener('mousedown', () => this.startRecording());
-    this.micButton.addEventListener('touchstart', () => this.startRecording(), { passive: true });
     this.micButton.addEventListener('mouseup', () => this.stopRecordingAndProcess());
-    this.micButton.addEventListener('touchend', () => this.stopRecordingAndProcess());
     this.micButton.addEventListener('mouseleave', () => {
       if (this.state === 'recording') {
+        this.stopRecordingAndProcess();
+      }
+    });
+
+    // Touch events
+    this.micButton.addEventListener('touchstart', () => this.startRecording(), { passive: true });
+    this.micButton.addEventListener('touchend', () => this.stopRecordingAndProcess());
+
+    // Keyboard events - Enter and Space act like press-and-hold
+    this.micButton.addEventListener('keydown', (e: KeyboardEvent) => {
+      // Ignore repeated keydown events (key held down)
+      if (e.repeat) return;
+
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault(); // Prevent scrolling on Space, form submission on Enter
+        this.startRecording();
+      }
+    });
+
+    this.micButton.addEventListener('keyup', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
         this.stopRecordingAndProcess();
       }
     });

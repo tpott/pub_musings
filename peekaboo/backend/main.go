@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/trevorsmith/peekaboo/api"
@@ -61,6 +64,23 @@ func main() {
 	// Create rate limiter for expensive endpoints (10 requests per minute per IP)
 	rateLimiter := api.NewRateLimiter(10, time.Minute)
 
+	// Start rate limiter cleanup goroutine to prevent memory growth from stale entries.
+	// The cleanup runs every 5 minutes and removes entries with no recent requests.
+	// The goroutine stops when cleanupCtx is canceled during shutdown.
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				rateLimiter.Cleanup()
+			case <-cleanupCtx.Done():
+				return
+			}
+		}
+	}()
+
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
@@ -105,18 +125,51 @@ func main() {
 		log.Printf("CORS: allowing origin %s", allowedOrigin)
 	}
 
-	// Wrap with CORS middleware
-	handler := corsMiddleware(mux, allowedOrigin)
+	// Wrap with CORS middleware and security headers
+	handler := api.SecurityHeadersMiddleware(corsMiddleware(mux, allowedOrigin))
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 	addr := ":" + port
-	log.Printf("Starting peekaboo server on %s", addr)
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("Server failed: %v", err)
+
+	// Create server with configured handler
+	server := &http.Server{
+		Addr:    addr,
+		Handler: handler,
 	}
+
+	// Start server in goroutine so we can handle shutdown signals
+	go func() {
+		log.Printf("Starting peekaboo server on %s", addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal (SIGINT or SIGTERM)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-quit
+	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+
+	// Cancel cleanup goroutine
+	cleanupCancel()
+
+	// Create shutdown context with 30 second timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	// Attempt graceful shutdown
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	} else {
+		log.Printf("Server stopped gracefully")
+	}
+
+	// Database will be closed by defer database.Close() when main returns
+	log.Printf("Shutdown complete")
 }
 
 // corsMiddleware adds CORS headers for frontend access.

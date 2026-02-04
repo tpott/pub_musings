@@ -34,6 +34,20 @@
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
   }
 
+  .mic-button:focus {
+    outline: 3px solid #4c1d95;
+    outline-offset: 4px;
+  }
+
+  .mic-button:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  .mic-button:focus-visible {
+    outline: 3px solid #4c1d95;
+    outline-offset: 4px;
+  }
+
   .mic-button:active {
     transform: scale(0.95);
   }

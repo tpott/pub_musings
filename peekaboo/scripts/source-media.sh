@@ -1,7 +1,23 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # source-media.sh - Downloads CC0/public domain media for the 6 MVP animals
 # All photos from Wikimedia Commons, all audio from Internet Archive
 # License: CC0 / Public Domain
+#
+# Note: This script requires bash (not sh or zsh). Run with:
+#   bash scripts/source-media.sh
+
+# Check for bash version 4+ (required for associative arrays)
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    echo "ERROR: This script requires bash. Run with: bash $0" >&2
+    exit 1
+fi
+
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    echo "ERROR: This script requires bash version 4.0 or higher." >&2
+    echo "Your version: $BASH_VERSION" >&2
+    echo "On macOS, install a newer bash with: brew install bash" >&2
+    exit 1
+fi
 
 set -euo pipefail
 
@@ -72,12 +88,12 @@ main() {
 
         # Download photo
         if ! download_file "${PHOTO_URLS[$animal]}" "$animal_dir/photo.jpg"; then
-            ((failed++))
+            ((failed++)) || true
         fi
 
         # Download audio
         if ! download_file "${AUDIO_URLS[$animal]}" "$animal_dir/audio.mp3"; then
-            ((failed++))
+            ((failed++)) || true
         fi
 
         # Write license file

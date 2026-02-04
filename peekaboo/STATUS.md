@@ -22,14 +22,21 @@ This file tracks high level progress on the peekaboo project.
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS spec** - specs/piper.md documents installation, voice selection, HTTP API
-- **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support
+- **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
-- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints
+- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database and whisper-server checks
 - **Input validation** - Minimum audio file size (1KB) for transcription
-- **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent
+- **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent with cleanup goroutine
+- **Security headers** - X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
+- **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
 
 ## Last Completed
 
+- Task 39: Add whisper-server connectivity check to /health/ready endpoint (2026-02-04)
+- Task 38: Add keyboard support (Enter/Space) for mic button with focus styles (2026-02-04)
+- Task 37: Add security headers middleware (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection) (2026-02-04)
+- Task 36: Add graceful shutdown with SIGINT/SIGTERM handling, 30s timeout (2026-02-04)
+- Task 35: Start rate limiter cleanup goroutine to prevent memory leak (2026-02-04)
 - FEEDBACK: Updated README with LLM config, whisper.cpp setup, and env var documentation (2026-02-04)
 - Task 34: Add rate limiting (10 req/min per IP) to expensive API endpoints (2026-02-04)
 - Task 33: Validate API key format in LLM provider initialization (2026-02-04)

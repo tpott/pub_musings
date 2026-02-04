@@ -373,4 +373,69 @@ describe('PeekabooFlow', () => {
       expect(flow.getState()).toBe('displaying');
     });
   });
+
+  describe('keyboard events', () => {
+    it('starts recording on Space keydown', async () => {
+      const keydownEvent = new KeyboardEvent('keydown', { key: ' ' });
+      micButton.dispatchEvent(keydownEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(flow.getState()).toBe('recording');
+    });
+
+    it('starts recording on Enter keydown', async () => {
+      const keydownEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+      micButton.dispatchEvent(keydownEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(flow.getState()).toBe('recording');
+    });
+
+    it('stops recording on Space keyup', async () => {
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      micButton.dispatchEvent(new KeyboardEvent('keyup', { key: ' ' }));
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(flow.getState()).toBe('displaying');
+    });
+
+    it('stops recording on Enter keyup', async () => {
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      micButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }));
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(flow.getState()).toBe('displaying');
+    });
+
+    it('ignores repeated keydown events', async () => {
+      // First keydown starts recording
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(flow.getState()).toBe('recording');
+
+      // Clear state tracking
+      stateChanges.length = 0;
+
+      // Repeated keydown should be ignored
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', repeat: true }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      // State should still be recording, no new state change
+      expect(flow.getState()).toBe('recording');
+      expect(stateChanges).toHaveLength(0);
+    });
+
+    it('ignores other keys', async () => {
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(flow.getState()).toBe('idle');
+    });
+  });
 });

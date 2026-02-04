@@ -56,9 +56,16 @@ func TestReadinessHandler(t *testing.T) {
 		t.Fatalf("init database: %v", err)
 	}
 
-	handler := NewReadinessHandler(database)
+	// Create mock whisper server
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
+	defer mockWhisper.Close()
 
-	t.Run("returns 200 when database is available", func(t *testing.T) {
+	handler := NewReadinessHandlerWithWhisperURL(database, mockWhisper.URL)
+
+	t.Run("returns 200 when all dependencies are available", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 		w := httptest.NewRecorder()
 
@@ -76,6 +83,14 @@ func TestReadinessHandler(t *testing.T) {
 		if resp.Status != "ok" {
 			t.Errorf("expected status 'ok', got %q", resp.Status)
 		}
+
+		// Check details
+		if resp.Details["database"] != "ok" {
+			t.Errorf("expected database status 'ok', got %q", resp.Details["database"])
+		}
+		if resp.Details["whisper"] != "ok" {
+			t.Errorf("expected whisper status 'ok', got %q", resp.Details["whisper"])
+		}
 	})
 
 	t.Run("returns 503 when database is unavailable", func(t *testing.T) {
@@ -86,7 +101,7 @@ func TestReadinessHandler(t *testing.T) {
 		}
 		closedDB.Close() // Close it to make ping fail
 
-		handler := NewReadinessHandler(closedDB)
+		handler := NewReadinessHandlerWithWhisperURL(closedDB, mockWhisper.URL)
 
 		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 		w := httptest.NewRecorder()
@@ -104,6 +119,45 @@ func TestReadinessHandler(t *testing.T) {
 
 		if resp.Status != "unavailable" {
 			t.Errorf("expected status 'unavailable', got %q", resp.Status)
+		}
+
+		if resp.Details["database"] != "unavailable" {
+			t.Errorf("expected database detail 'unavailable', got %q", resp.Details["database"])
+		}
+	})
+
+	t.Run("returns 503 when whisper-server is unavailable", func(t *testing.T) {
+		// Use an invalid URL that will fail connection
+		handler := NewReadinessHandlerWithWhisperURL(database, "http://127.0.0.1:1")
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if resp.Status != "unavailable" {
+			t.Errorf("expected status 'unavailable', got %q", resp.Status)
+		}
+
+		if resp.Error != "whisper-server unavailable" {
+			t.Errorf("expected error 'whisper-server unavailable', got %q", resp.Error)
+		}
+
+		if resp.Details["database"] != "ok" {
+			t.Errorf("expected database detail 'ok', got %q", resp.Details["database"])
+		}
+
+		if resp.Details["whisper"] != "unavailable" {
+			t.Errorf("expected whisper detail 'unavailable', got %q", resp.Details["whisper"])
 		}
 	})
 
