@@ -13,6 +13,7 @@ describe('extractIntent', () => {
   it('sends text to /api/intent', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ subject: 'cat' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
@@ -31,6 +32,7 @@ describe('extractIntent', () => {
   it('returns extracted subject', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ subject: 'dog' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
@@ -41,19 +43,22 @@ describe('extractIntent', () => {
   });
 
   it('throws error on failed response', async () => {
+    // Use 400 which is not retried by fetchWithRetry
     const mockResponse = {
       ok: false,
-      status: 500,
-      json: vi.fn().mockResolvedValue({ error: 'Internal server error' }),
+      status: 400,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ error: 'Bad request' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
 
-    await expect(extractIntent('show me a cat')).rejects.toThrow('Internal server error');
+    await expect(extractIntent('show me a cat')).rejects.toThrow('Bad request');
   });
 
   it('throws error when response contains error field', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ error: 'no show_media tool call in response' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
@@ -64,6 +69,7 @@ describe('extractIntent', () => {
   it('throws error when no subject extracted', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({}),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);

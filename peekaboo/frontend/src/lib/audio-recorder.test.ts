@@ -158,6 +158,7 @@ describe('transcribeAudio', () => {
   it('sends audio blob to /api/transcribe', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ text: 'show me a cat' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
@@ -179,21 +180,24 @@ describe('transcribeAudio', () => {
   });
 
   it('throws error on failed response', async () => {
+    // Use 400 which is not retried by fetchWithRetry
     const mockResponse = {
       ok: false,
-      status: 500,
-      json: vi.fn().mockResolvedValue({ error: 'Internal server error' }),
+      status: 400,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({ error: 'Bad request' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
 
     const blob = new Blob(['audio data'], { type: 'audio/webm' });
 
-    await expect(transcribeAudio(blob)).rejects.toThrow('Internal server error');
+    await expect(transcribeAudio(blob)).rejects.toThrow('Bad request');
   });
 
   it('throws error when response contains error field', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ error: 'Transcription failed' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);

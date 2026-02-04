@@ -2,6 +2,8 @@
  * Intent API client - extracts subject from voice command text
  */
 
+import { fetchWithRetry } from './fetch-with-retry';
+
 export interface IntentResult {
   subject: string;
 }
@@ -12,7 +14,7 @@ export interface IntentResult {
  * @returns Subject extracted from the text (e.g., "cat", "dog")
  */
 export async function extractIntent(text: string): Promise<IntentResult> {
-  const response = await fetch('/api/intent', {
+  const response = await fetchWithRetry('/api/intent', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

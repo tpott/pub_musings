@@ -32,9 +32,11 @@ This file tracks high level progress on the peekaboo project.
 - **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
 - **Structured logging** - slog with configurable log levels (LOG_LEVEL), JSON output (LOG_FORMAT=json), request ID middleware
 - **Request timing** - RequestLoggerMiddleware logs method, path, status code, duration_ms for all requests
+- **Frontend retry** - fetchWithRetry utility with exponential backoff (1s, 2s, 4s) on 429/5xx responses
 
 ## Last Completed
 
+- Task 42: Add retry with exponential backoff to frontend API calls (2026-02-04)
 - Task 45: Add request timing metrics to API handlers (2026-02-04)
 - Task 40: Add structured logging with slog - log levels, request IDs, JSON output (2026-02-04)
 - Task 44: Document HTTPS requirements and TLS configuration in docs/DEPLOY.md (2026-02-04)

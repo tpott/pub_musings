@@ -2,6 +2,8 @@
  * MediaDisplay - Handles rendering media content (photo/video/audio)
  */
 
+import { fetchWithRetry } from './fetch-with-retry';
+
 export interface MediaContent {
   photoUrl?: string;
   videoUrl?: string;
@@ -126,7 +128,7 @@ export class MediaDisplay {
  * @returns MediaContent object
  */
 export async function fetchMedia(concept: string): Promise<MediaContent> {
-  const response = await fetch(`/api/media/${encodeURIComponent(concept)}`);
+  const response = await fetchWithRetry(`/api/media/${encodeURIComponent(concept)}`);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));

@@ -2,6 +2,8 @@
  * AudioRecorder - Handles microphone capture using MediaRecorder API
  */
 
+import { fetchWithRetry } from './fetch-with-retry';
+
 export interface RecordingResult {
   blob: Blob;
   mimeType: string;
@@ -104,7 +106,7 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
   const formData = new FormData();
   formData.append('audio', blob, 'audio.webm');
 
-  const response = await fetch('/api/transcribe', {
+  const response = await fetchWithRetry('/api/transcribe', {
     method: 'POST',
     body: formData,
   });

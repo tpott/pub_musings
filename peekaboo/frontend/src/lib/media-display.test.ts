@@ -210,6 +210,7 @@ describe('fetchMedia', () => {
   it('fetches media from /api/media/{concept}', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({
         photo_url: '/data/media/cat/photo.jpg',
         audio_url: '/data/media/cat/audio.mp3',
@@ -219,7 +220,7 @@ describe('fetchMedia', () => {
 
     const result = await fetchMedia('cat');
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/media/cat');
+    expect(global.fetch).toHaveBeenCalledWith('/api/media/cat', undefined);
     expect(result).toEqual({
       photoUrl: '/data/media/cat/photo.jpg',
       videoUrl: undefined,
@@ -230,19 +231,22 @@ describe('fetchMedia', () => {
   it('encodes concept parameter', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ photo_url: '/photo.jpg' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
 
     await fetchMedia('my cat');
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/media/my%20cat');
+    expect(global.fetch).toHaveBeenCalledWith('/api/media/my%20cat', undefined);
   });
 
   it('throws error on failed response', async () => {
+    // Use 404 which is not retried
     const mockResponse = {
       ok: false,
       status: 404,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ error: 'concept not found' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
@@ -253,6 +257,7 @@ describe('fetchMedia', () => {
   it('throws error when response contains error field', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ error: 'no media found for concept' }),
     };
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
@@ -263,6 +268,7 @@ describe('fetchMedia', () => {
   it('includes video_url when available', async () => {
     const mockResponse = {
       ok: true,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({
         photo_url: '/photo.jpg',
         video_url: '/video.mp4',
