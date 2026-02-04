@@ -6,6 +6,11 @@
 
 set -e
 
+# Only run checks if subtitler/ files are being committed
+if ! git diff --cached --name-only | grep -q "^subtitler/"; then
+    exit 0
+fi
+
 SCRIPT_DIR="$(dirname "$0")"
 
 # If running as a git hook, SCRIPT_DIR will be .git/hooks
