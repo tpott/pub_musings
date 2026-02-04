@@ -11,10 +11,14 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from ralph import (
+    INITIAL_BACKOFF_SECONDS,
+    MAX_BACKOFF_SECONDS,
+    calculate_backoff,
     calculate_sleep_seconds,
     fetch_feedback,
     generate_ralph_id,
     get_timestamp,
+    is_api_server_error,
     log,
     parse_rate_limit_reset,
     process_claude_output,
@@ -288,6 +292,74 @@ class TestFetchFeedback(unittest.TestCase):
             log_content = log_file.read_text()
             self.assertIn("fetch failed (exit 2)", log_content)
             self.assertIn("error details", log_content)
+
+
+class TestIsApiServerError(unittest.TestCase):
+    def test_detects_status_code_500(self) -> None:
+        self.assertTrue(is_api_server_error("status_code: 500"))
+        self.assertTrue(is_api_server_error("status code: 500"))
+        self.assertTrue(is_api_server_error("statuscode:500"))
+
+    def test_detects_status_code_529(self) -> None:
+        self.assertTrue(is_api_server_error("status_code: 529"))
+        self.assertTrue(is_api_server_error("Error with status code: 529"))
+
+    def test_detects_5xx_with_error(self) -> None:
+        self.assertTrue(is_api_server_error("500 error occurred"))
+        self.assertTrue(is_api_server_error("error 503"))
+        self.assertTrue(is_api_server_error("Got 502 error from server"))
+
+    def test_detects_overloaded(self) -> None:
+        self.assertTrue(is_api_server_error("API is overloaded"))
+        self.assertTrue(is_api_server_error("Server overloaded, try again"))
+
+    def test_detects_internal_server_error(self) -> None:
+        self.assertTrue(is_api_server_error("internal server error"))
+        self.assertTrue(is_api_server_error("Internal_Server_Error"))
+
+    def test_detects_service_unavailable(self) -> None:
+        self.assertTrue(is_api_server_error("service unavailable"))
+        self.assertTrue(is_api_server_error("Service_Unavailable"))
+
+    def test_detects_api_status_error(self) -> None:
+        self.assertTrue(is_api_server_error("APIStatusError: 500"))
+        self.assertTrue(is_api_server_error("anthropic.APIStatusError 529"))
+
+    def test_returns_false_for_rate_limit(self) -> None:
+        # Rate limits are not server errors
+        self.assertFalse(
+            is_api_server_error("You've hit your limit · resets 2am (America/Los_Angeles)")
+        )
+
+    def test_returns_false_for_other_errors(self) -> None:
+        self.assertFalse(is_api_server_error("Invalid API key"))
+        self.assertFalse(is_api_server_error("Authentication failed"))
+        self.assertFalse(is_api_server_error("400 bad request"))
+
+    def test_returns_false_for_empty_string(self) -> None:
+        self.assertFalse(is_api_server_error(""))
+
+
+class TestCalculateBackoff(unittest.TestCase):
+    def test_first_attempt_is_initial_backoff(self) -> None:
+        self.assertEqual(calculate_backoff(0), INITIAL_BACKOFF_SECONDS)
+
+    def test_second_attempt_is_double(self) -> None:
+        self.assertEqual(calculate_backoff(1), INITIAL_BACKOFF_SECONDS * 2)
+
+    def test_third_attempt_is_quadruple(self) -> None:
+        self.assertEqual(calculate_backoff(2), INITIAL_BACKOFF_SECONDS * 4)
+
+    def test_caps_at_max_backoff(self) -> None:
+        # After enough attempts, should cap at max
+        result = calculate_backoff(10)  # Would be 15 * 1024 = 15360 without cap
+        self.assertEqual(result, MAX_BACKOFF_SECONDS)
+
+    def test_progression_sequence(self) -> None:
+        # 15 -> 30 -> 60 -> 120 -> 240 (capped)
+        expected = [15, 30, 60, 120, 240, 240, 240]
+        for i, exp in enumerate(expected):
+            self.assertEqual(calculate_backoff(i), exp)
 
 
 if __name__ == "__main__":

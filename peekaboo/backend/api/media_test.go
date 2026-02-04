@@ -172,6 +172,88 @@ func TestMediaHandler_WrongMethod(t *testing.T) {
 	}
 }
 
+func TestMediaHandler_InvalidConceptFormat(t *testing.T) {
+	database := setupTestDB(t)
+	defer database.Close()
+
+	handler := NewMediaHandler(database)
+
+	// Test various invalid concept formats
+	invalidConcepts := []struct {
+		name string
+		path string
+	}{
+		{"path_traversal", "/api/media/../etc/passwd"},
+		{"nested_traversal", "/api/media/cat/../dog"},
+		{"uppercase", "/api/media/CAT"},
+		{"exclamation", "/api/media/cat!"},
+		{"at_symbol", "/api/media/cat@dog"},
+		{"forward_slash", "/api/media/a/b"},
+		{"backslash", "/api/media/a%5Cb"}, // URL-encoded backslash
+		{"parent_dir", "/api/media/.."},
+		{"current_dir", "/api/media/."},
+		{"null_byte", "/api/media/cat%00dog"},
+		{"unicode", "/api/media/%E7%8C%AB"}, // URL-encoded 猫
+		{"space", "/api/media/cat%20dog"},   // URL-encoded space
+	}
+
+	for _, tc := range invalidConcepts {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			rr := httptest.NewRecorder()
+
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("Expected status 400 for %s (%s), got %d: %s", tc.name, tc.path, rr.Code, rr.Body.String())
+			}
+
+			var resp MediaResponse
+			json.NewDecoder(rr.Body).Decode(&resp)
+
+			if resp.Error != "invalid concept format" {
+				t.Errorf("Expected 'invalid concept format' error for %s, got %q", tc.name, resp.Error)
+			}
+		})
+	}
+}
+
+func TestMediaHandler_ValidConceptFormats(t *testing.T) {
+	database := setupTestDB(t)
+	defer database.Close()
+
+	handler := NewMediaHandler(database)
+
+	// Test valid concept formats (should pass validation, may return 404 if not found)
+	validConcepts := []string{
+		"cat",         // Lowercase letters
+		"cat123",      // Letters and numbers
+		"my_cat",      // Underscore
+		"cat_dog_123", // Mixed
+		"a",           // Single character
+		"1",           // Number only
+		"_test",       // Leading underscore
+	}
+
+	for _, concept := range validConcepts {
+		t.Run(concept, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/media/"+concept, nil)
+			rr := httptest.NewRecorder()
+
+			handler.ServeHTTP(rr, req)
+
+			// Should not be 400 Bad Request (might be 404 Not Found which is fine)
+			if rr.Code == http.StatusBadRequest {
+				var resp MediaResponse
+				json.NewDecoder(rr.Body).Decode(&resp)
+				if resp.Error == "invalid concept format" {
+					t.Errorf("Concept %q should be valid but got 'invalid concept format'", concept)
+				}
+			}
+		})
+	}
+}
+
 func TestMediaHandler_AllAnimals(t *testing.T) {
 	database := setupTestDB(t)
 	defer database.Close()

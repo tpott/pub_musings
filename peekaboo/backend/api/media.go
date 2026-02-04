@@ -3,10 +3,14 @@ package api
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/trevorsmith/peekaboo/db"
 )
+
+// validConceptPattern matches valid concept IDs (lowercase letters, numbers, underscores).
+var validConceptPattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
 // MediaResponse is the response from GET /api/media/{concept}.
 type MediaResponse struct {
@@ -40,6 +44,12 @@ func (h *MediaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	concept := strings.TrimPrefix(path, "/api/media/")
 	if concept == "" || concept == path {
 		writeJSON(w, http.StatusBadRequest, MediaResponse{Error: "missing concept parameter"})
+		return
+	}
+
+	// Validate concept format (prevent path traversal and injection)
+	if !validConceptPattern.MatchString(concept) {
+		writeJSON(w, http.StatusBadRequest, MediaResponse{Error: "invalid concept format"})
 		return
 	}
 

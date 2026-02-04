@@ -40,8 +40,8 @@ Go Backend
 
 1. Clone and install dependencies:
    ```bash
-   go mod download
-   cd frontend && npm install
+   cd backend && go mod download
+   cd ../frontend && npm install
    ```
 
 2. Download media assets:
@@ -62,7 +62,7 @@ Go Backend
 
 5. Start the backend:
    ```bash
-   go run main.go
+   cd backend && go run main.go
    ```
 
 6. Start the frontend (in another terminal):
@@ -76,14 +76,16 @@ Go Backend
 
 ```
 peekaboo/
-├── api/              # HTTP handlers
-│   ├── intent.go     # POST /api/intent - LLM intent extraction
-│   ├── media.go      # GET /api/media/{concept} - Media lookup
-│   ├── transcribe.go # POST /api/transcribe - Whisper forwarding
-│   └── encrypted_media.go # Encrypted file serving
-├── crypto/           # Age encryption utilities
-├── db/               # SQLite database
-├── llm/              # LLM provider abstraction (Anthropic/OpenAI)
+├── backend/          # Go backend
+│   ├── main.go       # Entry point
+│   ├── api/          # HTTP handlers
+│   │   ├── intent.go     # POST /api/intent - LLM intent extraction
+│   │   ├── media.go      # GET /api/media/{concept} - Media lookup
+│   │   ├── transcribe.go # POST /api/transcribe - Whisper forwarding
+│   │   └── encrypted_media.go # Encrypted file serving
+│   ├── crypto/       # Age encryption utilities
+│   ├── db/           # SQLite database
+│   └── llm/          # LLM provider abstraction (Anthropic/OpenAI)
 ├── frontend/         # Astro frontend
 │   ├── src/lib/      # Core TypeScript modules
 │   └── tests/        # Playwright e2e tests
@@ -105,7 +107,7 @@ The app supports 6 animals with CC0/public domain media:
 
 ```bash
 # Backend tests
-go test ./...
+cd backend && go test ./...
 
 # Frontend unit tests
 cd frontend && npm test

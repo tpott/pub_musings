@@ -16,23 +16,23 @@ When running as Ralph, you MAY:
 ### Go Backend
 
 ```bash
-# Build
-go build ./...
+# Build (from backend/ directory)
+cd backend && go build ./...
 
 # Run all tests
-go test ./...
+cd backend && go test ./...
 
 # Run with verbose output
-go test -v ./...
+cd backend && go test -v ./...
 
 # Run a specific package's tests
-go test ./api
-go test ./crypto
-go test ./db
-go test ./llm
+cd backend && go test ./api
+cd backend && go test ./crypto
+cd backend && go test ./db
+cd backend && go test ./llm
 
 # Start the server (requires env vars)
-go run main.go
+cd backend && go run main.go
 ```
 
 ### Frontend (Astro)

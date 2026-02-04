@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-- **Go backend fully wired** - main.go with all API handlers, database init, static files, CORS via ALLOWED_ORIGIN env
+- **Go backend fully wired** - backend/ with main.go, all API handlers, database init, static files, CORS via ALLOWED_ORIGIN env
 - **Astro frontend scaffolded** - mobile-first layout with mic button and media display
 - **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
 - **SQLite database** - db package with concepts/media_sets tables, WAL mode, busy timeout, tests pass
@@ -12,7 +12,8 @@ This file tracks high level progress on the peekaboo project.
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
 - **LLM Intent API** - api/intent.go uses llm.Provider interface for intent extraction
 - **LLM Provider abstraction** - llm package supports Anthropic and OpenAI; main.go creates provider from env
-- **Media lookup API** - api/media.go returns random media set for a concept
+- **Media lookup API** - api/media.go returns random media set for a concept, with input validation
+- **Environment config** - .env.example documents all required environment variables
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display
@@ -24,6 +25,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- FEEDBACK: Move backend code to backend/ subdirectory (2026-02-04)
+- FEEDBACK: Add exponential backoff to ralph.py for API server errors (2026-02-04)
+- Task 26: Add input validation for concept ID in media API (2026-02-04)
+- Task 25: Create .env.example file with documented environment variables (2026-02-04)
 - Task 24: Optimize SQLite configuration with WAL mode, busy timeout, connection limits (2026-02-04)
 - Task 23: Configure CORS properly with ALLOWED_ORIGIN env var (2026-02-04)
 - Task 22: Integrate media encryption - encrypted .age files served with on-demand decryption (2026-02-04)

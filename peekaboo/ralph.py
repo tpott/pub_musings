@@ -22,6 +22,11 @@ PROMPT_FILE = "RALPH.md"
 STOP_FILE = "STOP_RALPH"
 FETCH_FEEDBACK_SCRIPT = "scripts/fetch-feedback.py"
 
+# Exponential backoff configuration for API errors (500, 529, overloaded)
+INITIAL_BACKOFF_SECONDS = 15
+MAX_BACKOFF_SECONDS = 240  # 4 minutes
+MAX_RETRY_DURATION_SECONDS = 8 * 3600  # 8 hours
+
 
 def generate_ralph_id() -> str:
     """Generate an 8-character base32 ID (40 bits of entropy)."""
@@ -88,6 +93,42 @@ def calculate_sleep_seconds(
     return int(delta.total_seconds()) + 60
 
 
+def is_api_server_error(result: str) -> bool:
+    """
+    Check if the result indicates an API server error (500, 529, overloaded).
+
+    These errors are transient and should be retried with exponential backoff.
+    """
+    error_patterns = [
+        r"status[_\s]?code[:\s]+5\d{2}",  # status_code: 500, status code: 529
+        r"\b5\d{2}\b.*error",  # 500 error, 529 error
+        r"error.*\b5\d{2}\b",  # error...500
+        r"overloaded",  # API overloaded
+        r"internal[_\s]?server[_\s]?error",  # internal server error
+        r"service[_\s]?unavailable",  # service unavailable
+        r"APIStatusError.*5\d{2}",  # APIStatusError with 5xx
+    ]
+    result_lower = result.lower()
+    for pattern in error_patterns:
+        if re.search(pattern, result_lower, re.IGNORECASE):
+            return True
+    return False
+
+
+def calculate_backoff(attempt: int) -> int:
+    """
+    Calculate backoff time using exponential backoff.
+
+    Args:
+        attempt: The retry attempt number (0-indexed)
+
+    Returns:
+        Backoff time in seconds, capped at MAX_BACKOFF_SECONDS
+    """
+    backoff = INITIAL_BACKOFF_SECONDS * (2**attempt)
+    return int(min(backoff, MAX_BACKOFF_SECONDS))
+
+
 def log(msg: str, log_file: Path | None, newline_before: bool = False) -> None:
     """Print message and optionally append to log file."""
     print(msg)
@@ -131,7 +172,10 @@ def fetch_feedback(log_file: Path | None, script_path: Path | None = None) -> No
             log("Feedback: No new feedback", log_file)
         else:
             stderr_msg = result.stderr.strip()
-            log(f"Feedback: fetch failed (exit {result.returncode}): {stderr_msg}", log_file)
+            log(
+                f"Feedback: fetch failed (exit {result.returncode}): {stderr_msg}",
+                log_file,
+            )
     except subprocess.TimeoutExpired:
         log("Feedback: fetch timed out after 30s", log_file)
     except Exception as e:
@@ -321,6 +365,8 @@ def main() -> None:
 
         if "is_error" in last_log and last_log["is_error"]:
             result_text = last_log.get("result", "")
+
+            # Check for rate limit first
             parsed = parse_rate_limit_reset(result_text)
             if parsed:
                 hour, ampm, reset_tz = parsed
@@ -331,6 +377,46 @@ def main() -> None:
                     log_file,
                 )
                 time.sleep(sleep_secs)
+                continue
+
+            # Check for API server errors (500, 529, overloaded)
+            if is_api_server_error(result_text):
+                retry_start = time.time()
+                attempt = 0
+                while True:
+                    backoff = calculate_backoff(attempt)
+                    elapsed = time.time() - retry_start
+                    if elapsed + backoff > MAX_RETRY_DURATION_SECONDS:
+                        log(
+                            f"API error retry exceeded {MAX_RETRY_DURATION_SECONDS // 3600} hours, giving up",
+                            log_file,
+                        )
+                        break
+
+                    log(
+                        f"API server error (attempt {attempt + 1}). Retrying in {backoff}s...",
+                        log_file,
+                    )
+                    time.sleep(backoff)
+
+                    # Retry the claude call
+                    retry_last_line = run_claude(prompt_content, args.verbose, log_file)
+                    if retry_last_line is not None:
+                        try:
+                            retry_log = json.loads(retry_last_line)
+                            if not retry_log.get("is_error", False):
+                                # Success! Continue to next iteration
+                                log("API error resolved, continuing", log_file)
+                                break
+                            retry_result = retry_log.get("result", "")
+                            if not is_api_server_error(retry_result):
+                                # Different error, stop retrying
+                                log(f"Different error: {retry_result}", log_file)
+                                break
+                        except json.JSONDecodeError:
+                            pass
+
+                    attempt += 1
 
     else:
         log(f"Completed {max_iterations} iterations", log_file)
