@@ -126,8 +126,9 @@ func TestTranscribeHandler_WhisperServerError(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if resp.Error == "" {
-		t.Error("Expected error message in response")
+	// Error should be generic, not exposing internal details
+	if resp.Error != "transcription failed" {
+		t.Errorf("Expected generic error 'transcription failed', got %q", resp.Error)
 	}
 }
 

@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -68,7 +69,8 @@ func (h *IntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.provider.ExtractIntent(ctx, req.Text)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, IntentResponse{Error: err.Error()})
+		log.Printf("Intent extraction error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, IntentResponse{Error: "intent extraction failed"})
 		return
 	}
 

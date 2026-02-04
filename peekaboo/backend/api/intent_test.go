@@ -231,8 +231,9 @@ func TestIntentHandler_AnthropicError(t *testing.T) {
 
 	var resp IntentResponse
 	json.NewDecoder(rr.Body).Decode(&resp)
-	if resp.Error == "" {
-		t.Error("Expected error message in response")
+	// Error should be generic, not exposing internal API details
+	if resp.Error != "intent extraction failed" {
+		t.Errorf("Expected generic error 'intent extraction failed', got %q", resp.Error)
 	}
 }
 
@@ -272,8 +273,9 @@ func TestIntentHandler_NoToolUseInResponse(t *testing.T) {
 
 	var resp IntentResponse
 	json.NewDecoder(rr.Body).Decode(&resp)
-	if resp.Error == "" {
-		t.Error("Expected error when no tool_use in response")
+	// Error should be generic, not exposing internal API details
+	if resp.Error != "intent extraction failed" {
+		t.Errorf("Expected generic error 'intent extraction failed', got %q", resp.Error)
 	}
 }
 

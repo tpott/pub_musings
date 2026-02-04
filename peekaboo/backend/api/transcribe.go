@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -89,7 +90,8 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward to whisper-server
 	text, err := h.forwardToWhisper(file)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, TranscribeResponse{Error: err.Error()})
+		log.Printf("Transcribe error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, TranscribeResponse{Error: "transcription failed"})
 		return
 	}
 

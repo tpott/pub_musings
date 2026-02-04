@@ -2,6 +2,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -56,7 +57,8 @@ func (h *MediaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Validate concept exists
 	name, err := h.DB.GetConcept(concept)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, MediaResponse{Error: err.Error()})
+		log.Printf("Media lookup error for concept %q: %v", concept, err)
+		writeJSON(w, http.StatusInternalServerError, MediaResponse{Error: "media lookup failed"})
 		return
 	}
 	if name == "" {
@@ -67,7 +69,8 @@ func (h *MediaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get random media set for concept
 	mediaSet, err := h.DB.GetRandomMediaSet(concept)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, MediaResponse{Error: err.Error()})
+		log.Printf("Media set lookup error for concept %q: %v", concept, err)
+		writeJSON(w, http.StatusInternalServerError, MediaResponse{Error: "media lookup failed"})
 		return
 	}
 	if mediaSet == nil {

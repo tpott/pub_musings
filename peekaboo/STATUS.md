@@ -25,6 +25,8 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 28: Sanitize error messages in API responses to prevent info leakage (2026-02-04)
+- Task 27: api/media_test.go was already complete (2026-02-04)
 - FEEDBACK: Move backend code to backend/ subdirectory (2026-02-04)
 - FEEDBACK: Add exponential backoff to ralph.py for API server errors (2026-02-04)
 - Task 26: Add input validation for concept ID in media API (2026-02-04)
