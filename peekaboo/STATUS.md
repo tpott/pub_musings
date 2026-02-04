@@ -25,9 +25,11 @@ This file tracks high level progress on the peekaboo project.
 - **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints
+- **Input validation** - Minimum audio file size (1KB) for transcription
 
 ## Last Completed
 
+- Task 32: Add minimum audio file size validation (1KB) to transcribe endpoint (2026-02-04)
 - Task 31: Add liveness and readiness health probes with database connectivity check (2026-02-04)
 - Task 30: Create docs/API.md with comprehensive endpoint documentation including curl examples (2026-02-04)
 - Task 29: Add accessibility features - ARIA labels on mic button, role=region and aria-live=polite on media display (2026-02-04)

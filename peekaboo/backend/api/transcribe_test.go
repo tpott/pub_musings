@@ -10,6 +10,15 @@ import (
 	"testing"
 )
 
+// makeTestAudio creates a fake audio file of the specified size.
+func makeTestAudio(size int) []byte {
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+	return data
+}
+
 func TestTranscribeHandler_Success(t *testing.T) {
 	// Create mock whisper-server
 	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,8 +58,8 @@ func TestTranscribeHandler_Success(t *testing.T) {
 	// Create handler with mock server
 	handler := NewTranscribeHandler(mockWhisper.URL)
 
-	// Create test request
-	req := createMultipartRequest(t, "audio", "test.webm", []byte("fake audio data"))
+	// Create test request with valid size audio (>= 1KB)
+	req := createMultipartRequest(t, "audio", "test.webm", makeTestAudio(2048))
 	rr := httptest.NewRecorder()
 
 	// Make request
@@ -112,7 +121,7 @@ func TestTranscribeHandler_WhisperServerError(t *testing.T) {
 
 	handler := NewTranscribeHandler(mockWhisper.URL)
 
-	req := createMultipartRequest(t, "audio", "test.webm", []byte("fake audio"))
+	req := createMultipartRequest(t, "audio", "test.webm", makeTestAudio(2048))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -149,7 +158,7 @@ func TestTranscribeHandler_EmptyTranscript(t *testing.T) {
 
 	handler := NewTranscribeHandler(mockWhisper.URL)
 
-	req := createMultipartRequest(t, "audio", "silence.webm", []byte("silent audio"))
+	req := createMultipartRequest(t, "audio", "silence.webm", makeTestAudio(2048))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -165,6 +174,56 @@ func TestTranscribeHandler_EmptyTranscript(t *testing.T) {
 
 	if resp.Text != "" {
 		t.Errorf("Expected empty text, got %q", resp.Text)
+	}
+}
+
+func TestTranscribeHandler_FileTooSmall(t *testing.T) {
+	handler := NewTranscribeHandler("http://localhost:9999")
+
+	// Create request with file smaller than 1KB
+	req := createMultipartRequest(t, "audio", "tiny.webm", []byte("tiny"))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", rr.Code)
+	}
+
+	var resp TranscribeResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if resp.Error != "audio file too small (minimum 1KB)" {
+		t.Errorf("Expected error about small file, got %q", resp.Error)
+	}
+}
+
+func TestTranscribeHandler_FileExactlyMinSize(t *testing.T) {
+	// Create mock whisper-server
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{
+			Task:     "transcribe",
+			Language: "en",
+			Duration: 1.0,
+			Text:     "test",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	handler := NewTranscribeHandler(mockWhisper.URL)
+
+	// Create request with file exactly 1KB (should be accepted)
+	req := createMultipartRequest(t, "audio", "exact.webm", makeTestAudio(1024))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for exactly 1KB file, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 

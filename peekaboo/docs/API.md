@@ -105,6 +105,7 @@ POST /api/transcribe
 #### Request
 
 - **Content-Type**: `multipart/form-data`
+- **Min Size**: 1KB
 - **Max Size**: 10MB
 
 | Field | Type | Required | Description |
@@ -124,6 +125,12 @@ POST /api/transcribe
 ```json
 {
   "error": "missing audio file"
+}
+```
+
+```json
+{
+  "error": "audio file too small (minimum 1KB)"
 }
 ```
 

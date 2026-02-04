@@ -80,12 +80,19 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get audio file from form
-	file, _, err := r.FormFile("audio")
+	file, header, err := r.FormFile("audio")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, TranscribeResponse{Error: "missing audio file"})
 		return
 	}
 	defer file.Close()
+
+	// Validate minimum file size (1KB) to reject empty or too-small files
+	const minFileSize = 1024 // 1KB
+	if header.Size < minFileSize {
+		writeJSON(w, http.StatusBadRequest, TranscribeResponse{Error: "audio file too small (minimum 1KB)"})
+		return
+	}
 
 	// Forward to whisper-server
 	text, err := h.forwardToWhisper(file)
