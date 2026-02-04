@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-- **Go backend scaffolded** - main.go with /health endpoint, configurable PORT (default 8080)
+- **Go backend fully wired** - main.go with all API handlers, database init, static files, CORS
 - **Astro frontend scaffolded** - mobile-first layout with mic button and media display
 - **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
 - **SQLite database** - db package with concepts/media_sets tables, GetRandomMediaSet, tests pass
@@ -24,6 +24,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 20: Wire up backend main.go with handlers, DB init, static files, CORS (2026-02-04)
 - Task 18: Add OpenAI function calling support (2026-02-04)
 - Task 17: Research piper TTS deployment (2026-02-04)
 - Task 19: Deploy peekaboo via webhook-deployer (2026-02-04)

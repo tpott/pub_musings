@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS concepts (
 CREATE TABLE IF NOT EXISTS media_sets (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	concept_id TEXT NOT NULL REFERENCES concepts(id),
-	photo_path TEXT NOT NULL,
+	photo_path TEXT NOT NULL UNIQUE,
 	audio_path TEXT,
 	video_path TEXT
 );
@@ -95,9 +95,10 @@ func (db *DB) Init() error {
 }
 
 // SeedMediaSet inserts a media set for a concept.
+// If a media set with the same photo_path already exists, it's ignored.
 func (db *DB) SeedMediaSet(conceptID, photoPath, audioPath, videoPath string) error {
 	_, err := db.conn.Exec(
-		"INSERT INTO media_sets (concept_id, photo_path, audio_path, video_path) VALUES (?, ?, ?, ?)",
+		"INSERT OR IGNORE INTO media_sets (concept_id, photo_path, audio_path, video_path) VALUES (?, ?, ?, ?)",
 		conceptID, photoPath, audioPath, videoPath,
 	)
 	if err != nil {
