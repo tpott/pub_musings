@@ -22,7 +22,7 @@ type MediaSet struct {
 	VideoPath string
 }
 
-// schema defines the database tables.
+// schema defines the database tables and indexes.
 const schema = `
 CREATE TABLE IF NOT EXISTS concepts (
 	id TEXT PRIMARY KEY,
@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS media_sets (
 	audio_path TEXT,
 	video_path TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_media_sets_concept_id ON media_sets(concept_id);
 `
 
 // seedData contains the 6 MVP animals.

@@ -33,9 +33,11 @@ This file tracks high level progress on the peekaboo project.
 - **Structured logging** - slog with configurable log levels (LOG_LEVEL), JSON output (LOG_FORMAT=json), request ID middleware
 - **Request timing** - RequestLoggerMiddleware logs method, path, status code, duration_ms for all requests
 - **Frontend retry** - fetchWithRetry utility with exponential backoff (1s, 2s, 4s) on 429/5xx responses
+- **Database index** - idx_media_sets_concept_id for faster media lookups
 
 ## Last Completed
 
+- Task 46: Add database index on media_sets.concept_id (2026-02-04)
 - Task 42: Add retry with exponential backoff to frontend API calls (2026-02-04)
 - Task 45: Add request timing metrics to API handlers (2026-02-04)
 - Task 40: Add structured logging with slog - log levels, request IDs, JSON output (2026-02-04)

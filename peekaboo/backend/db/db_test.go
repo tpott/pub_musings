@@ -86,6 +86,34 @@ func TestInit(t *testing.T) {
 	}
 }
 
+func TestIndexExists(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Verify index exists on media_sets.concept_id
+	var indexName string
+	err = db.conn.QueryRow(`
+		SELECT name FROM sqlite_master
+		WHERE type='index' AND tbl_name='media_sets' AND name='idx_media_sets_concept_id'
+	`).Scan(&indexName)
+	if err != nil {
+		t.Fatalf("Index idx_media_sets_concept_id not found: %v", err)
+	}
+	if indexName != "idx_media_sets_concept_id" {
+		t.Errorf("Index name = %q, want %q", indexName, "idx_media_sets_concept_id")
+	}
+}
+
 func TestGetConcept(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
