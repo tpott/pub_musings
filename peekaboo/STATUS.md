@@ -11,9 +11,11 @@ This file tracks high level progress on the peekaboo project.
 - **Age encryption** - crypto package with EncryptFile/DecryptFile using filippo.io/age
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
 - **LLM Intent API** - api/intent.go extracts subject from voice commands using Anthropic tool calls
+- **Media lookup API** - api/media.go returns random media set for a concept
 
 ## Last Completed
 
+- Task 9: Media lookup API GET /api/media/{concept} (2026-02-04)
 - Task 8: LLM intent recognition with Anthropic tool calls (2026-02-04)
 - Task 7: Whisper-server integration (2026-02-03)
 - Task 6: Age encryption (2026-02-03)
