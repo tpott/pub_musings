@@ -153,7 +153,7 @@ func main() {
 	}
 
 	// Wrap with middleware chain: request logger -> request ID -> security headers -> CORS
-	handler := logging.RequestLoggerMiddleware(logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(corsMiddleware(mux, allowedOrigin))))
+	handler := logging.RequestLoggerMiddleware(logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(api.CORSMiddleware(mux, allowedOrigin))))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -198,25 +198,6 @@ func main() {
 
 	// Database will be closed by defer database.Close() when main returns
 	slog.Info("shutdown complete")
-}
-
-// corsMiddleware adds CORS headers for frontend access.
-// allowedOrigin specifies the allowed origin for CORS requests.
-// Use "*" to allow any origin (development only), or a specific origin like "https://peekaboo.example.com".
-func corsMiddleware(next http.Handler, allowedOrigin string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 // seedMediaFromDisk scans data/media/{concept}/set* directories and seeds the database.

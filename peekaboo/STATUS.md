@@ -44,9 +44,13 @@ This file tracks high level progress on the peekaboo project.
 - **WCAG zoom compliance** - Viewport meta allows user zoom (no maximum-scale restriction)
 - **URL validation** - Frontend validates media URLs to prevent javascript: XSS attacks
 - **Browser support error** - Visible error banner when MediaRecorder is unavailable
+- **CORS test coverage** - backend/api/cors.go extracted from main.go with unit tests for preflight handling
+- **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
 
 ## Last Completed
 
+- Task 65: Add TTS troubleshooting section to docs/TROUBLESHOOTING.md (2026-02-04)
+- Task 64: Add CORS middleware unit test (2026-02-04)
 - Task 63: Add E2E test for TTS synthesis flow (2026-02-04)
 - Task 62: Add Piper connectivity check to /health/ready endpoint (2026-02-04)
 - Task 61: Integrate TTS into frontend - speakSubject() called after media display (2026-02-04)

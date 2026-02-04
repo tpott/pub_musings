@@ -136,6 +136,105 @@ curl http://127.0.0.1:8765/health
 
 ---
 
+## Piper TTS (Text-to-Speech)
+
+> **Note:** TTS is optional. If `PIPER_SERVER_URL` is not set, Peekaboo works without speech synthesis - it just won't announce subjects like "Here is a cat."
+
+### TTS endpoint returns 404
+
+**Symptoms:**
+- `/api/speak` returns 404 Not Found
+- Frontend silently skips TTS (expected behavior)
+
+**Cause:**
+This is normal when TTS is not configured. The frontend gracefully handles this.
+
+**If you want TTS:**
+1. Set `PIPER_SERVER_URL` in your `.env`:
+   ```bash
+   PIPER_SERVER_URL=http://localhost:5000
+   ```
+2. Restart the backend
+
+### Health check shows piper unavailable
+
+**Symptoms:**
+- `/health/ready` returns 503 with `"piper": "unavailable"`
+- TTS requests fail
+
+**Diagnosis:**
+
+```bash
+# Check health endpoint
+curl http://localhost:8080/health/ready
+# If PIPER_SERVER_URL is set, expect: {"status":"ok","database":"ok","whisper":"ok","piper":"ok"}
+# If PIPER_SERVER_URL is NOT set, piper won't appear in response
+
+# Check piper-server directly
+curl http://localhost:5000/
+# Expected: responds with info or accepts POST
+```
+
+**Solutions:**
+
+1. **Verify piper-server is running**:
+   ```bash
+   # Check if process is running
+   pgrep -f piper
+
+   # Check if port is listening
+   lsof -i :5000
+   ```
+
+2. **Start piper-server** (if installed):
+   ```bash
+   # Example with piper HTTP server
+   piper --http-port 5000
+   ```
+
+3. **Check PIPER_SERVER_URL in .env**:
+   ```bash
+   grep PIPER_SERVER_URL .env
+   # Should be: PIPER_SERVER_URL=http://localhost:5000
+   ```
+
+4. **For VM deployments**, use the host IP (not localhost):
+   ```bash
+   PIPER_SERVER_URL=http://10.0.2.2:5000
+   ```
+
+### TTS returns empty or garbled audio
+
+**Symptoms:**
+- API returns 200 but audio doesn't play
+- Audio sounds corrupted
+
+**Solutions:**
+
+1. **Check text input**: Very short or empty text may produce no audio.
+
+2. **Verify audio format**: Peekaboo expects WAV audio from Piper. Check browser console for decode errors.
+
+3. **Test directly**:
+   ```bash
+   curl -X POST http://localhost:8080/api/speak \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Hello world"}' \
+     --output test.wav
+   file test.wav
+   # Should say: RIFF (little-endian) data, WAVE audio
+   ```
+
+### TTS rate limited
+
+**Symptoms:**
+- API returns 429 Too Many Requests
+
+**Solutions:**
+Rate limit is 10 requests per minute per IP (same as other expensive endpoints). Wait 60 seconds or check the `Retry-After` header.
+
+---
+
 ## Database Issues
 
 ### Database file locked
@@ -393,6 +492,7 @@ LOG_LEVEL=debug go run main.go
 |---------|---------|
 | `database unavailable` | Can't connect to SQLite |
 | `whisper server health check failed` | Can't reach whisper-server |
+| `TTS disabled (PIPER_SERVER_URL not set)` | Piper TTS not configured (debug level) |
 | `rate limit exceeded` | Too many requests from IP |
 | `invalid API key` | LLM API key format wrong |
 
@@ -418,9 +518,19 @@ curl -X POST http://localhost:8080/api/intent \
 # Test media lookup
 curl http://localhost:8080/api/media/dog
 
+# Test TTS (if configured)
+curl -X POST http://localhost:8080/api/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello"}' \
+  --output /dev/null -w "%{http_code}"
+# Returns 200 if TTS configured, 404 if not
+
 # Check database
 sqlite3 data/peekaboo.db "SELECT COUNT(*) FROM concepts;"
 
 # Check whisper-server
 curl http://127.0.0.1:8765/health
+
+# Check piper-server (if configured)
+curl http://localhost:5000/
 ```
