@@ -8,7 +8,7 @@ import { AudioRecorder, transcribeAudio } from './audio-recorder';
 import { extractIntent } from './intent';
 import { MediaDisplay, fetchMedia } from './media-display';
 
-export type FlowState = 'idle' | 'recording' | 'processing' | 'displaying' | 'error';
+export type FlowState = 'idle' | 'recording' | 'transcribing' | 'searching' | 'displaying' | 'error';
 
 export interface PeekabooFlowOptions {
   micButton: HTMLButtonElement;
@@ -79,22 +79,43 @@ export class PeekabooFlow {
   }
 
   private updateUI(): void {
+    const isProcessing = this.state === 'transcribing' || this.state === 'searching';
+
     // Update button visual state
     this.micButton.classList.toggle('recording', this.state === 'recording');
-    this.micButton.classList.toggle('processing', this.state === 'processing');
-    this.micButton.disabled = this.state === 'processing';
+    this.micButton.classList.toggle('processing', isProcessing);
+    this.micButton.disabled = isProcessing;
 
     // Update accessibility attributes
     this.micButton.setAttribute('aria-pressed', String(this.state === 'recording'));
     this.micButton.setAttribute('aria-label', this.getAriaLabel());
+
+    // Show loading indicator in media display during processing states
+    this.updateLoadingIndicator();
+  }
+
+  private updateLoadingIndicator(): void {
+    switch (this.state) {
+      case 'recording':
+        this.display.reset('Listening...');
+        break;
+      case 'transcribing':
+        this.display.reset('Processing...');
+        break;
+      case 'searching':
+        this.display.reset('Searching...');
+        break;
+    }
   }
 
   private getAriaLabel(): string {
     switch (this.state) {
       case 'recording':
-        return 'Recording... Release to stop';
-      case 'processing':
-        return 'Processing your request';
+        return 'Listening... Release to stop';
+      case 'transcribing':
+        return 'Processing your voice...';
+      case 'searching':
+        return 'Searching for media...';
       case 'error':
         return 'An error occurred. Press and hold to try again';
       case 'displaying':
@@ -128,16 +149,16 @@ export class PeekabooFlow {
       return;
     }
 
-    this.setState('processing');
-
     try {
       // Stop recording and get audio blob
+      this.setState('transcribing');
       const { blob } = await this.recorder.stopRecording();
 
       // Transcribe audio
       const transcript = await transcribeAudio(blob);
 
-      // Extract intent from transcript
+      // Extract intent and fetch media
+      this.setState('searching');
       const { subject } = await extractIntent(transcript);
 
       // Fetch media for the subject

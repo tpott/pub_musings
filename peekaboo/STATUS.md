@@ -16,7 +16,7 @@ This file tracks high level progress on the peekaboo project.
 - **Environment config** - .env.example documents all required environment variables
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
-- **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display
+- **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
 - **Playwright e2e tests** - 4 tests verify cat/dog/duck media display and error handling
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
@@ -38,6 +38,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 50: Add loading state indicators - Listening, Processing, Searching (2026-02-04)
 - Task 49: Add E2E tests for dog and duck animals (2026-02-04)
 - Task 48: Create docs/TROUBLESHOOTING.md with common issues and solutions (2026-02-04)
 - Task 47: Add Content-Security-Policy header with script-src, style-src, img-src, media-src directives (2026-02-04)

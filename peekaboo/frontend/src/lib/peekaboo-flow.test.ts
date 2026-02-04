@@ -134,13 +134,22 @@ describe('PeekabooFlow', () => {
       expect(stateChanges).toHaveLength(0);
     });
 
-    it('transitions through processing state', async () => {
+    it('transitions through transcribing state', async () => {
       await flow.startRecording();
       stateChanges.length = 0;
 
       await flow.stopRecordingAndProcess();
 
-      expect(stateChanges).toContain('processing');
+      expect(stateChanges).toContain('transcribing');
+    });
+
+    it('transitions through searching state', async () => {
+      await flow.startRecording();
+      stateChanges.length = 0;
+
+      await flow.stopRecordingAndProcess();
+
+      expect(stateChanges).toContain('searching');
     });
 
     it('ends in displaying state on success', async () => {
@@ -160,7 +169,7 @@ describe('PeekabooFlow', () => {
   });
 
   describe('full flow integration', () => {
-    it('completes full flow: idle -> recording -> processing -> displaying', async () => {
+    it('completes full flow: idle -> recording -> transcribing -> searching -> displaying', async () => {
       expect(flow.getState()).toBe('idle');
 
       await flow.startRecording();
@@ -170,7 +179,7 @@ describe('PeekabooFlow', () => {
       expect(flow.getState()).toBe('displaying');
 
       // Verify state transitions
-      expect(stateChanges).toEqual(['recording', 'processing', 'displaying']);
+      expect(stateChanges).toEqual(['recording', 'transcribing', 'searching', 'displaying']);
     });
 
     it('calls all API functions in correct order', async () => {
@@ -219,7 +228,7 @@ describe('PeekabooFlow', () => {
 
       // Recording state
       await flow.startRecording();
-      expect(micButton.getAttribute('aria-label')).toContain('Recording');
+      expect(micButton.getAttribute('aria-label')).toContain('Listening');
 
       // Processing state is brief, but we can check displaying state
       await flow.stopRecordingAndProcess();
@@ -299,6 +308,82 @@ describe('PeekabooFlow', () => {
       await flow.stopRecordingAndProcess();
 
       expect(mockReset).toHaveBeenCalledWith(expect.stringContaining('Test error message'));
+    });
+  });
+
+  describe('loading state indicators', () => {
+    it('shows "Listening..." during recording state', async () => {
+      await flow.startRecording();
+
+      expect(mockReset).toHaveBeenCalledWith('Listening...');
+    });
+
+    it('shows "Processing..." during transcribing state', async () => {
+      await flow.startRecording();
+      mockReset.mockClear();
+
+      // Start processing - this will transition to transcribing
+      const processPromise = flow.stopRecordingAndProcess();
+
+      // After the first state change (transcribing), check display
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(mockReset).toHaveBeenCalledWith('Processing...');
+
+      await processPromise;
+    });
+
+    it('shows "Searching..." during searching state', async () => {
+      await flow.startRecording();
+      mockReset.mockClear();
+
+      await flow.stopRecordingAndProcess();
+
+      expect(mockReset).toHaveBeenCalledWith('Searching...');
+    });
+
+    it('disables button during processing states', async () => {
+      // Track whether button was ever disabled during processing
+      let wasDisabledDuringProcessing = false;
+      const checkDisabled = () => {
+        if (flow.getState() === 'transcribing' || flow.getState() === 'searching') {
+          wasDisabledDuringProcessing = micButton.disabled;
+        }
+      };
+
+      // Override onStateChange to check button state
+      const stateFlow = new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        onStateChange: (state) => {
+          if (state === 'transcribing' || state === 'searching') {
+            wasDisabledDuringProcessing = wasDisabledDuringProcessing || micButton.disabled;
+          }
+        },
+      });
+
+      await stateFlow.startRecording();
+      await stateFlow.stopRecordingAndProcess();
+
+      expect(wasDisabledDuringProcessing).toBe(true);
+    });
+
+    it('adds processing class during processing states', async () => {
+      let hadProcessingClass = false;
+
+      const stateFlow = new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        onStateChange: (state) => {
+          if (state === 'transcribing' || state === 'searching') {
+            hadProcessingClass = hadProcessingClass || micButton.classList.contains('processing');
+          }
+        },
+      });
+
+      await stateFlow.startRecording();
+      await stateFlow.stopRecordingAndProcess();
+
+      expect(hadProcessingClass).toBe(true);
     });
   });
 
