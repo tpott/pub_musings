@@ -94,6 +94,13 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate maximum file size (5MB) to prevent resource exhaustion
+	const maxFileSize = 5 << 20 // 5MB
+	if header.Size > maxFileSize {
+		writeJSON(w, http.StatusRequestEntityTooLarge, TranscribeResponse{Error: "audio file too large (maximum 5MB)"})
+		return
+	}
+
 	// Forward to whisper-server
 	text, err := h.forwardToWhisper(file)
 	if err != nil {

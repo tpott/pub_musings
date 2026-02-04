@@ -25,13 +25,17 @@ This file tracks high level progress on the peekaboo project.
 - **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database and whisper-server checks
-- **Input validation** - Minimum audio file size (1KB) for transcription
+- **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
 - **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent with cleanup goroutine
+- **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
 - **Security headers** - X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
 - **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
 
 ## Last Completed
 
+- Task 44: Document HTTPS requirements and TLS configuration in docs/DEPLOY.md (2026-02-04)
+- Task 43: Add max audio file size validation (5MB) to transcribe endpoint (2026-02-04)
+- Task 41: Add max text length validation (500 chars) to /api/intent endpoint (2026-02-04)
 - Task 39: Add whisper-server connectivity check to /health/ready endpoint (2026-02-04)
 - Task 38: Add keyboard support (Enter/Space) for mic button with focus styles (2026-02-04)
 - Task 37: Add security headers middleware (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection) (2026-02-04)

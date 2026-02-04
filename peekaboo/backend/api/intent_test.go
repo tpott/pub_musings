@@ -171,6 +171,82 @@ func TestIntentHandler_MissingText(t *testing.T) {
 	}
 }
 
+func TestIntentHandler_TextTooLong(t *testing.T) {
+	// Create a dummy provider (won't be called due to validation)
+	provider, _ := llm.NewProvider(llm.Config{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+	})
+	handler := NewIntentHandlerWithProvider(provider)
+
+	// Create text longer than 500 characters
+	longText := make([]byte, 501)
+	for i := range longText {
+		longText[i] = 'a'
+	}
+
+	reqBody, _ := json.Marshal(IntentRequest{Text: string(longText)})
+	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", rr.Code)
+	}
+
+	var resp IntentResponse
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Error != "text too long (max 500 characters)" {
+		t.Errorf("Expected 'text too long' error, got %q", resp.Error)
+	}
+}
+
+func TestIntentHandler_TextAtMaxLength(t *testing.T) {
+	// Test that text at exactly 500 characters is accepted
+	mockAnthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := anthropicTestResponse{
+			ID:   "msg_max",
+			Type: "message",
+			Role: "assistant",
+			Content: []anthropicTestContentBlock{
+				{
+					Type:  "tool_use",
+					ID:    "toolu_max",
+					Name:  "show_media",
+					Input: json.RawMessage(`{"subject": "cat"}`),
+				},
+			},
+			Model: "claude-3-haiku-20240307",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockAnthropic.Close()
+
+	provider := createTestProvider(t, mockAnthropic.URL)
+	handler := NewIntentHandlerWithProvider(provider)
+
+	// Create text at exactly 500 characters
+	maxText := make([]byte, 500)
+	for i := range maxText {
+		maxText[i] = 'a'
+	}
+
+	reqBody, _ := json.Marshal(IntentRequest{Text: string(maxText)})
+	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	// Should succeed, not be rejected
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for text at max length, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestIntentHandler_InvalidJSON(t *testing.T) {
 	// Create a dummy provider (won't be called due to validation)
 	provider, _ := llm.NewProvider(llm.Config{

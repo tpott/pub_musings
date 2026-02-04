@@ -227,6 +227,58 @@ func TestTranscribeHandler_FileExactlyMinSize(t *testing.T) {
 	}
 }
 
+func TestTranscribeHandler_FileTooLarge(t *testing.T) {
+	handler := NewTranscribeHandler("http://localhost:9999")
+
+	// Create request with file larger than 5MB
+	largeFile := makeTestAudio(5<<20 + 1) // 5MB + 1 byte
+	req := createMultipartRequest(t, "audio", "large.webm", largeFile)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected status 413, got %d", rr.Code)
+	}
+
+	var resp TranscribeResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if resp.Error != "audio file too large (maximum 5MB)" {
+		t.Errorf("Expected error about large file, got %q", resp.Error)
+	}
+}
+
+func TestTranscribeHandler_FileExactlyMaxSize(t *testing.T) {
+	// Create mock whisper-server
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{
+			Task:     "transcribe",
+			Language: "en",
+			Duration: 60.0,
+			Text:     "long audio transcription",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	handler := NewTranscribeHandler(mockWhisper.URL)
+
+	// Create request with file exactly 5MB (should be accepted)
+	maxFile := makeTestAudio(5 << 20) // exactly 5MB
+	req := createMultipartRequest(t, "audio", "max.webm", maxFile)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200 for exactly 5MB file, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 // createMultipartRequest creates a test HTTP request with a multipart form containing a file.
 func createMultipartRequest(t *testing.T, fieldName, filename string, content []byte) *http.Request {
 	t.Helper()

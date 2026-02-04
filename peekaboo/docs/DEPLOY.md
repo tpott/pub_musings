@@ -126,6 +126,46 @@ peekaboo.pottingers.us {
 }
 ```
 
+## HTTPS and TLS
+
+**IMPORTANT: Peekaboo requires HTTPS in production.**
+
+The frontend uses the MediaRecorder API for microphone access, which browsers only allow on secure contexts (HTTPS or localhost). Running over plain HTTP will cause microphone access to silently fail.
+
+### Caddy Auto-HTTPS
+
+Caddy automatically provisions and renews TLS certificates via Let's Encrypt. When you configure a domain in Caddyfile (e.g., `peekaboo.pottingers.us`), Caddy:
+
+1. Requests a certificate from Let's Encrypt
+2. Configures HTTPS with modern cipher suites
+3. Redirects HTTP to HTTPS automatically
+4. Renews certificates before expiration
+
+Requirements for auto-HTTPS:
+- Domain DNS must point to your server
+- Ports 80 and 443 must be accessible
+- Email for Let's Encrypt can be set globally: `email admin@example.com`
+
+### Certificate Storage
+
+Caddy stores certificates at:
+- Linux: `~/.local/share/caddy/certificates/`
+- macOS: `~/Library/Application Support/Caddy/certificates/`
+
+### Development (localhost)
+
+For local development, HTTPS is not required. Browsers allow microphone access on `localhost` without TLS. Run the frontend dev server normally:
+
+```bash
+cd frontend && npm run dev
+```
+
+### Security Warnings
+
+- **Never run HTTP in production** - microphone access will fail and user data (voice recordings, transcripts) will be transmitted unencrypted
+- **Don't use self-signed certificates** - browsers will show warnings and may block microphone access
+- **Verify certificate validity** - test with `curl -v https://peekaboo.example.com/health`
+
 ## Webhook Deployer
 
 The webhook-deployer is configured in `../webhook-deployer/config.yaml` to deploy both frontend and backend when changes are pushed to the `peek1` branch.

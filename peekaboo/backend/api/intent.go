@@ -63,6 +63,13 @@ func (h *IntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit text length to prevent token explosion in LLM (500 chars is ~100 tokens)
+	const maxTextLength = 500
+	if len(req.Text) > maxTextLength {
+		writeJSON(w, http.StatusBadRequest, IntentResponse{Error: "text too long (max 500 characters)"})
+		return
+	}
+
 	// Extract intent using LLM provider
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
