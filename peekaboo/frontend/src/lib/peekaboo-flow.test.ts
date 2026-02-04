@@ -3,6 +3,7 @@ import { PeekabooFlow, FlowState } from './peekaboo-flow';
 import * as audioRecorder from './audio-recorder';
 import * as intent from './intent';
 import * as mediaDisplay from './media-display';
+import * as textToSpeech from './text-to-speech';
 
 // Mock modules at the top level
 vi.mock('./audio-recorder', () => ({
@@ -17,6 +18,10 @@ vi.mock('./intent', () => ({
 vi.mock('./media-display', () => ({
   MediaDisplay: vi.fn(),
   fetchMedia: vi.fn(),
+}));
+
+vi.mock('./text-to-speech', () => ({
+  speakSubject: vi.fn(),
 }));
 
 describe('PeekabooFlow', () => {
@@ -69,6 +74,9 @@ describe('PeekabooFlow', () => {
       photoUrl: '/data/media/cat/photo.jpg',
       audioUrl: '/data/media/cat/audio.mp3',
     });
+
+    // Setup speakSubject mock - TTS is optional, return null (TTS unavailable)
+    (textToSpeech.speakSubject as Mock).mockResolvedValue(null);
 
     // Create DOM elements
     micButton = document.createElement('button');

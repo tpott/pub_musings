@@ -8,6 +8,7 @@ import { AudioRecorder, transcribeAudio } from './audio-recorder';
 import { extractIntent } from './intent';
 import { MediaDisplay, fetchMedia } from './media-display';
 import { getUserFriendlyMessage, ApiError } from './errors';
+import { speakSubject } from './text-to-speech';
 
 export type FlowState = 'idle' | 'recording' | 'transcribing' | 'searching' | 'displaying' | 'error';
 
@@ -168,6 +169,15 @@ export class PeekabooFlow {
       // Display the media with accessibility context
       this.display.show(media, subject);
       this.setState('displaying');
+
+      // Attempt to speak the subject using TTS (if available)
+      // TTS is optional - we don't fail the flow if it's unavailable
+      try {
+        await speakSubject(subject);
+      } catch (ttsError) {
+        // Log TTS errors but don't interrupt the media display
+        console.warn('TTS unavailable:', ttsError);
+      }
     } catch (error) {
       this.handleError(error as Error);
     }
