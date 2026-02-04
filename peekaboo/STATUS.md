@@ -13,9 +13,11 @@ This file tracks high level progress on the peekaboo project.
 - **LLM Intent API** - api/intent.go extracts subject from voice commands using Anthropic tool calls
 - **Media lookup API** - api/media.go returns random media set for a concept
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
+- **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 
 ## Last Completed
 
+- Task 11: Frontend media display with image/video/audio support (2026-02-04)
 - Task 10: Frontend microphone recording with MediaRecorder (2026-02-04)
 - Task 9: Media lookup API GET /api/media/{concept} (2026-02-04)
 - Task 8: LLM intent recognition with Anthropic tool calls (2026-02-04)
