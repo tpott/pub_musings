@@ -458,4 +458,140 @@ test.describe('Peekaboo voice command flow', () => {
     const img = page.locator('[data-testid="media-image"]');
     await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
   });
+
+  test('TTS synthesis is called after displaying media', async ({ page }) => {
+    let ttsWasCalled = false;
+    let ttsText = '';
+
+    // Mock MediaRecorder BEFORE page loads
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive';
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+
+        constructor(stream: MediaStream) {
+          this.stream = stream;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start() {
+          this.state = 'recording';
+        }
+
+        stop() {
+          this.state = 'inactive';
+          setTimeout(() => {
+            if (this.ondataavailable) {
+              this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
+            }
+            if (this.onstop) {
+              this.onstop();
+            }
+          }, 10);
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+    });
+
+    // Mock transcribe API
+    await page.route('**/api/transcribe', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'show me a cat' }),
+      })
+    );
+
+    // Mock intent API
+    await page.route('**/api/intent', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ subject: 'cat' }),
+      })
+    );
+
+    // Mock media endpoint
+    await page.route('**/api/media/cat', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          photo_url: '/fixtures/mock-cat-photo.jpg',
+          audio_url: '/fixtures/mock-cat-audio.mp3',
+        }),
+      })
+    );
+
+    // Mock TTS speak endpoint - return a minimal WAV file
+    await page.route('**/api/speak', async route => {
+      const request = route.request();
+      const postData = request.postDataJSON();
+      ttsWasCalled = true;
+      ttsText = postData?.text || '';
+
+      // Create a minimal WAV header (44 bytes) + some silent audio data
+      const wavHeader = new Uint8Array([
+        0x52, 0x49, 0x46, 0x46, // "RIFF"
+        0x24, 0x00, 0x00, 0x00, // File size - 8
+        0x57, 0x41, 0x56, 0x45, // "WAVE"
+        0x66, 0x6d, 0x74, 0x20, // "fmt "
+        0x10, 0x00, 0x00, 0x00, // Subchunk size (16)
+        0x01, 0x00,             // Audio format (1 = PCM)
+        0x01, 0x00,             // Num channels (1)
+        0x44, 0xac, 0x00, 0x00, // Sample rate (44100)
+        0x88, 0x58, 0x01, 0x00, // Byte rate
+        0x02, 0x00,             // Block align
+        0x10, 0x00,             // Bits per sample (16)
+        0x64, 0x61, 0x74, 0x61, // "data"
+        0x00, 0x00, 0x00, 0x00, // Data size (0 = silent)
+      ]);
+
+      route.fulfill({
+        status: 200,
+        contentType: 'audio/wav',
+        body: Buffer.from(wavHeader),
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    await micButton.dispatchEvent('mousedown');
+    await page.waitForTimeout(200);
+    await micButton.dispatchEvent('mouseup');
+
+    // Wait for media to display
+    await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
+
+    // Wait a bit more for TTS to be called (it's async after media display)
+    await page.waitForTimeout(500);
+
+    // Verify TTS was called with correct phrase
+    expect(ttsWasCalled).toBe(true);
+    expect(ttsText).toBe('Here is a cat!');
+  });
 });

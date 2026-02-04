@@ -18,7 +18,7 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
-- **Playwright e2e tests** - 5 tests verify cat/dog/duck media display, error handling, and error recovery
+- **Playwright e2e tests** - 6 tests verify cat/dog/duck media display, error handling, error recovery, and TTS synthesis
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
@@ -47,6 +47,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 63: Add E2E test for TTS synthesis flow (2026-02-04)
 - Task 62: Add Piper connectivity check to /health/ready endpoint (2026-02-04)
 - Task 61: Integrate TTS into frontend - speakSubject() called after media display (2026-02-04)
 - Task 60: Implement Piper TTS integration with /api/speak endpoint (2026-02-04)
