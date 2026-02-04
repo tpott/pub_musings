@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MediaDisplay, fetchMedia } from './media-display';
+import { MediaDisplay, fetchMedia, isValidMediaUrl } from './media-display';
 
 describe('MediaDisplay', () => {
   let container: HTMLElement;
@@ -195,6 +195,131 @@ describe('MediaDisplay', () => {
       const video = container.querySelector('video');
       expect(video?.getAttribute('aria-label')).toBe('Video content');
     });
+  });
+});
+
+describe('isValidMediaUrl', () => {
+  describe('valid URLs', () => {
+    it('accepts relative URLs starting with /', () => {
+      expect(isValidMediaUrl('/data/media/cat/photo.jpg')).toBe(true);
+      expect(isValidMediaUrl('/api/media/cat')).toBe(true);
+      expect(isValidMediaUrl('/')).toBe(true);
+    });
+
+    it('accepts http:// URLs', () => {
+      expect(isValidMediaUrl('http://example.com/photo.jpg')).toBe(true);
+      expect(isValidMediaUrl('http://localhost:8080/data/media/cat.jpg')).toBe(true);
+    });
+
+    it('accepts https:// URLs', () => {
+      expect(isValidMediaUrl('https://example.com/photo.jpg')).toBe(true);
+      expect(isValidMediaUrl('https://cdn.example.com/media/audio.mp3')).toBe(true);
+    });
+
+    it('accepts URLs with mixed case protocols', () => {
+      expect(isValidMediaUrl('HTTP://example.com/photo.jpg')).toBe(true);
+      expect(isValidMediaUrl('HTTPS://example.com/photo.jpg')).toBe(true);
+    });
+  });
+
+  describe('invalid URLs', () => {
+    it('rejects javascript: URLs', () => {
+      expect(isValidMediaUrl('javascript:alert(1)')).toBe(false);
+      expect(isValidMediaUrl('javascript:void(0)')).toBe(false);
+      expect(isValidMediaUrl('JAVASCRIPT:alert(1)')).toBe(false);
+    });
+
+    it('rejects data: URLs', () => {
+      expect(isValidMediaUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
+      expect(isValidMediaUrl('data:image/png;base64,abc')).toBe(false);
+    });
+
+    it('rejects vbscript: URLs', () => {
+      expect(isValidMediaUrl('vbscript:alert(1)')).toBe(false);
+    });
+
+    it('rejects file: URLs', () => {
+      expect(isValidMediaUrl('file:///etc/passwd')).toBe(false);
+    });
+
+    it('rejects empty and undefined URLs', () => {
+      expect(isValidMediaUrl('')).toBe(false);
+      expect(isValidMediaUrl(undefined)).toBe(false);
+    });
+
+    it('rejects URLs with whitespace padding that try to hide protocol', () => {
+      // Note: We trim and lowercase before checking
+      expect(isValidMediaUrl('  javascript:alert(1)')).toBe(false);
+    });
+
+    it('rejects relative paths that do not start with /', () => {
+      expect(isValidMediaUrl('photo.jpg')).toBe(false);
+      expect(isValidMediaUrl('../data/media/photo.jpg')).toBe(false);
+    });
+  });
+});
+
+describe('MediaDisplay URL validation', () => {
+  let container: HTMLElement;
+  let display: MediaDisplay;
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => Promise.resolve());
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    display = new MediaDisplay(container);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('rejects javascript: URLs for images', () => {
+    display.show({ photoUrl: 'javascript:alert(1)' });
+
+    const img = container.querySelector('img');
+    expect(img).toBeFalsy();
+    expect(consoleSpy).toHaveBeenCalledWith('Invalid image URL rejected:', 'javascript:alert(1)');
+  });
+
+  it('rejects javascript: URLs for videos', () => {
+    display.show({ videoUrl: 'javascript:alert(1)' });
+
+    const video = container.querySelector('video');
+    expect(video).toBeFalsy();
+    expect(consoleSpy).toHaveBeenCalledWith('Invalid video URL rejected:', 'javascript:alert(1)');
+  });
+
+  it('rejects javascript: URLs for audio', () => {
+    display.show({ audioUrl: 'javascript:alert(1)' });
+
+    const audio = display.getAudioElement();
+    expect(audio).toBeFalsy();
+    expect(consoleSpy).toHaveBeenCalledWith('Invalid audio URL rejected:', 'javascript:alert(1)');
+  });
+
+  it('rejects data: URLs for images', () => {
+    display.show({ photoUrl: 'data:text/html,<script>alert(1)</script>' });
+
+    const img = container.querySelector('img');
+    expect(img).toBeFalsy();
+  });
+
+  it('accepts valid relative URLs', () => {
+    display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+
+    const img = container.querySelector('img');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute('src')).toBe('/data/media/cat/photo.jpg');
+  });
+
+  it('accepts valid https URLs', () => {
+    display.show({ photoUrl: 'https://example.com/cat.jpg' });
+
+    const img = container.querySelector('img');
+    expect(img).toBeTruthy();
   });
 });
 

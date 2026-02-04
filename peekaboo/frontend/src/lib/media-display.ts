@@ -12,6 +12,35 @@ export interface MediaContent {
 }
 
 /**
+ * Validates that a URL is safe to use for media sources.
+ * Only allows http://, https://, and relative URLs (starting with /).
+ * Rejects dangerous protocols like javascript:, data:, vbscript:, etc.
+ *
+ * @param url The URL to validate
+ * @returns true if the URL is safe, false otherwise
+ */
+export function isValidMediaUrl(url: string | undefined): url is string {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+
+  const trimmed = url.trim().toLowerCase();
+
+  // Allow relative URLs (start with /)
+  if (url.startsWith('/')) {
+    return true;
+  }
+
+  // Allow http:// and https://
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return true;
+  }
+
+  // Reject everything else (javascript:, data:, vbscript:, etc.)
+  return false;
+}
+
+/**
  * MediaDisplay handles showing images/videos and playing audio
  */
 export class MediaDisplay {
@@ -55,6 +84,11 @@ export class MediaDisplay {
    * Show an image in the container
    */
   private showImage(url: string, concept?: string): void {
+    if (!isValidMediaUrl(url)) {
+      console.error('Invalid image URL rejected:', url);
+      return;
+    }
+
     const img = document.createElement('img');
     img.src = url;
     img.alt = concept ? `Photo of a ${concept}` : 'Media content';
@@ -66,6 +100,11 @@ export class MediaDisplay {
    * Show a video in the container
    */
   private showVideo(url: string, concept?: string): void {
+    if (!isValidMediaUrl(url)) {
+      console.error('Invalid video URL rejected:', url);
+      return;
+    }
+
     const video = document.createElement('video');
     video.src = url;
     video.autoplay = true;
@@ -81,6 +120,11 @@ export class MediaDisplay {
    * Play audio
    */
   private playAudio(url: string): void {
+    if (!isValidMediaUrl(url)) {
+      console.error('Invalid audio URL rejected:', url);
+      return;
+    }
+
     this.audioElement = document.createElement('audio');
     this.audioElement.src = url;
     this.audioElement.dataset.testid = 'media-audio';

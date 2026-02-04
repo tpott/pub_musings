@@ -41,6 +41,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 58: Add URL validation for media URLs to prevent XSS (2026-02-04)
 - Task 56: Validate age key file permissions on startup (2026-02-04)
 - Task 57: Remove viewport zoom restrictions for WCAG compliance (2026-02-04)
 - Task 55: Add max entries limit to rate limiter (2026-02-04)
