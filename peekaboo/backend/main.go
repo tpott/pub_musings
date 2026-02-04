@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/trevorsmith/peekaboo/api"
-	"github.com/trevorsmith/peekaboo/crypto"
-	"github.com/trevorsmith/peekaboo/db"
-	"github.com/trevorsmith/peekaboo/llm"
-	"github.com/trevorsmith/peekaboo/logging"
+	"github.com/tpott/pub_musings/peekaboo/backend/api"
+	"github.com/tpott/pub_musings/peekaboo/backend/crypto"
+	"github.com/tpott/pub_musings/peekaboo/backend/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/llm"
+	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
 func main() {

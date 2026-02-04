@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"filippo.io/age"
-	"github.com/trevorsmith/peekaboo/crypto"
+	"github.com/tpott/pub_musings/peekaboo/backend/crypto"
 )
 
 // EncryptedFileServer serves files that are stored encrypted with age.

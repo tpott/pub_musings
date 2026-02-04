@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trevorsmith/peekaboo/crypto"
+	"github.com/tpott/pub_musings/peekaboo/backend/crypto"
 )
 
 func TestEncryptedFileServer_ServesDecryptedFile(t *testing.T) {

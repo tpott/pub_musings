@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/trevorsmith/peekaboo/db"
-	"github.com/trevorsmith/peekaboo/logging"
+	"github.com/tpott/pub_musings/peekaboo/backend/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
 // validConceptPattern matches valid concept IDs (lowercase letters, numbers, underscores).

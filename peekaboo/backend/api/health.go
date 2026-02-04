@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/trevorsmith/peekaboo/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/db"
 )
 
 // HealthResponse is the response from health check endpoints.

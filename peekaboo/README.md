@@ -59,13 +59,21 @@ Go Backend
 4. Create `.env` file with required variables:
    ```bash
    cp .env.example .env
-   # Edit .env with your API keys (see sections below)
+   # Edit .env with your API keys
    ```
+
+   **Required:** Set at least one LLM API key in `.env`:
+   - `ANTHROPIC_API_KEY` (default provider) OR
+   - `OPENAI_API_KEY` (set `LLM_PROVIDER=openai`)
+
+   The backend will exit with an error if no API key is configured.
 
 5. Start whisper-server (see [Whisper Server Setup](#whisper-server-setup))
 
-6. Start the backend:
+6. Start the backend (from peekaboo directory, with env vars loaded):
    ```bash
+   # Load environment variables and start backend
+   source .env 2>/dev/null || export $(cat .env | xargs)
    cd backend && go run main.go
    ```
 

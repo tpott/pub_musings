@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/trevorsmith/peekaboo/logging"
+	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
 // TranscribeRequest is the incoming request to /api/transcribe.

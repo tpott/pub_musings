@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/trevorsmith/peekaboo/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/db"
 )
 
 func TestLivenessHandler(t *testing.T) {

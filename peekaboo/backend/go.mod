@@ -1,4 +1,4 @@
-module github.com/trevorsmith/peekaboo
+module github.com/tpott/pub_musings/peekaboo/backend
 
 go 1.24.0
 

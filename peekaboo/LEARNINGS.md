@@ -41,3 +41,33 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 2. Use `dispatchEvent('mousedown')` and `dispatchEvent('mouseup')` to match the exact events the app listens for
 
 **Lesson:** When testing apps that initialize on page load, mocks must be set up via `addInitScript()` before navigation. Always verify which event types the app actually listens for (pointer vs mouse vs touch).
+
+---
+
+### 2026-02-04: Always check git remote for module paths
+
+**Problem:** Go module was named `github.com/trevorsmith/peekaboo` instead of the correct `github.com/tpott/pub_musings/peekaboo/backend`. The agent incorrectly guessed the GitHub username was "trevorsmith" based on the home directory owner name "trevor" rather than checking the actual git remote.
+
+**Solution:** Fixed module path in go.mod and all imports to `github.com/tpott/pub_musings/peekaboo/backend`.
+
+**Lesson:** ALWAYS run `git remote -v` to determine the correct repository URL before setting Go module paths. Never guess GitHub usernames from filesystem paths or usernames.
+
+---
+
+### 2026-02-04: Astro dev server requires proxy config for API calls
+
+**Problem:** Clicking the microphone button in the frontend resulted in a 404 error. The frontend at `localhost:4321` made calls to `/api/transcribe`, but the Astro dev server had no proxy configuration to forward these requests to the Go backend at `localhost:8080`.
+
+**Solution:** Added Vite proxy configuration in `astro.config.mjs`:
+```javascript
+vite: {
+  server: {
+    proxy: {
+      '/api': { target: 'http://localhost:8080', changeOrigin: true },
+      '/data/media': { target: 'http://localhost:8080', changeOrigin: true },
+    },
+  },
+}
+```
+
+**Lesson:** When a frontend dev server runs on a different port than the backend API server, proxy configuration is required. Relative API URLs (`/api/*`) in frontend code won't magically reach a backend on a different port. Always test the full development workflow (frontend + backend together) before marking setup as complete.

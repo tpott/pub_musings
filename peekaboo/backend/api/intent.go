@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/trevorsmith/peekaboo/llm"
-	"github.com/trevorsmith/peekaboo/logging"
+	"github.com/tpott/pub_musings/peekaboo/backend/llm"
+	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
 // IntentRequest is the incoming request to /api/intent.

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/trevorsmith/peekaboo/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/db"
 )
 
 func setupTestDB(t *testing.T) *db.DB {

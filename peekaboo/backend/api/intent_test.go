@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/trevorsmith/peekaboo/llm"
+	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 )
 
 // createTestProvider creates a provider pointing to a test server.
