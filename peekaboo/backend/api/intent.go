@@ -4,11 +4,12 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/trevorsmith/peekaboo/llm"
+	"github.com/trevorsmith/peekaboo/logging"
 )
 
 // IntentRequest is the incoming request to /api/intent.
@@ -76,7 +77,9 @@ func (h *IntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.provider.ExtractIntent(ctx, req.Text)
 	if err != nil {
-		log.Printf("Intent extraction error: %v", err)
+		slog.Error("intent extraction failed",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, IntentResponse{Error: "intent extraction failed"})
 		return
 	}

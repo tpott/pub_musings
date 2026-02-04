@@ -96,6 +96,8 @@ sops -d secrets.enc.yaml > .env
 | `OPENAI_API_KEY` | OpenAI API key | - |
 | `WHISPER_SERVER_URL` | Whisper server URL | - |
 | `ALLOWED_ORIGIN` | CORS allowed origin (e.g., `https://peekaboo.example.com`) | `*` (dev only) |
+| `LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
+| `LOG_FORMAT` | Log format (`text` or `json`) | `text` |
 
 ## Failed Commands Log
 

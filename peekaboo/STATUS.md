@@ -30,9 +30,11 @@ This file tracks high level progress on the peekaboo project.
 - **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
 - **Security headers** - X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
 - **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
+- **Structured logging** - slog with configurable log levels (LOG_LEVEL), JSON output (LOG_FORMAT=json), request ID middleware
 
 ## Last Completed
 
+- Task 40: Add structured logging with slog - log levels, request IDs, JSON output (2026-02-04)
 - Task 44: Document HTTPS requirements and TLS configuration in docs/DEPLOY.md (2026-02-04)
 - Task 43: Add max audio file size validation (5MB) to transcribe endpoint (2026-02-04)
 - Task 41: Add max text length validation (500 chars) to /api/intent endpoint (2026-02-04)

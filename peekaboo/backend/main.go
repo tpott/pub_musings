@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,9 +15,13 @@ import (
 	"github.com/trevorsmith/peekaboo/crypto"
 	"github.com/trevorsmith/peekaboo/db"
 	"github.com/trevorsmith/peekaboo/llm"
+	"github.com/trevorsmith/peekaboo/logging"
 )
 
 func main() {
+	// Setup structured logging
+	logging.Setup()
+
 	// Initialize database
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
@@ -26,29 +30,33 @@ func main() {
 
 	// Ensure data directory exists
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
-		log.Fatalf("Failed to create data directory: %v", err)
+		slog.Error("failed to create data directory", "error", err)
+		os.Exit(1)
 	}
 
 	database, err := db.Open(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		slog.Error("failed to open database", "error", err, "path", dbPath)
+		os.Exit(1)
 	}
 	defer database.Close()
 
 	// Initialize schema and seed concepts
 	if err := database.Init(); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("failed to initialize database", "error", err)
+		os.Exit(1)
 	}
 
 	// Seed media sets from data/media directory if they don't exist
 	if err := seedMediaFromDisk(database); err != nil {
-		log.Printf("Warning: Failed to seed media from disk: %v", err)
+		slog.Warn("failed to seed media from disk", "error", err)
 	}
 
 	// Create LLM provider from environment
 	llmProvider, err := llm.NewProviderFromEnv()
 	if err != nil {
-		log.Fatalf("Failed to create LLM provider: %v", err)
+		slog.Error("failed to create LLM provider", "error", err)
+		os.Exit(1)
 	}
 
 	mux := http.NewServeMux()
@@ -102,13 +110,14 @@ func main() {
 		// Age key exists - use encrypted file server
 		identity, err := crypto.LoadIdentityFromFile(ageKeyFile)
 		if err != nil {
-			log.Fatalf("Failed to load age key from %s: %v", ageKeyFile, err)
+			slog.Error("failed to load age key", "path", ageKeyFile, "error", err)
+			os.Exit(1)
 		}
-		log.Printf("Using encrypted media serving with key from %s", ageKeyFile)
+		slog.Info("encrypted media serving enabled", "key_file", ageKeyFile)
 		mux.Handle("/data/media/", http.StripPrefix("/data/media/", api.NewEncryptedFileServer(mediaDir, identity)))
 	} else {
 		// No age key - use plain file server
-		log.Printf("No age key found at %s, serving media files unencrypted", ageKeyFile)
+		slog.Warn("serving media files unencrypted", "key_file", ageKeyFile)
 		mux.Handle("/data/media/", http.StripPrefix("/data/media/", http.FileServer(http.Dir(mediaDir))))
 	}
 
@@ -120,13 +129,13 @@ func main() {
 	if allowedOrigin == "" {
 		// Default to wildcard for development; set ALLOWED_ORIGIN in production
 		allowedOrigin = "*"
-		log.Printf("Warning: ALLOWED_ORIGIN not set, using wildcard '*'. Set ALLOWED_ORIGIN for production.")
+		slog.Warn("ALLOWED_ORIGIN not set, using wildcard", "origin", "*")
 	} else {
-		log.Printf("CORS: allowing origin %s", allowedOrigin)
+		slog.Info("CORS configured", "allowed_origin", allowedOrigin)
 	}
 
-	// Wrap with CORS middleware and security headers
-	handler := api.SecurityHeadersMiddleware(corsMiddleware(mux, allowedOrigin))
+	// Wrap with middleware chain: request ID -> security headers -> CORS
+	handler := logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(corsMiddleware(mux, allowedOrigin)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -142,9 +151,10 @@ func main() {
 
 	// Start server in goroutine so we can handle shutdown signals
 	go func() {
-		log.Printf("Starting peekaboo server on %s", addr)
+		slog.Info("starting server", "addr", addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -152,7 +162,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
-	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+	slog.Info("received shutdown signal", "signal", sig.String())
 
 	// Cancel cleanup goroutine
 	cleanupCancel()
@@ -163,13 +173,13 @@ func main() {
 
 	// Attempt graceful shutdown
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		slog.Error("server shutdown error", "error", err)
 	} else {
-		log.Printf("Server stopped gracefully")
+		slog.Info("server stopped gracefully")
 	}
 
 	// Database will be closed by defer database.Close() when main returns
-	log.Printf("Shutdown complete")
+	slog.Info("shutdown complete")
 }
 
 // corsMiddleware adds CORS headers for frontend access.
@@ -201,7 +211,7 @@ func seedMediaFromDisk(database *db.DB) error {
 
 	// Check if media directory exists
 	if _, err := os.Stat(mediaDir); os.IsNotExist(err) {
-		log.Printf("Media directory %s does not exist, skipping media seeding", mediaDir)
+		slog.Debug("media directory does not exist, skipping seeding", "path", mediaDir)
 		return nil
 	}
 
@@ -216,7 +226,7 @@ func seedMediaFromDisk(database *db.DB) error {
 		// Find set directories
 		entries, err := os.ReadDir(conceptDir)
 		if err != nil {
-			log.Printf("Warning: cannot read concept directory %s: %v", conceptDir, err)
+			slog.Warn("cannot read concept directory", "path", conceptDir, "error", err)
 			continue
 		}
 
@@ -253,7 +263,7 @@ func seedMediaFromDisk(database *db.DB) error {
 
 			// Seed the media set (database SeedMediaSet handles duplicates)
 			if err := database.SeedMediaSet(concept, relPhotoPath, audioPath, ""); err != nil {
-				log.Printf("Warning: failed to seed media set for %s/%s: %v", concept, entry.Name(), err)
+				slog.Warn("failed to seed media set", "concept", concept, "set", entry.Name(), "error", err)
 			}
 		}
 	}

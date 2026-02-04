@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/trevorsmith/peekaboo/logging"
 )
 
 // TranscribeRequest is the incoming request to /api/transcribe.
@@ -104,7 +106,9 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Forward to whisper-server
 	text, err := h.forwardToWhisper(file)
 	if err != nil {
-		log.Printf("Transcribe error: %v", err)
+		slog.Error("transcription failed",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, TranscribeResponse{Error: "transcription failed"})
 		return
 	}

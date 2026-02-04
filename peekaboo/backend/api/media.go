@@ -2,12 +2,13 @@
 package api
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/trevorsmith/peekaboo/db"
+	"github.com/trevorsmith/peekaboo/logging"
 )
 
 // validConceptPattern matches valid concept IDs (lowercase letters, numbers, underscores).
@@ -57,7 +58,10 @@ func (h *MediaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Validate concept exists
 	name, err := h.DB.GetConcept(concept)
 	if err != nil {
-		log.Printf("Media lookup error for concept %q: %v", concept, err)
+		slog.Error("media lookup failed",
+			"concept", concept,
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, MediaResponse{Error: "media lookup failed"})
 		return
 	}
@@ -69,7 +73,10 @@ func (h *MediaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get random media set for concept
 	mediaSet, err := h.DB.GetRandomMediaSet(concept)
 	if err != nil {
-		log.Printf("Media set lookup error for concept %q: %v", concept, err)
+		slog.Error("media set lookup failed",
+			"concept", concept,
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, MediaResponse{Error: "media lookup failed"})
 		return
 	}
