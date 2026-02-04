@@ -89,8 +89,18 @@ func main() {
 	// Static file server for test fixtures (for e2e tests)
 	mux.Handle("/fixtures/", http.StripPrefix("/fixtures/", http.FileServer(http.Dir("tests/fixtures"))))
 
+	// Get allowed origin from environment
+	allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
+	if allowedOrigin == "" {
+		// Default to wildcard for development; set ALLOWED_ORIGIN in production
+		allowedOrigin = "*"
+		log.Printf("Warning: ALLOWED_ORIGIN not set, using wildcard '*'. Set ALLOWED_ORIGIN for production.")
+	} else {
+		log.Printf("CORS: allowing origin %s", allowedOrigin)
+	}
+
 	// Wrap with CORS middleware
-	handler := corsMiddleware(mux)
+	handler := corsMiddleware(mux, allowedOrigin)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -103,11 +113,12 @@ func main() {
 	}
 }
 
-// corsMiddleware adds CORS headers for frontend access
-func corsMiddleware(next http.Handler) http.Handler {
+// corsMiddleware adds CORS headers for frontend access.
+// allowedOrigin specifies the allowed origin for CORS requests.
+// Use "*" to allow any origin (development only), or a specific origin like "https://peekaboo.example.com".
+func corsMiddleware(next http.Handler, allowedOrigin string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow requests from any origin (customize for production)
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 

@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-- **Go backend fully wired** - main.go with all API handlers, database init, static files, CORS
+- **Go backend fully wired** - main.go with all API handlers, database init, static files, CORS via ALLOWED_ORIGIN env
 - **Astro frontend scaffolded** - mobile-first layout with mic button and media display
 - **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
 - **SQLite database** - db package with concepts/media_sets tables, GetRandomMediaSet, tests pass
@@ -24,6 +24,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 23: Configure CORS properly with ALLOWED_ORIGIN env var (2026-02-04)
 - Task 22: Integrate media encryption - encrypted .age files served with on-demand decryption (2026-02-04)
 - Task 21: Wire up LLM provider abstraction - api/intent.go now uses llm.Provider (2026-02-04)
 - Task 20: Wire up backend main.go with handlers, DB init, static files, CORS (2026-02-04)

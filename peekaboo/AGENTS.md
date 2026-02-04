@@ -95,6 +95,7 @@ sops -d secrets.enc.yaml > .env
 | `ANTHROPIC_API_KEY` | Anthropic API key | - |
 | `OPENAI_API_KEY` | OpenAI API key | - |
 | `WHISPER_SERVER_URL` | Whisper server URL | - |
+| `ALLOWED_ORIGIN` | CORS allowed origin (e.g., `https://peekaboo.example.com`) | `*` (dev only) |
 
 ## Failed Commands Log
 
