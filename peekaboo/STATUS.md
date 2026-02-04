@@ -30,6 +30,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- FEEDBACK: Updated README with LLM config, whisper.cpp setup, and env var documentation (2026-02-04)
 - Task 34: Add rate limiting (10 req/min per IP) to expensive API endpoints (2026-02-04)
 - Task 33: Validate API key format in LLM provider initialization (2026-02-04)
 - Task 32: Add minimum audio file size validation (1KB) to transcribe endpoint (2026-02-04)
