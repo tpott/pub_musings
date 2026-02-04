@@ -19,9 +19,11 @@ This file tracks high level progress on the peekaboo project.
 - **Playwright e2e tests** - 2 tests verify full voice-to-media flow and error handling
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
+- **Piper TTS spec** - specs/piper.md documents installation, voice selection, HTTP API
 
 ## Last Completed
 
+- Task 17: Research piper TTS deployment (2026-02-04)
 - Task 19: Deploy peekaboo via webhook-deployer (2026-02-04)
 - Task 16: Add webhook-deployer config (2026-02-04) - config already existed, completed with task 19
 - Task 15: Setup sops for env var encryption (2026-02-04)
