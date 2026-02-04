@@ -1,3 +1,7 @@
+# Agent Instructions
+
+This file contains instructions for AI agents working on this project.
+
 ## Override: Install Commands
 
 The parent `pub_musings/CLAUDE.md` says "do not run install commands." This project's CLAUDE.md **overrides that rule** when running in the Ralph loop (`--dangerously-skip-permissions`).
@@ -9,4 +13,91 @@ When running as Ralph, you MAY:
 
 ## Commands
 
-TODO
+### Go Backend
+
+```bash
+# Build
+go build ./...
+
+# Run all tests
+go test ./...
+
+# Run with verbose output
+go test -v ./...
+
+# Run a specific package's tests
+go test ./api
+go test ./crypto
+go test ./db
+go test ./llm
+
+# Start the server (requires env vars)
+go run main.go
+```
+
+### Frontend (Astro)
+
+```bash
+# Install dependencies (from frontend/ directory)
+cd frontend && npm install
+
+# Run development server
+cd frontend && npm run dev
+
+# Run unit tests
+cd frontend && npm test
+
+# Build for production
+cd frontend && npm run build
+```
+
+### E2E Tests (Playwright)
+
+```bash
+# Install Playwright browsers (one time)
+cd frontend && npx playwright install
+
+# Run e2e tests
+cd frontend && npx playwright test
+
+# Run e2e tests with UI
+cd frontend && npx playwright test --ui
+```
+
+### Media Scripts
+
+```bash
+# Download CC0 media assets
+./scripts/source-media.sh
+
+# Encrypt media files (requires age to be installed)
+./scripts/encrypt-media.sh --generate-key  # First time
+./scripts/encrypt-media.sh                 # Subsequent runs
+./scripts/encrypt-media.sh --remove-originals  # Production
+```
+
+### Secrets Management (sops)
+
+```bash
+# Decrypt secrets to .env (requires age key)
+sops -d secrets.enc.yaml > .env
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | HTTP server port | `8080` |
+| `DB_PATH` | SQLite database path | `data/peekaboo.db` |
+| `MEDIA_DIR` | Media files directory | `data/media` |
+| `AGE_KEY_FILE` | Age encryption key file | `data/age.key` |
+| `LLM_PROVIDER` | LLM provider (`anthropic` or `openai`) | `anthropic` |
+| `ANTHROPIC_API_KEY` | Anthropic API key | - |
+| `OPENAI_API_KEY` | OpenAI API key | - |
+| `WHISPER_SERVER_URL` | Whisper server URL | - |
+
+## Failed Commands Log
+
+Document commands that failed unexpectedly during development here:
+
+(None recorded yet)

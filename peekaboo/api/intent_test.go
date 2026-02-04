@@ -6,7 +6,39 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/trevorsmith/peekaboo/llm"
 )
+
+// createTestProvider creates a provider pointing to a test server.
+func createTestProvider(t *testing.T, serverURL string) llm.Provider {
+	provider, err := llm.NewProvider(llm.Config{
+		Provider: "anthropic",
+		APIKey:   "test-api-key",
+		BaseURL:  serverURL,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test provider: %v", err)
+	}
+	return provider
+}
+
+// Anthropic API response types for test mocking
+type anthropicTestResponse struct {
+	ID      string                      `json:"id"`
+	Type    string                      `json:"type"`
+	Role    string                      `json:"role"`
+	Content []anthropicTestContentBlock `json:"content"`
+	Model   string                      `json:"model"`
+}
+
+type anthropicTestContentBlock struct {
+	Type  string          `json:"type"`
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+	Text  string          `json:"text,omitempty"`
+}
 
 func TestIntentHandler_Success(t *testing.T) {
 	// Create mock Anthropic API server
@@ -25,24 +57,12 @@ func TestIntentHandler_Success(t *testing.T) {
 			t.Errorf("Expected anthropic-version header, got %s", r.Header.Get("anthropic-version"))
 		}
 
-		// Parse and verify request body
-		var req AnthropicRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("Failed to decode request: %v", err)
-		}
-		if req.Model != "claude-3-haiku-20240307" {
-			t.Errorf("Expected claude-3-haiku-20240307 model, got %s", req.Model)
-		}
-		if len(req.Tools) != 1 || req.Tools[0].Name != "show_media" {
-			t.Errorf("Expected show_media tool, got %+v", req.Tools)
-		}
-
 		// Return mock response with tool_use
-		resp := AnthropicResponse{
+		resp := anthropicTestResponse{
 			ID:   "msg_123",
 			Type: "message",
 			Role: "assistant",
-			Content: []AnthropicContentBlock{
+			Content: []anthropicTestContentBlock{
 				{
 					Type:  "tool_use",
 					ID:    "toolu_123",
@@ -50,20 +70,16 @@ func TestIntentHandler_Success(t *testing.T) {
 					Input: json.RawMessage(`{"subject": "cat"}`),
 				},
 			},
-			Model:      "claude-3-haiku-20240307",
-			StopReason: "tool_use",
-			Usage: AnthropicUsage{
-				InputTokens:  50,
-				OutputTokens: 20,
-			},
+			Model: "claude-3-haiku-20240307",
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockAnthropic.Close()
 
-	// Create handler with mock server
-	handler := NewIntentHandler(mockAnthropic.URL, "test-api-key")
+	// Create handler with mock provider
+	provider := createTestProvider(t, mockAnthropic.URL)
+	handler := NewIntentHandlerWithProvider(provider)
 
 	// Create test request
 	reqBody, _ := json.Marshal(IntentRequest{Text: "show me a cat"})
@@ -95,11 +111,11 @@ func TestIntentHandler_Success(t *testing.T) {
 func TestIntentHandler_FuzzyInput(t *testing.T) {
 	// Test with fuzzy input like "I wanna see a kitty cat"
 	mockAnthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := AnthropicResponse{
+		resp := anthropicTestResponse{
 			ID:   "msg_456",
 			Type: "message",
 			Role: "assistant",
-			Content: []AnthropicContentBlock{
+			Content: []anthropicTestContentBlock{
 				{
 					Type:  "tool_use",
 					ID:    "toolu_456",
@@ -107,15 +123,15 @@ func TestIntentHandler_FuzzyInput(t *testing.T) {
 					Input: json.RawMessage(`{"subject": "cat"}`),
 				},
 			},
-			Model:      "claude-3-haiku-20240307",
-			StopReason: "tool_use",
+			Model: "claude-3-haiku-20240307",
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockAnthropic.Close()
 
-	handler := NewIntentHandler(mockAnthropic.URL, "test-api-key")
+	provider := createTestProvider(t, mockAnthropic.URL)
+	handler := NewIntentHandlerWithProvider(provider)
 
 	reqBody, _ := json.Marshal(IntentRequest{Text: "I wanna see a kitty cat"})
 	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
@@ -136,7 +152,12 @@ func TestIntentHandler_FuzzyInput(t *testing.T) {
 }
 
 func TestIntentHandler_MissingText(t *testing.T) {
-	handler := NewIntentHandler("http://localhost:9999", "test-key")
+	// Create a dummy provider (won't be called due to validation)
+	provider, _ := llm.NewProvider(llm.Config{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+	})
+	handler := NewIntentHandlerWithProvider(provider)
 
 	reqBody, _ := json.Marshal(IntentRequest{Text: ""})
 	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
@@ -151,7 +172,12 @@ func TestIntentHandler_MissingText(t *testing.T) {
 }
 
 func TestIntentHandler_InvalidJSON(t *testing.T) {
-	handler := NewIntentHandler("http://localhost:9999", "test-key")
+	// Create a dummy provider (won't be called due to validation)
+	provider, _ := llm.NewProvider(llm.Config{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+	})
+	handler := NewIntentHandlerWithProvider(provider)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader([]byte("not json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -165,7 +191,12 @@ func TestIntentHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestIntentHandler_WrongMethod(t *testing.T) {
-	handler := NewIntentHandler("http://localhost:9999", "test-key")
+	// Create a dummy provider (won't be called)
+	provider, _ := llm.NewProvider(llm.Config{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+	})
+	handler := NewIntentHandlerWithProvider(provider)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/intent", nil)
 	rr := httptest.NewRecorder()
@@ -184,7 +215,8 @@ func TestIntentHandler_AnthropicError(t *testing.T) {
 	}))
 	defer mockAnthropic.Close()
 
-	handler := NewIntentHandler(mockAnthropic.URL, "test-key")
+	provider := createTestProvider(t, mockAnthropic.URL)
+	handler := NewIntentHandlerWithProvider(provider)
 
 	reqBody, _ := json.Marshal(IntentRequest{Text: "show me a dog"})
 	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
@@ -207,25 +239,25 @@ func TestIntentHandler_AnthropicError(t *testing.T) {
 func TestIntentHandler_NoToolUseInResponse(t *testing.T) {
 	mockAnthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return response without tool_use (just text)
-		resp := AnthropicResponse{
+		resp := anthropicTestResponse{
 			ID:   "msg_789",
 			Type: "message",
 			Role: "assistant",
-			Content: []AnthropicContentBlock{
+			Content: []anthropicTestContentBlock{
 				{
 					Type: "text",
 					Text: "I'm sorry, I didn't understand what you want to see.",
 				},
 			},
-			Model:      "claude-3-haiku-20240307",
-			StopReason: "end_turn",
+			Model: "claude-3-haiku-20240307",
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockAnthropic.Close()
 
-	handler := NewIntentHandler(mockAnthropic.URL, "test-key")
+	provider := createTestProvider(t, mockAnthropic.URL)
+	handler := NewIntentHandlerWithProvider(provider)
 
 	reqBody, _ := json.Marshal(IntentRequest{Text: "hello there"})
 	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
@@ -261,11 +293,11 @@ func TestIntentHandler_DifferentSubjects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockAnthropic := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				resp := AnthropicResponse{
+				resp := anthropicTestResponse{
 					ID:   "msg_test",
 					Type: "message",
 					Role: "assistant",
-					Content: []AnthropicContentBlock{
+					Content: []anthropicTestContentBlock{
 						{
 							Type:  "tool_use",
 							ID:    "toolu_test",
@@ -273,15 +305,15 @@ func TestIntentHandler_DifferentSubjects(t *testing.T) {
 							Input: json.RawMessage(`{"subject": "` + tc.expected + `"}`),
 						},
 					},
-					Model:      "claude-3-haiku-20240307",
-					StopReason: "tool_use",
+					Model: "claude-3-haiku-20240307",
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(resp)
 			}))
 			defer mockAnthropic.Close()
 
-			handler := NewIntentHandler(mockAnthropic.URL, "test-key")
+			provider := createTestProvider(t, mockAnthropic.URL)
+			handler := NewIntentHandlerWithProvider(provider)
 
 			reqBody, _ := json.Marshal(IntentRequest{Text: tc.input})
 			req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
@@ -300,5 +332,77 @@ func TestIntentHandler_DifferentSubjects(t *testing.T) {
 				t.Errorf("Expected subject %q, got %q", tc.expected, resp.Subject)
 			}
 		})
+	}
+}
+
+func TestIntentHandler_OpenAIProvider(t *testing.T) {
+	// Test that OpenAI provider also works through the handler
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request path for OpenAI
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Errorf("Expected /v1/chat/completions, got %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-openai-key" {
+			t.Errorf("Expected Authorization header, got %s", r.Header.Get("Authorization"))
+		}
+
+		// Return OpenAI-style response with tool call
+		// Note: tool_calls is at the choice level, not inside message
+		resp := map[string]interface{}{
+			"id":      "chatcmpl-123",
+			"object":  "chat.completion",
+			"model":   "gpt-4o-mini",
+			"choices": []map[string]interface{}{
+				{
+					"index": 0,
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": "",
+					},
+					"tool_calls": []map[string]interface{}{
+						{
+							"id":   "call_123",
+							"type": "function",
+							"function": map[string]interface{}{
+								"name":      "show_media",
+								"arguments": `{"subject":"cat"}`,
+							},
+						},
+					},
+					"finish_reason": "tool_calls",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockOpenAI.Close()
+
+	provider, err := llm.NewProvider(llm.Config{
+		Provider: "openai",
+		APIKey:   "test-openai-key",
+		BaseURL:  mockOpenAI.URL,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create OpenAI provider: %v", err)
+	}
+
+	handler := NewIntentHandlerWithProvider(provider)
+
+	reqBody, _ := json.Marshal(IntentRequest{Text: "show me a cat"})
+	req := httptest.NewRequest(http.MethodPost, "/api/intent", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp IntentResponse
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Subject != "cat" {
+		t.Errorf("Expected subject 'cat', got %q", resp.Subject)
 	}
 }

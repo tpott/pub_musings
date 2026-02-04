@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/trevorsmith/peekaboo/api"
+	"github.com/trevorsmith/peekaboo/crypto"
 	"github.com/trevorsmith/peekaboo/db"
+	"github.com/trevorsmith/peekaboo/llm"
 )
 
 func main() {
@@ -39,6 +41,12 @@ func main() {
 		log.Printf("Warning: Failed to seed media from disk: %v", err)
 	}
 
+	// Create LLM provider from environment
+	llmProvider, err := llm.NewProviderFromEnv()
+	if err != nil {
+		log.Fatalf("Failed to create LLM provider: %v", err)
+	}
+
 	mux := http.NewServeMux()
 
 	// Health check endpoint
@@ -49,7 +57,7 @@ func main() {
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.NewTranscribeHandler(""))
-	mux.Handle("POST /api/intent", api.NewIntentHandler("", ""))
+	mux.Handle("POST /api/intent", api.NewIntentHandlerWithProvider(llmProvider))
 	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
 
 	// Static file server for media files
@@ -57,7 +65,26 @@ func main() {
 	if mediaDir == "" {
 		mediaDir = "data/media"
 	}
-	mux.Handle("/data/media/", http.StripPrefix("/data/media/", http.FileServer(http.Dir(mediaDir))))
+
+	// Check for age key file - if present, use encrypted file server
+	ageKeyFile := os.Getenv("AGE_KEY_FILE")
+	if ageKeyFile == "" {
+		ageKeyFile = "data/age.key"
+	}
+
+	if _, err := os.Stat(ageKeyFile); err == nil {
+		// Age key exists - use encrypted file server
+		identity, err := crypto.LoadIdentityFromFile(ageKeyFile)
+		if err != nil {
+			log.Fatalf("Failed to load age key from %s: %v", ageKeyFile, err)
+		}
+		log.Printf("Using encrypted media serving with key from %s", ageKeyFile)
+		mux.Handle("/data/media/", http.StripPrefix("/data/media/", api.NewEncryptedFileServer(mediaDir, identity)))
+	} else {
+		// No age key - use plain file server
+		log.Printf("No age key found at %s, serving media files unencrypted", ageKeyFile)
+		mux.Handle("/data/media/", http.StripPrefix("/data/media/", http.FileServer(http.Dir(mediaDir))))
+	}
 
 	// Static file server for test fixtures (for e2e tests)
 	mux.Handle("/fixtures/", http.StripPrefix("/fixtures/", http.FileServer(http.Dir("tests/fixtures"))))
@@ -94,7 +121,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// seedMediaFromDisk scans data/media/{concept}/set* directories and seeds the database
+// seedMediaFromDisk scans data/media/{concept}/set* directories and seeds the database.
+// Supports both plain files (photo.jpg) and encrypted files (photo.jpg.age).
 func seedMediaFromDisk(database *db.DB) error {
 	mediaDir := os.Getenv("MEDIA_DIR")
 	if mediaDir == "" {
@@ -129,19 +157,28 @@ func seedMediaFromDisk(database *db.DB) error {
 
 			setDir := filepath.Join(conceptDir, entry.Name())
 
-			// Check for required photo file
+			// Check for required photo file (plain or encrypted)
 			photoPath := filepath.Join(setDir, "photo.jpg")
-			if _, err := os.Stat(photoPath); os.IsNotExist(err) {
+			photoExists := false
+			if _, err := os.Stat(photoPath); err == nil {
+				photoExists = true
+			} else if _, err := os.Stat(photoPath + ".age"); err == nil {
+				photoExists = true
+			}
+			if !photoExists {
 				continue
 			}
 
-			// Check for optional audio file
+			// Check for optional audio file (plain or encrypted)
 			audioPath := ""
-			if _, err := os.Stat(filepath.Join(setDir, "audio.mp3")); err == nil {
+			audioFile := filepath.Join(setDir, "audio.mp3")
+			if _, err := os.Stat(audioFile); err == nil {
+				audioPath = filepath.Join("data/media", concept, entry.Name(), "audio.mp3")
+			} else if _, err := os.Stat(audioFile + ".age"); err == nil {
 				audioPath = filepath.Join("data/media", concept, entry.Name(), "audio.mp3")
 			}
 
-			// Relative path for database
+			// Relative path for database (without .age extension - handler adds it)
 			relPhotoPath := filepath.Join("data/media", concept, entry.Name(), "photo.jpg")
 
 			// Seed the media set (database SeedMediaSet handles duplicates)

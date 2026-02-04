@@ -151,3 +151,63 @@ func (b *ByteReader) Read(p []byte) (int, error) {
 	b.pos += n
 	return n, nil
 }
+
+// DecryptReader creates an io.Reader that decrypts data from the source reader.
+// The caller is responsible for closing the source reader after reading is complete.
+func DecryptReader(src io.Reader, identity *age.X25519Identity) (io.Reader, error) {
+	r, err := age.Decrypt(src, identity)
+	if err != nil {
+		return nil, fmt.Errorf("create decryptor: %w", err)
+	}
+	return r, nil
+}
+
+// LoadIdentityFromFile loads an X25519 identity from a file.
+// The file should contain a line with the format: AGE-SECRET-KEY-1...
+func LoadIdentityFromFile(path string) (*age.X25519Identity, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read key file: %w", err)
+	}
+
+	// Parse the identity from the file content
+	// The key file from age-keygen contains comments and the key on separate lines
+	lines := splitLines(data)
+	for _, line := range lines {
+		line = trimSpace(line)
+		if len(line) > 0 && line[0] != '#' {
+			return age.ParseX25519Identity(line)
+		}
+	}
+
+	return nil, fmt.Errorf("no identity found in key file")
+}
+
+// splitLines splits data into lines without using strings package
+func splitLines(data []byte) []string {
+	var lines []string
+	start := 0
+	for i, b := range data {
+		if b == '\n' {
+			lines = append(lines, string(data[start:i]))
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		lines = append(lines, string(data[start:]))
+	}
+	return lines
+}
+
+// trimSpace trims leading and trailing whitespace
+func trimSpace(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\r' || s[start] == '\n') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\r' || s[end-1] == '\n') {
+		end--
+	}
+	return s[start:end]
+}

@@ -8,10 +8,10 @@ This file tracks high level progress on the peekaboo project.
 - **Astro frontend scaffolded** - mobile-first layout with mic button and media display
 - **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
 - **SQLite database** - db package with concepts/media_sets tables, GetRandomMediaSet, tests pass
-- **Age encryption** - crypto package with EncryptFile/DecryptFile using filippo.io/age
+- **Age encryption** - crypto package with EncryptFile/DecryptFile/DecryptReader, encrypted media serving via EncryptedFileServer
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
-- **LLM Intent API** - api/intent.go extracts subject from voice commands using Anthropic tool calls
-- **LLM Provider abstraction** - llm package supports both Anthropic and OpenAI function calling
+- **LLM Intent API** - api/intent.go uses llm.Provider interface for intent extraction
+- **LLM Provider abstraction** - llm package supports Anthropic and OpenAI; main.go creates provider from env
 - **Media lookup API** - api/media.go returns random media set for a concept
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
@@ -24,6 +24,8 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 22: Integrate media encryption - encrypted .age files served with on-demand decryption (2026-02-04)
+- Task 21: Wire up LLM provider abstraction - api/intent.go now uses llm.Provider (2026-02-04)
 - Task 20: Wire up backend main.go with handlers, DB init, static files, CORS (2026-02-04)
 - Task 18: Add OpenAI function calling support (2026-02-04)
 - Task 17: Research piper TTS deployment (2026-02-04)

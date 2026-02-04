@@ -199,3 +199,113 @@ func TestDecryptWithWrongKey(t *testing.T) {
 		t.Error("DecryptFile should fail with wrong key")
 	}
 }
+
+func TestDecryptReader(t *testing.T) {
+	plaintext := []byte("Test data for streaming decryption")
+
+	// Generate key and encrypt
+	identity, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	ciphertext, err := EncryptBytes(plaintext, identity)
+	if err != nil {
+		t.Fatalf("EncryptBytes failed: %v", err)
+	}
+
+	// Create reader from ciphertext
+	reader := NewByteReader(ciphertext)
+
+	// Decrypt using DecryptReader
+	decReader, err := DecryptReader(reader, identity)
+	if err != nil {
+		t.Fatalf("DecryptReader failed: %v", err)
+	}
+
+	// Read all decrypted data
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(decReader); err != nil {
+		t.Fatalf("ReadFrom failed: %v", err)
+	}
+
+	if !bytes.Equal(buf.Bytes(), plaintext) {
+		t.Errorf("Decrypted data doesn't match.\nGot: %s\nWant: %s", buf.Bytes(), plaintext)
+	}
+}
+
+func TestLoadIdentityFromFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// Generate a key
+	identity, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	// Write key file in age-keygen format
+	keyFile := filepath.Join(dir, "age.key")
+	keyContent := "# created: 2026-02-04T12:00:00-05:00\n" +
+		"# public key: " + identity.Recipient().String() + "\n" +
+		identity.String() + "\n"
+
+	if err := os.WriteFile(keyFile, []byte(keyContent), 0600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	// Load identity from file
+	loaded, err := LoadIdentityFromFile(keyFile)
+	if err != nil {
+		t.Fatalf("LoadIdentityFromFile failed: %v", err)
+	}
+
+	// Verify they match
+	if loaded.String() != identity.String() {
+		t.Errorf("Loaded identity doesn't match original")
+	}
+}
+
+func TestLoadIdentityFromFile_NotFound(t *testing.T) {
+	_, err := LoadIdentityFromFile("/nonexistent/path/age.key")
+	if err == nil {
+		t.Error("LoadIdentityFromFile should fail for nonexistent file")
+	}
+}
+
+func TestLoadIdentityFromFile_NoKey(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write file with only comments
+	keyFile := filepath.Join(dir, "age.key")
+	keyContent := "# only comments\n# no key here\n"
+
+	if err := os.WriteFile(keyFile, []byte(keyContent), 0600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, err := LoadIdentityFromFile(keyFile)
+	if err == nil {
+		t.Error("LoadIdentityFromFile should fail for file with no key")
+	}
+}
+
+func TestDecryptReaderWithWrongKey(t *testing.T) {
+	plaintext := []byte("Secret data")
+
+	// Generate two different keys
+	identity1, _ := GenerateKey()
+	identity2, _ := GenerateKey()
+
+	// Encrypt with key 1
+	ciphertext, err := EncryptBytes(plaintext, identity1)
+	if err != nil {
+		t.Fatalf("EncryptBytes failed: %v", err)
+	}
+
+	// Try to decrypt with key 2 (should fail)
+	reader := NewByteReader(ciphertext)
+	_, err = DecryptReader(reader, identity2)
+	if err == nil {
+		t.Error("DecryptReader should fail with wrong key")
+	}
+}
