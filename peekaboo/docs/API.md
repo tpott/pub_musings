@@ -12,9 +12,9 @@ http://localhost:8080
 
 ## Endpoints
 
-### Health Check
+### Health Check (Basic)
 
-Check if the server is running.
+Check if the server is running. Simple plain-text response.
 
 ```
 GET /health
@@ -32,6 +32,64 @@ OK
 
 ```bash
 curl http://localhost:8080/health
+```
+
+---
+
+### Liveness Probe
+
+Kubernetes-style liveness probe. Returns 200 if the server process is running.
+
+```
+GET /health/live
+```
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{
+  "status": "ok"
+}
+```
+
+#### Example
+
+```bash
+curl http://localhost:8080/health/live
+```
+
+---
+
+### Readiness Probe
+
+Kubernetes-style readiness probe. Returns 200 if the server and all dependencies (database) are ready to accept traffic.
+
+```
+GET /health/ready
+```
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{
+  "status": "ok"
+}
+```
+
+**Error (503 Service Unavailable)**:
+```json
+{
+  "status": "unavailable",
+  "error": "database unavailable"
+}
+```
+
+#### Example
+
+```bash
+curl http://localhost:8080/health/ready
 ```
 
 ---
@@ -267,6 +325,7 @@ Common HTTP status codes:
 | 404 | Not Found (concept or media not found) |
 | 405 | Method Not Allowed |
 | 500 | Internal Server Error |
+| 503 | Service Unavailable (dependency unavailable) |
 
 ---
 

@@ -49,11 +49,13 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Health check endpoint
+	// Health check endpoints
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
+	mux.Handle("GET /health/live", api.NewLivenessHandler())
+	mux.Handle("GET /health/ready", api.NewReadinessHandler(database))
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.NewTranscribeHandler(""))

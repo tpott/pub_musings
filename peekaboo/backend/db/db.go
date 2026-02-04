@@ -91,6 +91,11 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
+// Ping checks the database connection is alive.
+func (db *DB) Ping() error {
+	return db.conn.Ping()
+}
+
 // Init initializes the database schema and seeds the concepts table.
 func (db *DB) Init() error {
 	// Create tables
