@@ -7,12 +7,15 @@
     "build": "astro build",
     "preview": "astro preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "astro": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
     "jsdom": "^26.0.0",
     "vitest": "^3.0.0"
   }

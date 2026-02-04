@@ -9,70 +9,7 @@
   </svg>
 </button>
 
-<script>
-  import { AudioRecorder, transcribeAudio } from '../lib/audio-recorder';
-
-  const button = document.querySelector('[data-testid="mic-button"]') as HTMLButtonElement;
-  const recorder = new AudioRecorder();
-
-  if (!AudioRecorder.isSupported()) {
-    button.disabled = true;
-    button.title = 'Microphone not supported in this browser';
-  }
-
-  button.addEventListener('mousedown', startRecording);
-  button.addEventListener('touchstart', startRecording, { passive: true });
-  button.addEventListener('mouseup', stopRecording);
-  button.addEventListener('touchend', stopRecording);
-  button.addEventListener('mouseleave', stopRecording);
-
-  async function startRecording(event: Event) {
-    if (recorder.isRecording()) return;
-
-    try {
-      await recorder.startRecording();
-      button.classList.add('recording');
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-    }
-  }
-
-  async function stopRecording(event: Event) {
-    if (!recorder.isRecording()) return;
-
-    button.classList.remove('recording');
-
-    try {
-      const { blob } = await recorder.stopRecording();
-
-      // Dispatch event with the audio blob for the app to handle
-      const audioEvent = new CustomEvent('peekaboo:audio-recorded', {
-        bubbles: true,
-        detail: { blob }
-      });
-      button.dispatchEvent(audioEvent);
-
-      // Send to transcription API
-      const transcript = await transcribeAudio(blob);
-
-      // Dispatch event with transcription result
-      const transcriptEvent = new CustomEvent('peekaboo:transcript', {
-        bubbles: true,
-        detail: { text: transcript }
-      });
-      button.dispatchEvent(transcriptEvent);
-    } catch (error) {
-      console.error('Recording/transcription error:', error);
-
-      // Dispatch error event
-      const errorEvent = new CustomEvent('peekaboo:error', {
-        bubbles: true,
-        detail: { error: error instanceof Error ? error.message : 'Unknown error' }
-      });
-      button.dispatchEvent(errorEvent);
-    }
-  }
-</script>
+<!-- Event handling is done by PeekabooFlow initialized in index.astro -->
 
 <style>
   .mic-button {

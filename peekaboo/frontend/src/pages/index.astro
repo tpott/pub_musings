@@ -22,6 +22,41 @@ import '../styles/global.css';
   </body>
 </html>
 
+<script>
+  import { PeekabooFlow } from '../lib/peekaboo-flow';
+  import { AudioRecorder } from '../lib/audio-recorder';
+
+  // Initialize the flow when DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const micButton = document.querySelector('[data-testid="mic-button"]') as HTMLButtonElement;
+    const mediaContainer = document.querySelector('[data-testid="media-display"]') as HTMLElement;
+
+    if (!micButton || !mediaContainer) {
+      console.error('Peekaboo: Required elements not found');
+      return;
+    }
+
+    // Check if microphone is supported
+    if (!AudioRecorder.isSupported()) {
+      micButton.disabled = true;
+      micButton.title = 'Microphone not supported in this browser';
+      return;
+    }
+
+    // Initialize the full flow
+    new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      onStateChange: (state) => {
+        console.log('Peekaboo state:', state);
+      },
+      onError: (error) => {
+        console.error('Peekaboo error:', error);
+      },
+    });
+  });
+</script>
+
 <style>
   .title {
     font-size: 2.5rem;

@@ -76,6 +76,10 @@ export class MediaDisplay {
     this.audioElement.src = url;
     this.audioElement.dataset.testid = 'media-audio';
 
+    // Add to container (hidden but in DOM for testing)
+    this.audioElement.style.display = 'none';
+    this.container.appendChild(this.audioElement);
+
     // Attempt autoplay (may be blocked by browser policies)
     this.audioElement.play().catch(error => {
       console.warn('Audio autoplay blocked:', error);
