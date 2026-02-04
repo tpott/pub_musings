@@ -96,3 +96,71 @@ func TestGenerateRequestID(t *testing.T) {
 		ids[id] = true
 	}
 }
+
+func TestRequestLoggerMiddleware(t *testing.T) {
+	// Test that the middleware calls the next handler
+	called := false
+	handler := RequestLoggerMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusCreated) // Use non-default status to verify capture
+	}))
+
+	req := httptest.NewRequest("POST", "/api/test", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Error("RequestLoggerMiddleware did not call next handler")
+	}
+	if rr.Code != http.StatusCreated {
+		t.Errorf("Response status = %d, want %d", rr.Code, http.StatusCreated)
+	}
+}
+
+func TestStatusRecorder(t *testing.T) {
+	tests := []struct {
+		name     string
+		handler  http.HandlerFunc
+		wantCode int
+	}{
+		{
+			name: "default status OK",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				// Don't call WriteHeader - should default to 200
+				w.Write([]byte("OK"))
+			},
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "explicit status 404",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			},
+			wantCode: http.StatusNotFound,
+		},
+		{
+			name: "explicit status 500",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			},
+			wantCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			recorder := &statusRecorder{
+				ResponseWriter: rr,
+				statusCode:     http.StatusOK,
+			}
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			tc.handler(recorder, req)
+
+			if recorder.statusCode != tc.wantCode {
+				t.Errorf("statusRecorder.statusCode = %d, want %d", recorder.statusCode, tc.wantCode)
+			}
+		})
+	}
+}

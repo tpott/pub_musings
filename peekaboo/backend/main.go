@@ -134,8 +134,8 @@ func main() {
 		slog.Info("CORS configured", "allowed_origin", allowedOrigin)
 	}
 
-	// Wrap with middleware chain: request ID -> security headers -> CORS
-	handler := logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(corsMiddleware(mux, allowedOrigin)))
+	// Wrap with middleware chain: request logger -> request ID -> security headers -> CORS
+	handler := logging.RequestLoggerMiddleware(logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(corsMiddleware(mux, allowedOrigin))))
 
 	port := os.Getenv("PORT")
 	if port == "" {
