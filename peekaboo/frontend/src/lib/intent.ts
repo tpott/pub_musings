@@ -3,6 +3,7 @@
  */
 
 import { fetchWithRetry } from './fetch-with-retry';
+import { createApiErrorFromResponse, createNetworkError, ApiError } from './errors';
 
 export interface IntentResult {
   subject: string;
@@ -14,26 +15,31 @@ export interface IntentResult {
  * @returns Subject extracted from the text (e.g., "cat", "dog")
  */
 export async function extractIntent(text: string): Promise<IntentResult> {
-  const response = await fetchWithRetry('/api/intent', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ text }),
-  });
+  let response: Response;
+  try {
+    response = await fetchWithRetry('/api/intent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+  } catch (error) {
+    // Network error after all retries
+    throw createNetworkError(error instanceof Error ? error : new Error(String(error)));
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `Intent extraction failed: ${response.status}`);
+    throw await createApiErrorFromResponse(response, 'Intent extraction failed');
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new ApiError(data.error, 'client');
   }
 
   if (!data.subject) {
-    throw new Error('No subject extracted');
+    throw new ApiError('No subject extracted', 'client');
   }
 
   return {

@@ -7,6 +7,7 @@
 import { AudioRecorder, transcribeAudio } from './audio-recorder';
 import { extractIntent } from './intent';
 import { MediaDisplay, fetchMedia } from './media-display';
+import { getUserFriendlyMessage, ApiError } from './errors';
 
 export type FlowState = 'idle' | 'recording' | 'transcribing' | 'searching' | 'displaying' | 'error';
 
@@ -175,15 +176,25 @@ export class PeekabooFlow {
   private handleError(error: Error): void {
     console.error('Peekaboo flow error:', error);
     this.setState('error');
-    this.display.reset(`Oops! ${error.message}`);
+
+    // Get user-friendly error message based on error type
+    const message = getUserFriendlyMessage(error);
+    this.display.reset(message);
+
+    // Update aria-label with error message for accessibility
+    this.micButton.setAttribute('aria-label', `${message}. Press and hold to try again`);
+
     this.onError?.(error);
+
+    // Longer timeout for rate limit errors
+    const timeout = (error instanceof ApiError && error.type === 'rate_limit') ? 5000 : 3000;
 
     // Reset to idle after showing error
     setTimeout(() => {
       if (this.state === 'error') {
         this.setState('idle');
       }
-    }, 3000);
+    }, timeout);
   }
 
   /**

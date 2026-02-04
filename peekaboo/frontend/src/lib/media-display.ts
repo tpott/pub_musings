@@ -3,6 +3,7 @@
  */
 
 import { fetchWithRetry } from './fetch-with-retry';
+import { createApiErrorFromResponse, createNetworkError, ApiError } from './errors';
 
 export interface MediaContent {
   photoUrl?: string;
@@ -128,16 +129,21 @@ export class MediaDisplay {
  * @returns MediaContent object
  */
 export async function fetchMedia(concept: string): Promise<MediaContent> {
-  const response = await fetchWithRetry(`/api/media/${encodeURIComponent(concept)}`);
+  let response: Response;
+  try {
+    response = await fetchWithRetry(`/api/media/${encodeURIComponent(concept)}`);
+  } catch (error) {
+    // Network error after all retries
+    throw createNetworkError(error instanceof Error ? error : new Error(String(error)));
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `Media fetch failed: ${response.status}`);
+    throw await createApiErrorFromResponse(response, 'Media fetch failed');
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new ApiError(data.error, 'client');
   }
 
   return {

@@ -35,9 +35,11 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend retry** - fetchWithRetry utility with exponential backoff (1s, 2s, 4s) on 429/5xx responses
 - **Database index** - idx_media_sets_concept_id for faster media lookups
 - **Troubleshooting guide** - docs/TROUBLESHOOTING.md with microphone, whisper, database, and LLM debugging
+- **Differentiated error messages** - Frontend errors.ts module with ApiError class, user-friendly messages for network/rate-limit/server errors
 
 ## Last Completed
 
+- Task 51: Add differentiated error messages for network vs server failures in frontend (2026-02-04)
 - Task 50: Add loading state indicators - Listening, Processing, Searching (2026-02-04)
 - Task 49: Add E2E tests for dog and duck animals (2026-02-04)
 - Task 48: Create docs/TROUBLESHOOTING.md with common issues and solutions (2026-02-04)

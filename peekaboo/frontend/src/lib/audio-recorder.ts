@@ -3,6 +3,7 @@
  */
 
 import { fetchWithRetry } from './fetch-with-retry';
+import { createApiErrorFromResponse, createNetworkError, ApiError } from './errors';
 
 export interface RecordingResult {
   blob: Blob;
@@ -106,19 +107,24 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
   const formData = new FormData();
   formData.append('audio', blob, 'audio.webm');
 
-  const response = await fetchWithRetry('/api/transcribe', {
-    method: 'POST',
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetchWithRetry('/api/transcribe', {
+      method: 'POST',
+      body: formData,
+    });
+  } catch (error) {
+    // Network error after all retries
+    throw createNetworkError(error instanceof Error ? error : new Error(String(error)));
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `Transcription failed: ${response.status}`);
+    throw await createApiErrorFromResponse(response, 'Transcription failed');
   }
 
   const data = await response.json();
   if (data.error) {
-    throw new Error(data.error);
+    throw new ApiError(data.error, 'client');
   }
 
   return data.text;
