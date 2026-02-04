@@ -12,9 +12,11 @@ This file tracks high level progress on the peekaboo project.
 - **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
 - **LLM Intent API** - api/intent.go extracts subject from voice commands using Anthropic tool calls
 - **Media lookup API** - api/media.go returns random media set for a concept
+- **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 
 ## Last Completed
 
+- Task 10: Frontend microphone recording with MediaRecorder (2026-02-04)
 - Task 9: Media lookup API GET /api/media/{concept} (2026-02-04)
 - Task 8: LLM intent recognition with Anthropic tool calls (2026-02-04)
 - Task 7: Whisper-server integration (2026-02-03)
