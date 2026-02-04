@@ -1,0 +1,332 @@
+import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import { PeekabooFlow, FlowState } from './peekaboo-flow';
+import * as audioRecorder from './audio-recorder';
+import * as intent from './intent';
+import * as mediaDisplay from './media-display';
+
+// Mock modules at the top level
+vi.mock('./audio-recorder', () => ({
+  AudioRecorder: vi.fn(),
+  transcribeAudio: vi.fn(),
+}));
+
+vi.mock('./intent', () => ({
+  extractIntent: vi.fn(),
+}));
+
+vi.mock('./media-display', () => ({
+  MediaDisplay: vi.fn(),
+  fetchMedia: vi.fn(),
+}));
+
+describe('PeekabooFlow', () => {
+  let micButton: HTMLButtonElement;
+  let mediaContainer: HTMLElement;
+  let stateChanges: FlowState[];
+  let flow: PeekabooFlow;
+
+  // Store mock function references
+  let mockStartRecording: Mock;
+  let mockStopRecording: Mock;
+  let mockIsRecording: Mock;
+  let mockShow: Mock;
+  let mockReset: Mock;
+
+  beforeEach(() => {
+    // Create fresh mocks
+    mockStartRecording = vi.fn().mockResolvedValue(undefined);
+    mockStopRecording = vi.fn().mockResolvedValue({
+      blob: new Blob(['mock audio'], { type: 'audio/webm' }),
+      mimeType: 'audio/webm',
+    });
+    mockIsRecording = vi.fn().mockReturnValue(false);
+    mockShow = vi.fn();
+    mockReset = vi.fn();
+
+    // Setup AudioRecorder constructor mock
+    (audioRecorder.AudioRecorder as unknown as Mock).mockImplementation(() => ({
+      startRecording: mockStartRecording,
+      stopRecording: mockStopRecording,
+      isRecording: mockIsRecording,
+    }));
+
+    // Setup transcribeAudio mock
+    (audioRecorder.transcribeAudio as Mock).mockResolvedValue('show me a cat');
+
+    // Setup extractIntent mock
+    (intent.extractIntent as Mock).mockResolvedValue({ subject: 'cat' });
+
+    // Setup MediaDisplay constructor mock
+    (mediaDisplay.MediaDisplay as unknown as Mock).mockImplementation(() => ({
+      show: mockShow,
+      reset: mockReset,
+      stopAudio: vi.fn(),
+      getAudioElement: vi.fn(),
+    }));
+
+    // Setup fetchMedia mock
+    (mediaDisplay.fetchMedia as Mock).mockResolvedValue({
+      photoUrl: '/data/media/cat/photo.jpg',
+      audioUrl: '/data/media/cat/audio.mp3',
+    });
+
+    // Create DOM elements
+    micButton = document.createElement('button');
+    mediaContainer = document.createElement('div');
+
+    stateChanges = [];
+    flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      onStateChange: (state) => stateChanges.push(state),
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('initial state', () => {
+    it('starts in idle state', () => {
+      expect(flow.getState()).toBe('idle');
+    });
+
+    it('button is not disabled initially', () => {
+      expect(micButton.disabled).toBe(false);
+    });
+  });
+
+  describe('startRecording', () => {
+    it('transitions to recording state', async () => {
+      await flow.startRecording();
+
+      expect(flow.getState()).toBe('recording');
+      expect(stateChanges).toContain('recording');
+    });
+
+    it('adds recording class to button', async () => {
+      await flow.startRecording();
+
+      expect(micButton.classList.contains('recording')).toBe(true);
+    });
+
+    it('calls AudioRecorder.startRecording', async () => {
+      await flow.startRecording();
+
+      expect(mockStartRecording).toHaveBeenCalled();
+    });
+
+    it('does nothing if already recording', async () => {
+      await flow.startRecording();
+      stateChanges.length = 0;
+
+      await flow.startRecording();
+
+      expect(stateChanges).toHaveLength(0);
+    });
+  });
+
+  describe('stopRecordingAndProcess', () => {
+    it('does nothing if not recording', async () => {
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('idle');
+      expect(stateChanges).toHaveLength(0);
+    });
+
+    it('transitions through processing state', async () => {
+      await flow.startRecording();
+      stateChanges.length = 0;
+
+      await flow.stopRecordingAndProcess();
+
+      expect(stateChanges).toContain('processing');
+    });
+
+    it('ends in displaying state on success', async () => {
+      await flow.startRecording();
+
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('displaying');
+    });
+
+    it('calls stopRecording on the recorder', async () => {
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(mockStopRecording).toHaveBeenCalled();
+    });
+  });
+
+  describe('full flow integration', () => {
+    it('completes full flow: idle -> recording -> processing -> displaying', async () => {
+      expect(flow.getState()).toBe('idle');
+
+      await flow.startRecording();
+      expect(flow.getState()).toBe('recording');
+
+      await flow.stopRecordingAndProcess();
+      expect(flow.getState()).toBe('displaying');
+
+      // Verify state transitions
+      expect(stateChanges).toEqual(['recording', 'processing', 'displaying']);
+    });
+
+    it('calls all API functions in correct order', async () => {
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      // Verify transcription was called with the blob
+      expect(audioRecorder.transcribeAudio).toHaveBeenCalled();
+
+      // Verify intent extraction was called with transcript
+      expect(intent.extractIntent).toHaveBeenCalledWith('show me a cat');
+
+      // Verify media fetch was called with subject
+      expect(mediaDisplay.fetchMedia).toHaveBeenCalledWith('cat');
+
+      // Verify display.show was called with media
+      expect(mockShow).toHaveBeenCalledWith({
+        photoUrl: '/data/media/cat/photo.jpg',
+        audioUrl: '/data/media/cat/audio.mp3',
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('transitions to error state on transcription failure', async () => {
+      (audioRecorder.transcribeAudio as Mock).mockRejectedValue(
+        new Error('Transcription failed')
+      );
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('error');
+    });
+
+    it('transitions to error state on intent extraction failure', async () => {
+      (intent.extractIntent as Mock).mockRejectedValue(
+        new Error('Intent extraction failed')
+      );
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('error');
+    });
+
+    it('transitions to error state on media fetch failure', async () => {
+      (mediaDisplay.fetchMedia as Mock).mockRejectedValue(
+        new Error('Media fetch failed')
+      );
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('error');
+    });
+
+    it('calls onError callback on failure', async () => {
+      const onError = vi.fn();
+      const errorFlow = new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        onError,
+      });
+
+      (audioRecorder.transcribeAudio as Mock).mockRejectedValue(
+        new Error('Test error')
+      );
+
+      await errorFlow.startRecording();
+      await errorFlow.stopRecordingAndProcess();
+
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it('displays error message in media container', async () => {
+      (audioRecorder.transcribeAudio as Mock).mockRejectedValue(
+        new Error('Test error message')
+      );
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(mockReset).toHaveBeenCalledWith(expect.stringContaining('Test error message'));
+    });
+  });
+
+  describe('reset', () => {
+    it('resets to idle state', async () => {
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+      stateChanges.length = 0;
+
+      flow.reset();
+
+      expect(flow.getState()).toBe('idle');
+      expect(stateChanges).toContain('idle');
+    });
+
+    it('calls display.reset', () => {
+      flow.reset();
+
+      expect(mockReset).toHaveBeenCalled();
+    });
+  });
+
+  describe('mouse events', () => {
+    it('starts recording on mousedown', async () => {
+      const mouseDownEvent = new MouseEvent('mousedown');
+      micButton.dispatchEvent(mouseDownEvent);
+
+      // Wait for async operation
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(flow.getState()).toBe('recording');
+    });
+
+    it('stops recording on mouseup', async () => {
+      micButton.dispatchEvent(new MouseEvent('mousedown'));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      micButton.dispatchEvent(new MouseEvent('mouseup'));
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(flow.getState()).toBe('displaying');
+    });
+
+    it('stops recording on mouseleave while recording', async () => {
+      micButton.dispatchEvent(new MouseEvent('mousedown'));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      micButton.dispatchEvent(new MouseEvent('mouseleave'));
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(flow.getState()).toBe('displaying');
+    });
+  });
+
+  describe('touch events', () => {
+    it('starts recording on touchstart', async () => {
+      const touchStartEvent = new TouchEvent('touchstart');
+      micButton.dispatchEvent(touchStartEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(flow.getState()).toBe('recording');
+    });
+
+    it('stops recording on touchend', async () => {
+      micButton.dispatchEvent(new TouchEvent('touchstart'));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      micButton.dispatchEvent(new TouchEvent('touchend'));
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(flow.getState()).toBe('displaying');
+    });
+  });
+});

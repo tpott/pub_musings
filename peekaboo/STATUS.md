@@ -14,9 +14,11 @@ This file tracks high level progress on the peekaboo project.
 - **Media lookup API** - api/media.go returns random media set for a concept
 - **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
+- **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display
 
 ## Last Completed
 
+- Task 12: Wire up full frontend flow with state management (2026-02-04)
 - Task 11: Frontend media display with image/video/audio support (2026-02-04)
 - Task 10: Frontend microphone recording with MediaRecorder (2026-02-04)
 - Task 9: Media lookup API GET /api/media/{concept} (2026-02-04)
