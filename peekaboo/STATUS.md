@@ -24,7 +24,7 @@ This file tracks high level progress on the peekaboo project.
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
 - **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
-- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, and optional Piper checks
+- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, optional Piper, and LLM provider checks
 - **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
 - **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent with cleanup goroutine
 - **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
@@ -50,6 +50,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 71: Add LLM provider connectivity check to /health/ready endpoint (2026-02-04)
+  - Added HealthCheck method to llm.Provider interface
+  - Implemented HealthCheck for Anthropic and OpenAI providers (minimal completion request)
+  - ReadinessHandler now checks LLM provider availability when configured
+  - Returns 503 with "llm provider unavailable" error if API key invalid or provider unreachable
+  - Added unit tests for LLM health check success, failure, and nil provider cases
+  - Updated docs/API.md with full readiness probe documentation
 - Task 69: Integrate WebSocket audio into PeekabooFlow (2026-02-04)
   - PeekabooFlow supports useWebSocket option for WebSocket mode
   - Streams audio chunks every 500ms while recording

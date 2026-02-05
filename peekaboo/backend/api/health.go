@@ -2,12 +2,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 )
 
 // HealthResponse is the response from health check endpoints.
@@ -38,10 +40,11 @@ func (h *LivenessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ReadinessHandler handles GET /health/ready requests.
 // Returns 200 if the server and all dependencies are ready.
 type ReadinessHandler struct {
-	DB         *db.DB
-	WhisperURL string
-	PiperURL   string // Optional - only checked if non-empty
-	Client     *http.Client
+	DB          *db.DB
+	WhisperURL  string
+	PiperURL    string       // Optional - only checked if non-empty
+	LLMProvider llm.Provider // Optional - only checked if non-nil
+	Client      *http.Client
 }
 
 // NewReadinessHandler creates a new ReadinessHandler.
@@ -56,6 +59,25 @@ func NewReadinessHandler(database *db.DB) *ReadinessHandler {
 		DB:         database,
 		WhisperURL: whisperURL,
 		PiperURL:   piperURL,
+		Client: &http.Client{
+			Timeout: 5 * time.Second, // Short timeout for health checks
+		},
+	}
+}
+
+// NewReadinessHandlerWithLLM creates a new ReadinessHandler with an LLM provider for health checks.
+// Reads URLs from environment: WHISPER_SERVER_URL (required) and PIPER_SERVER_URL (optional).
+func NewReadinessHandlerWithLLM(database *db.DB, provider llm.Provider) *ReadinessHandler {
+	whisperURL := os.Getenv("WHISPER_SERVER_URL")
+	if whisperURL == "" {
+		whisperURL = "http://127.0.0.1:8765"
+	}
+	piperURL := os.Getenv("PIPER_SERVER_URL") // Optional - empty means TTS disabled
+	return &ReadinessHandler{
+		DB:          database,
+		WhisperURL:  whisperURL,
+		PiperURL:    piperURL,
+		LLMProvider: provider,
 		Client: &http.Client{
 			Timeout: 5 * time.Second, // Short timeout for health checks
 		},
@@ -81,6 +103,20 @@ func NewReadinessHandlerWithURLs(database *db.DB, whisperURL, piperURL string) *
 		DB:         database,
 		WhisperURL: whisperURL,
 		PiperURL:   piperURL,
+		Client: &http.Client{
+			Timeout: 5 * time.Second,
+		},
+	}
+}
+
+// NewReadinessHandlerWithAll creates a ReadinessHandler with all optional dependencies.
+// Used for testing. piperURL can be empty to disable Piper check, llmProvider can be nil.
+func NewReadinessHandlerWithAll(database *db.DB, whisperURL, piperURL string, llmProvider llm.Provider) *ReadinessHandler {
+	return &ReadinessHandler{
+		DB:          database,
+		WhisperURL:  whisperURL,
+		PiperURL:    piperURL,
+		LLMProvider: llmProvider,
 		Client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -138,6 +174,24 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		details["piper"] = "ok"
+	}
+
+	// Check LLM provider connectivity (optional - only if provider is configured)
+	if h.LLMProvider != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		if err := h.LLMProvider.HealthCheck(ctx); err != nil {
+			details["llm"] = "unavailable"
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(HealthResponse{
+				Status:  "unavailable",
+				Error:   "llm provider unavailable",
+				Details: details,
+			})
+			return
+		}
+		details["llm"] = "ok"
 	}
 
 	writeJSON(w, http.StatusOK, HealthResponse{Status: "ok", Details: details})

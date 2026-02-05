@@ -18,6 +18,8 @@ type IntentResult struct {
 type Provider interface {
 	// ExtractIntent extracts a subject from text using function/tool calling.
 	ExtractIntent(ctx context.Context, text string) (*IntentResult, error)
+	// HealthCheck verifies the LLM provider is reachable and API key is valid.
+	HealthCheck(ctx context.Context) error
 }
 
 // Config holds configuration for LLM providers.

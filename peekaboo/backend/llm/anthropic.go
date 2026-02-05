@@ -157,3 +157,44 @@ func (p *anthropicProvider) ExtractIntent(ctx context.Context, text string) (*In
 	// No tool call means no actionable intent found (e.g., silence, unclear speech)
 	return nil, nil
 }
+
+// HealthCheck verifies the Anthropic API is reachable and API key is valid.
+// Uses a minimal completion request with max_tokens=1 to minimize cost.
+func (p *anthropicProvider) HealthCheck(ctx context.Context) error {
+	apiReq := anthropicRequest{
+		Model:     p.model,
+		MaxTokens: 1,
+		Messages: []anthropicMessage{
+			{
+				Role:    "user",
+				Content: "hi",
+			},
+		},
+	}
+
+	body, err := json.Marshal(apiReq)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/messages", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", p.apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("anthropic API error: %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}

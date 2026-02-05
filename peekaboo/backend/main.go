@@ -68,7 +68,7 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 	mux.Handle("GET /health/live", api.NewLivenessHandler())
-	mux.Handle("GET /health/ready", api.NewReadinessHandler(database))
+	mux.Handle("GET /health/ready", api.NewReadinessHandlerWithLLM(database, llmProvider))
 
 	// Create rate limiter for expensive endpoints (10 requests per minute per IP)
 	rateLimiter := api.NewRateLimiter(10, time.Minute)

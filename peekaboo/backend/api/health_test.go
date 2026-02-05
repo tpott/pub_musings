@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -271,6 +272,96 @@ func TestReadinessHandler(t *testing.T) {
 		// Piper should not be in details when disabled
 		if _, exists := resp.Details["piper"]; exists {
 			t.Errorf("expected no piper detail when disabled, got %q", resp.Details["piper"])
+		}
+	})
+
+	t.Run("returns 200 with llm when all dependencies available", func(t *testing.T) {
+		mockLLM := &mockLLMProvider{healthErr: nil}
+		handler := NewReadinessHandlerWithAll(database, mockWhisper.URL, "", mockLLM)
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if resp.Status != "ok" {
+			t.Errorf("expected status 'ok', got %q", resp.Status)
+		}
+
+		if resp.Details["llm"] != "ok" {
+			t.Errorf("expected llm status 'ok', got %q", resp.Details["llm"])
+		}
+	})
+
+	t.Run("returns 503 when llm provider is unavailable", func(t *testing.T) {
+		mockLLM := &mockLLMProvider{healthErr: errors.New("API key invalid")}
+		handler := NewReadinessHandlerWithAll(database, mockWhisper.URL, "", mockLLM)
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if resp.Status != "unavailable" {
+			t.Errorf("expected status 'unavailable', got %q", resp.Status)
+		}
+
+		if resp.Error != "llm provider unavailable" {
+			t.Errorf("expected error 'llm provider unavailable', got %q", resp.Error)
+		}
+
+		if resp.Details["database"] != "ok" {
+			t.Errorf("expected database detail 'ok', got %q", resp.Details["database"])
+		}
+
+		if resp.Details["whisper"] != "ok" {
+			t.Errorf("expected whisper detail 'ok', got %q", resp.Details["whisper"])
+		}
+
+		if resp.Details["llm"] != "unavailable" {
+			t.Errorf("expected llm detail 'unavailable', got %q", resp.Details["llm"])
+		}
+	})
+
+	t.Run("skips llm check when provider is nil", func(t *testing.T) {
+		// nil LLM provider means LLM check is disabled
+		handler := NewReadinessHandlerWithAll(database, mockWhisper.URL, "", nil)
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var resp HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		// LLM should not be in details when disabled
+		if _, exists := resp.Details["llm"]; exists {
+			t.Errorf("expected no llm detail when disabled, got %q", resp.Details["llm"])
 		}
 	})
 }

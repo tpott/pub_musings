@@ -63,7 +63,13 @@ curl http://localhost:8080/health/live
 
 ### Readiness Probe
 
-Kubernetes-style readiness probe. Returns 200 if the server and all dependencies (database) are ready to accept traffic.
+Kubernetes-style readiness probe. Returns 200 if the server and all dependencies are ready to accept traffic.
+
+Checks:
+- **Database**: SQLite connectivity
+- **Whisper-server**: Speech-to-text service availability
+- **Piper TTS** (optional): Only checked if `PIPER_SERVER_URL` is set
+- **LLM Provider**: API key validity and provider availability (Anthropic or OpenAI)
 
 ```
 GET /health/ready
@@ -74,7 +80,12 @@ GET /health/ready
 **Success (200 OK)**:
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "details": {
+    "database": "ok",
+    "whisper": "ok",
+    "llm": "ok"
+  }
 }
 ```
 
@@ -82,9 +93,20 @@ GET /health/ready
 ```json
 {
   "status": "unavailable",
-  "error": "database unavailable"
+  "error": "llm provider unavailable",
+  "details": {
+    "database": "ok",
+    "whisper": "ok",
+    "llm": "unavailable"
+  }
 }
 ```
+
+Possible error values:
+- `"database unavailable"` - SQLite connection failed
+- `"whisper-server unavailable"` - Whisper service unreachable
+- `"piper-server unavailable"` - Piper TTS unreachable (if configured)
+- `"llm provider unavailable"` - LLM API key invalid or provider unreachable
 
 #### Example
 

@@ -15,8 +15,9 @@ import (
 
 // mockLLMProvider implements llm.Provider for testing.
 type mockLLMProvider struct {
-	subject string
-	err     error
+	subject   string
+	err       error
+	healthErr error
 }
 
 func (m *mockLLMProvider) ExtractIntent(ctx context.Context, text string) (*llm.IntentResult, error) {
@@ -24,6 +25,10 @@ func (m *mockLLMProvider) ExtractIntent(ctx context.Context, text string) (*llm.
 		return nil, m.err
 	}
 	return &llm.IntentResult{Subject: m.subject}, nil
+}
+
+func (m *mockLLMProvider) HealthCheck(ctx context.Context) error {
+	return m.healthErr
 }
 
 func TestAudioWebSocketHandler_Ping(t *testing.T) {
