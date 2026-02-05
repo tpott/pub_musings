@@ -596,6 +596,75 @@ test.describe('Peekaboo voice command flow', () => {
   });
 });
 
+test.describe('Microphone permission handling', () => {
+  test('displays error message when microphone permission is denied', async ({ page }) => {
+    // Mock getUserMedia to reject with NotAllowedError (permission denied)
+    await page.addInitScript(() => {
+      // Mock MediaRecorder to pass browser support check
+      class MockMediaRecorder {
+        state = 'inactive';
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+
+        constructor(stream: MediaStream) {
+          this.stream = stream;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start() {
+          this.state = 'recording';
+        }
+
+        stop() {
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      (window as any).MediaRecorder = MockMediaRecorder;
+
+      // Mock getUserMedia to reject with NotAllowedError (permission denied)
+      navigator.mediaDevices.getUserMedia = () => {
+        const error = new DOMException('Permission denied', 'NotAllowedError');
+        return Promise.reject(error);
+      };
+    });
+
+    await page.goto('/');
+
+    // Wait for page to load
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const mediaDisplay = page.locator('[data-testid="media-display"]');
+
+    // Click the mic button to start recording - this should trigger getUserMedia and fail
+    await micButton.click();
+
+    // Wait for error to be displayed
+    await page.waitForTimeout(500);
+
+    // Verify error message is shown to user
+    await expect(mediaDisplay).toContainText(/permission|denied|access|microphone|try again/i);
+
+    // Verify the mic button's aria-label indicates error state
+    await expect(micButton).toHaveAttribute('aria-label', /try again/i);
+
+    // Image should NOT be visible after error
+    await expect(page.locator('[data-testid="media-image"]')).not.toBeVisible();
+  });
+});
+
 test.describe('WebSocket continuous listening', () => {
   test('user can issue multiple commands via WebSocket mode', async ({ page }) => {
     let commandCount = 0;

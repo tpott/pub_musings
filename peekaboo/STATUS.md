@@ -51,6 +51,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 84: Add E2E test for microphone permission denial flow (2026-02-04)
+  - Added Playwright test that mocks getUserMedia to reject with NotAllowedError
+  - Verifies error message is displayed to user when microphone permission is denied
+  - Verifies mic button aria-label indicates error state with "try again"
+  - All 11 Playwright E2E tests pass
 - Task 83: Add test for LLM ExtractIntent context cancellation (2026-02-04)
   - Added TestAnthropicProvider_ExtractIntent_ContextCancellation to llm/anthropic_test.go
   - Added TestOpenAIProvider_ExtractIntent_ContextCancellation to llm/openai_test.go
