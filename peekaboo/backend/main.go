@@ -109,6 +109,10 @@ func main() {
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
 	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
 
+	// Feedback endpoint with its own rate limiter (5 requests per minute per IP)
+	feedbackLimiter := api.NewRateLimiter(5, time.Minute)
+	mux.Handle("POST /api/feedback", api.RateLimitMiddleware(api.NewFeedbackHandler(database), feedbackLimiter))
+
 	// WebSocket endpoint for audio streaming with rate limiting and origin validation
 	whisperURL := os.Getenv("WHISPER_SERVER_URL")
 	if whisperURL == "" {

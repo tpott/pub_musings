@@ -52,9 +52,19 @@ This file tracks high level progress on the peekaboo project.
 - **Request body size limits** - /api/intent (5KB), /api/speak (2KB) limits prevent DoS via unbounded JSON
 - **WebSocket concept validation** - Same validation as HTTP media endpoint (format pattern, max 50 chars)
 - **Transcript display UI** - Scrollable transcript history below media display with aria-live for accessibility
+- **Feedback feature** - Floating feedback button with modal form, POST /api/feedback endpoint with rate limiting (5/min), SQLite persistence
 
 ## Last Completed
 
+- Task 105: Add feedback feature with floating button and database persistence (2026-02-05)
+  - Created specs/feedback.md with complete feature design
+  - Added feedback table to database schema with indexes
+  - Implemented POST /api/feedback endpoint with validation and rate limiting (5 req/min per IP)
+  - Created FeedbackButton.astro component with modal, star rating, and form validation
+  - Created feedback.ts library with submitFeedback() and session ID management
+  - Added 18 backend tests for feedback handler, 11 frontend tests for feedback lib
+  - Updated docs/API.md with feedback endpoint documentation
+  - All 230 frontend tests pass, all backend tests pass
 - Task 102: Update specs to document continuous listening behavior (2026-02-05)
   - Added Session Lifecycle (Continuous Listening) section to specs/websocket-audio.md
   - Updated specs/continuous-listening-ux.md status to "Implemented"

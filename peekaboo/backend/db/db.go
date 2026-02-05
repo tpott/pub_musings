@@ -24,6 +24,20 @@ type MediaSet struct {
 	VideoPath string
 }
 
+// Feedback represents user feedback submission.
+type Feedback struct {
+	ID           string
+	FeedbackType string
+	Rating       *int // nil if not provided
+	Message      string
+	SessionID    string
+	ConceptID    *string // nil if not provided
+	Transcript   *string // nil if not provided
+	PageURL      string
+	UserAgent    *string // nil if not provided
+	IPAddress    *string // nil if not provided
+}
+
 // schema defines the database tables and indexes.
 const schema = `
 CREATE TABLE IF NOT EXISTS concepts (
@@ -40,6 +54,24 @@ CREATE TABLE IF NOT EXISTS media_sets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_media_sets_concept_id ON media_sets(concept_id);
+
+CREATE TABLE IF NOT EXISTS feedback (
+	id TEXT PRIMARY KEY,
+	feedback_type TEXT NOT NULL,
+	rating INTEGER,
+	message TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	concept_id TEXT,
+	transcript TEXT,
+	page_url TEXT NOT NULL,
+	user_agent TEXT,
+	ip_address TEXT,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	status TEXT NOT NULL DEFAULT 'new'
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status);
 `
 
 // seedData contains the 6 MVP animals.
@@ -186,6 +218,18 @@ func (db *DB) GetConcept(id string) (string, error) {
 		return "", fmt.Errorf("query concept %s: %w", id, err)
 	}
 	return name, nil
+}
+
+// InsertFeedback stores a feedback submission in the database.
+func (db *DB) InsertFeedback(f *Feedback) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO feedback (id, feedback_type, rating, message, session_id, concept_id, transcript, page_url, user_agent, ip_address)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, f.ID, f.FeedbackType, f.Rating, f.Message, f.SessionID, f.ConceptID, f.Transcript, f.PageURL, f.UserAgent, f.IPAddress)
+	if err != nil {
+		return fmt.Errorf("insert feedback: %w", err)
+	}
+	return nil
 }
 
 // getEnvInt reads an integer from an environment variable, returning defaultVal if not set or invalid.

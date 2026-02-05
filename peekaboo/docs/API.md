@@ -413,6 +413,96 @@ See [specs/piper.md](../specs/piper.md) for Piper server setup instructions.
 
 ---
 
+### Submit Feedback
+
+Submit user feedback, bug reports, or feature requests.
+
+```
+POST /api/feedback
+```
+
+#### Request
+
+- **Content-Type**: `application/json`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Feedback type: `general`, `bug`, or `feature` |
+| `rating` | integer | No | Rating from 1 to 5 |
+| `message` | string | Yes | Feedback message (max 5000 characters) |
+| `context.session_id` | string | Yes | Anonymous session identifier |
+| `context.page_url` | string | Yes | URL where feedback was submitted |
+| `context.concept_id` | string | No | Last displayed animal concept |
+| `context.transcript` | string | No | Last recognized voice command |
+| `context.user_agent` | string | No | Browser user agent string |
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{
+  "id": "feedback_abc123def456789012345678",
+  "status": "ok"
+}
+```
+
+**Error (400 Bad Request)**:
+```json
+{
+  "error": "message is required"
+}
+```
+
+```json
+{
+  "error": "invalid type: must be general, bug, or feature"
+}
+```
+
+```json
+{
+  "error": "rating must be between 1 and 5"
+}
+```
+
+**Error (413 Payload Too Large)**:
+```json
+{
+  "error": "message too long (max 5000 characters)"
+}
+```
+
+**Error (429 Too Many Requests)**:
+```json
+{
+  "error": "rate limit exceeded, try again later"
+}
+```
+
+#### Example
+
+```bash
+curl -X POST http://localhost:8080/api/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "feature",
+    "rating": 5,
+    "message": "Would love to see elephants!",
+    "context": {
+      "session_id": "abc123",
+      "page_url": "/",
+      "concept_id": "cat",
+      "transcript": "show me a cat"
+    }
+  }'
+```
+
+#### Rate Limiting
+
+Feedback submissions are limited to **5 requests per minute per IP address**.
+
+---
+
 ## WebSocket Audio Streaming
 
 The WebSocket endpoint provides real-time audio streaming for continuous voice interaction. This enables a "mic stays active while results display" UX, allowing users to issue multiple commands without stopping recording.
@@ -578,6 +668,10 @@ Expensive endpoints are rate limited to prevent abuse.
 
 - **Limit**: 10 requests per minute per IP address
 - **Applies to**: `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`, `GET /ws/audio` (connection upgrade)
+
+- **Limit**: 5 requests per minute per IP address
+- **Applies to**: `POST /api/feedback`
+
 - **Response when limited**: HTTP 429 Too Many Requests
 
 ```json
