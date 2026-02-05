@@ -254,6 +254,61 @@ func TestMediaHandler_ValidConceptFormats(t *testing.T) {
 	}
 }
 
+func TestMediaHandler_ConceptTooLong(t *testing.T) {
+	database := setupTestDB(t)
+	defer database.Close()
+
+	handler := NewMediaHandler(database)
+
+	// Create a concept ID that exceeds 50 characters
+	longConcept := "a" + string(make([]byte, 50)) // 51 characters (all 'a's after init)
+	for i := range longConcept {
+		longConcept = "a" + longConcept[:i]
+	}
+	// Simpler: just use a string of 51 'a's
+	longConcept = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" // 51 characters
+
+	req := httptest.NewRequest(http.MethodGet, "/api/media/"+longConcept, nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for concept too long, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp MediaResponse
+	json.NewDecoder(rr.Body).Decode(&resp)
+
+	if resp.Error != "concept ID too long (max 50 characters)" {
+		t.Errorf("Expected 'concept ID too long' error, got %q", resp.Error)
+	}
+}
+
+func TestMediaHandler_ConceptAtMaxLength(t *testing.T) {
+	database := setupTestDB(t)
+	defer database.Close()
+
+	handler := NewMediaHandler(database)
+
+	// Create a concept ID that is exactly 50 characters (should pass length validation)
+	exactConcept := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" // 50 characters
+
+	req := httptest.NewRequest(http.MethodGet, "/api/media/"+exactConcept, nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	// Should pass length validation (404 not found is expected since concept doesn't exist)
+	if rr.Code == http.StatusBadRequest {
+		var resp MediaResponse
+		json.NewDecoder(rr.Body).Decode(&resp)
+		if resp.Error == "concept ID too long (max 50 characters)" {
+			t.Error("Concept at exactly 50 characters should pass length validation")
+		}
+	}
+}
+
 func TestMediaHandler_AllAnimals(t *testing.T) {
 	database := setupTestDB(t)
 	defer database.Close()

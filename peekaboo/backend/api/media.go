@@ -14,6 +14,9 @@ import (
 // validConceptPattern matches valid concept IDs (lowercase letters, numbers, underscores).
 var validConceptPattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
+// maxConceptLength is the maximum allowed length for a concept ID.
+const maxConceptLength = 50
+
 // MediaResponse is the response from GET /api/media/{concept}.
 type MediaResponse struct {
 	PhotoURL string `json:"photo_url,omitempty"`
@@ -52,6 +55,12 @@ func (h *MediaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Validate concept format (prevent path traversal and injection)
 	if !validConceptPattern.MatchString(concept) {
 		writeJSON(w, http.StatusBadRequest, MediaResponse{Error: "invalid concept format"})
+		return
+	}
+
+	// Validate concept length
+	if len(concept) > maxConceptLength {
+		writeJSON(w, http.StatusBadRequest, MediaResponse{Error: "concept ID too long (max 50 characters)"})
 		return
 	}
 

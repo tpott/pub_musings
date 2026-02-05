@@ -50,6 +50,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 74: Add max length validation for concept ID in media lookup (2026-02-04)
+  - Added maxConceptLength constant (50 characters) to api/media.go
+  - Validates concept ID length after format validation
+  - Returns 400 Bad Request with "concept ID too long (max 50 characters)" error
+  - Added TestMediaHandler_ConceptTooLong test (51 char concept rejected)
+  - Added TestMediaHandler_ConceptAtMaxLength test (50 char concept passes validation)
+  - Updated docs/API.md with concept ID constraints (pattern, max length)
 - Task 73: Add CORS origin validation for WebSocket connections (2026-02-04)
   - Added AllowedOrigin field to AudioWebSocketHandler
   - Created NewAudioWebSocketHandlerWithOptions constructor with all options

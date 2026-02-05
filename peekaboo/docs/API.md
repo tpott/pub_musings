@@ -247,7 +247,10 @@ GET /api/media/{concept}
 |-----------|------|-------------|
 | `concept` | string | The concept ID (e.g., `cat`, `dog`, `duck`, `pig`, `chicken`, `cow`) |
 
-Valid concept format: lowercase letters, numbers, and underscores only.
+**Concept ID constraints:**
+- Maximum length: 50 characters
+- Allowed characters: lowercase letters (`a-z`), numbers (`0-9`), and underscores (`_`)
+- Must match the pattern: `^[a-z0-9_]+$`
 
 #### Response
 
@@ -278,6 +281,12 @@ The `video_url` field is also included when video content is available:
 ```json
 {
   "error": "invalid concept format"
+}
+```
+
+```json
+{
+  "error": "concept ID too long (max 50 characters)"
 }
 ```
 
