@@ -54,6 +54,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 96: Add connection context to WebSocket message send error logs (2026-02-05)
+  - Added client IP to logger at connection start, passed logger to all send methods
+  - Added logWriteError helper that distinguishes normal closure (DEBUG) vs write errors (WARN)
+  - All send functions now include client_ip and message_type in logs
 - Task 95: Log database close error during graceful shutdown (2026-02-05)
   - Changed `defer database.Close()` to defer a closure that logs error at WARN level
   - Database close errors previously silently discarded, now visible in logs

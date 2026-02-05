@@ -235,7 +235,8 @@ type connectionState struct {
 // ServeHTTP upgrades the connection to WebSocket and handles audio streaming.
 func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestID := logging.GetRequestID(r.Context())
-	logger := slog.With("request_id", requestID, "handler", "websocket")
+	clientIP := getClientIP(r)
+	logger := slog.With("request_id", requestID, "handler", "websocket", "client_ip", clientIP)
 
 	// Check rate limit before upgrading to WebSocket
 	if h.RateLimiter != nil {
@@ -355,7 +356,7 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 	var msg ClientMessage
 	if err := json.Unmarshal(data, &msg); err != nil {
 		logger.Warn("invalid control message", "error", err)
-		h.sendError(ctx, conn, "invalid message format")
+		h.sendError(ctx, conn, "invalid message format", logger)
 		return
 	}
 
@@ -381,14 +382,14 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		if len(audioData) >= minAudioSize {
 			go h.processAudio(ctx, conn, audioData, logger)
 		} else if len(audioData) > 0 {
-			h.sendError(ctx, conn, "audio too short")
+			h.sendError(ctx, conn, "audio too short", logger)
 		} else {
 			// Empty buffer - user stopped recording without speaking
-			h.sendError(ctx, conn, "No audio recorded")
+			h.sendError(ctx, conn, "No audio recorded", logger)
 		}
 
 	case MsgTypePing:
-		h.sendPong(ctx, conn)
+		h.sendPong(ctx, conn, logger)
 	}
 }
 
@@ -398,7 +399,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	transcript, err := h.transcribeAudio(audioData)
 	if err != nil {
 		logger.Error("transcription failed", "error", err)
-		h.sendError(ctx, conn, "transcription failed")
+		h.sendError(ctx, conn, "transcription failed", logger)
 		return
 	}
 
@@ -407,18 +408,18 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	// Check for empty transcript (silence or no recognizable speech)
 	if strings.TrimSpace(transcript) == "" {
 		logger.Debug("empty transcript from whisper")
-		h.sendError(ctx, conn, "No speech detected. Please try again.")
+		h.sendError(ctx, conn, "No speech detected. Please try again.", logger)
 		return
 	}
 
 	// Send transcript to client
-	h.sendTranscript(ctx, conn, transcript)
+	h.sendTranscript(ctx, conn, transcript, logger)
 
 	// 2. Extract intent from transcript
 	subject, err := h.extractIntent(ctx, transcript)
 	if err != nil {
 		logger.Error("intent extraction failed", "error", err)
-		h.sendError(ctx, conn, "intent extraction failed")
+		h.sendError(ctx, conn, "intent extraction failed", logger)
 		return
 	}
 
@@ -427,35 +428,35 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	// 3. Validate subject format (same validation as HTTP media endpoint)
 	if subject == "" {
 		logger.Debug("empty subject from LLM")
-		h.sendError(ctx, conn, "I didn't understand what you want to see. Please try again.")
+		h.sendError(ctx, conn, "I didn't understand what you want to see. Please try again.", logger)
 		return
 	}
 	if !validConceptPattern.MatchString(subject) {
 		logger.Debug("invalid subject format", "subject", subject)
-		h.sendError(ctx, conn, fmt.Sprintf("I don't have media for '%s'. Try a simple animal name like 'cat' or 'dog'.", subject))
+		h.sendError(ctx, conn, fmt.Sprintf("I don't have media for '%s'. Try a simple animal name like 'cat' or 'dog'.", subject), logger)
 		return
 	}
 	if len(subject) > maxConceptLength {
 		logger.Debug("subject too long", "subject", subject, "length", len(subject))
-		h.sendError(ctx, conn, "That's too long! Try a simple animal name like 'cat' or 'dog'.")
+		h.sendError(ctx, conn, "That's too long! Try a simple animal name like 'cat' or 'dog'.", logger)
 		return
 	}
 
 	// 4. Look up media for subject
 	if h.Database == nil {
 		logger.Error("database not configured")
-		h.sendError(ctx, conn, "media lookup unavailable")
+		h.sendError(ctx, conn, "media lookup unavailable", logger)
 		return
 	}
 	mediaSet, err := h.Database.GetRandomMediaSet(subject)
 	if err != nil {
 		logger.Warn("media lookup failed", "subject", subject, "error", err)
-		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject))
+		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
 		return
 	}
 
 	// 5. Send media to client
-	h.sendMedia(ctx, conn, subject, mediaSet)
+	h.sendMedia(ctx, conn, subject, mediaSet, logger)
 }
 
 // transcribeAudio sends audio to whisper-server.
@@ -534,20 +535,21 @@ func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript st
 // Note: These log errors but don't return them because:
 // 1. Callers can't meaningfully recover from send failures
 // 2. The connection is likely closing anyway if writes fail
+// The logger parameter should have client IP in its attributes for connection context.
 
-func (h *AudioWebSocketHandler) sendTranscript(ctx context.Context, conn *websocket.Conn, text string) {
+func (h *AudioWebSocketHandler) sendTranscript(ctx context.Context, conn *websocket.Conn, text string, logger *slog.Logger) {
 	msg := TranscriptMessage{Type: MsgTypeTranscript, Text: text}
 	data, err := json.Marshal(msg)
 	if err != nil {
-		slog.Error("failed to marshal transcript message", "error", err)
+		logger.Error("failed to marshal transcript message", "error", err)
 		return
 	}
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-		slog.Debug("failed to send transcript message", "error", err)
+		logWriteError(logger, "transcript", err)
 	}
 }
 
-func (h *AudioWebSocketHandler) sendMedia(ctx context.Context, conn *websocket.Conn, subject string, media *db.MediaSet) {
+func (h *AudioWebSocketHandler) sendMedia(ctx context.Context, conn *websocket.Conn, subject string, media *db.MediaSet, logger *slog.Logger) {
 	msg := MediaMessage{
 		Type:     MsgTypeMedia,
 		Subject:  subject,
@@ -561,35 +563,46 @@ func (h *AudioWebSocketHandler) sendMedia(ctx context.Context, conn *websocket.C
 	}
 	data, err := json.Marshal(msg)
 	if err != nil {
-		slog.Error("failed to marshal media message", "error", err)
+		logger.Error("failed to marshal media message", "error", err)
 		return
 	}
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-		slog.Debug("failed to send media message", "error", err)
+		logWriteError(logger, "media", err)
 	}
 }
 
-func (h *AudioWebSocketHandler) sendError(ctx context.Context, conn *websocket.Conn, message string) {
+func (h *AudioWebSocketHandler) sendError(ctx context.Context, conn *websocket.Conn, message string, logger *slog.Logger) {
 	msg := ErrorMessage{Type: MsgTypeError, Message: message}
 	data, err := json.Marshal(msg)
 	if err != nil {
-		slog.Error("failed to marshal error message", "error", err, "original_message", message)
+		logger.Error("failed to marshal error message", "error", err, "original_message", message)
 		return
 	}
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-		slog.Debug("failed to send error message", "error", err)
+		logWriteError(logger, "error", err)
 	}
 }
 
-func (h *AudioWebSocketHandler) sendPong(ctx context.Context, conn *websocket.Conn) {
+func (h *AudioWebSocketHandler) sendPong(ctx context.Context, conn *websocket.Conn, logger *slog.Logger) {
 	msg := PongMessage{Type: MsgTypePong}
 	data, err := json.Marshal(msg)
 	if err != nil {
-		slog.Error("failed to marshal pong message", "error", err)
+		logger.Error("failed to marshal pong message", "error", err)
 		return
 	}
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-		slog.Debug("failed to send pong message", "error", err)
+		logWriteError(logger, "pong", err)
+	}
+}
+
+// logWriteError logs WebSocket write errors with appropriate level.
+// Connection closed normally is logged at DEBUG, other errors at WARN.
+func logWriteError(logger *slog.Logger, msgType string, err error) {
+	status := websocket.CloseStatus(err)
+	if status == websocket.StatusNormalClosure || status == websocket.StatusGoingAway {
+		logger.Debug("connection closed while sending message", "message_type", msgType)
+	} else {
+		logger.Warn("failed to send message", "message_type", msgType, "error", err)
 	}
 }
 
