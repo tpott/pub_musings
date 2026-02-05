@@ -23,7 +23,7 @@ This file tracks high level progress on the peekaboo project.
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
 - **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
-- **API documentation** - docs/API.md documents all backend endpoints with curl examples
+- **API documentation** - docs/API.md documents all backend endpoints including WebSocket audio streaming with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, optional Piper, and LLM provider checks
 - **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
 - **Rate limiting** - 10 req/min per IP on /api/transcribe, /api/intent, and /ws/audio with cleanup goroutine
@@ -51,6 +51,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 81: Document WebSocket /ws/audio endpoint in docs/API.md (2026-02-04)
+  - Added comprehensive WebSocket Audio Streaming section to docs/API.md
+  - Documented connection upgrade, rate limiting (10/min), idle timeout (5 min), max message size (5MB)
+  - Documented all message types: client (binary audio, JSON control) and server (transcript, media, error, pong)
+  - Included processing flow, JavaScript example, and reference to specs/websocket-audio.md
+  - Updated rate limiting section to include /ws/audio endpoint
 - Task 75: Add WebSocket error recovery E2E tests (2026-02-04)
   - Added E2E test for server sending invalid JSON (gracefully ignored, valid messages processed)
   - Added E2E test for server closing connection mid-recording (error state displayed)

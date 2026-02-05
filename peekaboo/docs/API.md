@@ -413,6 +413,155 @@ See [specs/piper.md](../specs/piper.md) for Piper server setup instructions.
 
 ---
 
+## WebSocket Audio Streaming
+
+The WebSocket endpoint provides real-time audio streaming for continuous voice interaction. This enables a "mic stays active while results display" UX, allowing users to issue multiple commands without stopping recording.
+
+```
+GET /ws/audio → WebSocket upgrade
+```
+
+### Connection
+
+1. Client sends HTTP upgrade request to `/ws/audio`
+2. Server validates origin (if `ALLOWED_ORIGIN` is set) and rate limit
+3. On success, connection upgrades to WebSocket protocol
+
+**Rate Limiting**: 10 WebSocket connections per minute per IP address. Rate-limited requests receive HTTP 429 before upgrade.
+
+**Idle Timeout**: Connections are closed after 5 minutes of inactivity (configurable via `WEBSOCKET_IDLE_TIMEOUT_SECS`).
+
+**Max Message Size**: 5MB per binary message.
+
+### Message Protocol
+
+Messages are JSON for control/text and binary for audio data.
+
+#### Client → Server
+
+**Audio chunks (binary)**
+
+Raw audio bytes (webm/opus from MediaRecorder). Sent every ~500ms while recording. No JSON wrapper - pure binary for efficiency.
+
+**Control messages (JSON)**
+
+```json
+{"type": "start_recording"}
+```
+Tells server to start buffering incoming audio.
+
+```json
+{"type": "stop_recording"}
+```
+Tells server to process buffered audio and return results.
+
+```json
+{"type": "ping"}
+```
+Keep-alive message to prevent idle timeout.
+
+#### Server → Client
+
+**Transcript**
+
+Sent when audio transcription completes:
+
+```json
+{"type": "transcript", "text": "show me a cat"}
+```
+
+**Media result**
+
+Sent when media is found for the extracted intent:
+
+```json
+{
+  "type": "media",
+  "subject": "cat",
+  "photo_url": "/data/media/cat/set1/photo.jpg",
+  "audio_url": "/data/media/cat/set1/audio.mp3",
+  "video_url": "/data/media/cat/set1/video.mp4"
+}
+```
+
+Note: `audio_url` and `video_url` are optional fields, only present when media is available.
+
+**Error**
+
+Sent on processing errors:
+
+```json
+{"type": "error", "message": "transcription failed"}
+```
+
+Possible error messages:
+- `"invalid message format"` - Client sent malformed JSON
+- `"audio too short"` - Recorded audio was too small (< 1KB)
+- `"No audio recorded"` - Recording stopped with empty buffer
+- `"No speech detected. Please try again."` - Whisper returned empty transcript
+- `"transcription failed"` - Whisper server error
+- `"intent extraction failed"` - LLM provider error
+- `"no media found for {subject}"` - No media in database for extracted subject
+- `"media lookup unavailable"` - Database not configured
+
+**Pong**
+
+Sent in response to ping:
+
+```json
+{"type": "pong"}
+```
+
+### Processing Flow
+
+1. Client sends `start_recording`
+2. Client streams audio chunks (binary) while user speaks
+3. Server buffers audio (processes automatically after 3 seconds, or on `stop_recording`)
+4. Server transcribes audio via whisper-server
+5. Server sends `transcript` message to client
+6. Server extracts intent via LLM
+7. Server looks up media in database
+8. Server sends `media` message to client
+9. Client can continue recording for next command (mic stays active)
+
+### Example (JavaScript)
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws/audio');
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  switch (msg.type) {
+    case 'transcript':
+      console.log('Heard:', msg.text);
+      break;
+    case 'media':
+      displayMedia(msg.photo_url, msg.audio_url);
+      break;
+    case 'error':
+      showError(msg.message);
+      break;
+  }
+};
+
+// Start recording
+ws.send(JSON.stringify({ type: 'start_recording' }));
+
+// Send audio chunks from MediaRecorder
+mediaRecorder.ondataavailable = (e) => {
+  if (e.data.size > 0) {
+    ws.send(e.data);
+  }
+};
+
+// Stop recording
+ws.send(JSON.stringify({ type: 'stop_recording' }));
+```
+
+For detailed implementation, see [specs/websocket-audio.md](../specs/websocket-audio.md).
+
+---
+
 ## CORS
 
 The API supports CORS with the following configuration:
@@ -425,10 +574,10 @@ The API supports CORS with the following configuration:
 
 ## Rate Limiting
 
-Expensive endpoints (`/api/transcribe`, `/api/intent`, and `/api/speak`) are rate limited to prevent abuse.
+Expensive endpoints are rate limited to prevent abuse.
 
 - **Limit**: 10 requests per minute per IP address
-- **Applies to**: `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`
+- **Applies to**: `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`, `GET /ws/audio` (connection upgrade)
 - **Response when limited**: HTTP 429 Too Many Requests
 
 ```json
