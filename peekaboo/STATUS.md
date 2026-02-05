@@ -50,6 +50,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 79: Add test for media set randomness with multiple sets (2026-02-04)
+  - Added TestGetRandomMediaSetRandomness test to db/db_test.go
+  - Seeds 3 media sets for a concept, calls GetRandomMediaSet() 20 times
+  - Verifies at least 2 different sets are returned (proving randomness works)
 - Task 80: Add test for empty audio buffer on immediate stop_recording (2026-02-04)
   - Added TestAudioWebSocketHandler_EmptyBuffer_ImmediateStop test
   - Fixed backend to send "No audio recorded" error when stop_recording with empty buffer

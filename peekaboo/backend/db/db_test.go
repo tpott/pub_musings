@@ -271,3 +271,63 @@ func TestGetRandomMediaSetAllAnimals(t *testing.T) {
 		}
 	}
 }
+
+func TestGetRandomMediaSetRandomness(t *testing.T) {
+	// Test that GetRandomMediaSet returns different sets over multiple calls
+	// when multiple sets exist for a concept.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Seed 3 media sets for cat
+	sets := []struct {
+		photo string
+		audio string
+	}{
+		{"data/media/cat/set1/photo.jpg", "data/media/cat/set1/audio.mp3"},
+		{"data/media/cat/set2/photo.jpg", "data/media/cat/set2/audio.mp3"},
+		{"data/media/cat/set3/photo.jpg", "data/media/cat/set3/audio.mp3"},
+	}
+
+	for _, s := range sets {
+		err = db.SeedMediaSet("cat", s.photo, s.audio, "")
+		if err != nil {
+			t.Fatalf("SeedMediaSet failed: %v", err)
+		}
+	}
+
+	// Call GetRandomMediaSet 20 times and track which sets are returned
+	seenSets := make(map[string]int) // photo path -> count
+	numCalls := 20
+
+	for i := 0; i < numCalls; i++ {
+		ms, err := db.GetRandomMediaSet("cat")
+		if err != nil {
+			t.Fatalf("GetRandomMediaSet(%d) failed: %v", i, err)
+		}
+		if ms == nil {
+			t.Fatalf("GetRandomMediaSet(%d) returned nil", i)
+		}
+		seenSets[ms.PhotoPath]++
+	}
+
+	// Verify multiple different sets were returned (not always the same)
+	// With true randomness and 3 sets over 20 calls, we expect to see at least 2 different sets
+	// (probability of seeing only 1 set is (1/3)^19 ≈ 0 for any practical purpose)
+	if len(seenSets) < 2 {
+		t.Errorf("Expected at least 2 different sets over %d calls, but only got %d: %v",
+			numCalls, len(seenSets), seenSets)
+	}
+
+	// Log the distribution for debugging (not a failure condition)
+	t.Logf("Set distribution over %d calls: %v", numCalls, seenSets)
+}
