@@ -1180,4 +1180,149 @@ test.describe('WebSocket continuous listening', () => {
     expect(attemptCount).toBe(2);
     expect(commandProcessed).toBe(true);
   });
+
+  test('handles connection drop mid-recording and resumes gracefully', async ({ page }) => {
+    let connectionCount = 0;
+    let commandProcessed = false;
+
+    // Mock MediaRecorder for WebSocket mode
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+    });
+
+    // Mock WebSocket - first connection closes mid-recording, second works
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      connectionCount++;
+      const currentConnection = connectionCount;
+      let audioChunkCount = 0;
+      let audioReceived = false;
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (parsed.type === 'stop_recording' && audioReceived && currentConnection > 1) {
+              // On second connection, work normally
+              ws.send(JSON.stringify({ type: 'transcript', text: 'show me a cat' }));
+              setTimeout(() => {
+                ws.send(JSON.stringify({
+                  type: 'media',
+                  subject: 'cat',
+                  photo_url: '/fixtures/mock-cat-photo.jpg',
+                  audio_url: '/fixtures/mock-cat-audio.mp3',
+                }));
+                commandProcessed = true;
+              }, 50);
+            } else if (parsed.type === 'start_recording') {
+              audioReceived = false;
+            }
+          } catch {
+            // Not valid JSON
+          }
+        } else {
+          // Binary audio data
+          audioChunkCount++;
+          audioReceived = true;
+          // Close first connection after receiving some audio chunks
+          if (currentConnection === 1 && audioChunkCount >= 2) {
+            ws.close();
+          }
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/?useWebSocket=true');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const mediaDisplay = page.locator('[data-testid="media-display"]');
+    const img = page.locator('[data-testid="media-image"]');
+
+    // First attempt - connection will close mid-recording
+    await micButton.click();
+    await page.waitForTimeout(1000); // Allow time for audio chunks and connection close
+
+    // Wait for error state to be displayed
+    await page.waitForTimeout(1000);
+
+    // Verify error message is shown
+    await expect(mediaDisplay).toContainText(/connection|lost|error|try again/i);
+
+    // Wait for error state to reset (3 seconds timeout in PeekabooFlow)
+    await page.waitForTimeout(3500);
+
+    // Second attempt - should work after reconnection
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    // Verify successful media display after retry
+    await expect(img).toBeVisible({ timeout: 10000 });
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+
+    // Verify both connections were made
+    expect(connectionCount).toBeGreaterThanOrEqual(2);
+    expect(commandProcessed).toBe(true);
+  });
 });

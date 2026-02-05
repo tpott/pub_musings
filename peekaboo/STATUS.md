@@ -51,6 +51,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 86: Add E2E test for WebSocket reconnection during active recording (2026-02-04)
+  - Added test "handles connection drop mid-recording and resumes gracefully"
+  - Test starts recording, server closes connection after receiving audio chunks
+  - Verifies error message displayed to user
+  - Verifies retry works after error state resets and reconnection
+  - All 12 Playwright E2E tests pass
 - Task 87: Add observability to rate limiter (2026-02-04)
   - Added WARN level logging when rate limit exceeded (includes ip, method, path)
   - Added INFO level logging when IP eviction occurs due to max entries limit
