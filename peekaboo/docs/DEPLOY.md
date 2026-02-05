@@ -115,7 +115,19 @@ peekaboo.pottingers.us {
         reverse_proxy localhost:8070
     }
 
+    handle /ws/* {
+        reverse_proxy localhost:8070
+    }
+
     handle /health {
+        reverse_proxy localhost:8070
+    }
+
+    handle /health/* {
+        reverse_proxy localhost:8070
+    }
+
+    handle /data/media/* {
         reverse_proxy localhost:8070
     }
 

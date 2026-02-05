@@ -294,6 +294,25 @@ describe('PeekabooFlow', () => {
       expect(flow.getState()).toBe('error');
     });
 
+    it('transitions to error state on empty transcript', async () => {
+      (audioRecorder.transcribeAudio as Mock).mockResolvedValue('');
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('error');
+      expect(mockReset).toHaveBeenCalledWith(expect.stringContaining('speech'));
+    });
+
+    it('transitions to error state on whitespace-only transcript', async () => {
+      (audioRecorder.transcribeAudio as Mock).mockResolvedValue('   \n  ');
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      expect(flow.getState()).toBe('error');
+    });
+
     it('calls onError callback on failure', async () => {
       const onError = vi.fn();
       const errorFlow = new PeekabooFlow({

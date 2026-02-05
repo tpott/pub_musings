@@ -50,6 +50,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- FEEDBACK: Fix WebSocket deployment issues (2026-02-04)
+  - Added WebSocket proxy to Vite config in astro.config.mjs (`/ws` -> `ws://localhost:8080`, `ws: true`)
+  - Updated Caddy config in docs/DEPLOY.md to include `/ws/*`, `/health/*`, `/data/media/*` reverse proxies
+  - Fixed empty transcript handling in peekaboo-flow.ts - throws user-friendly error instead of sending empty text to /api/intent
+  - Added unit tests for empty transcript scenarios
+  - Updated LEARNINGS.md with WebSocket proxy and empty transcript lessons
 - Task 74: Add max length validation for concept ID in media lookup (2026-02-04)
   - Added maxConceptLength constant (50 characters) to api/media.go
   - Validates concept ID length after format validation

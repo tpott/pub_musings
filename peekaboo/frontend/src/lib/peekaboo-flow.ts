@@ -273,6 +273,11 @@ export class PeekabooFlow {
     // Transcribe audio
     const transcript = await transcribeAudio(blob);
 
+    // Check for empty transcript (silence or no recognizable speech)
+    if (!transcript || transcript.trim() === '') {
+      throw new ApiError('No speech detected. Please try again.', 'client');
+    }
+
     // Extract intent and fetch media
     this.setState('searching');
     const { subject } = await extractIntent(transcript);

@@ -183,3 +183,45 @@ if h.RateLimiter != nil {
 - Same 10 req/min limit as HTTP endpoints
 
 **Lesson:** Rate limit WebSocket connections at the HTTP upgrade stage, not inside the WebSocket protocol. This way you can return standard HTTP error codes and reuse existing rate limiting infrastructure.
+
+---
+
+### 2026-02-04: WebSocket proxy requires separate Vite config
+
+**Context:** WebSocket `/ws/audio` endpoint worked in backend tests but failed in production. Users saw "no chunking behavior" when microphone was turned on with WebSocket mode enabled.
+
+**Root cause:** The Vite proxy in `astro.config.mjs` only proxied `/api/*` and `/data/media/*` routes. The WebSocket endpoint `/ws/audio` was NOT proxied, so the frontend tried to connect to the Astro dev server (port 4321) instead of the Go backend (port 8080).
+
+**Solution:** Added WebSocket proxy configuration:
+```javascript
+'/ws': {
+  target: 'ws://localhost:8080',
+  ws: true,
+}
+```
+
+And updated `docs/DEPLOY.md` Caddy config to include `/ws/*` reverse proxy.
+
+**Lesson:** WebSocket connections need explicit proxy configuration with `ws: true` in Vite. HTTP API proxy rules don't automatically apply to WebSocket upgrades. Always test WebSocket features in the full dev environment, not just backend unit tests.
+
+---
+
+### 2026-02-04: Empty transcript handling in voice flow
+
+**Context:** User reported "missing text field" error when stopping microphone recording. This happened when whisper returned empty transcript (silence or no recognizable speech).
+
+**Root cause:** In HTTP mode, the flow was:
+1. Stop recording → get audio blob
+2. Transcribe → get empty string ""
+3. Call /api/intent with `{text: ""}` → 400 "missing text field"
+
+The frontend didn't validate transcript before calling the intent API.
+
+**Solution:** Added empty transcript check in `peekaboo-flow.ts`:
+```typescript
+if (!transcript || transcript.trim() === '') {
+  throw new ApiError('No speech detected. Please try again.', 'client');
+}
+```
+
+**Lesson:** Always validate API inputs at the frontend before making requests. User-facing error messages ("No speech detected") are much clearer than raw API errors ("missing text field").
