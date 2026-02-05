@@ -53,9 +53,22 @@ This file tracks high level progress on the peekaboo project.
 - **WebSocket concept validation** - Same validation as HTTP media endpoint (format pattern, max 50 chars)
 - **Transcript display UI** - Scrollable transcript history below media display with aria-live for accessibility
 - **Feedback feature** - Floating feedback button with modal form, POST /api/feedback endpoint with rate limiting (5/min), SQLite persistence
+- **Skip-to-content link** - Keyboard accessibility link that appears on focus, jumps to main content
 
 ## Last Completed
 
+- Task 115: Add skip-to-content link for keyboard accessibility (2026-02-05)
+  - Added .skip-link as first focusable element in body
+  - Link is visually hidden until focused
+  - Jumps to #main-content with tabindex=-1 for focus management
+- Task 114: Add timeout to WebSocket LLM ExtractIntent calls (2026-02-05)
+  - Added 30-second timeout context to extractIntent(), matching HTTP endpoint
+- Task 113: Add E2E test for feedback submission flow (2026-02-05)
+  - Added 3 new tests: form submission, cancel button, Escape key handling
+  - All 18 E2E tests pass
+- Task 112: Replace console.log/error with logger in frontend index.astro (2026-02-05)
+  - Imported logger from lib/logger.ts
+  - Replaced console.error with logger.error, console.log with logger.debug
 - Task 111: Fix real-services E2E test to use existing .webm fixture (2026-02-05)
   - Changed from non-existent .wav file to existing me-show-me-a-cat.webm
   - Fixed mimeType from audio/wav to audio/webm;codecs=opus

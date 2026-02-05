@@ -517,10 +517,16 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (string, error
 }
 
 // extractIntent uses LLM to extract subject from transcript.
+// Uses a 30-second timeout consistent with the HTTP endpoint (api/intent.go).
 func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript string) (string, error) {
 	if h.LLMProvider == nil {
 		return "", fmt.Errorf("LLM provider not configured")
 	}
+
+	// Create a timeout context consistent with HTTP endpoint
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	result, err := h.LLMProvider.ExtractIntent(ctx, transcript)
 	if err != nil {
 		return "", err

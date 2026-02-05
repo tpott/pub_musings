@@ -1053,3 +1053,83 @@ test.describe('WebSocket continuous listening', () => {
     await expect(transcriptEntries.nth(1)).toContainText('"show me a dog"');
   });
 });
+
+test.describe('Feedback submission', () => {
+  test('feedback form submission works end-to-end', async ({ page }) => {
+    // Mock the feedback API
+    let feedbackRequest: { type: string; message: string; rating?: number } | null = null;
+    await page.route('**/api/feedback', async route => {
+      const body = await route.request().postDataJSON();
+      feedbackRequest = body;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'test-feedback-123' }),
+      });
+    });
+
+    // Navigate to the app
+    await page.goto('/');
+
+    // Click the feedback button
+    const feedbackBtn = page.locator('[data-testid="feedback-btn"]');
+    await expect(feedbackBtn).toBeVisible();
+    await feedbackBtn.click();
+
+    // Wait for modal to open
+    const modal = page.locator('[data-testid="feedback-modal"]');
+    await expect(modal).not.toHaveClass(/hidden/);
+
+    // Fill in the form
+    await page.selectOption('[data-testid="feedback-type"]', 'bug');
+    await page.fill('[data-testid="feedback-message"]', 'Test feedback message for E2E');
+
+    // Select a rating (click 4th star)
+    const starBtns = page.locator('.star-btn');
+    await starBtns.nth(3).click();
+
+    // Submit the form
+    await page.click('[data-testid="btn-submit"]');
+
+    // Wait for success message
+    const successMessage = page.locator('[data-testid="success-message"]');
+    await expect(successMessage).not.toHaveClass(/hidden/, { timeout: 5000 });
+    await expect(successMessage).toContainText('Thanks for your feedback');
+
+    // Verify the request was made with correct data
+    expect(feedbackRequest).not.toBeNull();
+    expect(feedbackRequest!.type).toBe('bug');
+    expect(feedbackRequest!.message).toBe('Test feedback message for E2E');
+    expect(feedbackRequest!.rating).toBe(4);
+  });
+
+  test('feedback modal closes on cancel', async ({ page }) => {
+    await page.goto('/');
+
+    // Open modal
+    await page.click('[data-testid="feedback-btn"]');
+    const modal = page.locator('[data-testid="feedback-modal"]');
+    await expect(modal).not.toHaveClass(/hidden/);
+
+    // Click cancel
+    await page.click('[data-testid="btn-cancel"]');
+
+    // Modal should be hidden
+    await expect(modal).toHaveClass(/hidden/);
+  });
+
+  test('feedback modal closes on Escape key', async ({ page }) => {
+    await page.goto('/');
+
+    // Open modal
+    await page.click('[data-testid="feedback-btn"]');
+    const modal = page.locator('[data-testid="feedback-modal"]');
+    await expect(modal).not.toHaveClass(/hidden/);
+
+    // Press Escape
+    await page.keyboard.press('Escape');
+
+    // Modal should be hidden
+    await expect(modal).toHaveClass(/hidden/);
+  });
+});

@@ -15,7 +15,8 @@ import '../styles/global.css';
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
-    <main>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <main id="main-content" tabindex="-1">
       <h1 class="title">Peekaboo!</h1>
       <MediaDisplay />
       <MicButton />
@@ -27,6 +28,7 @@ import '../styles/global.css';
 <script>
   import { PeekabooFlow } from '../lib/peekaboo-flow';
   import { AudioRecorder } from '../lib/audio-recorder';
+  import { logger } from '../lib/logger';
 
   /**
    * Show a visible error message when the browser doesn't support voice recording
@@ -55,7 +57,7 @@ import '../styles/global.css';
     const transcriptContainer = document.querySelector('[data-testid="transcript-display"]') as HTMLElement;
 
     if (!micButton || !mediaContainer) {
-      console.error('Peekaboo: Required elements not found');
+      logger.error('Peekaboo: Required elements not found');
       return;
     }
 
@@ -83,16 +85,41 @@ import '../styles/global.css';
       transcriptContainer,
       useWebSocket,
       onStateChange: (state) => {
-        console.log('Peekaboo state:', state);
+        logger.debug('Peekaboo state:', state);
       },
       onError: (error) => {
-        console.error('Peekaboo error:', error);
+        logger.error('Peekaboo error:', error);
       },
     });
   });
 </script>
 
 <style>
+  /* Skip to content link for keyboard navigation */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 9999;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+    border-radius: 0 0 0.5rem 0.5rem;
+  }
+
+  .skip-link:focus {
+    left: 0;
+    outline: 3px solid #4c1d95;
+    outline-offset: 2px;
+  }
+
+  /* Remove focus outline when main is focused via skip link */
+  #main-content:focus {
+    outline: none;
+  }
+
   .title {
     font-size: 2.5rem;
     font-weight: 700;
