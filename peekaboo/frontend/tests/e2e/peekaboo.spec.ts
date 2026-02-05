@@ -1325,4 +1325,416 @@ test.describe('WebSocket continuous listening', () => {
     expect(connectionCount).toBeGreaterThanOrEqual(2);
     expect(commandProcessed).toBe(true);
   });
+
+  test('continuous listening - mic stays active after media display', async ({ page }) => {
+    // Track commands processed by server
+    let commandCount = 0;
+    const animals = ['cat', 'dog'];
+
+    // Mock MediaRecorder that supports continuous recording with timeslice
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
+    });
+
+    // Mock WebSocket - auto-process audio after accumulating chunks (simulates backend threshold)
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioChunkCount = 0;
+      const audioThreshold = 4; // Process after 4 chunks
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (parsed.type === 'start_recording') {
+              audioChunkCount = 0;
+            }
+            // Note: we're NOT handling stop_recording - continuous mode keeps recording
+          } catch {
+            // Not valid JSON
+          }
+        } else {
+          // Binary audio data
+          audioChunkCount++;
+          // Auto-process when threshold is reached (simulates backend behavior)
+          if (audioChunkCount >= audioThreshold) {
+            const animal = animals[commandCount % animals.length];
+            commandCount++;
+
+            // Send transcript
+            ws.send(JSON.stringify({ type: 'transcript', text: `show me a ${animal}` }));
+
+            // Send media response after short delay
+            setTimeout(() => {
+              ws.send(JSON.stringify({
+                type: 'media',
+                subject: animal,
+                photo_url: `/fixtures/mock-${animal}-photo.jpg`,
+                audio_url: `/fixtures/mock-${animal}-audio.mp3`,
+              }));
+            }, 50);
+
+            // Reset chunk count for next command
+            audioChunkCount = 0;
+          }
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const img = page.locator('[data-testid="media-image"]');
+
+    // Click mic to start recording
+    await micButton.click();
+
+    // Wait for first command to be processed (cat)
+    await expect(img).toBeVisible({ timeout: 10000 });
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+
+    // Verify mic button still shows recording state (aria-pressed="true")
+    await expect(micButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(micButton).toHaveClass(/recording/);
+
+    // Continue waiting for second command to be auto-processed (dog)
+    // No click needed - mic stays active in continuous listening mode
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-dog-photo.jpg', { timeout: 10000 });
+
+    // Verify both commands were processed
+    expect(commandCount).toBe(2);
+
+    // Mic should still be recording
+    await expect(micButton).toHaveAttribute('aria-pressed', 'true');
+
+    // Click mic to stop recording
+    await micButton.click();
+
+    // Now mic should be stopped
+    await expect(micButton).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('transcript display shows recognized speech', async ({ page }) => {
+    // Mock MediaRecorder
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
+    });
+
+    // Mock WebSocket
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioReceived = false;
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'stop_recording' && audioReceived) {
+              // Send transcript first
+              ws.send(JSON.stringify({ type: 'transcript', text: 'show me a cat' }));
+
+              // Send media response after short delay
+              setTimeout(() => {
+                ws.send(JSON.stringify({
+                  type: 'media',
+                  subject: 'cat',
+                  photo_url: '/fixtures/mock-cat-photo.jpg',
+                  audio_url: '/fixtures/mock-cat-audio.mp3',
+                }));
+              }, 50);
+
+              audioReceived = false;
+            } else if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            }
+          } catch {
+            audioReceived = true;
+          }
+        } else {
+          audioReceived = true;
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="transcript-display"]')).toBeAttached();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const transcriptDisplay = page.locator('[data-testid="transcript-display"]');
+
+    // Record a command
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    // Wait for media to display
+    await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
+
+    // Verify transcript is displayed
+    await expect(transcriptDisplay).toContainText('show me a cat');
+
+    // Verify transcript entry has correct class
+    const transcriptEntry = transcriptDisplay.locator('.transcript-entry');
+    await expect(transcriptEntry).toBeVisible();
+    await expect(transcriptEntry).toContainText('"show me a cat"');
+  });
+
+  test('transcript display accumulates multiple commands', async ({ page }) => {
+    let commandCount = 0;
+    const transcripts = ['show me a cat', 'show me a dog'];
+
+    // Mock MediaRecorder
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
+    });
+
+    // Mock WebSocket
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioReceived = false;
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'stop_recording' && audioReceived) {
+              const transcript = transcripts[commandCount % transcripts.length];
+              const animal = commandCount === 0 ? 'cat' : 'dog';
+              commandCount++;
+
+              // Send transcript
+              ws.send(JSON.stringify({ type: 'transcript', text: transcript }));
+
+              // Send media response
+              setTimeout(() => {
+                ws.send(JSON.stringify({
+                  type: 'media',
+                  subject: animal,
+                  photo_url: `/fixtures/mock-${animal}-photo.jpg`,
+                  audio_url: `/fixtures/mock-${animal}-audio.mp3`,
+                }));
+              }, 50);
+
+              audioReceived = false;
+            } else if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            }
+          } catch {
+            audioReceived = true;
+          }
+        } else {
+          audioReceived = true;
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const transcriptDisplay = page.locator('[data-testid="transcript-display"]');
+    const img = page.locator('[data-testid="media-image"]');
+
+    // First command: cat
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    await expect(img).toBeVisible({ timeout: 10000 });
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+
+    // Second command: dog
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-dog-photo.jpg', { timeout: 10000 });
+
+    // Verify both transcripts are displayed
+    const transcriptEntries = transcriptDisplay.locator('.transcript-entry');
+    await expect(transcriptEntries).toHaveCount(2);
+    await expect(transcriptEntries.nth(0)).toContainText('"show me a cat"');
+    await expect(transcriptEntries.nth(1)).toContainText('"show me a dog"');
+  });
 });

@@ -55,6 +55,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 101: Add E2E tests for continuous listening and transcript display (2026-02-05)
+  - Added 3 new E2E tests in peekaboo.spec.ts:
+    - 'continuous listening - mic stays active after media display' - verifies aria-pressed stays true
+    - 'transcript display shows recognized speech' - verifies transcript-display element shows text
+    - 'transcript display accumulates multiple commands' - verifies multiple entries
+  - All 8 continuous listening/transcript tests pass (15/16 total E2E tests pass)
 - Task 100: Add transcript display UI below media display area (2026-02-05)
   - Added transcript-display element to MediaDisplay.astro with data-testid, role="log", aria-live="polite"
   - Added appendTranscript() to PeekabooFlow that appends transcript entries to scrollable history
