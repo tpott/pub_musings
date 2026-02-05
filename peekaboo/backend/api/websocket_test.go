@@ -1411,3 +1411,127 @@ func TestAudioWebSocketHandler_NoConnectionTracker(t *testing.T) {
 		conn.Close(websocket.StatusNormalClosure, "done")
 	}
 }
+
+// TestAudioWebSocketHandler_MultiUtteranceWithoutReconnect tests that multiple
+// utterances can be processed in a single WebSocket session without reconnecting.
+// This supports "continuous listening" mode where the mic stays on.
+func TestAudioWebSocketHandler_MultiUtteranceWithoutReconnect(t *testing.T) {
+	// Track which utterance we're processing
+	callCount := 0
+	transcripts := []string{"show me a cat", "show me a dog"}
+	subjects := []string{"cat", "dog"}
+
+	// Create mock whisper server that returns different transcripts per call
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		transcript := transcripts[callCount%len(transcripts)]
+		resp := WhisperResponse{Text: transcript}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	// Create mock LLM provider that returns different subjects per call
+	mockProvider := &dynamicMockLLMProvider{
+		subjects: subjects,
+	}
+
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+	// Short threshold for fast test
+	handler.BufferThreshold = 500 * time.Millisecond
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// --- First utterance ---
+	// Send audio data
+	audioData := make([]byte, 2000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("utterance 1: failed to send audio: %v", err)
+	}
+
+	// Wait for auto-processing (buffer threshold triggers)
+	// Read transcript
+	_, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("utterance 1: failed to read transcript: %v", err)
+	}
+
+	var transcript1 TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript1); err != nil {
+		t.Fatalf("utterance 1: failed to unmarshal transcript: %v", err)
+	}
+	if transcript1.Text != "show me a cat" {
+		t.Errorf("utterance 1: expected 'show me a cat', got %s", transcript1.Text)
+	}
+	callCount++
+
+	// Read error (database is nil)
+	_, _, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("utterance 1: failed to read error: %v", err)
+	}
+
+	// --- Second utterance (without reconnecting or re-sending start_recording) ---
+	// The buffer should be clear and ready for new audio
+	// Send more audio data
+	audioData2 := make([]byte, 2000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData2); err != nil {
+		t.Fatalf("utterance 2: failed to send audio: %v", err)
+	}
+
+	// Wait for auto-processing
+	_, respData, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("utterance 2: failed to read transcript: %v", err)
+	}
+
+	var transcript2 TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript2); err != nil {
+		t.Fatalf("utterance 2: failed to unmarshal transcript: %v", err)
+	}
+	if transcript2.Text != "show me a dog" {
+		t.Errorf("utterance 2: expected 'show me a dog', got %s", transcript2.Text)
+	}
+
+	// Read error (database is nil)
+	_, _, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("utterance 2: failed to read error: %v", err)
+	}
+
+	// Success! Both utterances processed in single WebSocket session
+}
+
+// dynamicMockLLMProvider returns different subjects based on call count.
+type dynamicMockLLMProvider struct {
+	subjects  []string
+	callCount int
+}
+
+func (m *dynamicMockLLMProvider) ExtractIntent(ctx context.Context, text string) (*llm.IntentResult, error) {
+	subject := m.subjects[m.callCount%len(m.subjects)]
+	m.callCount++
+	return &llm.IntentResult{Subject: subject}, nil
+}
+
+func (m *dynamicMockLLMProvider) HealthCheck(ctx context.Context) error {
+	return nil
+}

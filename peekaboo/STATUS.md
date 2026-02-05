@@ -54,6 +54,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 98: Backend WebSocket handler already supports continuous listening (2026-02-05)
+  - Verified that bufferThresholdWatcher clears buffer but keeps isRecording=true
+  - Added TestAudioWebSocketHandler_MultiUtteranceWithoutReconnect test
+  - Test sends two utterances in single WebSocket session, both processed correctly
+  - No code changes needed - backend already supported continuous listening
 - Task 97: Handle audio autoplay blocking with user-visible feedback (2026-02-05)
   - MediaDisplay.show() now async, returns boolean (true if audio played, false if blocked)
   - Added showAudioBlockedIndicator() that shows "Tap to play sound" button
