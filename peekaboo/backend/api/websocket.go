@@ -517,9 +517,15 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (string, error
 
 // extractIntent uses LLM to extract subject from transcript.
 func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript string) (string, error) {
+	if h.LLMProvider == nil {
+		return "", fmt.Errorf("LLM provider not configured")
+	}
 	result, err := h.LLMProvider.ExtractIntent(ctx, transcript)
 	if err != nil {
 		return "", err
+	}
+	if result == nil {
+		return "", fmt.Errorf("LLM returned nil result")
 	}
 	return result.Subject, nil
 }

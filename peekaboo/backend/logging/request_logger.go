@@ -1,12 +1,15 @@
 package logging
 
 import (
+	"bufio"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
 
 // statusRecorder wraps http.ResponseWriter to capture the status code.
+// It also implements http.Hijacker to support WebSocket upgrades.
 type statusRecorder struct {
 	http.ResponseWriter
 	statusCode int
@@ -15,6 +18,15 @@ type statusRecorder struct {
 func (r *statusRecorder) WriteHeader(code int) {
 	r.statusCode = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack implements http.Hijacker interface, required for WebSocket upgrades.
+// It delegates to the underlying ResponseWriter if it supports hijacking.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := r.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
 }
 
 // RequestLoggerMiddleware logs request timing and status information.
