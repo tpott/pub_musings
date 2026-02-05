@@ -440,3 +440,100 @@ func TestAudioWebSocketHandler_RateLimitResponseFormat(t *testing.T) {
 		t.Errorf("expected Retry-After: 60, got %s", resp.Header.Get("Retry-After"))
 	}
 }
+
+func TestAudioWebSocketHandler_OriginValidation_AllowsMatchingOrigin(t *testing.T) {
+	// Create handler that allows only http://localhost
+	handler := NewAudioWebSocketHandlerWithOptions("", nil, nil, nil, "http://localhost")
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// Connection with matching origin should succeed
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Origin": []string{"http://localhost"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("connection with matching origin should succeed: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+}
+
+func TestAudioWebSocketHandler_OriginValidation_RejectsNonMatchingOrigin(t *testing.T) {
+	// Create handler that allows only https://example.com
+	handler := NewAudioWebSocketHandlerWithOptions("", nil, nil, nil, "https://example.com")
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// Connection with non-matching origin should fail
+	_, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Origin": []string{"https://evil.com"},
+		},
+	})
+	if err == nil {
+		t.Fatal("connection with non-matching origin should be rejected")
+	}
+	// The error should indicate the connection was rejected
+	t.Logf("origin rejected (expected): %v", err)
+}
+
+func TestAudioWebSocketHandler_OriginValidation_WildcardAllowsAll(t *testing.T) {
+	// Create handler with wildcard origin (allows all)
+	handler := NewAudioWebSocketHandlerWithOptions("", nil, nil, nil, "*")
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// Connection with any origin should succeed
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Origin": []string{"https://any-origin.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("connection with wildcard origin should succeed: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+}
+
+func TestAudioWebSocketHandler_OriginValidation_EmptyAllowsAll(t *testing.T) {
+	// Create handler with empty origin (allows all)
+	handler := NewAudioWebSocketHandlerWithOptions("", nil, nil, nil, "")
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// Connection with any origin should succeed
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Origin": []string{"https://any-origin.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("connection with empty origin config should succeed: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+}

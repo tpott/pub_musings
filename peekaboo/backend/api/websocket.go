@@ -67,11 +67,12 @@ type PongMessage struct {
 
 // AudioWebSocketHandler handles WebSocket connections for audio streaming.
 type AudioWebSocketHandler struct {
-	WhisperURL  string
-	LLMProvider llm.Provider
-	Database    *db.DB
-	Client      *http.Client
-	RateLimiter *RateLimiter // Optional - nil means no rate limiting
+	WhisperURL    string
+	LLMProvider   llm.Provider
+	Database      *db.DB
+	Client        *http.Client
+	RateLimiter   *RateLimiter // Optional - nil means no rate limiting
+	AllowedOrigin string       // Optional - "*" or empty means allow all
 
 	// Configuration
 	BufferThreshold time.Duration // How long to buffer before processing
@@ -107,6 +108,22 @@ func NewAudioWebSocketHandlerWithRateLimiter(whisperURL string, provider llm.Pro
 	}
 }
 
+// NewAudioWebSocketHandlerWithOptions creates a WebSocket handler with all options.
+// allowedOrigin: "*" or "" means allow all; specific origin (e.g., "https://example.com") restricts to that origin.
+func NewAudioWebSocketHandlerWithOptions(whisperURL string, provider llm.Provider, database *db.DB, rateLimiter *RateLimiter, allowedOrigin string) *AudioWebSocketHandler {
+	return &AudioWebSocketHandler{
+		WhisperURL:      whisperURL,
+		LLMProvider:     provider,
+		Database:        database,
+		Client:          &http.Client{Timeout: 120 * time.Second},
+		RateLimiter:     rateLimiter,
+		AllowedOrigin:   allowedOrigin,
+		BufferThreshold: 3 * time.Second,
+		IdleTimeout:     5 * time.Minute,
+		MaxMessageSize:  5 << 20, // 5MB
+	}
+}
+
 // connectionState manages per-connection state.
 type connectionState struct {
 	mu           sync.Mutex
@@ -134,11 +151,17 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// Accept WebSocket connection
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// Allow any origin for development; configure properly in production
-		InsecureSkipVerify: true,
-	})
+	// Accept WebSocket connection with origin validation
+	acceptOpts := &websocket.AcceptOptions{}
+	if h.AllowedOrigin == "" || h.AllowedOrigin == "*" {
+		// Allow any origin (development mode)
+		acceptOpts.InsecureSkipVerify = true
+	} else {
+		// Validate origin against allowed origin
+		acceptOpts.OriginPatterns = []string{h.AllowedOrigin}
+	}
+
+	conn, err := websocket.Accept(w, r, acceptOpts)
 	if err != nil {
 		logger.Error("failed to accept websocket", "error", err)
 		return

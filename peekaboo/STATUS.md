@@ -45,11 +45,20 @@ This file tracks high level progress on the peekaboo project.
 - **URL validation** - Frontend validates media URLs to prevent javascript: XSS attacks
 - **Browser support error** - Visible error banner when MediaRecorder is unavailable
 - **CORS test coverage** - backend/api/cors.go extracted from main.go with unit tests for preflight handling
-- **WebSocket audio streaming** - GET /ws/audio backend endpoint, frontend AudioWebSocket client, and PeekabooFlow WebSocket integration (useWebSocket mode for continuous listening)
+- **WebSocket audio streaming** - GET /ws/audio backend endpoint, frontend AudioWebSocket client, PeekabooFlow WebSocket integration (useWebSocket mode), with rate limiting and origin validation
 - **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
 
 ## Last Completed
 
+- Task 73: Add CORS origin validation for WebSocket connections (2026-02-04)
+  - Added AllowedOrigin field to AudioWebSocketHandler
+  - Created NewAudioWebSocketHandlerWithOptions constructor with all options
+  - Origin validated using websocket.AcceptOptions.OriginPatterns
+  - Wildcard or empty origin enables InsecureSkipVerify (dev mode)
+  - Specific origin restricts connections (returns 403 for mismatches)
+  - Updated main.go to pass ALLOWED_ORIGIN to WebSocket handler
+  - Added unit tests for origin validation scenarios
+  - Updated docs/SECURITY.md with WebSocket CORS details
 - Task 72: Add rate limiting to WebSocket /ws/audio endpoint (2026-02-04)
   - Added RateLimiter field to AudioWebSocketHandler
   - Rate limit checked before WebSocket upgrade (returns HTTP 429)

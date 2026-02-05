@@ -90,17 +90,27 @@ func main() {
 		}
 	}()
 
+	// Get allowed origin from environment (used by CORS middleware and WebSocket)
+	allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
+	if allowedOrigin == "" {
+		// Default to wildcard for development; set ALLOWED_ORIGIN in production
+		allowedOrigin = "*"
+		slog.Warn("ALLOWED_ORIGIN not set, using wildcard", "origin", "*")
+	} else {
+		slog.Info("CORS configured", "allowed_origin", allowedOrigin)
+	}
+
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
 	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
 
-	// WebSocket endpoint for audio streaming with rate limiting (10 connections/min per IP)
+	// WebSocket endpoint for audio streaming with rate limiting and origin validation
 	whisperURL := os.Getenv("WHISPER_SERVER_URL")
 	if whisperURL == "" {
 		whisperURL = "http://127.0.0.1:8765"
 	}
-	mux.Handle("GET /ws/audio", api.NewAudioWebSocketHandlerWithRateLimiter(whisperURL, llmProvider, database, rateLimiter))
+	mux.Handle("GET /ws/audio", api.NewAudioWebSocketHandlerWithOptions(whisperURL, llmProvider, database, rateLimiter, allowedOrigin))
 
 	// TTS endpoint (optional - only enabled if PIPER_SERVER_URL is set)
 	piperURL := os.Getenv("PIPER_SERVER_URL")
@@ -148,16 +158,6 @@ func main() {
 
 	// Static file server for test fixtures (for e2e tests)
 	mux.Handle("/fixtures/", http.StripPrefix("/fixtures/", http.FileServer(http.Dir("tests/fixtures"))))
-
-	// Get allowed origin from environment
-	allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
-	if allowedOrigin == "" {
-		// Default to wildcard for development; set ALLOWED_ORIGIN in production
-		allowedOrigin = "*"
-		slog.Warn("ALLOWED_ORIGIN not set, using wildcard", "origin", "*")
-	} else {
-		slog.Info("CORS configured", "allowed_origin", allowedOrigin)
-	}
 
 	// Wrap with middleware chain: request logger -> request ID -> security headers -> CORS
 	handler := logging.RequestLoggerMiddleware(logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(api.CORSMiddleware(mux, allowedOrigin))))

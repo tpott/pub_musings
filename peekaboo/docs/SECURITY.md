@@ -74,7 +74,9 @@ Invalid concept IDs return 400 Bad Request with "invalid concept format" message
 | Audio file max size | `api/transcribe.go:100-104` | 5 MB max |
 | Text length limit | `api/intent.go:68-71` | 500 chars max |
 
-Rate limiter applied to expensive endpoints (`/api/transcribe`, `/api/intent`) in `main.go:93-94`.
+Rate limiter applied to expensive endpoints (`/api/transcribe`, `/api/intent`, `/ws/audio`) in `main.go`.
+
+WebSocket connections are rate-limited BEFORE upgrade - returns HTTP 429 if limit exceeded.
 
 Cleanup goroutine prevents rate limiter memory growth (`main.go:79-90`).
 
@@ -104,15 +106,20 @@ Actual errors logged server-side with request ID for debugging.
 
 ### 7. CORS Misconfiguration
 
-**Threat**: Cross-origin requests from unauthorized domains.
+**Threat**: Cross-origin requests from unauthorized domains (including WebSocket connections).
 
 **Mitigations**:
 | Control | Location | Implementation |
 |---------|----------|----------------|
-| ALLOWED_ORIGIN env | `main.go:128` | Configurable origin |
-| Warning for wildcard | `main.go:132` | Logs warning if `*` used |
+| HTTP CORS middleware | `api/cors.go:14-39` | Validates `ALLOWED_ORIGIN` for HTTP requests |
+| WebSocket origin check | `api/websocket.go:151-159` | Validates Origin header before upgrade |
+| Warning for wildcard | `main.go:98-102` | Logs warning if `*` used |
 
-Production should set `ALLOWED_ORIGIN` to the actual frontend domain.
+**HTTP requests**: Standard CORS headers applied via middleware.
+
+**WebSocket connections**: Origin validated using `websocket.AcceptOptions.OriginPatterns`. If `ALLOWED_ORIGIN` is `*` or empty, `InsecureSkipVerify` is used (development only). In production, only connections from the specified origin are accepted; others receive HTTP 403.
+
+Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `https://peekaboo.example.com`).
 
 ### 8. MIME Sniffing
 
