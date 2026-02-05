@@ -303,6 +303,15 @@ The `video_url` field is also included when video content is available:
 }
 ```
 
+**Error (429 Too Many Requests)**:
+```json
+{
+  "error": "rate limit exceeded, try again later"
+}
+```
+
+Rate limit: 30 requests per minute per IP address.
+
 **Error (500 Internal Server Error)**:
 ```json
 {

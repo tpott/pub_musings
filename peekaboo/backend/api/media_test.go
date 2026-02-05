@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 )
@@ -348,5 +349,62 @@ func TestMediaHandler_AllAnimals(t *testing.T) {
 				t.Errorf("Expected audio URL %q, got %q", expectedAudio, resp.AudioURL)
 			}
 		})
+	}
+}
+
+func TestMediaHandler_RateLimited(t *testing.T) {
+	database := setupTestDB(t)
+	defer database.Close()
+
+	// Seed media for cat
+	err := database.SeedMediaSet("cat", "data/media/cat/set1/photo.jpg", "data/media/cat/set1/audio.mp3", "")
+	if err != nil {
+		t.Fatalf("SeedMediaSet failed: %v", err)
+	}
+
+	handler := NewMediaHandler(database)
+
+	// Create rate limiter with limit of 3 requests per minute
+	rateLimiter := NewRateLimiter(3, time.Minute)
+	rateLimitedHandler := RateLimitMiddleware(handler, rateLimiter)
+
+	// First 3 requests should succeed
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/media/cat", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		rr := httptest.NewRecorder()
+
+		rateLimitedHandler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Request %d: Expected status 200, got %d: %s", i+1, rr.Code, rr.Body.String())
+		}
+	}
+
+	// 4th request should be rate limited
+	req := httptest.NewRequest(http.MethodGet, "/api/media/cat", nil)
+	req.RemoteAddr = "192.168.1.1:12345"
+	rr := httptest.NewRecorder()
+
+	rateLimitedHandler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected status 429 when rate limited, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Verify Retry-After header is present
+	if rr.Header().Get("Retry-After") == "" {
+		t.Error("Expected Retry-After header on rate limited response")
+	}
+
+	// Different IP should not be rate limited
+	req2 := httptest.NewRequest(http.MethodGet, "/api/media/cat", nil)
+	req2.RemoteAddr = "192.168.1.2:12345"
+	rr2 := httptest.NewRecorder()
+
+	rateLimitedHandler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusOK {
+		t.Errorf("Different IP should not be rate limited, got %d: %s", rr2.Code, rr2.Body.String())
 	}
 }

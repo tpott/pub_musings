@@ -107,7 +107,9 @@ func main() {
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
-	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
+	// Media endpoint with its own rate limiter (30 requests per minute per IP - more generous for browsing)
+	mediaLimiter := api.NewRateLimiter(30, time.Minute)
+	mux.Handle("GET /api/media/{concept}", api.RateLimitMiddleware(api.NewMediaHandler(database), mediaLimiter))
 
 	// Feedback endpoint with its own rate limiter (5 requests per minute per IP)
 	feedbackLimiter := api.NewRateLimiter(5, time.Minute)

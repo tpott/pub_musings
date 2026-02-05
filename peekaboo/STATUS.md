@@ -26,7 +26,7 @@ This file tracks high level progress on the peekaboo project.
 - **API documentation** - docs/API.md documents all backend endpoints including WebSocket audio streaming with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, optional Piper, and LLM provider checks
 - **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
-- **Rate limiting** - 10 req/min per IP on /api/transcribe, /api/intent, and /ws/audio with cleanup goroutine
+- **Rate limiting** - 10 req/min per IP on /api/transcribe, /api/intent, /ws/audio; 30 req/min on /api/media; 5 req/min on /api/feedback; all with cleanup goroutine
 - **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
 - **Security headers** - Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
 - **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
@@ -56,6 +56,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 106: Add rate limiting to GET /api/media/{concept} endpoint (2026-02-05)
+  - Added mediaLimiter (30 req/min per IP) in main.go
+  - Wrapped MediaHandler with RateLimitMiddleware
+  - Added TestMediaHandler_RateLimited unit test
+  - Updated docs/API.md with 429 error response and rate limit info
 - Task 105: Add feedback feature with floating button and database persistence (2026-02-05)
   - Created specs/feedback.md with complete feature design
   - Added feedback table to database schema with indexes
