@@ -424,7 +424,24 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 
 	logger.Info("intent extracted", "subject", subject)
 
-	// 3. Look up media for subject
+	// 3. Validate subject format (same validation as HTTP media endpoint)
+	if subject == "" {
+		logger.Debug("empty subject from LLM")
+		h.sendError(ctx, conn, "I didn't understand what you want to see. Please try again.")
+		return
+	}
+	if !validConceptPattern.MatchString(subject) {
+		logger.Debug("invalid subject format", "subject", subject)
+		h.sendError(ctx, conn, fmt.Sprintf("I don't have media for '%s'. Try a simple animal name like 'cat' or 'dog'.", subject))
+		return
+	}
+	if len(subject) > maxConceptLength {
+		logger.Debug("subject too long", "subject", subject, "length", len(subject))
+		h.sendError(ctx, conn, "That's too long! Try a simple animal name like 'cat' or 'dog'.")
+		return
+	}
+
+	// 4. Look up media for subject
 	if h.Database == nil {
 		logger.Error("database not configured")
 		h.sendError(ctx, conn, "media lookup unavailable")
@@ -437,7 +454,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		return
 	}
 
-	// 4. Send media to client
+	// 5. Send media to client
 	h.sendMedia(ctx, conn, subject, mediaSet)
 }
 

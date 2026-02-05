@@ -50,9 +50,16 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend logging** - logger.ts with configurable log levels (VITE_LOG_LEVEL env var), replaces console.error/warn calls
 - **WebSocket connection limit** - WEBSOCKET_MAX_CONNECTIONS env var (default 100) prevents resource exhaustion
 - **Request body size limits** - /api/intent (5KB), /api/speak (2KB) limits prevent DoS via unbounded JSON
+- **WebSocket concept validation** - Same validation as HTTP media endpoint (format pattern, max 50 chars)
 
 ## Last Completed
 
+- Task 94: Apply consistent concept validation in WebSocket media lookup (2026-02-04)
+  - Added validation in api/websocket.go processAudio() using same validConceptPattern and maxConceptLength as HTTP endpoint
+  - Empty subject returns "I didn't understand what you want to see" error
+  - Invalid format (spaces, special chars) returns user-friendly message mentioning the invalid subject
+  - Subject > 50 chars returns "too long" error
+  - Added 4 unit tests: InvalidSubjectFormat, EmptySubject, SubjectTooLong, ValidSubjectAtMaxLength
 - Task 92: Add error handling to WebSocket JSON encoding methods (2026-02-04)
   - sendTranscript/sendMedia/sendError/sendPong now check json.Marshal errors
   - Marshal failures logged at ERROR level, write failures at DEBUG level

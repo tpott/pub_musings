@@ -570,6 +570,326 @@ func TestAudioWebSocketHandler_OriginValidation_EmptyAllowsAll(t *testing.T) {
 	conn.Close(websocket.StatusNormalClosure, "done")
 }
 
+func TestAudioWebSocketHandler_InvalidSubjectFormat(t *testing.T) {
+	// Test: LLM returns subject with invalid characters (e.g., "tabby cat" with space)
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{Text: "show me a tabby cat"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	// LLM returns "tabby cat" which has a space (invalid format)
+	mockProvider := &mockLLMProvider{subject: "tabby cat"}
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Send some audio
+	audioData := make([]byte, 5000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("failed to send audio: %v", err)
+	}
+
+	// Stop recording
+	stopMsg := ClientMessage{Type: MsgTypeStopRecording}
+	data, _ = json.Marshal(stopMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send stop_recording: %v", err)
+	}
+
+	// First message should be transcript
+	msgType, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read transcript: %v", err)
+	}
+	if msgType != websocket.MessageText {
+		t.Errorf("expected text message, got %v", msgType)
+	}
+	var transcript TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript); err != nil {
+		t.Fatalf("failed to unmarshal transcript: %v", err)
+	}
+	if transcript.Type != MsgTypeTranscript {
+		t.Errorf("expected transcript type, got %s", transcript.Type)
+	}
+
+	// Second message should be error about invalid format
+	msgType, respData, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read error: %v", err)
+	}
+	if msgType != websocket.MessageText {
+		t.Errorf("expected text message, got %v", msgType)
+	}
+
+	var errMsg ErrorMessage
+	if err := json.Unmarshal(respData, &errMsg); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+	if errMsg.Type != MsgTypeError {
+		t.Errorf("expected error type, got %s", errMsg.Type)
+	}
+	if !strings.Contains(errMsg.Message, "tabby cat") {
+		t.Errorf("expected error to mention invalid subject, got: %s", errMsg.Message)
+	}
+}
+
+func TestAudioWebSocketHandler_EmptySubject(t *testing.T) {
+	// Test: LLM returns empty subject
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{Text: "hello world"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	// LLM returns empty subject (couldn't extract intent)
+	mockProvider := &mockLLMProvider{subject: ""}
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Send some audio
+	audioData := make([]byte, 5000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("failed to send audio: %v", err)
+	}
+
+	// Stop recording
+	stopMsg := ClientMessage{Type: MsgTypeStopRecording}
+	data, _ = json.Marshal(stopMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send stop_recording: %v", err)
+	}
+
+	// First message should be transcript
+	msgType, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read transcript: %v", err)
+	}
+	if msgType != websocket.MessageText {
+		t.Errorf("expected text message, got %v", msgType)
+	}
+	var transcript TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript); err != nil {
+		t.Fatalf("failed to unmarshal transcript: %v", err)
+	}
+
+	// Second message should be error about empty subject
+	msgType, respData, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read error: %v", err)
+	}
+
+	var errMsg ErrorMessage
+	if err := json.Unmarshal(respData, &errMsg); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+	if errMsg.Type != MsgTypeError {
+		t.Errorf("expected error type, got %s", errMsg.Type)
+	}
+	if !strings.Contains(errMsg.Message, "didn't understand") {
+		t.Errorf("expected helpful error message, got: %s", errMsg.Message)
+	}
+}
+
+func TestAudioWebSocketHandler_SubjectTooLong(t *testing.T) {
+	// Test: LLM returns subject that exceeds max length (50 chars)
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{Text: "show me a very long thing"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	// LLM returns 51-character subject
+	longSubject := "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz" // 52 chars
+	mockProvider := &mockLLMProvider{subject: longSubject}
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Send some audio
+	audioData := make([]byte, 5000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("failed to send audio: %v", err)
+	}
+
+	// Stop recording
+	stopMsg := ClientMessage{Type: MsgTypeStopRecording}
+	data, _ = json.Marshal(stopMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send stop_recording: %v", err)
+	}
+
+	// First message should be transcript
+	msgType, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read transcript: %v", err)
+	}
+	if msgType != websocket.MessageText {
+		t.Errorf("expected text message, got %v", msgType)
+	}
+	var transcript TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript); err != nil {
+		t.Fatalf("failed to unmarshal transcript: %v", err)
+	}
+
+	// Second message should be error about subject too long
+	msgType, respData, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read error: %v", err)
+	}
+
+	var errMsg ErrorMessage
+	if err := json.Unmarshal(respData, &errMsg); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+	if errMsg.Type != MsgTypeError {
+		t.Errorf("expected error type, got %s", errMsg.Type)
+	}
+	if !strings.Contains(errMsg.Message, "too long") {
+		t.Errorf("expected error about length, got: %s", errMsg.Message)
+	}
+}
+
+func TestAudioWebSocketHandler_ValidSubjectAtMaxLength(t *testing.T) {
+	// Test: LLM returns subject exactly at max length (50 chars) - should pass validation
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{Text: "show me a thing"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	// LLM returns exactly 50-character subject (valid)
+	maxLengthSubject := "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuv12" // exactly 50 chars
+	mockProvider := &mockLLMProvider{subject: maxLengthSubject}
+
+	// Create mock database that returns nil (no media found, but validation passed)
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Send some audio
+	audioData := make([]byte, 5000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("failed to send audio: %v", err)
+	}
+
+	// Stop recording
+	stopMsg := ClientMessage{Type: MsgTypeStopRecording}
+	data, _ = json.Marshal(stopMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send stop_recording: %v", err)
+	}
+
+	// First message should be transcript
+	msgType, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read transcript: %v", err)
+	}
+	if msgType != websocket.MessageText {
+		t.Errorf("expected text message, got %v", msgType)
+	}
+	var transcript TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript); err != nil {
+		t.Fatalf("failed to unmarshal transcript: %v", err)
+	}
+
+	// Second message should be error about "media lookup unavailable" (no database)
+	// NOT a validation error - this proves validation passed
+	msgType, respData, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read error: %v", err)
+	}
+
+	var errMsg ErrorMessage
+	if err := json.Unmarshal(respData, &errMsg); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+	if errMsg.Type != MsgTypeError {
+		t.Errorf("expected error type, got %s", errMsg.Type)
+	}
+	// Should fail at database lookup, not at validation
+	if !strings.Contains(errMsg.Message, "media lookup unavailable") {
+		t.Errorf("expected 'media lookup unavailable' (validation should pass), got: %s", errMsg.Message)
+	}
+}
+
 func TestAudioWebSocketHandler_EmptyBuffer_ImmediateStop(t *testing.T) {
 	// Test: start_recording immediately followed by stop_recording with no audio chunks
 	handler := NewAudioWebSocketHandler("", nil, nil)
