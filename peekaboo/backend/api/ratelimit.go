@@ -2,6 +2,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -95,6 +96,9 @@ func (rl *RateLimiter) evictOldest(cutoff time.Time) {
 
 	if oldestIP != "" {
 		delete(rl.requests, oldestIP)
+		slog.Info("rate limiter evicted IP due to max entries limit",
+			"evicted_ip", oldestIP,
+			"max_entries", rl.maxEntries)
 	}
 }
 
@@ -125,6 +129,10 @@ func RateLimitMiddleware(next http.Handler, limiter *RateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getClientIP(r)
 		if !limiter.Allow(ip) {
+			slog.Warn("rate limit exceeded",
+				"ip", ip,
+				"method", r.Method,
+				"path", r.URL.Path)
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)

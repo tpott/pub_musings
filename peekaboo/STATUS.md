@@ -51,6 +51,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 87: Add observability to rate limiter (2026-02-04)
+  - Added WARN level logging when rate limit exceeded (includes ip, method, path)
+  - Added INFO level logging when IP eviction occurs due to max entries limit
+  - Uses slog structured logging for consistent log format
 - Task 85: Add unit test for WebSocket buffer threshold auto-processing (2026-02-04)
   - Added TestAudioWebSocketHandler_BufferThresholdAutoProcess to api/websocket_test.go
   - Test sends start_recording + audio chunks without sending stop_recording
