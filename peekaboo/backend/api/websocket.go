@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -68,14 +69,58 @@ type PongMessage struct {
 	Type string `json:"type"`
 }
 
+// ConnectionTracker tracks the number of active WebSocket connections.
+type ConnectionTracker struct {
+	count atomic.Int32
+	max   int32
+}
+
+// NewConnectionTracker creates a new connection tracker with the given max limit.
+func NewConnectionTracker(maxConnections int) *ConnectionTracker {
+	return &ConnectionTracker{
+		max: int32(maxConnections),
+	}
+}
+
+// TryAcquire attempts to acquire a connection slot.
+// Returns true if successful, false if at capacity.
+func (ct *ConnectionTracker) TryAcquire() bool {
+	for {
+		current := ct.count.Load()
+		if current >= ct.max {
+			return false
+		}
+		if ct.count.CompareAndSwap(current, current+1) {
+			return true
+		}
+		// CAS failed, another goroutine changed the value; retry
+	}
+}
+
+// Release releases a connection slot.
+func (ct *ConnectionTracker) Release() {
+	ct.count.Add(-1)
+}
+
+// Count returns the current number of active connections.
+func (ct *ConnectionTracker) Count() int {
+	return int(ct.count.Load())
+}
+
+// Max returns the maximum number of allowed connections.
+func (ct *ConnectionTracker) Max() int {
+	return int(ct.max)
+}
+
 // AudioWebSocketHandler handles WebSocket connections for audio streaming.
 type AudioWebSocketHandler struct {
 	WhisperURL    string
 	LLMProvider   llm.Provider
 	Database      *db.DB
 	Client        *http.Client
-	RateLimiter   *RateLimiter // Optional - nil means no rate limiting
-	AllowedOrigin string       // Optional - "*" or empty means allow all
+	RateLimiter   *RateLimiter       // Optional - nil means no rate limiting
+	AllowedOrigin string             // Optional - "*" or empty means allow all
+	ConnTracker   *ConnectionTracker // Optional - nil means no connection limit
 
 	// Configuration
 	BufferThreshold time.Duration // How long to buffer before processing
@@ -95,6 +140,23 @@ func getIdleTimeout() time.Duration {
 		return 5 * time.Minute
 	}
 	return time.Duration(secs) * time.Second
+}
+
+// defaultMaxConnections is the default maximum number of concurrent WebSocket connections.
+const defaultMaxConnections = 100
+
+// getMaxConnections returns the max WebSocket connections from WEBSOCKET_MAX_CONNECTIONS env var.
+// Defaults to 100 if not set or invalid.
+func getMaxConnections() int {
+	val := os.Getenv("WEBSOCKET_MAX_CONNECTIONS")
+	if val == "" {
+		return defaultMaxConnections
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n <= 0 {
+		return defaultMaxConnections
+	}
+	return n
 }
 
 // NewAudioWebSocketHandler creates a new WebSocket handler.
@@ -128,6 +190,7 @@ func NewAudioWebSocketHandlerWithRateLimiter(whisperURL string, provider llm.Pro
 // NewAudioWebSocketHandlerWithOptions creates a WebSocket handler with all options.
 // allowedOrigin: "*" or "" means allow all; specific origin (e.g., "https://example.com") restricts to that origin.
 // IdleTimeout is read from WEBSOCKET_IDLE_TIMEOUT_SECS env var (default: 300 seconds).
+// MaxConnections is read from WEBSOCKET_MAX_CONNECTIONS env var (default: 100).
 func NewAudioWebSocketHandlerWithOptions(whisperURL string, provider llm.Provider, database *db.DB, rateLimiter *RateLimiter, allowedOrigin string) *AudioWebSocketHandler {
 	return &AudioWebSocketHandler{
 		WhisperURL:      whisperURL,
@@ -136,6 +199,24 @@ func NewAudioWebSocketHandlerWithOptions(whisperURL string, provider llm.Provide
 		Client:          &http.Client{Timeout: 120 * time.Second},
 		RateLimiter:     rateLimiter,
 		AllowedOrigin:   allowedOrigin,
+		ConnTracker:     NewConnectionTracker(getMaxConnections()),
+		BufferThreshold: 3 * time.Second,
+		IdleTimeout:     getIdleTimeout(),
+		MaxMessageSize:  5 << 20, // 5MB
+	}
+}
+
+// NewAudioWebSocketHandlerWithConnTracker creates a WebSocket handler with a custom connection tracker.
+// This is useful for testing or sharing a tracker across multiple handlers.
+func NewAudioWebSocketHandlerWithConnTracker(whisperURL string, provider llm.Provider, database *db.DB, rateLimiter *RateLimiter, allowedOrigin string, connTracker *ConnectionTracker) *AudioWebSocketHandler {
+	return &AudioWebSocketHandler{
+		WhisperURL:      whisperURL,
+		LLMProvider:     provider,
+		Database:        database,
+		Client:          &http.Client{Timeout: 120 * time.Second},
+		RateLimiter:     rateLimiter,
+		AllowedOrigin:   allowedOrigin,
+		ConnTracker:     connTracker,
 		BufferThreshold: 3 * time.Second,
 		IdleTimeout:     getIdleTimeout(),
 		MaxMessageSize:  5 << 20, // 5MB
@@ -167,6 +248,19 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 			w.Write([]byte(`{"error":"rate limit exceeded, try again later"}`))
 			return
 		}
+	}
+
+	// Check connection limit before upgrading to WebSocket
+	if h.ConnTracker != nil {
+		if !h.ConnTracker.TryAcquire() {
+			logger.Warn("websocket connection limit reached", "current", h.ConnTracker.Count(), "max", h.ConnTracker.Max())
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error":"server at capacity, try again later"}`))
+			return
+		}
+		// Release the connection slot when done
+		defer h.ConnTracker.Release()
 	}
 
 	// Accept WebSocket connection with origin validation

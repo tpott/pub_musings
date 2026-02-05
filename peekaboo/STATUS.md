@@ -48,9 +48,17 @@ This file tracks high level progress on the peekaboo project.
 - **WebSocket audio streaming** - GET /ws/audio backend endpoint, frontend AudioWebSocket client, PeekabooFlow WebSocket integration (useWebSocket mode), with rate limiting and origin validation
 - **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
 - **Frontend logging** - logger.ts with configurable log levels (VITE_LOG_LEVEL env var), replaces console.error/warn calls
+- **WebSocket connection limit** - WEBSOCKET_MAX_CONNECTIONS env var (default 100) prevents resource exhaustion
 
 ## Last Completed
 
+- Task 89: Add maximum concurrent WebSocket connections limit (2026-02-04)
+  - Added ConnectionTracker with atomic counter for thread-safe tracking
+  - Configurable via WEBSOCKET_MAX_CONNECTIONS env var (default: 100)
+  - Returns HTTP 503 Service Unavailable when limit reached
+  - Connection slot released automatically on disconnect via defer
+  - Added unit tests for tracking, limit enforcement, and release on close
+  - Updated .env.example, CLAUDE.md, and docs/PERFORMANCE.md
 - Task 88: Create docs/PERFORMANCE.md (2026-02-04)
   - Documents database connection pool tuning for SQLite
   - Documents WebSocket idle timeout configuration

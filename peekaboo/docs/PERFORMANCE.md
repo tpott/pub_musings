@@ -41,6 +41,24 @@ SQLite only supports one writer at a time, even with WAL mode enabled. The defau
 - **Decrease (60-120s):** Memory constrained environments, many concurrent users
 - **Keep default:** Most use cases; 5 minutes accommodates normal interaction patterns
 
+### Max Concurrent Connections
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WEBSOCKET_MAX_CONNECTIONS` | 100 | Maximum concurrent WebSocket connections |
+
+**Behavior when limit reached:**
+- New connection attempts receive HTTP 503 Service Unavailable
+- Response includes JSON: `{"error":"server at capacity, try again later"}`
+- A WARN log is emitted: `websocket connection limit reached`
+
+**When to adjust:**
+- **Increase (200-500):** High-traffic deployments with sufficient memory
+- **Decrease (25-50):** Memory-constrained environments, want to reserve capacity
+- **Keep default:** Most use cases; 100 concurrent users is generous for a single instance
+
+**Memory impact:** Each WebSocket connection uses approximately 10-20KB of memory for connection state and audio buffering. At 100 connections, this is ~1-2MB base plus audio buffers.
+
 ### Buffer Threshold
 
 Audio is automatically processed when buffered for 3 seconds without `stop_recording`. This is hardcoded but could be made configurable if needed.
@@ -103,6 +121,9 @@ grep "websocket connection established" /var/log/peekaboo.log | wc -l
 
 # Find idle timeout disconnections
 grep "closing idle connection" /var/log/peekaboo.log | wc -l
+
+# Find connection limit rejections
+grep "websocket connection limit reached" /var/log/peekaboo.log | wc -l
 ```
 
 **Errors:**

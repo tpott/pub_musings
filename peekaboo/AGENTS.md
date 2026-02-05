@@ -90,6 +90,8 @@ sops -d secrets.enc.yaml > .env
 |----------|-------------|---------|
 | `PORT` | HTTP server port | `8080` |
 | `DB_PATH` | SQLite database path | `data/peekaboo.db` |
+| `DB_MAX_OPEN_CONNS` | Max open database connections | `1` |
+| `DB_MAX_IDLE_CONNS` | Max idle database connections | `1` |
 | `MEDIA_DIR` | Media files directory | `data/media` |
 | `AGE_KEY_FILE` | Age encryption key file | `data/age.key` |
 | `LLM_PROVIDER` | LLM provider (`anthropic` or `openai`) | `anthropic` |
@@ -98,8 +100,12 @@ sops -d secrets.enc.yaml > .env
 | `WHISPER_SERVER_URL` | Whisper server URL | - |
 | `PIPER_SERVER_URL` | Piper TTS server URL (optional) | - |
 | `ALLOWED_ORIGIN` | CORS allowed origin (e.g., `https://peekaboo.example.com`) | `*` (dev only) |
+| `WEBSOCKET_IDLE_TIMEOUT_SECS` | WebSocket idle timeout in seconds | `300` |
+| `WEBSOCKET_MAX_CONNECTIONS` | Max concurrent WebSocket connections | `100` |
 | `LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
 | `LOG_FORMAT` | Log format (`text` or `json`) | `text` |
+
+> **Note on DB connections:** SQLite only supports one writer at a time, even with WAL mode. The default of 1 connection is recommended. Higher values may improve read performance but can cause "database is locked" errors on write-heavy workloads.
 
 ## Failed Commands Log
 

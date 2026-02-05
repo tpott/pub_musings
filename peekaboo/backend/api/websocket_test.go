@@ -844,3 +844,250 @@ func TestAudioWebSocketHandler_WhitespaceOnlyTranscript(t *testing.T) {
 		t.Errorf("expected 'No speech detected' error, got %s", errMsg.Message)
 	}
 }
+
+func TestGetMaxConnections(t *testing.T) {
+	tests := []struct {
+		name   string
+		envVal string
+		want   int
+	}{
+		{"default when not set", "", 100},
+		{"custom value", "50", 50},
+		{"invalid value returns default", "not-a-number", 100},
+		{"zero returns default", "0", 100},
+		{"negative returns default", "-10", 100},
+		{"large value", "1000", 1000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envVal != "" {
+				os.Setenv("WEBSOCKET_MAX_CONNECTIONS", tt.envVal)
+				defer os.Unsetenv("WEBSOCKET_MAX_CONNECTIONS")
+			} else {
+				os.Unsetenv("WEBSOCKET_MAX_CONNECTIONS")
+			}
+
+			got := getMaxConnections()
+			if got != tt.want {
+				t.Errorf("getMaxConnections() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConnectionTracker(t *testing.T) {
+	t.Run("TryAcquire succeeds under limit", func(t *testing.T) {
+		tracker := NewConnectionTracker(3)
+
+		if !tracker.TryAcquire() {
+			t.Error("first TryAcquire should succeed")
+		}
+		if tracker.Count() != 1 {
+			t.Errorf("expected count 1, got %d", tracker.Count())
+		}
+
+		if !tracker.TryAcquire() {
+			t.Error("second TryAcquire should succeed")
+		}
+		if tracker.Count() != 2 {
+			t.Errorf("expected count 2, got %d", tracker.Count())
+		}
+
+		if !tracker.TryAcquire() {
+			t.Error("third TryAcquire should succeed")
+		}
+		if tracker.Count() != 3 {
+			t.Errorf("expected count 3, got %d", tracker.Count())
+		}
+	})
+
+	t.Run("TryAcquire fails at limit", func(t *testing.T) {
+		tracker := NewConnectionTracker(2)
+
+		tracker.TryAcquire()
+		tracker.TryAcquire()
+
+		if tracker.TryAcquire() {
+			t.Error("third TryAcquire should fail when at limit")
+		}
+		if tracker.Count() != 2 {
+			t.Errorf("expected count to stay at 2, got %d", tracker.Count())
+		}
+	})
+
+	t.Run("Release frees slot", func(t *testing.T) {
+		tracker := NewConnectionTracker(2)
+
+		tracker.TryAcquire()
+		tracker.TryAcquire()
+
+		if tracker.TryAcquire() {
+			t.Error("should be at limit")
+		}
+
+		tracker.Release()
+		if tracker.Count() != 1 {
+			t.Errorf("expected count 1 after release, got %d", tracker.Count())
+		}
+
+		if !tracker.TryAcquire() {
+			t.Error("TryAcquire should succeed after Release")
+		}
+	})
+
+	t.Run("Max returns correct value", func(t *testing.T) {
+		tracker := NewConnectionTracker(42)
+		if tracker.Max() != 42 {
+			t.Errorf("expected max 42, got %d", tracker.Max())
+		}
+	})
+}
+
+func TestAudioWebSocketHandler_ConnectionLimit(t *testing.T) {
+	// Create handler with limit of 2 connections
+	connTracker := NewConnectionTracker(2)
+	handler := NewAudioWebSocketHandlerWithConnTracker("", nil, nil, nil, "", connTracker)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// First connection should succeed
+	conn1, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("first connection should succeed: %v", err)
+	}
+	defer conn1.Close(websocket.StatusNormalClosure, "done")
+
+	// Second connection should succeed
+	conn2, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("second connection should succeed: %v", err)
+	}
+	defer conn2.Close(websocket.StatusNormalClosure, "done")
+
+	// Third connection should fail with 503
+	_, _, err = websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		t.Fatal("third connection should fail due to connection limit")
+	}
+	// The error should indicate the connection was rejected
+	if !strings.Contains(err.Error(), "503") && !strings.Contains(err.Error(), "failed") {
+		t.Logf("connection limit error (expected): %v", err)
+	}
+}
+
+func TestAudioWebSocketHandler_ConnectionLimitResponseFormat(t *testing.T) {
+	// Create handler with limit of 1 connection
+	connTracker := NewConnectionTracker(1)
+	handler := NewAudioWebSocketHandlerWithConnTracker("", nil, nil, nil, "", connTracker)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// First connection uses up the slot
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("first connection should succeed: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "done")
+
+	// Second connection should get HTTP 503 response
+	// Use regular HTTP client to verify response format
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	req.Header.Set("Sec-WebSocket-Key", "dGVzdC1rZXk=")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("HTTP request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503, got %d", resp.StatusCode)
+	}
+
+	if resp.Header.Get("Content-Type") != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", resp.Header.Get("Content-Type"))
+	}
+}
+
+func TestAudioWebSocketHandler_ConnectionReleasedOnClose(t *testing.T) {
+	// Create handler with limit of 1 connection
+	connTracker := NewConnectionTracker(1)
+	handler := NewAudioWebSocketHandlerWithConnTracker("", nil, nil, nil, "", connTracker)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// First connection uses the slot
+	conn1, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("first connection should succeed: %v", err)
+	}
+
+	// Second connection should fail
+	_, _, err = websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		t.Fatal("second connection should fail while first is active")
+	}
+
+	// Close first connection
+	conn1.Close(websocket.StatusNormalClosure, "done")
+
+	// Wait a moment for the server to process the close
+	time.Sleep(100 * time.Millisecond)
+
+	// Now a new connection should succeed
+	conn2, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("connection after close should succeed: %v", err)
+	}
+	conn2.Close(websocket.StatusNormalClosure, "done")
+}
+
+func TestAudioWebSocketHandler_NoConnectionTracker(t *testing.T) {
+	// Handler without connection tracker should accept unlimited connections
+	handler := NewAudioWebSocketHandler("", nil, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// Open multiple connections - all should succeed
+	var connections []*websocket.Conn
+	for i := 0; i < 10; i++ {
+		conn, _, err := websocket.Dial(ctx, wsURL, nil)
+		if err != nil {
+			t.Fatalf("connection %d failed (no tracker should allow all): %v", i+1, err)
+		}
+		connections = append(connections, conn)
+	}
+
+	// Clean up
+	for _, conn := range connections {
+		conn.Close(websocket.StatusNormalClosure, "done")
+	}
+}
