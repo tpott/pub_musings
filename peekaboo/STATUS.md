@@ -54,6 +54,9 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 95: Log database close error during graceful shutdown (2026-02-05)
+  - Changed `defer database.Close()` to defer a closure that logs error at WARN level
+  - Database close errors previously silently discarded, now visible in logs
 - Task 94: Apply consistent concept validation in WebSocket media lookup (2026-02-04)
   - Added validation in api/websocket.go processAudio() using same validConceptPattern and maxConceptLength as HTTP endpoint
   - Empty subject returns "I didn't understand what you want to see" error

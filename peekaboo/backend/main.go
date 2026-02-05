@@ -40,7 +40,11 @@ func main() {
 		slog.Error("failed to open database", "error", err, "path", dbPath)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			slog.Warn("error closing database", "error", err)
+		}
+	}()
 
 	// Initialize schema and seed concepts
 	if err := database.Init(); err != nil {
