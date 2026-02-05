@@ -18,7 +18,7 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
-- **Playwright e2e tests** - 6 tests verify cat/dog/duck media display, error handling, error recovery, and TTS synthesis
+- **Playwright e2e tests** - 7 tests verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, and WebSocket continuous listening
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
@@ -45,11 +45,19 @@ This file tracks high level progress on the peekaboo project.
 - **URL validation** - Frontend validates media URLs to prevent javascript: XSS attacks
 - **Browser support error** - Visible error banner when MediaRecorder is unavailable
 - **CORS test coverage** - backend/api/cors.go extracted from main.go with unit tests for preflight handling
-- **WebSocket audio streaming** - GET /ws/audio backend endpoint and frontend AudioWebSocket client (task 69 will integrate)
+- **WebSocket audio streaming** - GET /ws/audio backend endpoint, frontend AudioWebSocket client, and PeekabooFlow WebSocket integration (useWebSocket mode for continuous listening)
 - **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
 
 ## Last Completed
 
+- Task 69: Integrate WebSocket audio into PeekabooFlow (2026-02-04)
+  - PeekabooFlow supports useWebSocket option for WebSocket mode
+  - Streams audio chunks every 500ms while recording
+  - Receives transcript and media via WebSocket callbacks
+  - Media displays while mic stays active (continuous listening UX)
+  - User can issue multiple commands without stopping recording
+  - E2E test verifies continuous listening with 2 sequential commands
+  - All 193 unit tests pass, all 7 E2E tests pass
 - Task 68: Implement frontend WebSocket client for audio streaming (2026-02-04)
   - frontend/src/lib/websocket-audio.ts with AudioWebSocket class
   - Manages connection state (connecting/connected/reconnecting/disconnected)

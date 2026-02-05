@@ -67,10 +67,16 @@ import '../styles/global.css';
       return;
     }
 
+    // Check if WebSocket mode is enabled via query param or global flag
+    const urlParams = new URLSearchParams(window.location.search);
+    const useWebSocket = urlParams.get('useWebSocket') === 'true' ||
+                        (window as any).__PEEKABOO_USE_WEBSOCKET__ === true;
+
     // Initialize the full flow
     new PeekabooFlow({
       micButton,
       mediaContainer,
+      useWebSocket,
       onStateChange: (state) => {
         console.log('Peekaboo state:', state);
       },
