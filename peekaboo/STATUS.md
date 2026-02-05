@@ -51,6 +51,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 82: Add unit tests for LLM provider HealthCheck methods (2026-02-04)
+  - Added tests for Anthropic HealthCheck: success, API error (401), network error
+  - Added tests for OpenAI HealthCheck: success, API error (401), network error
+  - Coverage improved from 57.6% to 82.4%, HealthCheck methods now at 88%+ coverage
 - Task 81: Document WebSocket /ws/audio endpoint in docs/API.md (2026-02-04)
   - Added comprehensive WebSocket Audio Streaming section to docs/API.md
   - Documented connection upgrade, rate limiting (10/min), idle timeout (5 min), max message size (5MB)

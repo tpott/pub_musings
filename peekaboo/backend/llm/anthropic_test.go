@@ -178,3 +178,102 @@ func TestAnthropicProvider_DifferentSubjects(t *testing.T) {
 		})
 	}
 }
+
+func TestAnthropicProvider_HealthCheck_Success(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request
+		if r.URL.Path != "/v1/messages" {
+			t.Errorf("Expected /v1/messages, got %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("x-api-key") != "test-api-key" {
+			t.Errorf("Expected x-api-key header")
+		}
+
+		// Parse request body to verify it's a minimal request
+		var req anthropicRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+		}
+		if req.MaxTokens != 1 {
+			t.Errorf("Expected max_tokens=1 for health check, got %d", req.MaxTokens)
+		}
+
+		// Return minimal successful response
+		resp := anthropicResponse{
+			ID:      "msg_health",
+			Type:    "message",
+			Role:    "assistant",
+			Content: []anthropicContentBlock{{Type: "text", Text: "h"}},
+			Model:   "claude-3-haiku-20240307",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockServer.Close()
+
+	provider, err := NewProvider(Config{
+		Provider: "anthropic",
+		APIKey:   "test-api-key",
+		BaseURL:  mockServer.URL,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	err = provider.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck failed: %v", err)
+	}
+}
+
+func TestAnthropicProvider_HealthCheck_APIError(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": {"type": "authentication_error", "message": "invalid api key"}}`))
+	}))
+	defer mockServer.Close()
+
+	provider, _ := NewProvider(Config{
+		Provider: "anthropic",
+		APIKey:   "invalid-key",
+		BaseURL:  mockServer.URL,
+	})
+
+	err := provider.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("Expected error for API failure")
+	}
+	if !contains(err.Error(), "401") {
+		t.Errorf("Expected 401 error, got: %v", err)
+	}
+}
+
+func TestAnthropicProvider_HealthCheck_NetworkError(t *testing.T) {
+	// Use an invalid URL to simulate network error
+	provider, _ := NewProvider(Config{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+		BaseURL:  "http://localhost:1", // Port 1 should fail to connect
+	})
+
+	err := provider.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("Expected error for network failure")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsAt(s, substr, 0))
+}
+
+func containsAt(s, substr string, start int) bool {
+	for i := start; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

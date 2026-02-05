@@ -229,3 +229,112 @@ func TestOpenAIProvider_DifferentSubjects(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenAIProvider_HealthCheck_Success(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Errorf("Expected /v1/chat/completions, got %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST, got %s", r.Method)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-api-key" {
+			t.Errorf("Expected Authorization header with Bearer token")
+		}
+
+		// Parse request body to verify it's a minimal request
+		var req openaiRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("Failed to decode request: %v", err)
+		}
+		if req.MaxTokens != 1 {
+			t.Errorf("Expected max_tokens=1 for health check, got %d", req.MaxTokens)
+		}
+
+		// Return minimal successful response
+		resp := openaiResponse{
+			ID:      "chatcmpl-health",
+			Object:  "chat.completion",
+			Created: 1699000000,
+			Model:   "gpt-4o-mini",
+			Choices: []openaiChoice{
+				{
+					Index: 0,
+					Message: openaiMessage{
+						Role:    "assistant",
+						Content: "h",
+					},
+					FinishReason: "length",
+				},
+			},
+			Usage: openaiUsage{
+				PromptTokens:     5,
+				CompletionTokens: 1,
+				TotalTokens:      6,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockServer.Close()
+
+	provider, err := NewProvider(Config{
+		Provider: "openai",
+		APIKey:   "test-api-key",
+		BaseURL:  mockServer.URL,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	err = provider.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck failed: %v", err)
+	}
+}
+
+func TestOpenAIProvider_HealthCheck_APIError(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": {"message": "Invalid API key", "type": "invalid_request_error"}}`))
+	}))
+	defer mockServer.Close()
+
+	provider, _ := NewProvider(Config{
+		Provider: "openai",
+		APIKey:   "invalid-key",
+		BaseURL:  mockServer.URL,
+	})
+
+	err := provider.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("Expected error for API failure")
+	}
+	if !containsSubstring(err.Error(), "401") {
+		t.Errorf("Expected 401 error, got: %v", err)
+	}
+}
+
+func TestOpenAIProvider_HealthCheck_NetworkError(t *testing.T) {
+	// Use an invalid URL to simulate network error
+	provider, _ := NewProvider(Config{
+		Provider: "openai",
+		APIKey:   "test-key",
+		BaseURL:  "http://localhost:1", // Port 1 should fail to connect
+	})
+
+	err := provider.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("Expected error for network failure")
+	}
+}
+
+func containsSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
