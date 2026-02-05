@@ -152,7 +152,8 @@ cmake --build build --config Release
   --host 127.0.0.1 \
   --port 8765 \
   -t 4 \
-  --convert
+  --convert \
+  < /dev/null &
 
 # For production with larger model:
 ./build/bin/whisper-server \
@@ -160,7 +161,8 @@ cmake --build build --config Release
   --host 127.0.0.1 \
   --port 8765 \
   -t 8 \
-  --convert
+  --convert \
+  < /dev/null &
 ```
 
 Key options:
