@@ -29,7 +29,6 @@ Follow these ONLY when the situation applies:
 | Situation | Read First |
 |-----------|------------|
 | Adding a dependency | [docs/ralph/DEPENDENCIES.md](docs/ralph/DEPENDENCIES.md) |
-| Architecture decision | [docs/ralph/DECISIONS.md](docs/ralph/DECISIONS.md) |
 | Something surprised you | [docs/ralph/LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md) |
 | Need external research | [docs/ralph/RESEARCH.md](docs/ralph/RESEARCH.md) |
 | Stuck > 2 attempts | [docs/ralph/ESCALATION.md](docs/ralph/ESCALATION.md) |
