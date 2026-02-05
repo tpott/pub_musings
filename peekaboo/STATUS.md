@@ -55,6 +55,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 102: Update specs to document continuous listening behavior (2026-02-05)
+  - Added Session Lifecycle (Continuous Listening) section to specs/websocket-audio.md
+  - Updated specs/continuous-listening-ux.md status to "Implemented"
+  - Added transcript display note to specs/architecture.md
+  - docs/API.md already had good continuous listening documentation
 - Task 101: Add E2E tests for continuous listening and transcript display (2026-02-05)
   - Added 3 new E2E tests in peekaboo.spec.ts:
     - 'continuous listening - mic stays active after media display' - verifies aria-pressed stays true

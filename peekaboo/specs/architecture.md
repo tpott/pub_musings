@@ -19,6 +19,10 @@ Peekaboo is a voice-controlled web app for children that responds to prompts lik
 The user sees results without needing to stop recording first. This enables a
 continuous, conversational experience similar to Google Home.
 
+**Transcript display:** A scrollable transcript area below the media display shows
+recognized voice commands. This helps users see what the system heard, useful for
+debugging microphone issues or unclear speech.
+
 ---
 
 ## Component Research

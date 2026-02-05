@@ -141,6 +141,53 @@ Client audio chunk → WebSocket handler
 - Idle timeout: 5 minutes
 - Max message size: 5MB (same as POST /api/transcribe)
 
+### Session Lifecycle (Continuous Listening)
+
+The WebSocket session supports continuous listening - the mic can stay active across multiple commands:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Continuous Listening Session                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. User clicks mic → start_recording sent                      │
+│                                                                  │
+│  2. Audio chunks stream to server                                │
+│                                                                  │
+│  3. After 3s threshold (or stop_recording):                     │
+│     - Server transcribes audio                                   │
+│     - Sends transcript message                                   │
+│     - Extracts intent via LLM                                   │
+│     - Sends media message                                        │
+│     - Clears audio buffer                                        │
+│     - Stays ready for more audio (does NOT close session)       │
+│                                                                  │
+│  4. Client continues sending audio chunks (mic still active)    │
+│                                                                  │
+│  5. Repeat step 3 for each utterance                            │
+│                                                                  │
+│  6. User clicks mic again → stop_recording sent                 │
+│     - Final audio processed                                      │
+│     - Mic turned off on frontend                                 │
+│                                                                  │
+│  Note: The WebSocket connection remains open throughout.         │
+│  Multiple commands can be processed without reconnecting.        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key implementation details:**
+
+1. **Backend (`api/websocket.go`):**
+   - After processing audio, clears buffer but keeps `isRecording = true`
+   - Ready to receive new audio chunks immediately
+   - Only sets `isRecording = false` on explicit `stop_recording` message
+
+2. **Frontend (`peekaboo-flow.ts`):**
+   - MediaRecorder keeps running after receiving media results
+   - State remains `recording` even while displaying media
+   - Mic button shows pulsing animation throughout
+   - User must click mic again to stop recording
+
 ---
 
 ## Frontend Implementation

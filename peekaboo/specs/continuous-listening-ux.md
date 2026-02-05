@@ -1,7 +1,7 @@
 # Spec: Continuous Listening UX Improvements
 
 **Created:** 2026-02-05
-**Status:** Pending implementation
+**Status:** Implemented (Tasks 98-101)
 
 ## Overview
 
@@ -156,12 +156,11 @@ Add a transcript display area below the photo/video rendering:
 
 ## Implementation Order
 
-1. **Task 98:** Update `specs/architecture.md` to reflect continuous listening as implemented behavior
-2. **Task 99:** Fix backend WebSocket handler to not reset session after media response
-3. **Task 100:** Update frontend `PeekabooFlow` to keep recording after media display
-4. **Task 101:** Add transcript display UI component and wiring
-5. **Task 102:** Add E2E tests for continuous listening and transcript display
-6. **Task 103:** Update docs to reflect new UX behavior
+1. **Task 98:** Verify backend supports continuous listening - DONE (2026-02-05)
+2. **Task 99:** Frontend continuous listening - keep recording after media display - DONE (2026-02-05)
+3. **Task 100:** Add transcript display UI below media display area - DONE (2026-02-05)
+4. **Task 101:** Add E2E tests for continuous listening and transcript display - DONE (2026-02-05)
+5. **Task 102:** Update specs to document continuous listening behavior - DONE (2026-02-05)
 
 ## Sources
 
