@@ -281,7 +281,7 @@ describe('MediaDisplay URL validation', () => {
 
     const img = container.querySelector('img');
     expect(img).toBeFalsy();
-    expect(consoleSpy).toHaveBeenCalledWith('Invalid image URL rejected:', 'javascript:alert(1)');
+    expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Invalid image URL rejected:', 'javascript:alert(1)');
   });
 
   it('rejects javascript: URLs for videos', () => {
@@ -289,7 +289,7 @@ describe('MediaDisplay URL validation', () => {
 
     const video = container.querySelector('video');
     expect(video).toBeFalsy();
-    expect(consoleSpy).toHaveBeenCalledWith('Invalid video URL rejected:', 'javascript:alert(1)');
+    expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Invalid video URL rejected:', 'javascript:alert(1)');
   });
 
   it('rejects javascript: URLs for audio', () => {
@@ -297,7 +297,7 @@ describe('MediaDisplay URL validation', () => {
 
     const audio = display.getAudioElement();
     expect(audio).toBeFalsy();
-    expect(consoleSpy).toHaveBeenCalledWith('Invalid audio URL rejected:', 'javascript:alert(1)');
+    expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Invalid audio URL rejected:', 'javascript:alert(1)');
   });
 
   it('rejects data: URLs for images', () => {

@@ -12,6 +12,7 @@ import { MediaDisplay, fetchMedia } from './media-display';
 import { getUserFriendlyMessage, ApiError } from './errors';
 import { speakSubject } from './text-to-speech';
 import { AudioWebSocket } from './websocket-audio';
+import { logger } from './logger';
 import type { MediaMessage, ConnectionState } from './websocket-audio';
 
 export type FlowState = 'idle' | 'recording' | 'transcribing' | 'searching' | 'displaying' | 'error';
@@ -295,7 +296,7 @@ export class PeekabooFlow {
       await speakSubject(subject);
     } catch (ttsError) {
       // Log TTS errors but don't interrupt the media display
-      console.warn('TTS unavailable:', ttsError);
+      logger.warn('TTS unavailable:', ttsError);
     }
   }
 
@@ -325,7 +326,7 @@ export class PeekabooFlow {
     try {
       await speakSubject(media.subject);
     } catch (ttsError) {
-      console.warn('TTS unavailable:', ttsError);
+      logger.warn('TTS unavailable:', ttsError);
     }
   }
 
@@ -355,7 +356,7 @@ export class PeekabooFlow {
   }
 
   private handleError(error: Error): void {
-    console.error('Peekaboo flow error:', error);
+    logger.error('Peekaboo flow error:', error);
     this.setState('error');
 
     // Get user-friendly error message based on error type

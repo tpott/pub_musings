@@ -261,7 +261,7 @@ describe('text-to-speech', () => {
       expect(result).toBe(mockAudioInstance);
       // Wait for the async play promise to settle
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(consoleWarn).toHaveBeenCalledWith('TTS autoplay blocked:', expect.any(Error));
+      expect(consoleWarn).toHaveBeenCalledWith('[WARN] TTS autoplay blocked:', expect.any(Error));
 
       consoleWarn.mockRestore();
     });

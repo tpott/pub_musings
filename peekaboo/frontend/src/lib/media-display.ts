@@ -4,6 +4,7 @@
 
 import { fetchWithRetry } from './fetch-with-retry';
 import { createApiErrorFromResponse, createNetworkError, ApiError } from './errors';
+import { logger } from './logger';
 
 export interface MediaContent {
   photoUrl?: string;
@@ -85,7 +86,7 @@ export class MediaDisplay {
    */
   private showImage(url: string, concept?: string): void {
     if (!isValidMediaUrl(url)) {
-      console.error('Invalid image URL rejected:', url);
+      logger.error('Invalid image URL rejected:', url);
       return;
     }
 
@@ -101,7 +102,7 @@ export class MediaDisplay {
    */
   private showVideo(url: string, concept?: string): void {
     if (!isValidMediaUrl(url)) {
-      console.error('Invalid video URL rejected:', url);
+      logger.error('Invalid video URL rejected:', url);
       return;
     }
 
@@ -121,7 +122,7 @@ export class MediaDisplay {
    */
   private playAudio(url: string): void {
     if (!isValidMediaUrl(url)) {
-      console.error('Invalid audio URL rejected:', url);
+      logger.error('Invalid audio URL rejected:', url);
       return;
     }
 
@@ -135,7 +136,7 @@ export class MediaDisplay {
 
     // Attempt autoplay (may be blocked by browser policies)
     this.audioElement.play().catch(error => {
-      console.warn('Audio autoplay blocked:', error);
+      logger.warn('Audio autoplay blocked:', error);
     });
   }
 

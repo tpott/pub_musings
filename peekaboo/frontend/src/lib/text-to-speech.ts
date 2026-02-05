@@ -8,6 +8,7 @@
 
 import { fetchWithRetry } from './fetch-with-retry';
 import { ApiError } from './errors';
+import { logger } from './logger';
 
 /**
  * Check if TTS is available by testing the /api/speak endpoint.
@@ -128,7 +129,7 @@ export async function speakSubject(subject: string): Promise<HTMLAudioElement | 
     // Start playing - don't wait for it to finish
     audio.play().catch((error) => {
       // Autoplay might be blocked - log but don't throw
-      console.warn('TTS autoplay blocked:', error);
+      logger.warn('TTS autoplay blocked:', error);
     });
   }
 

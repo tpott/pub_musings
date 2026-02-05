@@ -47,9 +47,15 @@ This file tracks high level progress on the peekaboo project.
 - **CORS test coverage** - backend/api/cors.go extracted from main.go with unit tests for preflight handling
 - **WebSocket audio streaming** - GET /ws/audio backend endpoint, frontend AudioWebSocket client, PeekabooFlow WebSocket integration (useWebSocket mode), with rate limiting and origin validation
 - **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
+- **Frontend logging** - logger.ts with configurable log levels (VITE_LOG_LEVEL env var), replaces console.error/warn calls
 
 ## Last Completed
 
+- Task 76: Add frontend logging utility with log level support (2026-02-04)
+  - Created frontend/src/lib/logger.ts with debug/info/warn/error methods
+  - Log level controlled by VITE_LOG_LEVEL environment variable (default: info)
+  - Replaced console.error/warn calls in media-display.ts, text-to-speech.ts, peekaboo-flow.ts with logger
+  - Added 12 unit tests in logger.test.ts, all 207 frontend tests pass
 - Task 78: Make WebSocket idle timeout configurable via env var (2026-02-04)
   - Added WEBSOCKET_IDLE_TIMEOUT_SECS environment variable
   - Defaults to 300 seconds (5 minutes)
