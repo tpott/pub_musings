@@ -67,10 +67,11 @@ import '../styles/global.css';
       return;
     }
 
-    // Check if WebSocket mode is enabled via query param or global flag
+    // WebSocket mode is enabled by default for continuous listening UX
+    // Can be disabled via query param: ?useWebSocket=false
     const urlParams = new URLSearchParams(window.location.search);
-    const useWebSocket = urlParams.get('useWebSocket') === 'true' ||
-                        (window as any).__PEEKABOO_USE_WEBSOCKET__ === true;
+    const useWebSocket = urlParams.get('useWebSocket') !== 'false' &&
+                        (window as any).__PEEKABOO_USE_WEBSOCKET__ !== false;
 
     // Initialize the full flow
     new PeekabooFlow({

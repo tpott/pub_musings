@@ -183,7 +183,7 @@ test.describe('Peekaboo voice command flow', () => {
     });
 
     // Navigate to the app
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
 
     // Wait for page to load
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
@@ -266,7 +266,7 @@ test.describe('Peekaboo voice command flow', () => {
       })
     );
 
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -284,7 +284,7 @@ test.describe('Peekaboo voice command flow', () => {
   test('voice command shows dog media', async ({ page }) => {
     await setupMocksAndTestAnimal(page, 'dog', 'show me a dog');
 
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
     await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
 
@@ -305,7 +305,7 @@ test.describe('Peekaboo voice command flow', () => {
   test('voice command shows duck media', async ({ page }) => {
     await setupMocksAndTestAnimal(page, 'duck', 'I want to see a duck');
 
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
     await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
 
@@ -419,7 +419,7 @@ test.describe('Peekaboo voice command flow', () => {
       await route.fulfill({ path: filePath });
     });
 
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -576,7 +576,7 @@ test.describe('Peekaboo voice command flow', () => {
       await route.fulfill({ path: filePath });
     });
 
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -639,7 +639,7 @@ test.describe('Microphone permission handling', () => {
       };
     });
 
-    await page.goto('/');
+    await page.goto('/?useWebSocket=false');
 
     // Wait for page to load
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
@@ -781,7 +781,7 @@ test.describe('WebSocket continuous listening', () => {
     });
 
     // Navigate with WebSocket mode enabled
-    await page.goto('/?useWebSocket=true');
+    await page.goto('/');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -917,7 +917,7 @@ test.describe('WebSocket continuous listening', () => {
       await route.fulfill({ path: filePath });
     });
 
-    await page.goto('/?useWebSocket=true');
+    await page.goto('/');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -1022,7 +1022,7 @@ test.describe('WebSocket continuous listening', () => {
       });
     });
 
-    await page.goto('/?useWebSocket=true');
+    await page.goto('/');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -1149,7 +1149,7 @@ test.describe('WebSocket continuous listening', () => {
       await route.fulfill({ path: filePath });
     });
 
-    await page.goto('/?useWebSocket=true');
+    await page.goto('/');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
@@ -1292,7 +1292,7 @@ test.describe('WebSocket continuous listening', () => {
       await route.fulfill({ path: filePath });
     });
 
-    await page.goto('/?useWebSocket=true');
+    await page.goto('/');
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');

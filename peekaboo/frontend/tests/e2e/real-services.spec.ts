@@ -84,23 +84,23 @@ test.describe('Real services e2e', () => {
       (window as any).MediaRecorder = FileMediaRecorder;
     }, chunksB64);
 
-    // Navigate with WebSocket mode
-    await page.goto('/?useWebSocket=true');
+    // Navigate to app (WebSocket mode is now the default)
+    await page.goto('/');
 
     // Wait for UI
     const micButton = page.locator('[data-testid="mic-button"]');
     await expect(micButton).toBeVisible();
 
-    // Start recording
+    // Start recording - backend should auto-process after 3 seconds of audio
+    // (per websocket-audio.md spec: "Time threshold - 3 seconds of audio accumulated")
     await micButton.click();
 
-    // Wait for all chunks to send (~7 chunks at 500ms = 3.5s)
-    await page.waitForTimeout(4000);
-
-    // Stop recording
-    await micButton.click();
-
-    // Wait for real services to process (whisper + LLM can take 5-15s)
+    // Wait for:
+    // - 3+ seconds of audio chunks to trigger threshold
+    // - Whisper transcription (1-5s)
+    // - LLM intent extraction (0.5-2s)
+    // - Media lookup and response
+    // Total expected: ~10-15 seconds, timeout at 30s for safety
     const img = page.locator('[data-testid="media-image"]');
     await expect(img).toBeVisible({ timeout: 30000 });
 
