@@ -50,6 +50,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 77: Make database connection pool size configurable via env vars (2026-02-04)
+  - Added DB_MAX_OPEN_CONNS and DB_MAX_IDLE_CONNS environment variables
+  - Defaults to 1 for both (SQLite-safe, not 25/5 as in task description)
+  - Added getEnvInt helper function with tests
+  - Updated .env.example and CLAUDE.md with new variables and SQLite note
 - Task 79: Add test for media set randomness with multiple sets (2026-02-04)
   - Added TestGetRandomMediaSetRandomness test to db/db_test.go
   - Seeds 3 media sets for a concept, calls GetRandomMediaSet() 20 times

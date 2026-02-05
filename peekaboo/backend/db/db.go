@@ -4,6 +4,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -56,15 +58,28 @@ var seedData = []struct {
 // Open opens a connection to the SQLite database at the given path.
 // If the database doesn't exist, it will be created.
 // Configures WAL mode, busy timeout, and connection limits for production use.
+//
+// Connection pool can be configured via environment variables:
+//   - DB_MAX_OPEN_CONNS: Maximum open connections (default: 1, recommended for SQLite)
+//   - DB_MAX_IDLE_CONNS: Maximum idle connections (default: 1)
+//
+// Note: SQLite only supports one writer at a time, even with WAL mode.
+// Higher connection counts may improve read performance but can cause
+// "database is locked" errors on write-heavy workloads.
 func Open(path string) (*DB, error) {
 	conn, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Limit connections to 1 - SQLite doesn't handle concurrent writers well
+	// Configure connection pool from environment (with SQLite-safe defaults)
+	maxOpenConns := getEnvInt("DB_MAX_OPEN_CONNS", 1)
+	maxIdleConns := getEnvInt("DB_MAX_IDLE_CONNS", 1)
+
+	// Limit connections - SQLite doesn't handle concurrent writers well
 	// With WAL mode, we can have concurrent readers but still only one writer
-	conn.SetMaxOpenConns(1)
+	conn.SetMaxOpenConns(maxOpenConns)
+	conn.SetMaxIdleConns(maxIdleConns)
 
 	// Test connection
 	if err := conn.Ping(); err != nil {
@@ -171,4 +186,17 @@ func (db *DB) GetConcept(id string) (string, error) {
 		return "", fmt.Errorf("query concept %s: %w", id, err)
 	}
 	return name, nil
+}
+
+// getEnvInt reads an integer from an environment variable, returning defaultVal if not set or invalid.
+func getEnvInt(key string, defaultVal int) int {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil {
+		return defaultVal
+	}
+	return n
 }

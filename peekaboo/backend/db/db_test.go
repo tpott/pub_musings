@@ -6,6 +6,36 @@ import (
 	"testing"
 )
 
+func TestGetEnvInt(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        string
+		envVal     string
+		defaultVal int
+		want       int
+	}{
+		{"env not set returns default", "TEST_DB_NOT_SET", "", 42, 42},
+		{"env set to valid int", "TEST_DB_VALID", "10", 42, 10},
+		{"env set to invalid int returns default", "TEST_DB_INVALID", "not-a-number", 42, 42},
+		{"env set to zero", "TEST_DB_ZERO", "0", 42, 0},
+		{"env set to negative", "TEST_DB_NEG", "-5", 42, -5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envVal != "" {
+				os.Setenv(tt.key, tt.envVal)
+				defer os.Unsetenv(tt.key)
+			}
+
+			got := getEnvInt(tt.key, tt.defaultVal)
+			if got != tt.want {
+				t.Errorf("getEnvInt(%q, %d) = %d, want %d", tt.key, tt.defaultVal, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestOpenAndClose(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
