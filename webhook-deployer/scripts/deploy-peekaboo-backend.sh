@@ -16,8 +16,13 @@ cd peekaboo
 # Decrypt secrets to .env file
 sops -d secrets.enc.yaml | grep -E '^[A-Z_]+:' | sed 's/: /=/' > .env
 
+# Build from backend directory (where go.mod lives)
+cd backend
+
 # Build to temp file first (atomic swap)
-CGO_ENABLED=1 go build -o peekaboo-new
+CGO_ENABLED=1 go build -o ../peekaboo-new
+
+cd ..
 
 # Backup current binary
 cp peekaboo peekaboo-prev 2>/dev/null || true
