@@ -508,11 +508,20 @@ func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript st
 }
 
 // Helper functions to send messages
+// Note: These log errors but don't return them because:
+// 1. Callers can't meaningfully recover from send failures
+// 2. The connection is likely closing anyway if writes fail
 
 func (h *AudioWebSocketHandler) sendTranscript(ctx context.Context, conn *websocket.Conn, text string) {
 	msg := TranscriptMessage{Type: MsgTypeTranscript, Text: text}
-	data, _ := json.Marshal(msg)
-	conn.Write(ctx, websocket.MessageText, data)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		slog.Error("failed to marshal transcript message", "error", err)
+		return
+	}
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		slog.Debug("failed to send transcript message", "error", err)
+	}
 }
 
 func (h *AudioWebSocketHandler) sendMedia(ctx context.Context, conn *websocket.Conn, subject string, media *db.MediaSet) {
@@ -527,20 +536,38 @@ func (h *AudioWebSocketHandler) sendMedia(ctx context.Context, conn *websocket.C
 	if media.VideoPath != "" {
 		msg.VideoURL = "/" + media.VideoPath
 	}
-	data, _ := json.Marshal(msg)
-	conn.Write(ctx, websocket.MessageText, data)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		slog.Error("failed to marshal media message", "error", err)
+		return
+	}
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		slog.Debug("failed to send media message", "error", err)
+	}
 }
 
 func (h *AudioWebSocketHandler) sendError(ctx context.Context, conn *websocket.Conn, message string) {
 	msg := ErrorMessage{Type: MsgTypeError, Message: message}
-	data, _ := json.Marshal(msg)
-	conn.Write(ctx, websocket.MessageText, data)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		slog.Error("failed to marshal error message", "error", err, "original_message", message)
+		return
+	}
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		slog.Debug("failed to send error message", "error", err)
+	}
 }
 
 func (h *AudioWebSocketHandler) sendPong(ctx context.Context, conn *websocket.Conn) {
 	msg := PongMessage{Type: MsgTypePong}
-	data, _ := json.Marshal(msg)
-	conn.Write(ctx, websocket.MessageText, data)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		slog.Error("failed to marshal pong message", "error", err)
+		return
+	}
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		slog.Debug("failed to send pong message", "error", err)
+	}
 }
 
 // idleTimeoutWatcher closes connection after idle timeout.

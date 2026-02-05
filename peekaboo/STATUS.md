@@ -53,6 +53,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 92: Add error handling to WebSocket JSON encoding methods (2026-02-04)
+  - sendTranscript/sendMedia/sendError/sendPong now check json.Marshal errors
+  - Marshal failures logged at ERROR level, write failures at DEBUG level
+  - Added comment explaining why errors aren't returned (caller can't recover)
 - Task 91: Add test for concurrent rate limiter operations (2026-02-04)
   - Added TestRateLimiter_ConcurrentAllowAndCleanup to verify thread safety
   - Added TestRateLimiter_ConcurrentAllowWithEviction for eviction stress test
