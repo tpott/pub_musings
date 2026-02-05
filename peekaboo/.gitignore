@@ -24,3 +24,6 @@ Thumbs.db
 # Node
 node_modules/
 dist/
+
+# Test results (Playwright)
+test-results/
