@@ -343,15 +343,20 @@ func TestIntentHandler_NoToolUseInResponse(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status 500, got %d: %s", rr.Code, rr.Body.String())
+	// No tool call is not an error - it means no actionable intent was found
+	// (e.g., silence, unclear speech, or unrelated text)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	var resp IntentResponse
 	json.NewDecoder(rr.Body).Decode(&resp)
-	// Error should be generic, not exposing internal API details
-	if resp.Error != "intent extraction failed" {
-		t.Errorf("Expected generic error 'intent extraction failed', got %q", resp.Error)
+	// Response should have empty subject and no error
+	if resp.Subject != "" {
+		t.Errorf("Expected empty subject, got %q", resp.Subject)
+	}
+	if resp.Error != "" {
+		t.Errorf("Expected no error, got %q", resp.Error)
 	}
 }
 

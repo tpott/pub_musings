@@ -189,15 +189,15 @@ test.describe('Peekaboo voice command flow', () => {
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
     await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
 
-    // Click and hold the mic button to start recording (use mouse events that the app listens for)
+    // Click the mic button to start recording (toggle behavior)
     const micButton = page.locator('[data-testid="mic-button"]');
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
 
     // Wait for recording state
     await page.waitForTimeout(200);
 
-    // Release to trigger processing (use mouseup event)
-    await micButton.dispatchEvent('mouseup');
+    // Click again to stop recording and trigger processing
+    await micButton.click();
 
     // Wait for the media to display
     await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
@@ -270,9 +270,9 @@ test.describe('Peekaboo voice command flow', () => {
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
     await page.waitForTimeout(200);
-    await micButton.dispatchEvent('mouseup');
+    await micButton.click();
 
     // Wait for error processing
     await page.waitForTimeout(1000);
@@ -289,9 +289,9 @@ test.describe('Peekaboo voice command flow', () => {
     await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
     await page.waitForTimeout(200);
-    await micButton.dispatchEvent('mouseup');
+    await micButton.click();
 
     await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
 
@@ -310,9 +310,9 @@ test.describe('Peekaboo voice command flow', () => {
     await expect(page.locator('[data-testid="media-display"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
     await page.waitForTimeout(200);
-    await micButton.dispatchEvent('mouseup');
+    await micButton.click();
 
     await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
 
@@ -426,9 +426,9 @@ test.describe('Peekaboo voice command flow', () => {
     const mediaDisplay = page.locator('[data-testid="media-display"]');
 
     // First attempt - should fail on intent
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
     await page.waitForTimeout(200);
-    await micButton.dispatchEvent('mouseup');
+    await micButton.click();
 
     // Wait for error state
     await page.waitForTimeout(1000);
@@ -447,9 +447,9 @@ test.describe('Peekaboo voice command flow', () => {
     await page.waitForTimeout(3500);
 
     // Retry - second attempt should succeed
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
     await page.waitForTimeout(200);
-    await micButton.dispatchEvent('mouseup');
+    await micButton.click();
 
     // Wait for success - image should now be visible
     await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });
@@ -580,9 +580,9 @@ test.describe('Peekaboo voice command flow', () => {
     await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
 
     const micButton = page.locator('[data-testid="mic-button"]');
-    await micButton.dispatchEvent('mousedown');
+    await micButton.click();
     await page.waitForTimeout(200);
-    await micButton.dispatchEvent('mouseup');
+    await micButton.click();
 
     // Wait for media to display
     await expect(page.locator('[data-testid="media-image"]')).toBeVisible({ timeout: 10000 });

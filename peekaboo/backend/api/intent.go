@@ -84,5 +84,12 @@ func (h *IntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// No result means no actionable intent found (e.g., silence, unclear speech)
+	// Return 200 with empty subject - this is not an error
+	if result == nil {
+		writeJSON(w, http.StatusOK, IntentResponse{})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, IntentResponse{Subject: result.Subject})
 }

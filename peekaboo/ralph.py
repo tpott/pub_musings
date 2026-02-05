@@ -20,6 +20,7 @@ DEFAULT_MAX_ITERATIONS = 10
 CLAUDE_MODEL = "opus"
 PROMPT_FILE = "RALPH.md"
 STOP_FILE = "STOP_RALPH"
+FEEDBACK_FILE = "FEEDBACK.md"
 FETCH_FEEDBACK_SCRIPT = "scripts/fetch-feedback.py"
 
 # Exponential backoff configuration for API errors (500, 529, overloaded)
@@ -127,6 +128,57 @@ def calculate_backoff(attempt: int) -> int:
     """
     backoff = INITIAL_BACKOFF_SECONDS * (2**attempt)
     return int(min(backoff, MAX_BACKOFF_SECONDS))
+
+
+def get_git_head() -> str | None:
+    """Get current git HEAD commit hash (short form)."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def log_feedback_before(feedback_log: Path, feedback_file: Path) -> str | None:
+    """
+    Log feedback content and git state before processing.
+
+    Returns git commit hash if feedback was logged, None otherwise.
+    """
+    if not feedback_file.exists():
+        return None
+
+    git_before = get_git_head()
+    content = feedback_file.read_text()
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with open(feedback_log, "a") as f:
+        f.write(f"=== {timestamp} ===\n")
+        f.write(f"git_commit_before: {git_before or 'unknown'}\n")
+        f.write("--- FEEDBACK.md content ---\n")
+        f.write(content)
+        if not content.endswith("\n"):
+            f.write("\n")
+        f.write("---\n")
+
+    return git_before
+
+
+def log_feedback_after(feedback_log: Path, git_before: str | None) -> None:
+    """Log git state after processing feedback."""
+    if git_before is None:
+        return
+
+    git_after = get_git_head()
+    with open(feedback_log, "a") as f:
+        f.write(f"git_commit_after: {git_after or 'unknown'}\n\n")
 
 
 def log(msg: str, log_file: Path | None, newline_before: bool = False) -> None:
@@ -307,12 +359,16 @@ def main() -> None:
     max_iterations = args.max_iterations
     prompt_file = Path(PROMPT_FILE)
     stop_marker = Path(STOP_FILE)
+    feedback_file = Path(FEEDBACK_FILE)
 
     # Set up logging if requested
     log_file = None
+    feedback_log = None
     if args.log_dir:
         args.log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = args.log_dir / f"ralph-{generate_ralph_id()}.log"
+        ralph_id = generate_ralph_id()
+        log_file = args.log_dir / f"ralph-{ralph_id}.log"
+        feedback_log = args.log_dir / f"feedback-{ralph_id}.log"
         print(f"Logging to: {log_file}")
 
     for i in range(max_iterations):
@@ -337,6 +393,11 @@ def main() -> None:
 
         prompt_content = prompt_file.read_text()
 
+        # Log feedback before Claude processes it (will be deleted by Claude)
+        git_before = None
+        if feedback_log is not None:
+            git_before = log_feedback_before(feedback_log, feedback_file)
+
         last_log = {}
         try:
             last_line = run_claude(prompt_content, args.verbose, log_file)
@@ -351,6 +412,10 @@ def main() -> None:
         except KeyboardInterrupt:
             print("\nInterrupted by user")
             sys.exit(130)
+
+        # Log git state after feedback was processed
+        if feedback_log is not None:
+            log_feedback_after(feedback_log, git_before)
 
         if "result" not in last_log:
             log(f'Last line missing "result": {last_line}', log_file)

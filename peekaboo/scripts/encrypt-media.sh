@@ -6,14 +6,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-MEDIA_DIR="${MEDIA_DIR:-$PROJECT_ROOT/data/media}"
-KEY_FILE="${AGE_KEY_FILE:-$PROJECT_ROOT/data/age.key}"
+MEDIA_DIR="${MEDIA_DIR:-$PROJECT_ROOT/backend/data/media}"
+KEY_FILE="${AGE_KEY_FILE:-$PROJECT_ROOT/backend/data/age.key}"
 
 usage() {
     cat <<EOF
 Usage: $0 [OPTIONS]
 
-Encrypts all media files in data/media/ using age encryption.
+Encrypts all media files in backend/data/media/ using age encryption.
 
 Options:
     --generate-key    Generate a new age key if one doesn't exist
@@ -21,8 +21,8 @@ Options:
     --help            Show this help message
 
 Environment variables:
-    MEDIA_DIR         Directory containing media files (default: data/media)
-    AGE_KEY_FILE      Path to age key file (default: data/age.key)
+    MEDIA_DIR         Directory containing media files (default: backend/data/media)
+    AGE_KEY_FILE      Path to age key file (default: backend/data/age.key)
 
 Example:
     # First time setup - generate key and encrypt

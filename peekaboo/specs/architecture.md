@@ -6,12 +6,18 @@ Peekaboo is a voice-controlled web app for children that responds to prompts lik
 
 ## Core User Flow
 
-1. User presses button to activate microphone
-2. Speech-to-text captures utterance ("show me a cat")
-3. LLM processes transcript to extract intent + subject
-4. App looks up matching media from database
-5. Display photo/video and play audio (TTS or pre-recorded)
-6. User can press button again or toggle mic off
+1. User presses button to activate microphone (recording begins)
+2. Frontend streams audio chunks (~500ms) to backend via WebSocket
+3. Backend forwards chunks to whisper-server for transcription
+4. When transcript ready: LLM extracts intent + subject
+5. App looks up matching media from database
+6. Display photo/video and play audio (TTS or pre-recorded)
+7. **Mic remains active** — user can issue another command immediately
+8. User presses button again to deactivate microphone (optional)
+
+**Key UX requirement:** Steps 3-6 happen **while the microphone is still listening**.
+The user sees results without needing to stop recording first. This enables a
+continuous, conversational experience similar to Google Home.
 
 ---
 
@@ -26,9 +32,10 @@ Peekaboo is a voice-controlled web app for children that responds to prompts lik
 
 The whisper-server is already deployed and proven. Flow:
 1. Frontend captures audio from microphone (MediaRecorder API)
-2. Send audio blob to backend
-3. Backend forwards to whisper-server for transcription
-4. Return transcript to frontend
+2. Frontend streams audio chunks (~500ms) to backend via WebSocket
+3. Backend buffers chunks and forwards to whisper-server for transcription
+4. Backend sends transcript back to frontend via WebSocket
+5. Processing happens while mic is still active (no stop-then-send)
 
 **Model selection:**
 - **Development/testing:** Use smallest model (`ggml-tiny.en.bin` or `ggml-base.en.bin`) for fast iteration
@@ -49,8 +56,8 @@ Backend needs `WHISPER_SERVER_URL` env var pointing to baremetal Mac's IP/hostna
 Reference subtitler's setup for VM-to-host networking (likely `10.0.2.2` for QEMU or host IP for bridged).
 
 **Future enhancements:**
-- Streaming whisper for lower latency
 - Phoneme/partial word output for guessing unclear speech
+- Voice activity detection (VAD) to auto-segment utterances
 
 **Sources:**
 - [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
@@ -367,15 +374,14 @@ test('voice command shows cat media', async ({ page }) => {
 - Claude Haiku tool calls for intent recognition
 - 6 animals with curated media sets (photo + optional audio/video)
 - Toggle button for mic on/off
+- **WebSocket audio streaming** (process while mic active, no stop-then-send)
 - Deployment via webhook-deployer
 
-**Phase 2 - Enhanced:**
-- Piper TTS integration
+**Phase 2 - Enhanced:** *(Piper TTS and OpenAI provider done)*
 - More concepts (colors, shapes, numbers)
-- OpenAI function calling support (provider abstraction)
 - Multiple media sets per concept
 
-**Phase 3 - Streaming:**
-- Whisper streaming for lower latency
-- Phoneme/partial word output
-- Better speech recognition
+**Phase 3 - Advanced:**
+- Phoneme/partial word output for unclear speech
+- Voice activity detection (VAD) for auto-segmentation
+- Real-time streaming whisper (sub-chunk latency)

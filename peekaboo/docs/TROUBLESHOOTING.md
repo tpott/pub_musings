@@ -111,6 +111,36 @@ curl http://127.0.0.1:8765/health
    WHISPER_SERVER_URL=http://10.0.2.2:8765
    ```
 
+5. **For whisper-server on a different host**, use an SSH tunnel.
+
+   If your VM runs on one machine but whisper-server runs on another, create an SSH tunnel on the VM host to forward the port:
+
+   ```bash
+   # On VM host: forward local port 8765 to whisper-server host
+   ssh -L 0.0.0.0:8765:localhost:8765 whisper-host -N
+   ```
+
+   **Flags:**
+   - `-L 0.0.0.0:8765:localhost:8765` — Listen on all interfaces on local machine, forward to `localhost:8765` on remote
+   - `-N` — No remote command (tunnel only, no shell)
+
+   The VM can then reach whisper-server via the QEMU gateway:
+   ```bash
+   WHISPER_SERVER_URL=http://10.0.2.2:8765
+   ```
+
+   **SSH config alternative** (`~/.ssh/config`):
+   ```
+   Host whisper-tunnel
+       HostName whisper-host
+       LocalForward 0.0.0.0:8765 localhost:8765
+       ExitOnForwardFailure yes
+       ServerAliveInterval 30
+       ServerAliveCountMax 3
+   ```
+
+   Then run: `ssh -N whisper-tunnel`
+
 ### Transcription returns empty text
 
 **Symptoms:**

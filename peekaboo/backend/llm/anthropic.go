@@ -47,10 +47,11 @@ func newAnthropicProvider(cfg Config) (*anthropicProvider, error) {
 // Anthropic API types
 
 type anthropicRequest struct {
-	Model     string             `json:"model"`
-	MaxTokens int                `json:"max_tokens"`
-	Messages  []anthropicMessage `json:"messages"`
-	Tools     []anthropicTool    `json:"tools"`
+	Model      string                 `json:"model"`
+	MaxTokens  int                    `json:"max_tokens"`
+	Messages   []anthropicMessage     `json:"messages"`
+	Tools      []anthropicTool        `json:"tools"`
+	ToolChoice map[string]interface{} `json:"tool_choice,omitempty"`
 }
 
 type anthropicMessage struct {
@@ -109,7 +110,8 @@ func (p *anthropicProvider) ExtractIntent(ctx context.Context, text string) (*In
 				Content: fmt.Sprintf("Extract the subject from this voice command. The user said: %q", text),
 			},
 		},
-		Tools: []anthropicTool{tool},
+		Tools:      []anthropicTool{tool},
+		ToolChoice: map[string]interface{}{"type": "auto"},
 	}
 
 	body, err := json.Marshal(apiReq)
@@ -152,5 +154,6 @@ func (p *anthropicProvider) ExtractIntent(ctx context.Context, text string) (*In
 		}
 	}
 
-	return nil, fmt.Errorf("no show_media tool call in response")
+	// No tool call means no actionable intent found (e.g., silence, unclear speech)
+	return nil, nil
 }

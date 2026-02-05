@@ -179,5 +179,6 @@ func (p *openaiProvider) ExtractIntent(ctx context.Context, text string) (*Inten
 		}
 	}
 
-	return nil, fmt.Errorf("no show_media function call in response")
+	// No function call means no actionable intent found (e.g., silence, unclear speech)
+	return nil, nil
 }

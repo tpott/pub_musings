@@ -232,7 +232,7 @@ describe('PeekabooFlow', () => {
 
     it('updates aria-label based on state', async () => {
       // Initial idle state
-      expect(micButton.getAttribute('aria-label')).toContain('Press and hold');
+      expect(micButton.getAttribute('aria-label')).toContain('Click to start');
 
       // Recording state
       await flow.startRecording();
@@ -414,10 +414,10 @@ describe('PeekabooFlow', () => {
     });
   });
 
-  describe('mouse events', () => {
-    it('starts recording on mousedown', async () => {
-      const mouseDownEvent = new MouseEvent('mousedown');
-      micButton.dispatchEvent(mouseDownEvent);
+  describe('click events (toggle behavior)', () => {
+    it('starts recording on first click', async () => {
+      const clickEvent = new MouseEvent('click');
+      micButton.dispatchEvent(clickEvent);
 
       // Wait for async operation
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -425,41 +425,51 @@ describe('PeekabooFlow', () => {
       expect(flow.getState()).toBe('recording');
     });
 
-    it('stops recording on mouseup', async () => {
-      micButton.dispatchEvent(new MouseEvent('mousedown'));
+    it('stops recording on second click', async () => {
+      // First click starts recording
+      micButton.dispatchEvent(new MouseEvent('click'));
       await new Promise(resolve => setTimeout(resolve, 0));
+      expect(flow.getState()).toBe('recording');
 
-      micButton.dispatchEvent(new MouseEvent('mouseup'));
+      // Second click stops recording and processes
+      micButton.dispatchEvent(new MouseEvent('click'));
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(flow.getState()).toBe('displaying');
     });
 
-    it('stops recording on mouseleave while recording', async () => {
-      micButton.dispatchEvent(new MouseEvent('mousedown'));
+    it('can start new recording after displaying', async () => {
+      // Complete a full flow
+      micButton.dispatchEvent(new MouseEvent('click'));
       await new Promise(resolve => setTimeout(resolve, 0));
-
-      micButton.dispatchEvent(new MouseEvent('mouseleave'));
+      micButton.dispatchEvent(new MouseEvent('click'));
       await new Promise(resolve => setTimeout(resolve, 10));
-
       expect(flow.getState()).toBe('displaying');
+
+      // Click again to start new recording
+      micButton.dispatchEvent(new MouseEvent('click'));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(flow.getState()).toBe('recording');
     });
   });
 
-  describe('touch events', () => {
-    it('starts recording on touchstart', async () => {
-      const touchStartEvent = new TouchEvent('touchstart');
-      micButton.dispatchEvent(touchStartEvent);
+  describe('touch events (toggle behavior)', () => {
+    it('starts recording on first touchend', async () => {
+      const touchEndEvent = new TouchEvent('touchend');
+      micButton.dispatchEvent(touchEndEvent);
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(flow.getState()).toBe('recording');
     });
 
-    it('stops recording on touchend', async () => {
-      micButton.dispatchEvent(new TouchEvent('touchstart'));
+    it('stops recording on second touchend', async () => {
+      // First touch starts recording
+      micButton.dispatchEvent(new TouchEvent('touchend'));
       await new Promise(resolve => setTimeout(resolve, 0));
+      expect(flow.getState()).toBe('recording');
 
+      // Second touch stops recording and processes
       micButton.dispatchEvent(new TouchEvent('touchend'));
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -467,7 +477,7 @@ describe('PeekabooFlow', () => {
     });
   });
 
-  describe('keyboard events', () => {
+  describe('keyboard events (toggle behavior)', () => {
     it('starts recording on Space keydown', async () => {
       const keydownEvent = new KeyboardEvent('keydown', { key: ' ' });
       micButton.dispatchEvent(keydownEvent);
@@ -486,27 +496,33 @@ describe('PeekabooFlow', () => {
       expect(flow.getState()).toBe('recording');
     });
 
-    it('stops recording on Space keyup', async () => {
+    it('stops recording on second Space keydown', async () => {
+      // First keydown starts recording
       micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
       await new Promise(resolve => setTimeout(resolve, 0));
+      expect(flow.getState()).toBe('recording');
 
-      micButton.dispatchEvent(new KeyboardEvent('keyup', { key: ' ' }));
+      // Second keydown stops recording and processes
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(flow.getState()).toBe('displaying');
     });
 
-    it('stops recording on Enter keyup', async () => {
+    it('stops recording on second Enter keydown', async () => {
+      // First keydown starts recording
       micButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
       await new Promise(resolve => setTimeout(resolve, 0));
+      expect(flow.getState()).toBe('recording');
 
-      micButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }));
+      // Second keydown stops recording and processes
+      micButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(flow.getState()).toBe('displaying');
     });
 
-    it('ignores repeated keydown events', async () => {
+    it('ignores repeated keydown events (key held down)', async () => {
       // First keydown starts recording
       micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -515,7 +531,7 @@ describe('PeekabooFlow', () => {
       // Clear state tracking
       stateChanges.length = 0;
 
-      // Repeated keydown should be ignored
+      // Repeated keydown (e.repeat=true) should be ignored - doesn't toggle
       micButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', repeat: true }));
       await new Promise(resolve => setTimeout(resolve, 0));
 

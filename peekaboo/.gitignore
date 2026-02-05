@@ -5,6 +5,7 @@
 
 # Data directory (media files, db, age keys)
 data/
+backend/data/
 
 # Build outputs
 peekaboo

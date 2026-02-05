@@ -42,36 +42,40 @@ export class PeekabooFlow {
   }
 
   private setupEventListeners(): void {
-    // Mouse events
-    this.micButton.addEventListener('mousedown', () => this.startRecording());
-    this.micButton.addEventListener('mouseup', () => this.stopRecordingAndProcess());
-    this.micButton.addEventListener('mouseleave', () => {
-      if (this.state === 'recording') {
-        this.stopRecordingAndProcess();
-      }
+    // Toggle recording on click - click to start, click again to stop
+    this.micButton.addEventListener('click', (e: MouseEvent) => {
+      e.preventDefault();
+      this.toggleRecording();
     });
 
-    // Touch events
-    this.micButton.addEventListener('touchstart', () => this.startRecording(), { passive: true });
-    this.micButton.addEventListener('touchend', () => this.stopRecordingAndProcess());
+    // Touch events - use touchend to toggle (prevents double-firing with click on some devices)
+    this.micButton.addEventListener('touchend', (e: TouchEvent) => {
+      e.preventDefault(); // Prevent click event from also firing
+      this.toggleRecording();
+    });
 
-    // Keyboard events - Enter and Space act like press-and-hold
+    // Keyboard events - Enter and Space toggle recording
     this.micButton.addEventListener('keydown', (e: KeyboardEvent) => {
       // Ignore repeated keydown events (key held down)
       if (e.repeat) return;
 
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault(); // Prevent scrolling on Space, form submission on Enter
-        this.startRecording();
+        this.toggleRecording();
       }
     });
+  }
 
-    this.micButton.addEventListener('keyup', (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        this.stopRecordingAndProcess();
-      }
-    });
+  /**
+   * Toggle recording state - start if idle, stop if recording
+   */
+  private toggleRecording(): void {
+    if (this.state === 'recording') {
+      this.stopRecordingAndProcess();
+    } else if (this.state === 'idle' || this.state === 'displaying' || this.state === 'error') {
+      this.startRecording();
+    }
+    // Ignore toggle during transcribing/searching states (button is disabled anyway)
   }
 
   private setState(state: FlowState): void {
@@ -113,17 +117,17 @@ export class PeekabooFlow {
   private getAriaLabel(): string {
     switch (this.state) {
       case 'recording':
-        return 'Listening... Release to stop';
+        return 'Listening... Click to stop';
       case 'transcribing':
         return 'Processing your voice...';
       case 'searching':
         return 'Searching for media...';
       case 'error':
-        return 'An error occurred. Press and hold to try again';
+        return 'An error occurred. Click to try again';
       case 'displaying':
-        return 'Showing result. Press and hold to record a new command';
+        return 'Showing result. Click to record a new command';
       default:
-        return 'Press and hold to record voice command';
+        return 'Click to start recording';
     }
   }
 
@@ -192,7 +196,7 @@ export class PeekabooFlow {
     this.display.reset(message);
 
     // Update aria-label with error message for accessibility
-    this.micButton.setAttribute('aria-label', `${message}. Press and hold to try again`);
+    this.micButton.setAttribute('aria-label', `${message}. Click to try again`);
 
     this.onError?.(error);
 

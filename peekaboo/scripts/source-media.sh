@@ -23,7 +23,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-MEDIA_DIR="$PROJECT_ROOT/data/media"
+MEDIA_DIR="$PROJECT_ROOT/backend/data/media"
 
 # Photo URLs (Wikimedia Commons - resized to 640px width)
 declare -A PHOTO_URLS=(

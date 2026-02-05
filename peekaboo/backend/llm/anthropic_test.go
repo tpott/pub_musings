@@ -119,9 +119,12 @@ func TestAnthropicProvider_ExtractIntent_NoToolUse(t *testing.T) {
 		BaseURL:  mockServer.URL,
 	})
 
-	_, err := provider.ExtractIntent(context.Background(), "hello there")
-	if err == nil {
-		t.Error("Expected error when no tool_use in response")
+	result, err := provider.ExtractIntent(context.Background(), "hello there")
+	if err != nil {
+		t.Errorf("Expected no error when no tool_use in response, got: %v", err)
+	}
+	if result != nil {
+		t.Errorf("Expected nil result when no tool_use in response, got: %+v", result)
 	}
 }
 

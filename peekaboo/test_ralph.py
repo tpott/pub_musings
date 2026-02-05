@@ -86,22 +86,30 @@ class TestLog(unittest.TestCase):
 
 
 class TestProcessClaudeOutput(unittest.TestCase):
-    def test_returns_last_line(self) -> None:
+    def test_returns_result_line(self) -> None:
+        result_line = '{"type":"result","subtype":"success","result":"done"}'
+        lines = ["first\n", "second\n", f"{result_line}\n"]
+        with redirect_stdout(io.StringIO()):
+            result = process_claude_output(lines, verbose=False, log_file=None)
+        self.assertEqual(result, result_line)
+
+    def test_returns_none_without_result_line(self) -> None:
         lines = ["first\n", "second\n", "third\n"]
         with redirect_stdout(io.StringIO()):
             result = process_claude_output(lines, verbose=False, log_file=None)
-        self.assertEqual(result, "third")
+        self.assertIsNone(result)
 
     def test_returns_none_for_empty_input(self) -> None:
         with redirect_stdout(io.StringIO()):
             result = process_claude_output([], verbose=False, log_file=None)
         self.assertIsNone(result)
 
-    def test_strips_newlines(self) -> None:
-        lines = ["line with newline\n"]
+    def test_strips_newlines_from_result(self) -> None:
+        result_line = '{"type":"result","subtype":"success","result":"done"}'
+        lines = [f"{result_line}\n"]
         with redirect_stdout(io.StringIO()):
             result = process_claude_output(lines, verbose=False, log_file=None)
-        self.assertEqual(result, "line with newline")
+        self.assertEqual(result, result_line)
 
     def test_verbose_prints_full_lines(self) -> None:
         lines = ["line1\n", "line2\n"]
@@ -135,7 +143,7 @@ class TestProcessClaudeOutput(unittest.TestCase):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = process_claude_output(lines, verbose=False, log_file=None)
-        self.assertEqual(result, "also not json")
+        self.assertIsNone(result)  # No result line present
         self.assertEqual(stdout.getvalue(), "..\n")
 
     def test_handles_json_without_session_id(self) -> None:
@@ -328,7 +336,9 @@ class TestIsApiServerError(unittest.TestCase):
     def test_returns_false_for_rate_limit(self) -> None:
         # Rate limits are not server errors
         self.assertFalse(
-            is_api_server_error("You've hit your limit · resets 2am (America/Los_Angeles)")
+            is_api_server_error(
+                "You've hit your limit · resets 2am (America/Los_Angeles)"
+            )
         )
 
     def test_returns_false_for_other_errors(self) -> None:
