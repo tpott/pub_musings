@@ -71,6 +71,7 @@ type AudioWebSocketHandler struct {
 	LLMProvider llm.Provider
 	Database    *db.DB
 	Client      *http.Client
+	RateLimiter *RateLimiter // Optional - nil means no rate limiting
 
 	// Configuration
 	BufferThreshold time.Duration // How long to buffer before processing
@@ -91,6 +92,21 @@ func NewAudioWebSocketHandler(whisperURL string, provider llm.Provider, database
 	}
 }
 
+// NewAudioWebSocketHandlerWithRateLimiter creates a new WebSocket handler with rate limiting.
+// The rate limiter checks connections per IP before upgrading to WebSocket.
+func NewAudioWebSocketHandlerWithRateLimiter(whisperURL string, provider llm.Provider, database *db.DB, rateLimiter *RateLimiter) *AudioWebSocketHandler {
+	return &AudioWebSocketHandler{
+		WhisperURL:      whisperURL,
+		LLMProvider:     provider,
+		Database:        database,
+		Client:          &http.Client{Timeout: 120 * time.Second},
+		RateLimiter:     rateLimiter,
+		BufferThreshold: 3 * time.Second,
+		IdleTimeout:     5 * time.Minute,
+		MaxMessageSize:  5 << 20, // 5MB
+	}
+}
+
 // connectionState manages per-connection state.
 type connectionState struct {
 	mu           sync.Mutex
@@ -104,6 +120,19 @@ type connectionState struct {
 func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestID := logging.GetRequestID(r.Context())
 	logger := slog.With("request_id", requestID, "handler", "websocket")
+
+	// Check rate limit before upgrading to WebSocket
+	if h.RateLimiter != nil {
+		ip := getClientIP(r)
+		if !h.RateLimiter.Allow(ip) {
+			logger.Warn("websocket rate limit exceeded", "ip", ip)
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"error":"rate limit exceeded, try again later"}`))
+			return
+		}
+	}
 
 	// Accept WebSocket connection
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{

@@ -26,7 +26,7 @@ This file tracks high level progress on the peekaboo project.
 - **API documentation** - docs/API.md documents all backend endpoints with curl examples
 - **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, optional Piper, and LLM provider checks
 - **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
-- **Rate limiting** - 10 req/min per IP on /api/transcribe and /api/intent with cleanup goroutine
+- **Rate limiting** - 10 req/min per IP on /api/transcribe, /api/intent, and /ws/audio with cleanup goroutine
 - **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
 - **Security headers** - Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
 - **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
@@ -50,6 +50,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 72: Add rate limiting to WebSocket /ws/audio endpoint (2026-02-04)
+  - Added RateLimiter field to AudioWebSocketHandler
+  - Rate limit checked before WebSocket upgrade (returns HTTP 429)
+  - Created NewAudioWebSocketHandlerWithRateLimiter constructor
+  - Wired rate limiter in main.go (shares 10 req/min limiter with HTTP endpoints)
+  - Added unit tests for rate limiting, no-limiter, and response format
+  - Updated LEARNINGS.md with design decision
 - Task 71: Add LLM provider connectivity check to /health/ready endpoint (2026-02-04)
   - Added HealthCheck method to llm.Provider interface
   - Implemented HealthCheck for Anthropic and OpenAI providers (minimal completion request)

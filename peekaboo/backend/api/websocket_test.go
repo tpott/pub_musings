@@ -328,3 +328,115 @@ func TestAudioWebSocketHandler_WithMockedWhisper(t *testing.T) {
 		t.Errorf("expected error type, got %s", errMsg.Type)
 	}
 }
+
+func TestAudioWebSocketHandler_RateLimiting(t *testing.T) {
+	// Create rate limiter: 2 connections per minute
+	rateLimiter := NewRateLimiter(2, time.Minute)
+
+	handler := NewAudioWebSocketHandlerWithRateLimiter("", nil, nil, rateLimiter)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// First connection should succeed
+	conn1, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("first connection should succeed: %v", err)
+	}
+	conn1.Close(websocket.StatusNormalClosure, "done")
+
+	// Second connection should succeed
+	conn2, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("second connection should succeed: %v", err)
+	}
+	conn2.Close(websocket.StatusNormalClosure, "done")
+
+	// Third connection should be rate limited - can't upgrade to WebSocket
+	// The server will return HTTP 429 before upgrade
+	_, _, err = websocket.Dial(ctx, wsURL, nil)
+	if err == nil {
+		t.Fatal("third connection should fail due to rate limiting")
+	}
+	// The error should indicate the upgrade failed
+	if !strings.Contains(err.Error(), "429") && !strings.Contains(err.Error(), "failed") {
+		t.Logf("rate limit error (expected): %v", err)
+	}
+}
+
+func TestAudioWebSocketHandler_NoRateLimiter(t *testing.T) {
+	// Handler without rate limiter should accept unlimited connections
+	handler := NewAudioWebSocketHandler("", nil, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Open multiple connections - all should succeed
+	var connections []*websocket.Conn
+	for i := 0; i < 5; i++ {
+		conn, _, err := websocket.Dial(ctx, wsURL, nil)
+		if err != nil {
+			t.Fatalf("connection %d failed: %v", i+1, err)
+		}
+		connections = append(connections, conn)
+	}
+
+	// Clean up
+	for _, conn := range connections {
+		conn.Close(websocket.StatusNormalClosure, "done")
+	}
+}
+
+func TestAudioWebSocketHandler_RateLimitResponseFormat(t *testing.T) {
+	// Create rate limiter: 1 connection per minute
+	rateLimiter := NewRateLimiter(1, time.Minute)
+
+	handler := NewAudioWebSocketHandlerWithRateLimiter("", nil, nil, rateLimiter)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	// First connection uses up the quota
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("first connection should succeed: %v", err)
+	}
+	conn.Close(websocket.StatusNormalClosure, "done")
+
+	// Second connection should get HTTP 429 response
+	// Use regular HTTP client to verify response format
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	req.Header.Set("Sec-WebSocket-Key", "dGVzdC1rZXk=")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("HTTP request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("expected status 429, got %d", resp.StatusCode)
+	}
+
+	if resp.Header.Get("Retry-After") != "60" {
+		t.Errorf("expected Retry-After: 60, got %s", resp.Header.Get("Retry-After"))
+	}
+}

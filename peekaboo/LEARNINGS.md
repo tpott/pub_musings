@@ -150,3 +150,36 @@ if mode&0077 != 0 {
 - No breaking API changes planned
 
 **Lesson:** When a popular library is archived (like gorilla), look for community forks. nhooyr/websocket was adopted by Coder and continues active development. Check library READMEs for "new home" announcements.
+
+---
+
+### 2026-02-04: WebSocket rate limiting before upgrade
+
+**Context:** HTTP rate limiter protected `/api/transcribe` and `/api/intent` but WebSocket `/ws/audio` was unprotected. An attacker could bypass rate limiting by using WebSocket for unlimited transcription requests.
+
+**Options considered:**
+1. Rate limit per-message inside WebSocket connection (complex state, hard to enforce)
+2. Limit concurrent connections per IP (doesn't prevent rapid connect/disconnect abuse)
+3. Rate limit connection attempts BEFORE WebSocket upgrade (simple, blocks at HTTP layer)
+
+**Decision:** Check rate limit in `ServeHTTP` before calling `websocket.Accept()`. Returns HTTP 429 with `Retry-After: 60` header if rate limited.
+
+**Design:**
+```go
+if h.RateLimiter != nil {
+    ip := getClientIP(r)
+    if !h.RateLimiter.Allow(ip) {
+        w.WriteHeader(http.StatusTooManyRequests)
+        return
+    }
+}
+// Then accept websocket...
+```
+
+**Benefits:**
+- Reuses existing RateLimiter implementation
+- Standard HTTP 429 response clients understand
+- Rate limit checked before any expensive WebSocket setup
+- Same 10 req/min limit as HTTP endpoints
+
+**Lesson:** Rate limit WebSocket connections at the HTTP upgrade stage, not inside the WebSocket protocol. This way you can return standard HTTP error codes and reuse existing rate limiting infrastructure.

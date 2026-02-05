@@ -95,12 +95,12 @@ func main() {
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
 	mux.Handle("GET /api/media/{concept}", api.NewMediaHandler(database))
 
-	// WebSocket endpoint for audio streaming
+	// WebSocket endpoint for audio streaming with rate limiting (10 connections/min per IP)
 	whisperURL := os.Getenv("WHISPER_SERVER_URL")
 	if whisperURL == "" {
 		whisperURL = "http://127.0.0.1:8765"
 	}
-	mux.Handle("GET /ws/audio", api.NewAudioWebSocketHandler(whisperURL, llmProvider, database))
+	mux.Handle("GET /ws/audio", api.NewAudioWebSocketHandlerWithRateLimiter(whisperURL, llmProvider, database, rateLimiter))
 
 	// TTS endpoint (optional - only enabled if PIPER_SERVER_URL is set)
 	piperURL := os.Getenv("PIPER_SERVER_URL")
