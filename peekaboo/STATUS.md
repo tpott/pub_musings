@@ -18,7 +18,7 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
-- **Playwright e2e tests** - 7 tests verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, and WebSocket continuous listening
+- **Playwright e2e tests** - 10 tests verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, WebSocket continuous listening, and WebSocket error recovery
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
@@ -51,6 +51,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 75: Add WebSocket error recovery E2E tests (2026-02-04)
+  - Added E2E test for server sending invalid JSON (gracefully ignored, valid messages processed)
+  - Added E2E test for server closing connection mid-recording (error state displayed)
+  - Added E2E test for client retry after server error message (retry succeeds after error state resets)
+  - All 10 Playwright E2E tests pass
 - Task 76: Add frontend logging utility with log level support (2026-02-04)
   - Created frontend/src/lib/logger.ts with debug/info/warn/error methods
   - Log level controlled by VITE_LOG_LEVEL environment variable (default: info)

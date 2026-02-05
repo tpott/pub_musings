@@ -738,4 +738,377 @@ test.describe('WebSocket continuous listening', () => {
     // Verify both commands were processed
     expect(commandCount).toBe(2);
   });
+
+  test('handles server sending invalid JSON gracefully', async ({ page }) => {
+    let invalidJsonSent = false;
+    let commandProcessed = false;
+
+    // Mock MediaRecorder for WebSocket mode
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+    });
+
+    // Mock WebSocket - send invalid JSON first, then valid response
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioReceived = false;
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'stop_recording' && audioReceived) {
+              // First, send invalid JSON - this should be gracefully ignored
+              if (!invalidJsonSent) {
+                ws.send('this is { not valid json [[[');
+                ws.send('{incomplete json');
+                invalidJsonSent = true;
+              }
+
+              // Then send valid response
+              setTimeout(() => {
+                ws.send(JSON.stringify({ type: 'transcript', text: 'show me a cat' }));
+                ws.send(JSON.stringify({
+                  type: 'media',
+                  subject: 'cat',
+                  photo_url: '/fixtures/mock-cat-photo.jpg',
+                  audio_url: '/fixtures/mock-cat-audio.mp3',
+                }));
+                commandProcessed = true;
+              }, 50);
+
+              audioReceived = false;
+            } else if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            }
+          } catch {
+            audioReceived = true;
+          }
+        } else {
+          audioReceived = true;
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/?useWebSocket=true');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const img = page.locator('[data-testid="media-image"]');
+
+    // Record a command
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    // Despite invalid JSON being sent, the valid response should be processed
+    await expect(img).toBeVisible({ timeout: 10000 });
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+
+    expect(invalidJsonSent).toBe(true);
+    expect(commandProcessed).toBe(true);
+  });
+
+  test('handles server closing connection mid-recording', async ({ page }) => {
+    let closeConnectionOnFirstCommand = true;
+
+    // Mock MediaRecorder for WebSocket mode
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+    });
+
+    // Mock WebSocket - close connection on first recording
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioChunkCount = 0;
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            }
+          } catch {
+            // Not JSON
+          }
+        } else {
+          // Binary audio data
+          audioChunkCount++;
+          // Close connection after receiving some audio chunks
+          if (closeConnectionOnFirstCommand && audioChunkCount >= 2) {
+            ws.close();
+            closeConnectionOnFirstCommand = false;
+          }
+        }
+      });
+    });
+
+    await page.goto('/?useWebSocket=true');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const mediaDisplay = page.locator('[data-testid="media-display"]');
+
+    // Start recording - connection will be closed mid-recording
+    await micButton.click();
+    await page.waitForTimeout(1000); // Wait for connection to be closed
+
+    // Wait for error state to be displayed
+    await page.waitForTimeout(1000);
+
+    // Verify error message is shown
+    await expect(mediaDisplay).toContainText(/connection|lost|error|try again/i);
+  });
+
+  test('client can retry after server error message', async ({ page }) => {
+    let attemptCount = 0;
+    let commandProcessed = false;
+
+    // Mock MediaRecorder for WebSocket mode
+    await page.addInitScript(() => {
+      class MockMediaRecorder {
+        state = 'inactive' as string;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        stream: MediaStream | null = null;
+        mimeType = 'audio/webm';
+        private intervalId: ReturnType<typeof setInterval> | null = null;
+
+        constructor(stream: MediaStream, options?: { mimeType?: string }) {
+          this.stream = stream;
+          if (options?.mimeType) this.mimeType = options.mimeType;
+        }
+
+        static isTypeSupported(type: string) {
+          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
+        }
+
+        start(timeslice?: number) {
+          this.state = 'recording';
+          if (timeslice && timeslice > 0) {
+            this.intervalId = setInterval(() => {
+              if (this.state === 'recording' && this.ondataavailable) {
+                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
+              }
+            }, timeslice);
+          }
+        }
+
+        stop() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.state = 'inactive';
+          if (this.ondataavailable) {
+            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
+          }
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+      }
+
+      const mockStream = {
+        getTracks: () => [{ stop: () => {} }],
+        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
+        getVideoTracks: () => [],
+        active: true,
+        id: 'mock-stream-id',
+      };
+
+      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
+      (window as any).MediaRecorder = MockMediaRecorder;
+    });
+
+    // Mock WebSocket - first stop_recording returns error, subsequent succeed
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioReceived = false;
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'stop_recording' && audioReceived) {
+              attemptCount++;
+              if (attemptCount === 1) {
+                // First stop_recording: send error
+                ws.send(JSON.stringify({ type: 'error', message: 'Server temporarily unavailable' }));
+              } else {
+                // Subsequent stop_recording: work normally
+                ws.send(JSON.stringify({ type: 'transcript', text: 'show me a cat' }));
+                setTimeout(() => {
+                  ws.send(JSON.stringify({
+                    type: 'media',
+                    subject: 'cat',
+                    photo_url: '/fixtures/mock-cat-photo.jpg',
+                    audio_url: '/fixtures/mock-cat-audio.mp3',
+                  }));
+                  commandProcessed = true;
+                }, 50);
+              }
+              audioReceived = false;
+            } else if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (parsed.type === 'start_recording') {
+              // Reset for new recording session
+              audioReceived = false;
+            }
+          } catch {
+            audioReceived = true;
+          }
+        } else {
+          audioReceived = true;
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/?useWebSocket=true');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const mediaDisplay = page.locator('[data-testid="media-display"]');
+    const img = page.locator('[data-testid="media-image"]');
+
+    // First attempt - should fail with error
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    // Wait for error to be displayed
+    await page.waitForTimeout(1000);
+    await expect(mediaDisplay).toContainText(/unavailable|something went wrong|error|try again/i);
+
+    // Wait for error state to reset to idle (3 seconds timeout)
+    await page.waitForTimeout(3500);
+
+    // Second attempt - should succeed
+    await micButton.click();
+    await page.waitForTimeout(600);
+    await micButton.click();
+
+    // Verify the command was processed successfully
+    await expect(img).toBeVisible({ timeout: 10000 });
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+
+    expect(attemptCount).toBe(2);
+    expect(commandProcessed).toBe(true);
+  });
 });
