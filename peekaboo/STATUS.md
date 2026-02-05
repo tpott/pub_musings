@@ -50,6 +50,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 78: Make WebSocket idle timeout configurable via env var (2026-02-04)
+  - Added WEBSOCKET_IDLE_TIMEOUT_SECS environment variable
+  - Defaults to 300 seconds (5 minutes)
+  - Added getIdleTimeout helper with tests (handles invalid/zero/negative values)
+  - Updated .env.example and CLAUDE.md
 - Task 77: Make database connection pool size configurable via env vars (2026-02-04)
   - Added DB_MAX_OPEN_CONNS and DB_MAX_IDLE_CONNS environment variables
   - Defaults to 1 for both (SQLite-safe, not 25/5 as in task description)

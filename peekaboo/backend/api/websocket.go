@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +83,20 @@ type AudioWebSocketHandler struct {
 	MaxMessageSize  int64         // Max binary message size
 }
 
+// getIdleTimeout returns the WebSocket idle timeout from WEBSOCKET_IDLE_TIMEOUT_SECS env var.
+// Defaults to 300 seconds (5 minutes) if not set or invalid.
+func getIdleTimeout() time.Duration {
+	val := os.Getenv("WEBSOCKET_IDLE_TIMEOUT_SECS")
+	if val == "" {
+		return 5 * time.Minute
+	}
+	secs, err := strconv.Atoi(val)
+	if err != nil || secs <= 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(secs) * time.Second
+}
+
 // NewAudioWebSocketHandler creates a new WebSocket handler.
 func NewAudioWebSocketHandler(whisperURL string, provider llm.Provider, database *db.DB) *AudioWebSocketHandler {
 	return &AudioWebSocketHandler{
@@ -89,7 +105,7 @@ func NewAudioWebSocketHandler(whisperURL string, provider llm.Provider, database
 		Database:        database,
 		Client:          &http.Client{Timeout: 120 * time.Second},
 		BufferThreshold: 3 * time.Second,
-		IdleTimeout:     5 * time.Minute,
+		IdleTimeout:     getIdleTimeout(),
 		MaxMessageSize:  5 << 20, // 5MB
 	}
 }
@@ -104,13 +120,14 @@ func NewAudioWebSocketHandlerWithRateLimiter(whisperURL string, provider llm.Pro
 		Client:          &http.Client{Timeout: 120 * time.Second},
 		RateLimiter:     rateLimiter,
 		BufferThreshold: 3 * time.Second,
-		IdleTimeout:     5 * time.Minute,
+		IdleTimeout:     getIdleTimeout(),
 		MaxMessageSize:  5 << 20, // 5MB
 	}
 }
 
 // NewAudioWebSocketHandlerWithOptions creates a WebSocket handler with all options.
 // allowedOrigin: "*" or "" means allow all; specific origin (e.g., "https://example.com") restricts to that origin.
+// IdleTimeout is read from WEBSOCKET_IDLE_TIMEOUT_SECS env var (default: 300 seconds).
 func NewAudioWebSocketHandlerWithOptions(whisperURL string, provider llm.Provider, database *db.DB, rateLimiter *RateLimiter, allowedOrigin string) *AudioWebSocketHandler {
 	return &AudioWebSocketHandler{
 		WhisperURL:      whisperURL,
@@ -120,7 +137,7 @@ func NewAudioWebSocketHandlerWithOptions(whisperURL string, provider llm.Provide
 		RateLimiter:     rateLimiter,
 		AllowedOrigin:   allowedOrigin,
 		BufferThreshold: 3 * time.Second,
-		IdleTimeout:     5 * time.Minute,
+		IdleTimeout:     getIdleTimeout(),
 		MaxMessageSize:  5 << 20, // 5MB
 	}
 }

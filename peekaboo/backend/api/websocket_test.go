@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,37 @@ import (
 	"github.com/coder/websocket"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 )
+
+func TestGetIdleTimeout(t *testing.T) {
+	tests := []struct {
+		name   string
+		envVal string
+		want   time.Duration
+	}{
+		{"default when not set", "", 5 * time.Minute},
+		{"custom value", "120", 120 * time.Second},
+		{"invalid value returns default", "not-a-number", 5 * time.Minute},
+		{"zero returns default", "0", 5 * time.Minute},
+		{"negative returns default", "-100", 5 * time.Minute},
+		{"large value", "3600", 3600 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envVal != "" {
+				os.Setenv("WEBSOCKET_IDLE_TIMEOUT_SECS", tt.envVal)
+				defer os.Unsetenv("WEBSOCKET_IDLE_TIMEOUT_SECS")
+			} else {
+				os.Unsetenv("WEBSOCKET_IDLE_TIMEOUT_SECS")
+			}
+
+			got := getIdleTimeout()
+			if got != tt.want {
+				t.Errorf("getIdleTimeout() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 // mockLLMProvider implements llm.Provider for testing.
 type mockLLMProvider struct {
