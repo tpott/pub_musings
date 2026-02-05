@@ -202,6 +202,74 @@ cd frontend && npm run dev
 - **Don't use self-signed certificates** - browsers will show warnings and may block microphone access
 - **Verify certificate validity** - test with `curl -v https://peekaboo.example.com/health`
 
+## Backup and Recovery
+
+### Database Backup
+
+The SQLite database at `data/peekaboo.db` contains user feedback and media set configurations. Back it up regularly to prevent data loss.
+
+**Manual backup:**
+
+```bash
+cd /home/trevor/pub_musings/peekaboo
+# Use SQLite .backup command for consistent backup while server runs
+sqlite3 data/peekaboo.db ".backup data/peekaboo.db.bak"
+```
+
+**Automated daily backup with cron:**
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line for daily backup at 2 AM
+0 2 * * * sqlite3 /home/trevor/pub_musings/peekaboo/data/peekaboo.db ".backup /home/trevor/pub_musings/peekaboo/data/backups/peekaboo-$(date +\%Y\%m\%d).db"
+```
+
+Create the backups directory first:
+
+```bash
+mkdir -p /home/trevor/pub_musings/peekaboo/data/backups
+```
+
+**Backup retention (keep last 7 days):**
+
+```bash
+# Add to crontab after backup command (runs at 3 AM)
+0 3 * * * find /home/trevor/pub_musings/peekaboo/data/backups -name "peekaboo-*.db" -mtime +7 -delete
+```
+
+### Database Recovery
+
+**Restore from backup:**
+
+```bash
+# Stop the server first
+systemctl --user stop peekaboo
+
+# Replace database with backup
+cp data/backups/peekaboo-YYYYMMDD.db data/peekaboo.db
+
+# Restart server
+systemctl --user start peekaboo
+```
+
+**Verify database integrity after restore:**
+
+```bash
+sqlite3 data/peekaboo.db "PRAGMA integrity_check;"
+# Should output: ok
+```
+
+### What's Stored
+
+The database contains:
+- **concepts** table: animal names (cat, dog, duck, pig, chicken, cow)
+- **media_sets** table: paths to media files for each concept
+- **feedback** table: user feedback with ratings, messages, timestamps, and IP addresses
+
+Media files in `data/media/` should be backed up separately or can be regenerated with `scripts/source-media.sh`.
+
 ## Webhook Deployer
 
 The webhook-deployer is configured in `../webhook-deployer/config.yaml` to deploy both frontend and backend when changes are pushed to the `peek1` branch.

@@ -56,6 +56,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 107: Document database backup strategy in docs/DEPLOY.md (2026-02-05)
+  - Added "Backup and Recovery" section with manual backup, cron example, restore procedure
+  - Uses `sqlite3 .backup` command for safe backup while server runs
+  - Includes 7-day retention cleanup cron example
+  - Verified all commands work
 - Task 106: Add rate limiting to GET /api/media/{concept} endpoint (2026-02-05)
   - Added mediaLimiter (30 req/min per IP) in main.go
   - Wrapped MediaHandler with RateLimitMiddleware
