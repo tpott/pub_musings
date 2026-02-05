@@ -37,6 +37,14 @@ Generated: ffmpeg sine wave (synthetic audio)
 Purpose: Placeholder for e2e tests (transcribe API is mocked)
 License: N/A (synthetic test data)
 
+## me-show-me-a-cat.webm
+Source: Self-recorded human voice
+Content: Human voice saying "Show me a cat"
+Purpose: Real audio for whisper-server transcription testing
+License: Self-created, public domain
+Notes: Produces cleaner transcription than synthetic show-me-cat.webm.
+       Use for testing actual whisper-server integration (requires --convert flag).
+
 ---
 
 These fixtures are used for Playwright e2e testing. The actual audio content

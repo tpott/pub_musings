@@ -45,11 +45,19 @@ This file tracks high level progress on the peekaboo project.
 - **URL validation** - Frontend validates media URLs to prevent javascript: XSS attacks
 - **Browser support error** - Visible error banner when MediaRecorder is unavailable
 - **CORS test coverage** - backend/api/cors.go extracted from main.go with unit tests for preflight handling
-- **WebSocket audio streaming** - GET /ws/audio endpoint for continuous audio streaming (backend only, frontend in task 68)
+- **WebSocket audio streaming** - GET /ws/audio backend endpoint and frontend AudioWebSocket client (task 69 will integrate)
 - **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
 
 ## Last Completed
 
+- Task 68: Implement frontend WebSocket client for audio streaming (2026-02-04)
+  - frontend/src/lib/websocket-audio.ts with AudioWebSocket class
+  - Manages connection state (connecting/connected/reconnecting/disconnected)
+  - Sends binary audio chunks, receives JSON transcript/media/error messages
+  - Reconnection with exponential backoff (up to maxReconnectAttempts)
+  - Ping/pong keepalive mechanism
+  - 31 unit tests in websocket-audio.test.ts
+- Task 70: Document test fixture me-show-me-a-cat.webm in LICENSE.txt (2026-02-04)
 - Task 67: Implement WebSocket endpoint GET /ws/audio (2026-02-04)
   - api/websocket.go with AudioWebSocketHandler
   - Buffers audio chunks, processes on stop or 3s threshold
