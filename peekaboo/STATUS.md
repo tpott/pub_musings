@@ -50,6 +50,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- FEEDBACK: Add empty transcript handling to WebSocket mode (2026-02-04)
+  - Added empty transcript check in backend/api/websocket.go - returns "No speech detected" error instead of "intent extraction failed"
+  - Added unit tests for empty and whitespace-only transcripts in WebSocket mode
+  - Updated docs/TROUBLESHOOTING.md with emphasis on `--convert` flag as primary cause of empty transcripts
+  - Added new WebSocket Mode Issues section to troubleshooting docs
+  - Updated LEARNINGS.md with WebSocket empty transcript handling lesson
+  - Root cause of user's issue: likely whisper-server not started with `--convert` flag, and WebSocket mode not enabled (default is HTTP mode)
 - FEEDBACK: Fix WebSocket deployment issues (2026-02-04)
   - Added WebSocket proxy to Vite config in astro.config.mjs (`/ws` -> `ws://localhost:8080`, `ws: true`)
   - Updated Caddy config in docs/DEPLOY.md to include `/ws/*`, `/health/*`, `/data/media/*` reverse proxies

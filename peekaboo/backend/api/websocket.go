@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -288,6 +289,13 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	}
 
 	logger.Info("transcription complete", "text", transcript)
+
+	// Check for empty transcript (silence or no recognizable speech)
+	if strings.TrimSpace(transcript) == "" {
+		logger.Debug("empty transcript from whisper")
+		h.sendError(ctx, conn, "No speech detected. Please try again.")
+		return
+	}
 
 	// Send transcript to client
 	h.sendTranscript(ctx, conn, transcript)

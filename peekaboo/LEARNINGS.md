@@ -225,3 +225,25 @@ if (!transcript || transcript.trim() === '') {
 ```
 
 **Lesson:** Always validate API inputs at the frontend before making requests. User-facing error messages ("No speech detected") are much clearer than raw API errors ("missing text field").
+
+---
+
+### 2026-02-04: WebSocket mode also needs empty transcript handling
+
+**Context:** After implementing empty transcript handling in HTTP mode, discovered the same issue existed in WebSocket mode. When whisper returns empty text, the backend would try to extract intent and fail with a confusing "intent extraction failed" error.
+
+**Solution:** Added same empty transcript check in `backend/api/websocket.go`:
+```go
+if strings.TrimSpace(transcript) == "" {
+    logger.Debug("empty transcript from whisper")
+    h.sendError(ctx, conn, "No speech detected. Please try again.")
+    return
+}
+```
+
+**Root causes of empty transcripts:**
+1. Silence or background noise only
+2. Audio too quiet
+3. whisper-server not started with `--convert` flag (can't process webm/opus)
+
+**Lesson:** When adding user-facing validation to one code path (HTTP), check if similar paths (WebSocket) need the same validation. Consistent error messages across transport methods improve user experience.

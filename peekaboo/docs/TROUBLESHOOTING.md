@@ -141,27 +141,48 @@ curl http://127.0.0.1:8765/health
 
    Then run: `ssh -N whisper-tunnel`
 
-### Transcription returns empty text
+### Transcription returns empty text / "No speech detected"
 
 **Symptoms:**
 - API returns `{"text": ""}` even with clear audio
-- No errors in logs
+- Frontend shows "No speech detected. Please try again."
+- No errors in server logs
 
-**Solutions:**
+**Most Common Cause: Missing `--convert` flag**
 
-1. **Check audio format**: Whisper works best with WAV files. The `--convert` flag enables ffmpeg conversion for other formats.
+The browser records audio in webm/opus format, which whisper-server cannot process natively. The `--convert` flag enables ffmpeg conversion.
 
-2. **Check audio quality**: Very short recordings (< 1 second) or very quiet audio may produce empty transcripts.
+```bash
+# WRONG - will return empty text for webm/opus audio
+./whisper-server -m models/ggml-base.en.bin
 
-3. **Try a larger model**: The tiny model may miss quiet or unclear speech:
+# CORRECT - enables format conversion
+./whisper-server -m models/ggml-base.en.bin --convert
+```
+
+**Quick test to verify:**
+```bash
+# Test with the browser-format audio fixture
+curl -X POST http://localhost:8080/api/transcribe \
+  -F "audio=@tests/fixtures/me-show-me-a-cat.webm"
+
+# If you get {"text": ""}, whisper-server needs --convert flag
+# If you get {"text": "Show me a cat"}, it's working
+```
+
+**Other Solutions:**
+
+1. **Check audio quality**: Very short recordings (< 1 second) or very quiet audio may produce empty transcripts.
+
+2. **Try a larger model**: The tiny model may miss quiet or unclear speech:
    ```bash
    ./models/download-ggml-model.sh base.en
    ```
 
-4. **Test with known-good audio**:
+3. **Verify ffmpeg is installed** (required for `--convert`):
    ```bash
-   curl -X POST http://localhost:8080/api/transcribe \
-     -F "audio=@tests/fixtures/show-me-cat.webm"
+   which ffmpeg
+   # Should output path like /usr/bin/ffmpeg
    ```
 
 ---
@@ -401,6 +422,63 @@ curl -X POST http://localhost:8080/api/intent \
    ```
 
 3. **Rate limit is 10 requests per minute per IP** on `/api/transcribe` and `/api/intent`.
+
+---
+
+## WebSocket Mode Issues
+
+### WebSocket mode not working
+
+**Symptoms:**
+- Expected continuous audio streaming but getting HTTP-style behavior
+- "No speech detected" error instead of WebSocket-specific errors
+
+**Cause:**
+WebSocket mode is **opt-in**. By default, Peekaboo uses HTTP mode (record → stop → transcribe).
+
+**Solutions:**
+
+1. **Enable WebSocket mode** via URL parameter:
+   ```
+   https://peekaboo.example.com/?useWebSocket=true
+   ```
+
+2. **Or programmatically** in JavaScript:
+   ```javascript
+   (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
+   ```
+
+### WebSocket connection fails
+
+**Symptoms:**
+- Browser console shows WebSocket connection errors
+- Falls back to nothing (mic click does nothing)
+
+**Diagnosis:**
+```javascript
+// Run in browser console
+const ws = new WebSocket('wss://your-domain.com/ws/audio');
+ws.onopen = () => console.log('Connected!');
+ws.onerror = (e) => console.error('Failed:', e);
+```
+
+**Solutions:**
+
+1. **Check Caddy reverse proxy** includes WebSocket routes:
+   ```caddy
+   handle /ws/* {
+       reverse_proxy localhost:8070
+   }
+   ```
+
+2. **Verify backend is running** and accepts WebSocket connections:
+   ```bash
+   curl -v -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     http://localhost:8080/ws/audio
+   # Should get 101 Switching Protocols or 426 Upgrade Required
+   ```
+
+3. **Check CORS/origin settings**: WebSocket origin validation uses the same `ALLOWED_ORIGIN` as HTTP endpoints.
 
 ---
 
