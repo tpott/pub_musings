@@ -1,6 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  getSimpleMockScript,
+  getWebSocketMockScript,
+  getPermissionDeniedMockScript,
+} from '../helpers/mock-media-recorder';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,49 +18,7 @@ async function setupMocksAndTestAnimal(
   phrase: string
 ) {
   // Mock MediaRecorder and getUserMedia BEFORE page loads
-  await page.addInitScript(() => {
-    class MockMediaRecorder {
-      state = 'inactive';
-      ondataavailable: ((event: { data: Blob }) => void) | null = null;
-      onstop: (() => void) | null = null;
-      stream: MediaStream | null = null;
-
-      constructor(stream: MediaStream) {
-        this.stream = stream;
-      }
-
-      static isTypeSupported(type: string) {
-        return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-      }
-
-      start() {
-        this.state = 'recording';
-      }
-
-      stop() {
-        this.state = 'inactive';
-        setTimeout(() => {
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }, 10);
-      }
-    }
-
-    const mockStream = {
-      getTracks: () => [{ stop: () => {} }],
-      getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-      getVideoTracks: () => [],
-      active: true,
-      id: 'mock-stream-id',
-    };
-
-    navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-    (window as any).MediaRecorder = MockMediaRecorder;
-  });
+  await page.addInitScript(getSimpleMockScript());
 
   // Mock transcribe API
   await page.route('**/api/transcribe', route =>
@@ -98,52 +61,7 @@ async function setupMocksAndTestAnimal(
 test.describe('Peekaboo voice command flow', () => {
   test('voice command shows cat media', async ({ page }) => {
     // Mock MediaRecorder and getUserMedia BEFORE page loads
-    await page.addInitScript(() => {
-      // Mock MediaRecorder
-      class MockMediaRecorder {
-        state = 'inactive';
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-
-        constructor(stream: MediaStream) {
-          this.stream = stream;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start() {
-          this.state = 'recording';
-        }
-
-        stop() {
-          this.state = 'inactive';
-          // Emit a fake audio blob after a short delay
-          setTimeout(() => {
-            if (this.ondataavailable) {
-              this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
-            }
-            if (this.onstop) {
-              this.onstop();
-            }
-          }, 10);
-        }
-      }
-
-      // Mock getUserMedia to return a fake stream
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getSimpleMockScript());
 
     // Mock transcribe API to return "show me a cat"
     await page.route('**/api/transcribe', route =>
@@ -213,49 +131,7 @@ test.describe('Peekaboo voice command flow', () => {
 
   test('displays error state on API failure', async ({ page }) => {
     // Mock MediaRecorder BEFORE page loads
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive';
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-
-        constructor(stream: MediaStream) {
-          this.stream = stream;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start() {
-          this.state = 'recording';
-        }
-
-        stop() {
-          this.state = 'inactive';
-          setTimeout(() => {
-            if (this.ondataavailable) {
-              this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
-            }
-            if (this.onstop) {
-              this.onstop();
-            }
-          }, 10);
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getSimpleMockScript());
 
     // Mock transcribe API to fail
     await page.route('**/api/transcribe', route =>
@@ -328,49 +204,7 @@ test.describe('Peekaboo voice command flow', () => {
     let intentCallCount = 0;
 
     // Mock MediaRecorder BEFORE page loads
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive';
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-
-        constructor(stream: MediaStream) {
-          this.stream = stream;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start() {
-          this.state = 'recording';
-        }
-
-        stop() {
-          this.state = 'inactive';
-          setTimeout(() => {
-            if (this.ondataavailable) {
-              this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
-            }
-            if (this.onstop) {
-              this.onstop();
-            }
-          }, 10);
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getSimpleMockScript());
 
     // Mock transcribe API to always succeed
     await page.route('**/api/transcribe', route =>
@@ -464,49 +298,7 @@ test.describe('Peekaboo voice command flow', () => {
     let ttsText = '';
 
     // Mock MediaRecorder BEFORE page loads
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive';
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-
-        constructor(stream: MediaStream) {
-          this.stream = stream;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start() {
-          this.state = 'recording';
-        }
-
-        stop() {
-          this.state = 'inactive';
-          setTimeout(() => {
-            if (this.ondataavailable) {
-              this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
-            }
-            if (this.onstop) {
-              this.onstop();
-            }
-          }, 10);
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getSimpleMockScript());
 
     // Mock transcribe API
     await page.route('**/api/transcribe', route =>
@@ -598,46 +390,8 @@ test.describe('Peekaboo voice command flow', () => {
 
 test.describe('Microphone permission handling', () => {
   test('displays error message when microphone permission is denied', async ({ page }) => {
-    // Mock getUserMedia to reject with NotAllowedError (permission denied)
-    await page.addInitScript(() => {
-      // Mock MediaRecorder to pass browser support check
-      class MockMediaRecorder {
-        state = 'inactive';
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-
-        constructor(stream: MediaStream) {
-          this.stream = stream;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start() {
-          this.state = 'recording';
-        }
-
-        stop() {
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['fake audio'], { type: 'audio/webm' }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      (window as any).MediaRecorder = MockMediaRecorder;
-
-      // Mock getUserMedia to reject with NotAllowedError (permission denied)
-      navigator.mediaDevices.getUserMedia = () => {
-        const error = new DOMException('Permission denied', 'NotAllowedError');
-        return Promise.reject(error);
-      };
-    });
+    // Mock MediaRecorder for browser support, but getUserMedia rejects
+    await page.addInitScript(getPermissionDeniedMockScript());
 
     await page.goto('/?useWebSocket=false');
 
@@ -671,65 +425,7 @@ test.describe('WebSocket continuous listening', () => {
     const animals = ['cat', 'dog'];
 
     // Mock MediaRecorder to support streaming with timeslice
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          // When timeslice is provided (WebSocket mode), send periodic chunks
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          // Emit final data chunk
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-      // Enable WebSocket mode via global flag
-      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket with routeWebSocket
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -813,61 +509,7 @@ test.describe('WebSocket continuous listening', () => {
     let commandProcessed = false;
 
     // Mock MediaRecorder for WebSocket mode
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket - send invalid JSON first, then valid response
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -940,61 +582,7 @@ test.describe('WebSocket continuous listening', () => {
     let closeConnectionOnFirstCommand = true;
 
     // Mock MediaRecorder for WebSocket mode
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket - close connection on first recording
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -1044,61 +632,7 @@ test.describe('WebSocket continuous listening', () => {
     let commandProcessed = false;
 
     // Mock MediaRecorder for WebSocket mode
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket - first stop_recording returns error, subsequent succeed
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -1186,61 +720,7 @@ test.describe('WebSocket continuous listening', () => {
     let commandProcessed = false;
 
     // Mock MediaRecorder for WebSocket mode
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket - first connection closes mid-recording, second works
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -1332,62 +812,7 @@ test.describe('WebSocket continuous listening', () => {
     const animals = ['cat', 'dog'];
 
     // Mock MediaRecorder that supports continuous recording with timeslice
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket - auto-process audio after accumulating chunks (simulates backend threshold)
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -1478,62 +903,7 @@ test.describe('WebSocket continuous listening', () => {
 
   test('transcript display shows recognized speech', async ({ page }) => {
     // Mock MediaRecorder
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket
     await page.routeWebSocket('**/ws/audio', async ws => {
@@ -1606,62 +976,7 @@ test.describe('WebSocket continuous listening', () => {
     const transcripts = ['show me a cat', 'show me a dog'];
 
     // Mock MediaRecorder
-    await page.addInitScript(() => {
-      class MockMediaRecorder {
-        state = 'inactive' as string;
-        ondataavailable: ((event: { data: Blob }) => void) | null = null;
-        onstop: (() => void) | null = null;
-        stream: MediaStream | null = null;
-        mimeType = 'audio/webm';
-        private intervalId: ReturnType<typeof setInterval> | null = null;
-
-        constructor(stream: MediaStream, options?: { mimeType?: string }) {
-          this.stream = stream;
-          if (options?.mimeType) this.mimeType = options.mimeType;
-        }
-
-        static isTypeSupported(type: string) {
-          return type === 'audio/webm' || type === 'audio/webm;codecs=opus';
-        }
-
-        start(timeslice?: number) {
-          this.state = 'recording';
-          if (timeslice && timeslice > 0) {
-            this.intervalId = setInterval(() => {
-              if (this.state === 'recording' && this.ondataavailable) {
-                this.ondataavailable({ data: new Blob(['audio chunk'], { type: this.mimeType }) });
-              }
-            }, timeslice);
-          }
-        }
-
-        stop() {
-          if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-          }
-          this.state = 'inactive';
-          if (this.ondataavailable) {
-            this.ondataavailable({ data: new Blob(['final audio'], { type: this.mimeType }) });
-          }
-          if (this.onstop) {
-            this.onstop();
-          }
-        }
-      }
-
-      const mockStream = {
-        getTracks: () => [{ stop: () => {} }],
-        getAudioTracks: () => [{ stop: () => {}, enabled: true }],
-        getVideoTracks: () => [],
-        active: true,
-        id: 'mock-stream-id',
-      };
-
-      navigator.mediaDevices.getUserMedia = () => Promise.resolve(mockStream as unknown as MediaStream);
-      (window as any).MediaRecorder = MockMediaRecorder;
-      (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
-    });
+    await page.addInitScript(getWebSocketMockScript());
 
     // Mock WebSocket
     await page.routeWebSocket('**/ws/audio', async ws => {

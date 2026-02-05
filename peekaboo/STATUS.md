@@ -56,6 +56,14 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 109: Extract MockMediaRecorder from E2E tests to shared helper (2026-02-05)
+  - Created frontend/tests/helpers/mock-media-recorder.ts with three mock functions:
+    - getSimpleMockScript() - HTTP mode tests (single blob on stop)
+    - getWebSocketMockScript() - WebSocket mode tests (timeslice support for streaming)
+    - getPermissionDeniedMockScript() - Permission denied tests
+  - Replaced 14 duplicate MockMediaRecorder class definitions with helper imports
+  - Reduced peekaboo.spec.ts from 1740 to 1055 lines (39% reduction, -685 lines)
+  - All 15 peekaboo.spec.ts tests pass
 - Task 108: Add feedback viewing/export mechanism for admin use (2026-02-05)
   - Added "Viewing User Feedback" section to docs/DEPLOY.md
   - Includes queries for: recent feedback, CSV export, stats, by-rating, status updates
