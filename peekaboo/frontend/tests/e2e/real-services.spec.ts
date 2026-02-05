@@ -10,12 +10,12 @@ const fixturesDir = path.join(__dirname, '..', '..', '..', 'tests', 'fixtures');
 test.describe('Real services e2e', () => {
   test('voice command "show me a cat" with real whisper and LLM', async ({ page }) => {
     // Read audio file and split into ~4KB chunks
-    // Note: Using wav format because the whisper server doesn't support webm/opus
-    const audioPath = path.join(fixturesDir, 'me-show-me-a-cat.wav');
+    // Note: webm/opus works with whisper-server when started with --convert flag
+    const audioPath = path.join(fixturesDir, 'me-show-me-a-cat.webm');
     const audioData = fs.readFileSync(audioPath);
 
-    // Use larger chunks to reduce count - wav file is ~200KB, we want ~7 chunks to match timing
-    const chunkSize = 32768; // 32KB chunks
+    // webm file is ~28KB, split into ~4KB chunks (7 chunks at 500ms = 3.5s)
+    const chunkSize = 4096;
     const chunksB64: string[] = [];
     for (let i = 0; i < audioData.length; i += chunkSize) {
       chunksB64.push(audioData.subarray(i, i + chunkSize).toString('base64'));
@@ -33,11 +33,10 @@ test.describe('Real services e2e', () => {
         ondataavailable: ((e: { data: Blob }) => void) | null = null;
         onstop: (() => void) | null = null;
         state = 'inactive';
-        // Use audio/wav since that's what we're actually sending
-        mimeType = 'audio/wav';
+        mimeType = 'audio/webm;codecs=opus';
 
         constructor(_stream: MediaStream, opts?: { mimeType?: string }) {
-          // Ignore requested mimeType, always use wav since that's our fixture format
+          if (opts?.mimeType) this.mimeType = opts.mimeType;
         }
 
         static isTypeSupported(t: string) {

@@ -56,6 +56,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 111: Fix real-services E2E test to use existing .webm fixture (2026-02-05)
+  - Changed from non-existent .wav file to existing me-show-me-a-cat.webm
+  - Fixed mimeType from audio/wav to audio/webm;codecs=opus
+  - Aligned test implementation with specs/real-services-e2e.md spec
+  - All 15 mock E2E tests pass; real-services test requires running services
 - Task 110: Add WebSocket troubleshooting section to docs/TROUBLESHOOTING.md (2026-02-05)
   - Expanded WebSocket Mode Issues section with 8 new troubleshooting scenarios
   - Covers 403 Forbidden (CORS/origin mismatch)
