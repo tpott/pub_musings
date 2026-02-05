@@ -53,6 +53,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 91: Add test for concurrent rate limiter operations (2026-02-04)
+  - Added TestRateLimiter_ConcurrentAllowAndCleanup to verify thread safety
+  - Added TestRateLimiter_ConcurrentAllowWithEviction for eviction stress test
+  - All tests pass with go test -race ./api (no data races)
 - Task 90: Add request body size limit to /api/intent and /api/speak (2026-02-04)
   - api/intent.go uses http.MaxBytesReader to limit body to 5KB
   - api/speak.go uses http.MaxBytesReader to limit body to 2KB

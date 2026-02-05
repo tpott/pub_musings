@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -231,6 +233,95 @@ func TestRateLimiter_ExistingIPDoesNotTriggerEviction(t *testing.T) {
 	}
 	if !hasIP2 {
 		t.Error("IP2 should still be tracked")
+	}
+}
+
+func TestRateLimiter_ConcurrentAllowAndCleanup(t *testing.T) {
+	// Test that concurrent Allow() and Cleanup() calls don't cause panics or races
+	limiter := NewRateLimiter(100, 100*time.Millisecond)
+
+	var wg sync.WaitGroup
+
+	// Goroutine 1: continuously call Allow() with different IPs
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			limiter.Allow(fmt.Sprintf("192.168.1.%d", i%256))
+		}
+	}()
+
+	// Goroutine 2: continuously call Cleanup()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			limiter.Cleanup()
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	// Goroutine 3: continuously call Allow() with same IP
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			limiter.Allow("10.0.0.1")
+		}
+	}()
+
+	// Wait for all goroutines to complete
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	// Add timeout to prevent hanging test
+	select {
+	case <-done:
+		// Success - no panic occurred
+	case <-time.After(10 * time.Second):
+		t.Fatal("Test timed out - possible deadlock")
+	}
+}
+
+func TestRateLimiter_ConcurrentAllowWithEviction(t *testing.T) {
+	// Test concurrent access with eviction enabled
+	limiter := NewRateLimiterWithMaxEntries(100, 100*time.Millisecond, 10)
+
+	var wg sync.WaitGroup
+
+	// Multiple goroutines calling Allow() with different IPs (will trigger eviction)
+	for g := 0; g < 5; g++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				ip := fmt.Sprintf("10.%d.%d.1", goroutineID, i)
+				limiter.Allow(ip)
+			}
+		}(g)
+	}
+
+	// Wait for all goroutines
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success - verify we still have valid state
+		limiter.mu.Lock()
+		count := len(limiter.requests)
+		limiter.mu.Unlock()
+		if count > 10 {
+			t.Errorf("Expected at most 10 entries due to max limit, got %d", count)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Test timed out - possible deadlock")
 	}
 }
 
