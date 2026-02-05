@@ -434,51 +434,218 @@ curl -X POST http://localhost:8080/api/intent \
 - "No speech detected" error instead of WebSocket-specific errors
 
 **Cause:**
-WebSocket mode is **opt-in**. By default, Peekaboo uses HTTP mode (record → stop → transcribe).
+WebSocket mode is enabled by default. It can be disabled via URL parameter.
 
 **Solutions:**
 
-1. **Enable WebSocket mode** via URL parameter:
+1. **Ensure WebSocket mode is not disabled** via URL parameter:
    ```
-   https://peekaboo.example.com/?useWebSocket=true
+   https://peekaboo.example.com/  # WebSocket enabled (default)
+   https://peekaboo.example.com/?useWebSocket=false  # HTTP mode
    ```
 
-2. **Or programmatically** in JavaScript:
+2. **Or check programmatically** in browser console:
    ```javascript
-   (window as any).__PEEKABOO_USE_WEBSOCKET__ = true;
+   // This should NOT be set to false
+   console.log((window as any).__PEEKABOO_USE_WEBSOCKET__);
    ```
 
-### WebSocket connection fails
+### WebSocket 403 Forbidden (CORS/Origin Error)
 
 **Symptoms:**
-- Browser console shows WebSocket connection errors
-- Falls back to nothing (mic click does nothing)
+- WebSocket connection rejected with HTTP 403
+- Browser console shows "WebSocket connection failed"
+- Works on localhost but not in production
+
+**Cause:**
+The backend validates the `Origin` header against `ALLOWED_ORIGIN`. If they don't match, the connection is rejected.
 
 **Diagnosis:**
-```javascript
-// Run in browser console
-const ws = new WebSocket('wss://your-domain.com/ws/audio');
-ws.onopen = () => console.log('Connected!');
-ws.onerror = (e) => console.error('Failed:', e);
+```bash
+# Check configured allowed origin
+grep ALLOWED_ORIGIN .env
+
+# Test with curl (note: browsers send Origin automatically)
+curl -v -H "Origin: https://example.com" \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  http://localhost:8080/ws/audio
+# 403 means origin mismatch
 ```
 
 **Solutions:**
 
-1. **Check Caddy reverse proxy** includes WebSocket routes:
+1. **Set ALLOWED_ORIGIN to match your frontend domain**:
+   ```bash
+   # In .env
+   ALLOWED_ORIGIN=https://peekaboo.pottingers.us
+   ```
+
+2. **For development, use wildcard** (not recommended for production):
+   ```bash
+   ALLOWED_ORIGIN=*
+   ```
+
+3. **Include the protocol**: `https://example.com` not just `example.com`.
+
+4. **Restart backend** after changing `.env`:
+   ```bash
+   systemctl --user restart peekaboo
+   ```
+
+### WebSocket 429 Too Many Requests (Rate Limited)
+
+**Symptoms:**
+- WebSocket upgrade fails with HTTP 429
+- Error message: "rate limit exceeded, try again later"
+- Works initially but fails after several quick attempts
+
+**Cause:**
+WebSocket connections are rate limited to 10 new connections per minute per IP address. This prevents abuse but can be hit during rapid testing.
+
+**Diagnosis:**
+```bash
+# Check for Retry-After header
+curl -v -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  http://localhost:8080/ws/audio 2>&1 | grep -E "429|Retry-After"
+```
+
+**Solutions:**
+
+1. **Wait for rate limit window to reset** (60 seconds):
+   ```bash
+   # Check Retry-After header for exact wait time
+   ```
+
+2. **In development, restart the backend** to reset rate limiter state.
+
+3. **Consider if your client is reconnecting too aggressively**:
+   - WebSocket reconnection should use exponential backoff
+   - Don't create new connections on every user action
+
+4. **Rate limits are per-IP**: Multiple users behind NAT may share limits.
+
+### WebSocket 503 Service Unavailable (Connection Limit)
+
+**Symptoms:**
+- WebSocket upgrade fails with HTTP 503
+- Error message: "maximum connections reached"
+- Works for first N connections but then fails
+
+**Cause:**
+The backend limits concurrent WebSocket connections to prevent resource exhaustion. Default limit is 100 connections (configurable via `WEBSOCKET_MAX_CONNECTIONS`).
+
+**Diagnosis:**
+```bash
+# Check current limit
+grep WEBSOCKET_MAX_CONNECTIONS .env
+
+# Count active connections (rough estimate)
+netstat -an | grep :8080 | grep ESTABLISHED | wc -l
+```
+
+**Solutions:**
+
+1. **Increase connection limit** if server has resources:
+   ```bash
+   # In .env
+   WEBSOCKET_MAX_CONNECTIONS=200
+   ```
+
+2. **Check for connection leaks**: Clients should properly close WebSocket connections when done.
+
+3. **Monitor server resources**:
+   ```bash
+   # Check memory usage
+   free -h
+
+   # Check open file descriptors
+   cat /proc/$(pgrep peekaboo)/fd | wc -l
+   ```
+
+4. **Restart backend** to reset connection count (not recommended in production, investigate root cause first).
+
+### WebSocket connection drops mid-recording
+
+**Symptoms:**
+- Recording starts but WebSocket closes unexpectedly
+- Error message about connection lost
+- Happens after a period of silence
+
+**Cause:**
+WebSocket connections have an idle timeout (default: 5 minutes). If no audio data is sent, the connection may close.
+
+**Diagnosis:**
+```bash
+# Check idle timeout setting
+grep WEBSOCKET_IDLE_TIMEOUT_SECS .env
+```
+
+**Solutions:**
+
+1. **The client sends ping/pong keepalives** to prevent idle timeout. If these stop working, check for JavaScript errors.
+
+2. **Increase idle timeout** if users need longer pauses:
+   ```bash
+   WEBSOCKET_IDLE_TIMEOUT_SECS=600  # 10 minutes
+   ```
+
+3. **Check network stability**: Intermittent network issues can cause drops.
+
+### WebSocket connection fails behind proxy/firewall
+
+**Symptoms:**
+- Works on localhost but not through proxy
+- Connection times out or closes immediately
+
+**Solutions:**
+
+1. **Caddy proxy configuration** must include WebSocket support:
    ```caddy
    handle /ws/* {
        reverse_proxy localhost:8070
    }
    ```
 
-2. **Verify backend is running** and accepts WebSocket connections:
-   ```bash
-   curl -v -H "Connection: Upgrade" -H "Upgrade: websocket" \
-     http://localhost:8080/ws/audio
-   # Should get 101 Switching Protocols or 426 Upgrade Required
+2. **Nginx** requires explicit WebSocket headers:
+   ```nginx
+   location /ws/ {
+       proxy_pass http://localhost:8080;
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_set_header Host $host;
+   }
    ```
 
-3. **Check CORS/origin settings**: WebSocket origin validation uses the same `ALLOWED_ORIGIN` as HTTP endpoints.
+3. **Check proxy timeout settings**: Some proxies have short WebSocket timeouts.
+
+4. **Corporate firewalls** may block WebSocket. Try HTTP mode as fallback:
+   ```
+   https://peekaboo.example.com/?useWebSocket=false
+   ```
+
+### Debug WebSocket messages
+
+**Diagnosis in browser:**
+```javascript
+// Open DevTools → Network tab → WS filter
+// Click on the WebSocket connection to see messages
+
+// Or in console:
+const ws = new WebSocket('wss://your-domain.com/ws/audio');
+ws.onmessage = (e) => console.log('Received:', e.data);
+ws.onerror = (e) => console.error('Error:', e);
+ws.onclose = (e) => console.log('Closed:', e.code, e.reason);
+```
+
+**Server-side logging:**
+```bash
+# Run with debug logging
+LOG_LEVEL=debug ./peekaboo
+
+# Watch for WebSocket-related messages
+journalctl --user -u peekaboo -f | grep -i websocket
+```
 
 ---
 

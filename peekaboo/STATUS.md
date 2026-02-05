@@ -56,6 +56,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 110: Add WebSocket troubleshooting section to docs/TROUBLESHOOTING.md (2026-02-05)
+  - Expanded WebSocket Mode Issues section with 8 new troubleshooting scenarios
+  - Covers 403 Forbidden (CORS/origin mismatch)
+  - Covers 429 Too Many Requests (rate limiting)
+  - Covers 503 Service Unavailable (connection limit)
+  - Documents connection drops, proxy issues, and debugging tools
 - Task 109: Extract MockMediaRecorder from E2E tests to shared helper (2026-02-05)
   - Created frontend/tests/helpers/mock-media-recorder.ts with three mock functions:
     - getSimpleMockScript() - HTTP mode tests (single blob on stop)
