@@ -3,9 +3,11 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestOpenAIProvider_ExtractIntent_Success(t *testing.T) {
@@ -327,6 +329,78 @@ func TestOpenAIProvider_HealthCheck_NetworkError(t *testing.T) {
 	err := provider.HealthCheck(context.Background())
 	if err == nil {
 		t.Error("Expected error for network failure")
+	}
+}
+
+func TestOpenAIProvider_ExtractIntent_ContextCancellation(t *testing.T) {
+	// Channel to coordinate test timing
+	reqReceived := make(chan struct{})
+	cancelDone := make(chan struct{})
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Signal that request was received
+		close(reqReceived)
+
+		// Wait for the test to signal it has cancelled the context
+		<-cancelDone
+
+		// Add a small delay to ensure client has time to process cancellation
+		time.Sleep(50 * time.Millisecond)
+
+		// Return a response (client should have already cancelled)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(openaiResponse{
+			ID:      "chatcmpl-test",
+			Object:  "chat.completion",
+			Created: 1699000000,
+			Model:   "gpt-4o-mini",
+			Choices: []openaiChoice{
+				{
+					Index: 0,
+					Message: openaiMessage{
+						Role:    "assistant",
+						Content: "test",
+					},
+					FinishReason: "stop",
+				},
+			},
+		})
+	}))
+	defer mockServer.Close()
+
+	provider, err := NewProvider(Config{
+		Provider: "openai",
+		APIKey:   "test-api-key",
+		BaseURL:  mockServer.URL,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start the request in a goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		_, err := provider.ExtractIntent(ctx, "show me a cat")
+		errChan <- err
+	}()
+
+	// Wait for request to be received, then cancel
+	<-reqReceived
+	cancel()
+	close(cancelDone)
+
+	// Wait for the error
+	err = <-errChan
+	if err == nil {
+		t.Fatal("Expected error when context is cancelled")
+	}
+
+	// The error should be context.Canceled (wrapped in "send request" error)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected context.Canceled error, got: %v", err)
 	}
 }
 

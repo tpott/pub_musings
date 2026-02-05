@@ -51,6 +51,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 83: Add test for LLM ExtractIntent context cancellation (2026-02-04)
+  - Added TestAnthropicProvider_ExtractIntent_ContextCancellation to llm/anthropic_test.go
+  - Added TestOpenAIProvider_ExtractIntent_ContextCancellation to llm/openai_test.go
+  - Tests verify context.Canceled error returned when request context is cancelled
+  - Uses mock server with coordination channels to reliably test cancellation timing
 - Task 82: Add unit tests for LLM provider HealthCheck methods (2026-02-04)
   - Added tests for Anthropic HealthCheck: success, API error (401), network error
   - Added tests for OpenAI HealthCheck: success, API error (401), network error
