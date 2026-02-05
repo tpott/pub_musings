@@ -50,6 +50,7 @@ import '../styles/global.css';
   document.addEventListener('DOMContentLoaded', () => {
     const micButton = document.querySelector('[data-testid="mic-button"]') as HTMLButtonElement;
     const mediaContainer = document.querySelector('[data-testid="media-display"]') as HTMLElement;
+    const transcriptContainer = document.querySelector('[data-testid="transcript-display"]') as HTMLElement;
 
     if (!micButton || !mediaContainer) {
       console.error('Peekaboo: Required elements not found');
@@ -77,6 +78,7 @@ import '../styles/global.css';
     new PeekabooFlow({
       micButton,
       mediaContainer,
+      transcriptContainer,
       useWebSocket,
       onStateChange: (state) => {
         console.log('Peekaboo state:', state);

@@ -935,4 +935,82 @@ describe('PeekabooFlow WebSocket mode', () => {
     // Should transition to displaying since not recording
     expect(flow.getState()).toBe('displaying');
   });
+
+  describe('transcript display', () => {
+    it('appends transcript to transcript container when provided', async () => {
+      mockWsGetState.mockReturnValue('connected');
+      const transcriptContainer = document.createElement('div');
+
+      new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        transcriptContainer,
+        useWebSocket: true,
+      });
+
+      // Simulate WebSocket transcript callback
+      wsCallbacks.onTranscript('show me a cat');
+
+      const entries = transcriptContainer.querySelectorAll('.transcript-entry');
+      expect(entries.length).toBe(1);
+      expect(entries[0].textContent).toBe('"show me a cat"');
+    });
+
+    it('appends multiple transcripts to transcript container', async () => {
+      mockWsGetState.mockReturnValue('connected');
+      const transcriptContainer = document.createElement('div');
+
+      new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        transcriptContainer,
+        useWebSocket: true,
+      });
+
+      // Simulate multiple transcript callbacks
+      wsCallbacks.onTranscript('show me a cat');
+      wsCallbacks.onTranscript('show me a dog');
+      wsCallbacks.onTranscript('show me a duck');
+
+      const entries = transcriptContainer.querySelectorAll('.transcript-entry');
+      expect(entries.length).toBe(3);
+      expect(entries[0].textContent).toBe('"show me a cat"');
+      expect(entries[1].textContent).toBe('"show me a dog"');
+      expect(entries[2].textContent).toBe('"show me a duck"');
+    });
+
+    it('does not fail when no transcript container is provided', async () => {
+      mockWsGetState.mockReturnValue('connected');
+
+      // No transcriptContainer passed
+      new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        useWebSocket: true,
+      });
+
+      // Should not throw
+      expect(() => wsCallbacks.onTranscript('show me a cat')).not.toThrow();
+    });
+
+    it('scrolls transcript container to bottom after appending', async () => {
+      mockWsGetState.mockReturnValue('connected');
+      const transcriptContainer = document.createElement('div');
+      // Set up a scrollable container
+      Object.defineProperty(transcriptContainer, 'scrollHeight', { value: 200 });
+      transcriptContainer.scrollTop = 0;
+
+      new PeekabooFlow({
+        micButton,
+        mediaContainer,
+        transcriptContainer,
+        useWebSocket: true,
+      });
+
+      wsCallbacks.onTranscript('show me a cat');
+
+      // Verify scrollTop was set to scrollHeight
+      expect(transcriptContainer.scrollTop).toBe(200);
+    });
+  });
 });

@@ -7,6 +7,8 @@
     <p>Say something like "show me a cat"</p>
   </div>
 </div>
+<div class="transcript-display" data-testid="transcript-display" role="log" aria-live="polite" aria-label="Voice command history">
+</div>
 
 <style>
   .media-display {
@@ -56,6 +58,33 @@
     outline: 2px solid #4a9eff;
   }
 
+  .transcript-display {
+    width: 100%;
+    max-width: 500px;
+    max-height: 100px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(42, 42, 74, 0.5);
+    border-radius: 8px;
+  }
+
+  .transcript-display:empty {
+    display: none;
+  }
+
+  .transcript-display :global(.transcript-entry) {
+    color: #9ca3af;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .transcript-display :global(.transcript-entry:last-child) {
+    border-bottom: none;
+  }
+
   @media (min-width: 768px) {
     .media-display {
       max-width: 600px;
@@ -63,6 +92,10 @@
 
     .placeholder {
       font-size: 1.25rem;
+    }
+
+    .transcript-display {
+      max-width: 600px;
     }
   }
 </style>

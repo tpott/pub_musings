@@ -51,9 +51,18 @@ This file tracks high level progress on the peekaboo project.
 - **WebSocket connection limit** - WEBSOCKET_MAX_CONNECTIONS env var (default 100) prevents resource exhaustion
 - **Request body size limits** - /api/intent (5KB), /api/speak (2KB) limits prevent DoS via unbounded JSON
 - **WebSocket concept validation** - Same validation as HTTP media endpoint (format pattern, max 50 chars)
+- **Transcript display UI** - Scrollable transcript history below media display with aria-live for accessibility
 
 ## Last Completed
 
+- Task 100: Add transcript display UI below media display area (2026-02-05)
+  - Added transcript-display element to MediaDisplay.astro with data-testid, role="log", aria-live="polite"
+  - Added appendTranscript() to PeekabooFlow that appends transcript entries to scrollable history
+  - Styled subtly with smaller font (0.875rem), muted color (#9ca3af), auto-scrolling
+  - Transcript area hidden when empty via CSS :empty selector
+  - Added transcriptContainer option to PeekabooFlowOptions, wired in index.astro
+  - Added 4 unit tests for transcript display functionality
+  - 219 frontend tests pass
 - Task 99: Frontend continuous listening - keep recording after media display (2026-02-05)
   - Modified handleWsMedia() to keep 'recording' state when MediaRecorder is active
   - Added updateRecordingWithMediaUI() to update aria-label with "Still listening"

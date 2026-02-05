@@ -20,6 +20,8 @@ export type FlowState = 'idle' | 'recording' | 'transcribing' | 'searching' | 'd
 export interface PeekabooFlowOptions {
   micButton: HTMLButtonElement;
   mediaContainer: HTMLElement;
+  /** Optional container for transcript history display */
+  transcriptContainer?: HTMLElement;
   onStateChange?: (state: FlowState) => void;
   onError?: (error: Error) => void;
   /** Use WebSocket for audio streaming (default: false for backward compatibility) */
@@ -45,6 +47,9 @@ export class PeekabooFlow {
   private stream: MediaStream | null = null;
   private mediaRecorder: MediaRecorder | null = null;
 
+  // Transcript display
+  private transcriptContainer: HTMLElement | null = null;
+
   constructor(options: PeekabooFlowOptions) {
     this.recorder = new AudioRecorder();
     this.display = new MediaDisplay(options.mediaContainer);
@@ -52,6 +57,7 @@ export class PeekabooFlow {
     this.onStateChange = options.onStateChange;
     this.onError = options.onError;
     this.useWebSocket = options.useWebSocket ?? false;
+    this.transcriptContainer = options.transcriptContainer ?? null;
 
     if (this.useWebSocket) {
       this.wsClient = new AudioWebSocket(
@@ -305,6 +311,9 @@ export class PeekabooFlow {
    * Handle transcript received from WebSocket
    */
   private handleWsTranscript(text: string): void {
+    // Display the transcript in the transcript container
+    this.appendTranscript(text);
+
     // Transcript received - in continuous listening mode, we stay in recording state
     // The backend will send media shortly after
     // Only show searching indicator if we're not recording (e.g., user stopped mic)
@@ -312,6 +321,23 @@ export class PeekabooFlow {
       this.setState('searching');
     }
     // In continuous listening, the recording indicator stays on while searching
+  }
+
+  /**
+   * Append a transcript entry to the transcript display
+   */
+  private appendTranscript(text: string): void {
+    if (!this.transcriptContainer) {
+      return;
+    }
+
+    const entry = document.createElement('div');
+    entry.className = 'transcript-entry';
+    entry.textContent = `"${text}"`;
+    this.transcriptContainer.appendChild(entry);
+
+    // Scroll to bottom to show latest transcript
+    this.transcriptContainer.scrollTop = this.transcriptContainer.scrollHeight;
   }
 
   /**
