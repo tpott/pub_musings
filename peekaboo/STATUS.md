@@ -49,6 +49,18 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 66: Research WebSocket libraries, write specs/websocket-audio.md (2026-02-04)
+  - Evaluated gorilla/websocket (archived), coder/websocket (active), gobwas/ws (complex)
+  - Selected github.com/coder/websocket for active maintenance and idiomatic API
+  - Spec includes message protocol design for audio chunks/transcripts/media
+  - LEARNINGS.md updated with library selection rationale
+- FEEDBACK: End-to-end testing review (2026-02-04)
+  - All Go backend tests pass, all frontend unit tests pass (151 tests), all e2e tests pass (6 tests)
+  - Tested live transcribe -> intent -> media flow with Anthropic API key
+  - Discovered whisper-server needs --convert flag for webm/opus audio
+  - Added LEARNINGS entry about --convert flag requirement
+  - Added Task 70: Document new test fixture me-show-me-a-cat.webm
+  - Next major work: WebSocket streaming (tasks 67-69) for "mic stays active" UX
 - Task 65: Add TTS troubleshooting section to docs/TROUBLESHOOTING.md (2026-02-04)
 - Task 64: Add CORS middleware unit test (2026-02-04)
 - Task 63: Add E2E test for TTS synthesis flow (2026-02-04)

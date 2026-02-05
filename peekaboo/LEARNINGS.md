@@ -108,3 +108,45 @@ if mode&0077 != 0 {
 - Mode 0644 (world readable): Rejected
 
 **Lesson:** Private key files should always validate permissions before loading. Many tools (SSH, age CLI, GPG) do this by default. Custom loading code must implement the same check.
+
+---
+
+### 2026-02-04: Whisper-server requires --convert flag for webm/opus
+
+**Context:** The frontend records audio in webm/opus format (MediaRecorder default), but transcription returned empty strings when testing with the new fixture.
+
+**Discovery:** Testing the transcribe endpoint with `tests/fixtures/me-show-me-a-cat.webm` returned `{"text":""}`. Direct testing against whisper-server returned `{"error":"failed to read audio data"}`. Converting the webm to WAV with ffmpeg and sending that worked perfectly: "Show me a cat."
+
+**Root cause:** The whisper-server wasn't started with the `--convert` flag. Without this flag, whisper-server cannot process webm/opus files - it only handles WAV format natively. The `--convert` flag enables automatic ffmpeg conversion for non-WAV formats.
+
+**Solution:** Ensure whisper-server is started with `--convert` flag:
+```bash
+./whisper-server -m models/ggml-base.en.bin --convert -t 4 --host 127.0.0.1 --port 8765
+```
+
+**Lesson:** When browser audio (webm/opus) returns empty transcriptions but WAV works, check if whisper-server was started with `--convert`. The README already documents this flag, but it's easy to forget when starting the server manually.
+
+---
+
+### 2026-02-04: WebSocket library selection for Go
+
+**Context:** Needed WebSocket library for audio streaming feature (tasks 66-69).
+
+**Options evaluated:**
+
+1. **gorilla/websocket** - The de facto standard for years, but archived in December 2022. While stable, no security patches or maintenance.
+
+2. **coder/websocket** (formerly nhooyr/websocket) - Actively maintained by Coder since 2024. Idiomatic Go API with context.Context support. Used by Traefik, Vault, Cloudflare.
+
+3. **gobwas/ws** - Zero-copy, high-performance but complex low-level API.
+
+**Decision:** Use `github.com/coder/websocket`
+
+**Rationale:**
+- Active maintenance by Coder (funded company, not abandoned project)
+- Context support throughout API matches our existing patterns
+- Idiomatic Go without excessive complexity
+- Proven at scale by major projects
+- No breaking API changes planned
+
+**Lesson:** When a popular library is archived (like gorilla), look for community forks. nhooyr/websocket was adopted by Coder and continues active development. Check library READMEs for "new home" announcements.
