@@ -21,24 +21,24 @@ describe('MediaDisplay', () => {
   });
 
   describe('show', () => {
-    it('displays image when photoUrl is provided', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+    it('displays image when photoUrl is provided', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
 
       const img = container.querySelector('img[data-testid="media-image"]');
       expect(img).toBeTruthy();
       expect(img?.getAttribute('src')).toBe('/data/media/cat/photo.jpg');
     });
 
-    it('displays video when videoUrl is provided', () => {
-      display.show({ videoUrl: '/data/media/cat/video.mp4' });
+    it('displays video when videoUrl is provided', async () => {
+      await display.show({ videoUrl: '/data/media/cat/video.mp4' });
 
       const video = container.querySelector('video[data-testid="media-video"]');
       expect(video).toBeTruthy();
       expect(video?.getAttribute('src')).toBe('/data/media/cat/video.mp4');
     });
 
-    it('prefers video over photo when both are provided', () => {
-      display.show({
+    it('prefers video over photo when both are provided', async () => {
+      await display.show({
         photoUrl: '/data/media/cat/photo.jpg',
         videoUrl: '/data/media/cat/video.mp4',
       });
@@ -50,22 +50,22 @@ describe('MediaDisplay', () => {
       expect(img).toBeFalsy();
     });
 
-    it('creates audio element when audioUrl is provided', () => {
-      display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+    it('creates audio element when audioUrl is provided', async () => {
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
 
       const audio = display.getAudioElement();
       expect(audio).toBeTruthy();
       expect(audio?.getAttribute('src')).toBe('/data/media/cat/audio.mp3');
     });
 
-    it('calls play() on audio element', () => {
-      display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+    it('calls play() on audio element', async () => {
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
 
       expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
     });
 
-    it('displays image and plays audio when both are provided', () => {
-      display.show({
+    it('displays image and plays audio when both are provided', async () => {
+      await display.show({
         photoUrl: '/data/media/cat/photo.jpg',
         audioUrl: '/data/media/cat/audio.mp3',
       });
@@ -77,26 +77,68 @@ describe('MediaDisplay', () => {
       expect(audio).toBeTruthy();
     });
 
-    it('clears container before showing new content', () => {
+    it('clears container before showing new content', async () => {
       container.innerHTML = '<p>Old content</p>';
 
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
 
       expect(container.querySelector('p')).toBeFalsy();
       expect(container.querySelector('img')).toBeTruthy();
     });
 
-    it('stops previous audio when showing new content', () => {
-      display.show({ audioUrl: '/data/media/cat/audio.mp3' });
-      display.show({ audioUrl: '/data/media/dog/audio.mp3' });
+    it('stops previous audio when showing new content', async () => {
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+      await display.show({ audioUrl: '/data/media/dog/audio.mp3' });
 
       expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    });
+
+    it('returns true when audio plays successfully', async () => {
+      const result = await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+      expect(result).toBe(true);
+    });
+
+    it('returns true when no audio is provided', async () => {
+      const result = await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+      expect(result).toBe(true);
+    });
+
+    it('returns false when audio autoplay is blocked', async () => {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new Error('NotAllowedError'));
+
+      const result = await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+      expect(result).toBe(false);
+    });
+
+    it('shows audio blocked indicator when autoplay is blocked', async () => {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new Error('NotAllowedError'));
+
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+
+      const indicator = container.querySelector('[data-testid="audio-blocked-indicator"]');
+      expect(indicator).toBeTruthy();
+      expect(indicator?.textContent).toContain('Tap to play');
+    });
+
+    it('updates aria-label when audio is blocked', async () => {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new Error('NotAllowedError'));
+
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg', audioUrl: '/data/media/cat/audio.mp3' }, 'cat');
+
+      expect(container.getAttribute('aria-label')).toContain('Audio playback blocked');
+    });
+
+    it('does not show indicator when audio plays successfully', async () => {
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+
+      const indicator = container.querySelector('[data-testid="audio-blocked-indicator"]');
+      expect(indicator).toBeFalsy();
     });
   });
 
   describe('stopAudio', () => {
-    it('stops audio playback', () => {
-      display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+    it('stops audio playback', async () => {
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
 
       display.stopAudio();
 
@@ -112,8 +154,8 @@ describe('MediaDisplay', () => {
   });
 
   describe('reset', () => {
-    it('restores placeholder text', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+    it('restores placeholder text', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
 
       display.reset();
 
@@ -127,8 +169,8 @@ describe('MediaDisplay', () => {
       expect(container.innerHTML).toContain('Custom message');
     });
 
-    it('stops audio when resetting', () => {
-      display.show({ audioUrl: '/data/media/cat/audio.mp3' });
+    it('stops audio when resetting', async () => {
+      await display.show({ audioUrl: '/data/media/cat/audio.mp3' });
 
       display.reset();
 
@@ -137,8 +179,8 @@ describe('MediaDisplay', () => {
   });
 
   describe('video element properties', () => {
-    it('sets autoplay and loop properties', () => {
-      display.show({ videoUrl: '/data/media/cat/video.mp4' });
+    it('sets autoplay and loop properties', async () => {
+      await display.show({ videoUrl: '/data/media/cat/video.mp4' });
 
       const video = container.querySelector('video') as HTMLVideoElement;
       expect(video.autoplay).toBe(true);
@@ -149,48 +191,48 @@ describe('MediaDisplay', () => {
   });
 
   describe('accessibility', () => {
-    it('sets aria-label on container when showing media with concept', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
+    it('sets aria-label on container when showing media with concept', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
 
       expect(container.getAttribute('aria-label')).toBe('Showing cat');
     });
 
-    it('sets generic aria-label when no concept provided', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+    it('sets generic aria-label when no concept provided', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
 
       expect(container.getAttribute('aria-label')).toBe('Showing media content');
     });
 
-    it('resets aria-label when reset is called', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
+    it('resets aria-label when reset is called', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
       display.reset();
 
       expect(container.getAttribute('aria-label')).toBe('Media display area');
     });
 
-    it('sets descriptive alt text on images when concept is provided', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
+    it('sets descriptive alt text on images when concept is provided', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');
 
       const img = container.querySelector('img');
       expect(img?.getAttribute('alt')).toBe('Photo of a cat');
     });
 
-    it('sets generic alt text on images when no concept provided', () => {
-      display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+    it('sets generic alt text on images when no concept provided', async () => {
+      await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
 
       const img = container.querySelector('img');
       expect(img?.getAttribute('alt')).toBe('Media content');
     });
 
-    it('sets aria-label on video when concept is provided', () => {
-      display.show({ videoUrl: '/data/media/cat/video.mp4' }, 'cat');
+    it('sets aria-label on video when concept is provided', async () => {
+      await display.show({ videoUrl: '/data/media/cat/video.mp4' }, 'cat');
 
       const video = container.querySelector('video');
       expect(video?.getAttribute('aria-label')).toBe('Video of a cat');
     });
 
-    it('sets generic aria-label on video when no concept provided', () => {
-      display.show({ videoUrl: '/data/media/cat/video.mp4' });
+    it('sets generic aria-label on video when no concept provided', async () => {
+      await display.show({ videoUrl: '/data/media/cat/video.mp4' });
 
       const video = container.querySelector('video');
       expect(video?.getAttribute('aria-label')).toBe('Video content');
@@ -276,47 +318,47 @@ describe('MediaDisplay URL validation', () => {
     vi.restoreAllMocks();
   });
 
-  it('rejects javascript: URLs for images', () => {
-    display.show({ photoUrl: 'javascript:alert(1)' });
+  it('rejects javascript: URLs for images', async () => {
+    await display.show({ photoUrl: 'javascript:alert(1)' });
 
     const img = container.querySelector('img');
     expect(img).toBeFalsy();
     expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Invalid image URL rejected:', 'javascript:alert(1)');
   });
 
-  it('rejects javascript: URLs for videos', () => {
-    display.show({ videoUrl: 'javascript:alert(1)' });
+  it('rejects javascript: URLs for videos', async () => {
+    await display.show({ videoUrl: 'javascript:alert(1)' });
 
     const video = container.querySelector('video');
     expect(video).toBeFalsy();
     expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Invalid video URL rejected:', 'javascript:alert(1)');
   });
 
-  it('rejects javascript: URLs for audio', () => {
-    display.show({ audioUrl: 'javascript:alert(1)' });
+  it('rejects javascript: URLs for audio', async () => {
+    await display.show({ audioUrl: 'javascript:alert(1)' });
 
     const audio = display.getAudioElement();
     expect(audio).toBeFalsy();
     expect(consoleSpy).toHaveBeenCalledWith('[ERROR] Invalid audio URL rejected:', 'javascript:alert(1)');
   });
 
-  it('rejects data: URLs for images', () => {
-    display.show({ photoUrl: 'data:text/html,<script>alert(1)</script>' });
+  it('rejects data: URLs for images', async () => {
+    await display.show({ photoUrl: 'data:text/html,<script>alert(1)</script>' });
 
     const img = container.querySelector('img');
     expect(img).toBeFalsy();
   });
 
-  it('accepts valid relative URLs', () => {
-    display.show({ photoUrl: '/data/media/cat/photo.jpg' });
+  it('accepts valid relative URLs', async () => {
+    await display.show({ photoUrl: '/data/media/cat/photo.jpg' });
 
     const img = container.querySelector('img');
     expect(img).toBeTruthy();
     expect(img?.getAttribute('src')).toBe('/data/media/cat/photo.jpg');
   });
 
-  it('accepts valid https URLs', () => {
-    display.show({ photoUrl: 'https://example.com/cat.jpg' });
+  it('accepts valid https URLs', async () => {
+    await display.show({ photoUrl: 'https://example.com/cat.jpg' });
 
     const img = container.querySelector('img');
     expect(img).toBeTruthy();

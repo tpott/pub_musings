@@ -287,7 +287,8 @@ export class PeekabooFlow {
     const media = await fetchMedia(subject);
 
     // Display the media with accessibility context
-    this.display.show(media, subject);
+    // Audio autoplay may be blocked - display handles showing indicator
+    await this.display.show(media, subject);
     this.setState('displaying');
 
     // Attempt to speak the subject using TTS (if available)
@@ -319,7 +320,8 @@ export class PeekabooFlow {
     };
 
     // Display the media with accessibility context
-    this.display.show(formattedMedia, media.subject);
+    // Audio autoplay may be blocked - display handles showing indicator
+    await this.display.show(formattedMedia, media.subject);
     this.setState('displaying');
 
     // Attempt to speak the subject using TTS (if available)

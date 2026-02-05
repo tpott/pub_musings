@@ -56,8 +56,9 @@ export class MediaDisplay {
    * Display media content in the container
    * @param media Object with photoUrl, videoUrl, audioUrl
    * @param concept Optional concept name for accessibility
+   * @returns Promise that resolves to true if audio played successfully, false if blocked
    */
-  show(media: MediaContent, concept?: string): void {
+  async show(media: MediaContent, concept?: string): Promise<boolean> {
     // Stop any existing audio
     this.stopAudio();
 
@@ -72,13 +73,20 @@ export class MediaDisplay {
     }
 
     // Play audio if available
+    let audioPlayed = true;
     if (media.audioUrl) {
-      this.playAudio(media.audioUrl);
+      audioPlayed = await this.playAudio(media.audioUrl);
     }
 
     // Update aria-label for the container
-    const description = concept ? `Showing ${concept}` : 'Showing media content';
+    let description = concept ? `Showing ${concept}` : 'Showing media content';
+    if (!audioPlayed && media.audioUrl) {
+      description += '. Audio playback blocked - tap to play';
+      this.showAudioBlockedIndicator();
+    }
     this.container.setAttribute('aria-label', description);
+
+    return audioPlayed;
   }
 
   /**
@@ -119,11 +127,12 @@ export class MediaDisplay {
 
   /**
    * Play audio
+   * @returns Promise resolving to true if audio played successfully, false if blocked
    */
-  private playAudio(url: string): void {
+  private async playAudio(url: string): Promise<boolean> {
     if (!isValidMediaUrl(url)) {
       logger.error('Invalid audio URL rejected:', url);
-      return;
+      return false;
     }
 
     this.audioElement = document.createElement('audio');
@@ -135,9 +144,46 @@ export class MediaDisplay {
     this.container.appendChild(this.audioElement);
 
     // Attempt autoplay (may be blocked by browser policies)
-    this.audioElement.play().catch(error => {
+    try {
+      await this.audioElement.play();
+      return true;
+    } catch (error) {
       logger.warn('Audio autoplay blocked:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Show visual indicator that audio playback was blocked
+   */
+  private showAudioBlockedIndicator(): void {
+    const indicator = document.createElement('div');
+    indicator.className = 'audio-blocked-indicator';
+    indicator.dataset.testid = 'audio-blocked-indicator';
+    indicator.textContent = '🔇 Tap to play sound';
+    indicator.setAttribute('role', 'button');
+    indicator.setAttribute('tabindex', '0');
+
+    // Clicking the indicator attempts to play the audio
+    const playHandler = () => {
+      if (this.audioElement) {
+        this.audioElement.play().then(() => {
+          indicator.remove();
+        }).catch(() => {
+          // Still blocked, keep indicator
+        });
+      }
+    };
+
+    indicator.addEventListener('click', playHandler);
+    indicator.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        playHandler();
+      }
     });
+
+    this.container.appendChild(indicator);
   }
 
   /**

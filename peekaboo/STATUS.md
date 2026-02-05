@@ -54,6 +54,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 97: Handle audio autoplay blocking with user-visible feedback (2026-02-05)
+  - MediaDisplay.show() now async, returns boolean (true if audio played, false if blocked)
+  - Added showAudioBlockedIndicator() that shows "Tap to play sound" button
+  - Indicator is accessible (role="button", tabindex=0, keyboard support)
+  - aria-label updated to mention "Audio playback blocked - tap to play" when blocked
+  - Added CSS for indicator in MediaDisplay.astro
+  - Added 6 new tests for autoplay blocking scenarios
 - Task 96: Add connection context to WebSocket message send error logs (2026-02-05)
   - Added client IP to logger at connection start, passed logger to all send methods
   - Added logWriteError helper that distinguishes normal closure (DEBUG) vs write errors (WARN)
