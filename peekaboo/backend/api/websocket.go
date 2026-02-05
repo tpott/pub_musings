@@ -271,6 +271,9 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 			go h.processAudio(ctx, conn, audioData, logger)
 		} else if len(audioData) > 0 {
 			h.sendError(ctx, conn, "audio too short")
+		} else {
+			// Empty buffer - user stopped recording without speaking
+			h.sendError(ctx, conn, "No audio recorded")
 		}
 
 	case MsgTypePing:

@@ -538,6 +538,63 @@ func TestAudioWebSocketHandler_OriginValidation_EmptyAllowsAll(t *testing.T) {
 	conn.Close(websocket.StatusNormalClosure, "done")
 }
 
+func TestAudioWebSocketHandler_EmptyBuffer_ImmediateStop(t *testing.T) {
+	// Test: start_recording immediately followed by stop_recording with no audio chunks
+	handler := NewAudioWebSocketHandler("", nil, nil)
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Send start_recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Immediately send stop_recording WITHOUT any audio chunks
+	stopMsg := ClientMessage{Type: MsgTypeStopRecording}
+	data, _ = json.Marshal(stopMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send stop_recording: %v", err)
+	}
+
+	// Should receive error about no audio
+	msgType, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read response: %v", err)
+	}
+
+	if msgType != websocket.MessageText {
+		t.Errorf("expected text message, got %v", msgType)
+	}
+
+	var errMsg ErrorMessage
+	if err := json.Unmarshal(respData, &errMsg); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+
+	if errMsg.Type != MsgTypeError {
+		t.Errorf("expected error type, got %s", errMsg.Type)
+	}
+
+	// Should get a user-friendly error about no audio recorded
+	if errMsg.Message != "No audio recorded" {
+		t.Errorf("expected 'No audio recorded' error, got %s", errMsg.Message)
+	}
+}
+
 func TestAudioWebSocketHandler_EmptyTranscript(t *testing.T) {
 	// Create mock whisper server that returns empty text
 	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

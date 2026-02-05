@@ -50,6 +50,10 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 80: Add test for empty audio buffer on immediate stop_recording (2026-02-04)
+  - Added TestAudioWebSocketHandler_EmptyBuffer_ImmediateStop test
+  - Fixed backend to send "No audio recorded" error when stop_recording with empty buffer
+  - Previously empty buffer was silently ignored (no message sent to client)
 - FEEDBACK: Add empty transcript handling to WebSocket mode (2026-02-04)
   - Added empty transcript check in backend/api/websocket.go - returns "No speech detected" error instead of "intent extraction failed"
   - Added unit tests for empty and whitespace-only transcripts in WebSocket mode
