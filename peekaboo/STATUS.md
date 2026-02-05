@@ -51,6 +51,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 85: Add unit test for WebSocket buffer threshold auto-processing (2026-02-04)
+  - Added TestAudioWebSocketHandler_BufferThresholdAutoProcess to api/websocket_test.go
+  - Test sends start_recording + audio chunks without sending stop_recording
+  - Verifies transcript is received automatically after buffer threshold (~1s in test)
+  - Uses shorter threshold (1s instead of 3s) for faster test execution
 - Task 84: Add E2E test for microphone permission denial flow (2026-02-04)
   - Added Playwright test that mocks getUserMedia to reject with NotAllowedError
   - Verifies error message is displayed to user when microphone permission is denied

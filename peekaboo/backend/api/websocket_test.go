@@ -694,6 +694,90 @@ func TestAudioWebSocketHandler_EmptyTranscript(t *testing.T) {
 	}
 }
 
+func TestAudioWebSocketHandler_BufferThresholdAutoProcess(t *testing.T) {
+	// Create mock whisper server
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := WhisperResponse{
+			Text: "show me a dog",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	// Create mock LLM provider
+	mockProvider := &mockLLMProvider{subject: "dog"}
+
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+	// Set a shorter buffer threshold for faster test (1 second)
+	handler.BufferThreshold = 1 * time.Second
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Send enough audio data (1KB+) to pass minimum threshold
+	audioData := make([]byte, 2000)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("failed to send audio: %v", err)
+	}
+
+	// DO NOT send stop_recording - let buffer threshold auto-trigger
+	// Wait for auto-processing (buffer threshold + processing time)
+	// The ticker runs every 500ms, so we need to wait at least 1.5s
+
+	// Read transcript - should arrive automatically after ~1-1.5 seconds
+	_, respData, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read auto-triggered transcript: %v", err)
+	}
+
+	var transcript TranscriptMessage
+	if err := json.Unmarshal(respData, &transcript); err != nil {
+		t.Fatalf("failed to unmarshal transcript: %v", err)
+	}
+
+	if transcript.Type != MsgTypeTranscript {
+		t.Errorf("expected transcript type, got %s", transcript.Type)
+	}
+
+	if transcript.Text != "show me a dog" {
+		t.Errorf("expected 'show me a dog', got %s", transcript.Text)
+	}
+
+	// Should also receive error because database is nil (after transcript is sent)
+	_, respData, err = conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read media error: %v", err)
+	}
+
+	var errMsg ErrorMessage
+	if err := json.Unmarshal(respData, &errMsg); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+
+	if errMsg.Type != MsgTypeError {
+		t.Errorf("expected error type, got %s", errMsg.Type)
+	}
+}
+
 func TestAudioWebSocketHandler_WhitespaceOnlyTranscript(t *testing.T) {
 	// Create mock whisper server that returns whitespace-only text
 	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
