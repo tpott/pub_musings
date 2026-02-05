@@ -54,6 +54,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 99: Frontend continuous listening - keep recording after media display (2026-02-05)
+  - Modified handleWsMedia() to keep 'recording' state when MediaRecorder is active
+  - Added updateRecordingWithMediaUI() to update aria-label with "Still listening"
+  - handleWsTranscript() now stays in 'recording' state in continuous mode
+  - Added 2 unit tests: keeps recording state, transitions when not recording
+  - 215 frontend tests pass, 12/13 E2E tests pass
 - Task 98: Backend WebSocket handler already supports continuous listening (2026-02-05)
   - Verified that bufferThresholdWatcher clears buffer but keeps isRecording=true
   - Added TestAudioWebSocketHandler_MultiUtteranceWithoutReconnect test

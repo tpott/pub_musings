@@ -858,4 +858,81 @@ describe('PeekabooFlow WebSocket mode', () => {
       { url: 'ws://custom-url/ws' }
     );
   });
+
+  it('keeps recording state when receiving media (continuous listening)', async () => {
+    // Create a MediaRecorder mock that reports it is recording
+    let recorderState = 'inactive';
+    const MockMediaRecorder = vi.fn().mockImplementation(() => ({
+      start: vi.fn(() => { recorderState = 'recording'; }),
+      stop: vi.fn(() => { recorderState = 'inactive'; }),
+      get state() { return recorderState; },
+      ondataavailable: null,
+    }));
+    MockMediaRecorder.isTypeSupported = vi.fn().mockReturnValue(true);
+    (global as any).MediaRecorder = MockMediaRecorder;
+
+    const flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      useWebSocket: true,
+    });
+
+    await flow.startRecording();
+    expect(flow.getState()).toBe('recording');
+
+    // Simulate receiving media while MediaRecorder is still in 'recording' state
+    wsCallbacks.onMedia({
+      type: 'media',
+      subject: 'cat',
+      photo_url: '/cat.jpg',
+    });
+
+    // Allow async display.show to complete
+    await Promise.resolve();
+
+    // Should still be in recording state (not displaying) - continuous listening mode
+    expect(flow.getState()).toBe('recording');
+    // Button should show recording state
+    expect(micButton.classList.contains('recording')).toBe(true);
+    // Aria-label should mention still listening
+    expect(micButton.getAttribute('aria-label')).toContain('Still listening');
+  });
+
+  it('transitions to displaying when MediaRecorder is not recording', async () => {
+    // Use a MediaRecorder that will report inactive state when onMedia is called
+    let recorderState = 'inactive';
+    const MockMediaRecorder = vi.fn().mockImplementation(() => ({
+      start: vi.fn(() => { recorderState = 'recording'; }),
+      stop: vi.fn(() => { recorderState = 'inactive'; }),
+      get state() { return recorderState; },
+      ondataavailable: null,
+    }));
+    MockMediaRecorder.isTypeSupported = vi.fn().mockReturnValue(true);
+    (global as any).MediaRecorder = MockMediaRecorder;
+
+    const flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      useWebSocket: true,
+    });
+
+    await flow.startRecording();
+    expect(flow.getState()).toBe('recording');
+
+    // Manually set recorder to inactive to simulate user clicked stop
+    recorderState = 'inactive';
+
+    // Simulate receiving media when MediaRecorder reports inactive
+    wsCallbacks.onMedia({
+      type: 'media',
+      subject: 'dog',
+      photo_url: '/dog.jpg',
+    });
+
+    // Allow async display.show to complete
+    await Promise.resolve();
+
+    // Should transition to displaying since not recording
+    expect(flow.getState()).toBe('displaying');
+  });
 });

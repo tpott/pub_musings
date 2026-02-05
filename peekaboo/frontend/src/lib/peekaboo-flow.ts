@@ -305,8 +305,13 @@ export class PeekabooFlow {
    * Handle transcript received from WebSocket
    */
   private handleWsTranscript(text: string): void {
-    // Transcript received - transitioning to searching
-    this.setState('searching');
+    // Transcript received - in continuous listening mode, we stay in recording state
+    // The backend will send media shortly after
+    // Only show searching indicator if we're not recording (e.g., user stopped mic)
+    if (this.state !== 'recording') {
+      this.setState('searching');
+    }
+    // In continuous listening, the recording indicator stays on while searching
   }
 
   /**
@@ -322,7 +327,18 @@ export class PeekabooFlow {
     // Display the media with accessibility context
     // Audio autoplay may be blocked - display handles showing indicator
     await this.display.show(formattedMedia, media.subject);
-    this.setState('displaying');
+
+    // In continuous listening mode, keep recording state while showing media
+    // The mic stays active until user explicitly clicks to stop
+    // This enables "conversational" UX where multiple commands can be issued
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      // Keep recording - don't change state, just update the UI
+      // The mic button stays in "recording" state
+      this.updateRecordingWithMediaUI(media.subject);
+    } else {
+      // Not recording (e.g., stop was already called or recorder failed)
+      this.setState('displaying');
+    }
 
     // Attempt to speak the subject using TTS (if available)
     try {
@@ -330,6 +346,20 @@ export class PeekabooFlow {
     } catch (ttsError) {
       logger.warn('TTS unavailable:', ttsError);
     }
+  }
+
+  /**
+   * Update UI when showing media while still recording (continuous listening)
+   */
+  private updateRecordingWithMediaUI(subject: string): void {
+    // Keep recording visual state on button
+    this.micButton.classList.add('recording');
+    this.micButton.classList.remove('processing');
+    this.micButton.disabled = false;
+
+    // Update aria-label to reflect continuous listening state
+    this.micButton.setAttribute('aria-pressed', 'true');
+    this.micButton.setAttribute('aria-label', `Showing ${subject}. Still listening... Click to stop recording`);
   }
 
   /**
