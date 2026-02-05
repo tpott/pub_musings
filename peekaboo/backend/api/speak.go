@@ -12,6 +12,10 @@ import (
 	"github.com/tpott/pub_musings/peekaboo/backend/tts"
 )
 
+// maxSpeakBodySize is the maximum allowed request body size for /api/speak.
+// 2KB is sufficient for any valid speak request (text max 256 chars + JSON overhead).
+const maxSpeakBodySize = 2 << 10 // 2KB
+
 // SpeakRequest is the incoming request to /api/speak.
 type SpeakRequest struct {
 	Text string `json:"text"`
@@ -49,9 +53,17 @@ func (h *SpeakHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body size to prevent DoS
+	r.Body = http.MaxBytesReader(w, r.Body, maxSpeakBodySize)
+
 	// Parse JSON body
 	var req SpeakRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// MaxBytesReader returns a specific error type when limit exceeded
+		if err.Error() == "http: request body too large" {
+			writeJSON(w, http.StatusRequestEntityTooLarge, SpeakResponse{Error: "request body too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, SpeakResponse{Error: "invalid JSON body"})
 		return
 	}

@@ -214,6 +214,35 @@ func TestSpeakHandler_SynthesisError(t *testing.T) {
 	}
 }
 
+func TestSpeakHandler_BodyTooLarge(t *testing.T) {
+	provider := &mockTTSProvider{
+		synthesizeFunc: func(ctx context.Context, text string) ([]byte, error) {
+			t.Fatal("Synthesize should not be called")
+			return nil, nil
+		},
+	}
+
+	handler := NewSpeakHandler(provider)
+
+	// Create a body larger than 2KB
+	largeBody := `{"text": "` + strings.Repeat("a", 3000) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/speak", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected status 413, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp SpeakResponse
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Error != "request body too large" {
+		t.Errorf("Expected 'request body too large' error, got %q", resp.Error)
+	}
+}
+
 func TestSpeakHandler_DifferentPhrases(t *testing.T) {
 	tests := []struct {
 		name string

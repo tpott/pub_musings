@@ -49,9 +49,15 @@ This file tracks high level progress on the peekaboo project.
 - **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
 - **Frontend logging** - logger.ts with configurable log levels (VITE_LOG_LEVEL env var), replaces console.error/warn calls
 - **WebSocket connection limit** - WEBSOCKET_MAX_CONNECTIONS env var (default 100) prevents resource exhaustion
+- **Request body size limits** - /api/intent (5KB), /api/speak (2KB) limits prevent DoS via unbounded JSON
 
 ## Last Completed
 
+- Task 90: Add request body size limit to /api/intent and /api/speak (2026-02-04)
+  - api/intent.go uses http.MaxBytesReader to limit body to 5KB
+  - api/speak.go uses http.MaxBytesReader to limit body to 2KB
+  - Returns 413 Payload Too Large when limit exceeded
+  - Added unit tests for body size limits in both handlers
 - Task 89: Add maximum concurrent WebSocket connections limit (2026-02-04)
   - Added ConnectionTracker with atomic counter for thread-safe tracking
   - Configurable via WEBSOCKET_MAX_CONNECTIONS env var (default: 100)

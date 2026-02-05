@@ -12,6 +12,10 @@ import (
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
+// maxIntentBodySize is the maximum allowed request body size for /api/intent.
+// 5KB is sufficient for any valid intent request (text max 500 chars + JSON overhead).
+const maxIntentBodySize = 5 << 10 // 5KB
+
 // IntentRequest is the incoming request to /api/intent.
 type IntentRequest struct {
 	Text string `json:"text"`
@@ -52,9 +56,17 @@ func (h *IntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body size to prevent DoS
+	r.Body = http.MaxBytesReader(w, r.Body, maxIntentBodySize)
+
 	// Parse JSON body
 	var req IntentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// MaxBytesReader returns a specific error type when limit exceeded
+		if err.Error() == "http: request body too large" {
+			writeJSON(w, http.StatusRequestEntityTooLarge, IntentResponse{Error: "request body too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, IntentResponse{Error: "invalid JSON body"})
 		return
 	}

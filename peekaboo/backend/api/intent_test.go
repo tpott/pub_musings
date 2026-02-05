@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
@@ -415,6 +416,33 @@ func TestIntentHandler_DifferentSubjects(t *testing.T) {
 				t.Errorf("Expected subject %q, got %q", tc.expected, resp.Subject)
 			}
 		})
+	}
+}
+
+func TestIntentHandler_BodyTooLarge(t *testing.T) {
+	// Create a dummy provider (won't be called due to body size limit)
+	provider, _ := llm.NewProvider(llm.Config{
+		Provider: "anthropic",
+		APIKey:   "test-key",
+	})
+	handler := NewIntentHandlerWithProvider(provider)
+
+	// Create a body larger than 5KB
+	largeBody := `{"text": "` + strings.Repeat("a", 6000) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/intent", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected status 413, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp IntentResponse
+	json.NewDecoder(rr.Body).Decode(&resp)
+	if resp.Error != "request body too large" {
+		t.Errorf("Expected 'request body too large' error, got %q", resp.Error)
 	}
 }
 
