@@ -102,23 +102,34 @@ npm run build
 
 Configure Caddy to serve:
 - Frontend static files from `frontend/dist/`
-- Proxy `/api/*` to Go backend on port 8070
+- Proxy `/api/*`, `/ws/*`, `/health*`, and `/data/media/*` to Go backend
 
 Example Caddyfile block:
 
 ```caddy
 peekaboo.pottingers.us {
-    root * /home/trevor/pub_musings/peekaboo/frontend/dist
-    encode gzip
-
-    handle /api/* {
-        reverse_proxy localhost:8070
+    # Logging - JSON format for structured log analysis
+    log {
+        output file /var/log/caddy/peekaboo-access.log
+        format json
     }
 
+    # Proxy API requests to Go backend with extended timeouts
+    handle /api/* {
+        reverse_proxy localhost:8070 {
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+            }
+        }
+    }
+
+    # WebSocket endpoint for audio streaming
     handle /ws/* {
         reverse_proxy localhost:8070
     }
 
+    # Health check endpoints
     handle /health {
         reverse_proxy localhost:8070
     }
@@ -127,16 +138,29 @@ peekaboo.pottingers.us {
         reverse_proxy localhost:8070
     }
 
+    # Media files (photos, audio) served by backend
     handle /data/media/* {
         reverse_proxy localhost:8070
     }
 
+    # Serve static frontend files
     handle {
-        try_files {path} /index.html
+        root * /home/trevor/pub_musings/peekaboo/frontend/dist
         file_server
+        encode gzip
+
+        # Cache static assets (1 year, immutable)
+        @static path *.js *.css *.png *.jpg *.svg *.woff2
+        header @static Cache-Control "public, max-age=31536000, immutable"
+
+        # Don't cache HTML
+        @html path *.html /
+        header @html Cache-Control "no-cache"
     }
 }
 ```
+
+> **Note:** The port (8070) should match the `PORT` environment variable configured in `peekaboo.service`. Production may use a different port (e.g., 9070).
 
 ## HTTPS and TLS
 

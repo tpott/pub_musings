@@ -238,6 +238,14 @@ sudo systemctl status subtitler
 
 Runs on the Mac Mini host for GPU acceleration.
 
+**Prerequisites:**
+```bash
+# Install ffmpeg (required for --convert flag to process browser audio formats)
+brew install ffmpeg
+```
+
+> **Note:** The `--convert` flag is required because browsers record audio in webm/opus format, which whisper.cpp cannot process natively. The flag enables ffmpeg conversion before transcription.
+
 **Launch script (`~/bin/start-whisper-server.sh`):**
 ```bash
 #!/bin/bash
@@ -262,6 +270,11 @@ cd ~/Github/whisper.cpp
     <array>
         <string>/Users/trevor/bin/start-whisper-server.sh</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -273,6 +286,8 @@ cd ~/Github/whisper.cpp
 </dict>
 </plist>
 ```
+
+> **Important:** The `EnvironmentVariables` section is required because launchd does not inherit the user's shell PATH. Without it, ffmpeg won't be found and `--convert` will fail silently.
 
 **Commands:**
 ```bash
