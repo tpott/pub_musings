@@ -51,6 +51,12 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 88: Create docs/PERFORMANCE.md (2026-02-04)
+  - Documents database connection pool tuning for SQLite
+  - Documents WebSocket idle timeout configuration
+  - Documents rate limiter max entries behavior and memory impact
+  - Includes monitoring recommendations with log query examples
+  - Covers health checks, request tracing, and performance baselines
 - Task 86: Add E2E test for WebSocket reconnection during active recording (2026-02-04)
   - Added test "handles connection drop mid-recording and resumes gracefully"
   - Test starts recording, server closes connection after receiving audio chunks
