@@ -270,6 +270,96 @@ The database contains:
 
 Media files in `data/media/` should be backed up separately or can be regenerated with `scripts/source-media.sh`.
 
+## Viewing User Feedback
+
+User feedback is stored in the SQLite database. There's no admin web interface, but you can query feedback directly using the `sqlite3` command-line tool.
+
+### View Recent Feedback
+
+```bash
+cd /home/trevor/pub_musings/peekaboo
+sqlite3 -header -column data/peekaboo.db "
+  SELECT id, feedback_type, rating, message, created_at
+  FROM feedback
+  ORDER BY created_at DESC
+  LIMIT 20;
+"
+```
+
+### Export All Feedback to CSV
+
+```bash
+sqlite3 -header -csv data/peekaboo.db "
+  SELECT id, feedback_type, rating, message, session_id, concept_id,
+         transcript, page_url, user_agent, ip_address, created_at, status
+  FROM feedback
+  ORDER BY created_at DESC;
+" > feedback-export.csv
+```
+
+### View Feedback Statistics
+
+```bash
+sqlite3 -header -column data/peekaboo.db "
+  SELECT
+    feedback_type,
+    COUNT(*) as count,
+    AVG(rating) as avg_rating,
+    MIN(created_at) as first,
+    MAX(created_at) as last
+  FROM feedback
+  GROUP BY feedback_type;
+"
+```
+
+### View Feedback by Rating
+
+```bash
+# Show only low-rated feedback (for prioritizing issues)
+sqlite3 -header -column data/peekaboo.db "
+  SELECT id, feedback_type, rating, message, created_at
+  FROM feedback
+  WHERE rating IS NOT NULL AND rating <= 2
+  ORDER BY created_at DESC;
+"
+```
+
+### Update Feedback Status
+
+Feedback has a `status` field (default: 'new') that can be used to track review progress:
+
+```bash
+# Mark feedback as reviewed
+sqlite3 data/peekaboo.db "UPDATE feedback SET status = 'reviewed' WHERE id = 'feedback_xxx';"
+
+# Mark feedback as resolved
+sqlite3 data/peekaboo.db "UPDATE feedback SET status = 'resolved' WHERE id = 'feedback_xxx';"
+
+# View unreviewed feedback
+sqlite3 -header -column data/peekaboo.db "
+  SELECT id, feedback_type, rating, message, created_at
+  FROM feedback
+  WHERE status = 'new'
+  ORDER BY created_at DESC;
+"
+```
+
+### Clear Old Feedback (90-day retention)
+
+```bash
+# Preview what will be deleted
+sqlite3 data/peekaboo.db "
+  SELECT COUNT(*) as to_delete FROM feedback
+  WHERE created_at < datetime('now', '-90 days');
+"
+
+# Delete old feedback
+sqlite3 data/peekaboo.db "
+  DELETE FROM feedback
+  WHERE created_at < datetime('now', '-90 days');
+"
+```
+
 ## Webhook Deployer
 
 The webhook-deployer is configured in `../webhook-deployer/config.yaml` to deploy both frontend and backend when changes are pushed to the `peek1` branch.

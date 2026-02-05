@@ -56,6 +56,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 108: Add feedback viewing/export mechanism for admin use (2026-02-05)
+  - Added "Viewing User Feedback" section to docs/DEPLOY.md
+  - Includes queries for: recent feedback, CSV export, stats, by-rating, status updates
+  - Documents 90-day retention cleanup query
+  - Verified all SQL queries work on live database
 - Task 107: Document database backup strategy in docs/DEPLOY.md (2026-02-05)
   - Added "Backup and Recovery" section with manual backup, cron example, restore procedure
   - Uses `sqlite3 .backup` command for safe backup while server runs
