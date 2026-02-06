@@ -58,6 +58,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 116: Research Bazel migration (2026-02-05)
+  - specs/bazel.md documents findings for Go, Astro, vitest, Playwright
+  - Go backend: production-ready with rules_go + Gazelle (cgo concern for go-sqlite3)
+  - Astro: no native support, requires custom genrule (fragile)
+  - Vitest: beta support via fremtind_rules_vitest (known issues)
+  - Playwright: functional but complex (browser binary management)
+  - Recommendation: do not migrate - project is small, builds are fast, ROI is negative
 - Task 117: Add development-gated console.log forwarding to backend (2026-02-05)
   - Backend: POST /api/log handler gated by FORWARD_FRONTEND_LOGS=true env var
   - Frontend: logger.ts forwards logs to backend when VITE_FORWARD_LOGS=true
