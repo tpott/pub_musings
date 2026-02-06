@@ -59,6 +59,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 122: Update pre-commit hook for peekaboo (2026-02-05)
+  - Updated subtitler/scripts/pre-commit to handle pub_musings monorepo
+  - Detects staged peekaboo/ files and runs Go backend + frontend tests
+  - Detects staged subtitler/ files and runs subtitler lint + tests
+  - Skips if neither project has changes
+- Task 121: peekaboo-flow.test.ts already under 500 lines (2026-02-05)
+  - Already split into 3 files: peekaboo-flow.test.ts (443), peekaboo-flow-events.test.ts (235), peekaboo-flow-websocket.test.ts (472)
 - Task 120: Refactor peekaboo.spec.ts E2E tests into smaller files (2026-02-05)
   - Split 1253-line peekaboo.spec.ts into 4 focused files (all under 500 lines)
   - peekaboo-basic.spec.ts (299 lines): voice command flow + microphone permission
