@@ -477,6 +477,39 @@ func TestWhisperResponseFullParse(t *testing.T) {
 	}
 }
 
+// TestTranscribeHandler_SendsVADField verifies that the HTTP transcription handler
+// sends vad=true to whisper-server, enabling Voice Activity Detection for
+// silence-based segmentation.
+func TestTranscribeHandler_SendsVADField(t *testing.T) {
+	var capturedVAD string
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+		capturedVAD = r.FormValue("vad")
+
+		resp := WhisperResponse{
+			Task: "transcribe", Language: "en", Duration: 1.0,
+			Text: "test",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	handler := NewTranscribeHandler(mockWhisper.URL)
+	req := createMultipartRequest(t, "audio", "test.webm", makeTestAudio(2048))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if capturedVAD != "true" {
+		t.Errorf("expected vad=true sent to whisper, got vad=%q", capturedVAD)
+	}
+}
+
 // createMultipartRequest creates a test HTTP request with a multipart form containing a file.
 func createMultipartRequest(t *testing.T, fieldName, filename string, content []byte) *http.Request {
 	t.Helper()

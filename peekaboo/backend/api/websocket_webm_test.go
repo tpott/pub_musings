@@ -186,6 +186,196 @@ func TestBufferSplitProducesValidWebM(t *testing.T) {
 	}
 }
 
+// TestWebSocketTranscribeAudio_SendsVADField verifies that the WebSocket
+// transcription path sends vad=true to whisper-server.
+func TestWebSocketTranscribeAudio_SendsVADField(t *testing.T) {
+	var capturedVAD string
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			t.Logf("whisper mock: failed to parse form: %v", err)
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		capturedVAD = r.FormValue("vad")
+
+		resp := WhisperResponse{
+			Text: "show me a cat",
+			Segments: []WhisperSegment{
+				{ID: 0, Start: 0.0, End: 1.5, Text: "show me a cat",
+					Words: []WhisperWord{
+						{Word: " show", Start: 0.0, End: 0.3, Probability: 0.95},
+						{Word: " me", Start: 0.3, End: 0.5, Probability: 0.98},
+						{Word: " a", Start: 0.5, End: 0.7, Probability: 0.97},
+						{Word: " cat", Start: 0.7, End: 1.0, Probability: 0.99},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockWhisper.Close()
+
+	mockProvider := &mockLLMProvider{subject: "cat"}
+	handler := NewAudioWebSocketHandler(mockWhisper.URL, mockProvider, nil)
+	handler.BufferThreshold = 200 * time.Millisecond
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "test done")
+
+	// Start recording
+	startMsg := ClientMessage{Type: MsgTypeStartRecording}
+	data, _ := json.Marshal(startMsg)
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatalf("failed to send start_recording: %v", err)
+	}
+
+	// Send enough audio data to trigger threshold
+	audioData := make([]byte, 2048)
+	if err := conn.Write(ctx, websocket.MessageBinary, audioData); err != nil {
+		t.Fatalf("failed to send audio: %v", err)
+	}
+
+	// Wait for threshold to trigger
+	time.Sleep(500 * time.Millisecond)
+
+	// Drain messages
+	drainCtx, drainCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer drainCancel()
+	for {
+		_, _, err := conn.Read(drainCtx)
+		if err != nil {
+			break
+		}
+	}
+
+	if capturedVAD != "true" {
+		t.Errorf("expected vad=true sent to whisper via WebSocket path, got vad=%q", capturedVAD)
+	}
+}
+
+// TestDetectTrailingSilence verifies that trailing silence is detected
+// from whisper's segment/word timing data. When the last word ends well
+// before the audio duration, this indicates the user has stopped speaking.
+func TestDetectTrailingSilence(t *testing.T) {
+	tests := []struct {
+		name     string
+		resp     *WhisperResponse
+		wantGap  float64 // expected gap in seconds (approx)
+		wantSome bool    // whether we expect a non-zero gap
+	}{
+		{
+			name: "speech fills entire duration - no silence",
+			resp: &WhisperResponse{
+				Duration: 2.5,
+				Segments: []WhisperSegment{{
+					Words: []WhisperWord{
+						{Word: " show", Start: 0.0, End: 0.5},
+						{Word: " me", Start: 0.5, End: 1.0},
+						{Word: " a", Start: 1.0, End: 1.5},
+						{Word: " cat", Start: 1.5, End: 2.5},
+					},
+				}},
+			},
+			wantGap:  0.0,
+			wantSome: false,
+		},
+		{
+			name: "1.5s trailing silence after speech",
+			resp: &WhisperResponse{
+				Duration: 3.0,
+				Segments: []WhisperSegment{{
+					Words: []WhisperWord{
+						{Word: " show", Start: 0.0, End: 0.5},
+						{Word: " me", Start: 0.5, End: 1.0},
+						{Word: " a", Start: 1.0, End: 1.2},
+						{Word: " cat", Start: 1.2, End: 1.5},
+					},
+				}},
+			},
+			wantGap:  1.5,
+			wantSome: true,
+		},
+		{
+			name: "multiple segments - uses last word from last segment",
+			resp: &WhisperResponse{
+				Duration: 5.0,
+				Segments: []WhisperSegment{
+					{Words: []WhisperWord{
+						{Word: " show", Start: 0.0, End: 0.5},
+						{Word: " me", Start: 0.5, End: 1.0},
+					}},
+					{Words: []WhisperWord{
+						{Word: " a", Start: 1.0, End: 1.2},
+						{Word: " cat", Start: 1.2, End: 2.0},
+					}},
+				},
+			},
+			wantGap:  3.0,
+			wantSome: true,
+		},
+		{
+			name: "no segments - no silence detected",
+			resp: &WhisperResponse{
+				Duration: 3.0,
+				Segments: nil,
+			},
+			wantGap:  0.0,
+			wantSome: false,
+		},
+		{
+			name: "segments with no words - no silence detected",
+			resp: &WhisperResponse{
+				Duration: 3.0,
+				Segments: []WhisperSegment{{Text: "test"}},
+			},
+			wantGap:  0.0,
+			wantSome: false,
+		},
+		{
+			name: "small gap under threshold - not considered silence",
+			resp: &WhisperResponse{
+				Duration: 2.0,
+				Segments: []WhisperSegment{{
+					Words: []WhisperWord{
+						{Word: " cat", Start: 0.0, End: 1.8},
+					},
+				}},
+			},
+			wantGap:  0.0, // returns 0 because 0.2s gap is below silenceThreshold
+			wantSome: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gap := detectTrailingSilence(tt.resp)
+			if tt.wantSome && gap <= 0 {
+				t.Errorf("expected trailing silence > 0, got %f", gap)
+			}
+			if !tt.wantSome && gap > 0 {
+				t.Errorf("expected no trailing silence, got %f", gap)
+			}
+			if tt.wantGap > 0 {
+				diff := gap - tt.wantGap
+				if diff < -0.01 || diff > 0.01 {
+					t.Errorf("expected gap ~%f, got %f", tt.wantGap, gap)
+				}
+			}
+		})
+	}
+}
+
 // safeByteAt returns the byte at position i, or 0x00 if out of bounds.
 func safeByteAt(data []byte, i int) byte {
 	if i < len(data) {

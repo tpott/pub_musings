@@ -190,6 +190,9 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse,
 	if err := writer.WriteField("split_on_word", "true"); err != nil {
 		return nil, fmt.Errorf("write split_on_word: %w", err)
 	}
+	if err := writer.WriteField("vad", "true"); err != nil {
+		return nil, fmt.Errorf("write vad: %w", err)
+	}
 
 	if err := writer.Close(); err != nil {
 		return nil, fmt.Errorf("close writer: %w", err)
@@ -220,6 +223,45 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse,
 	}
 
 	return &whisperResp, nil
+}
+
+// silenceThreshold is the minimum trailing silence duration (seconds) from
+// whisper's word timing to consider the user as having paused.
+const silenceThreshold = 0.5
+
+// detectTrailingSilence calculates the silence gap (in seconds) between the last
+// spoken word's end time and the total audio duration. Returns 0 if the gap is
+// below silenceThreshold or if timing data is unavailable.
+//
+// This enables VAD-based silence detection: when whisper returns word-level
+// timing showing speech ended well before the audio buffer's duration,
+// the user has likely paused or finished their utterance.
+func detectTrailingSilence(resp *WhisperResponse) float64 {
+	if resp == nil || len(resp.Segments) == 0 {
+		return 0
+	}
+
+	// Find the last word across all segments
+	var lastWordEnd float64
+	found := false
+	for i := len(resp.Segments) - 1; i >= 0; i-- {
+		seg := resp.Segments[i]
+		if len(seg.Words) > 0 {
+			lastWordEnd = seg.Words[len(seg.Words)-1].End
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return 0
+	}
+
+	gap := resp.Duration - lastWordEnd
+	if gap < silenceThreshold {
+		return 0
+	}
+	return gap
 }
 
 // writeJSON writes a JSON response with the given status code.

@@ -61,6 +61,11 @@ const (
 
 	// defaultMaxMessageSize is the maximum WebSocket binary message size (5MB).
 	defaultMaxMessageSize = 5 << 20
+
+	// silenceBufferThreshold is the shorter buffer threshold used when trailing
+	// silence was detected in the previous transcription cycle. This enables
+	// faster re-processing when the user has paused speaking.
+	silenceBufferThreshold = 1 * time.Second
 )
 
 // Audio frame header constants.
@@ -295,6 +300,11 @@ type connectionState struct {
 	// When the LLM returns wait_for_more, accumulated words carry forward
 	// to the next transcription cycle so the LLM sees the full context.
 	accumulatedWords []llm.WordData
+
+	// VAD silence detection: true when whisper detected trailing silence
+	// after speech in the most recent transcription. Used by the buffer
+	// threshold watcher to apply a shorter threshold for faster re-triggering.
+	trailingSilenceDetected bool
 }
 
 // ServeHTTP upgrades the connection to WebSocket and handles audio streaming.
@@ -546,13 +556,24 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 	}
 
-	// 3. Use accumulated words from previous cycles (if any) merged with current.
+	// 3. Detect trailing silence via VAD: if the last word ends well before the
+	// audio duration, the user has likely paused. Store this for the buffer
+	// threshold watcher to use a shorter trigger interval.
+	silenceGap := detectTrailingSilence(whisperResp)
+	if silenceGap > 0 {
+		logger.Debug("trailing silence detected", "gap_s", silenceGap, "duration_s", whisperResp.Duration)
+		state.mu.Lock()
+		state.trailingSilenceDetected = true
+		state.mu.Unlock()
+	}
+
+	// 4. Use accumulated words from previous cycles (if any) merged with current.
 	// Since we re-transcribe the full buffer each time (GrabAudio returns all
 	// cluster data), the current whisper response already covers accumulated audio.
 	// We use currentWords directly — accumulation happens at the buffer level.
 	words := currentWords
 
-	// 4. Get available concepts from DB
+	// 5. Get available concepts from DB
 	var concepts []string
 	if h.Database != nil {
 		concepts, err = h.Database.ListConceptIDs()
@@ -561,7 +582,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 	}
 
-	// 5. Process transcript through LLM with tool_choice:any
+	// 6. Process transcript through LLM with tool_choice:any
 	result, err := h.processTranscript(ctx, transcript, words, concepts)
 	if err != nil {
 		logger.Error("transcript processing failed", "error", err)
@@ -569,7 +590,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		return
 	}
 
-	// 6. Execute actions from LLM response
+	// 7. Execute actions from LLM response
 	for _, action := range result.Actions {
 		switch action.Type {
 		case "show_media":
@@ -596,6 +617,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 				state.webmParser.Clear()
 			}
 			state.accumulatedWords = nil
+			state.trailingSilenceDetected = false
 			state.bufferStart = time.Now()
 			state.mu.Unlock()
 
@@ -737,6 +759,9 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperRespo
 	}
 	if err := writer.WriteField("split_on_word", "true"); err != nil {
 		return nil, fmt.Errorf("write split_on_word: %w", err)
+	}
+	if err := writer.WriteField("vad", "true"); err != nil {
+		return nil, fmt.Errorf("write vad: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {
@@ -907,7 +932,13 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 			}
 
 			elapsed := time.Since(state.bufferStart)
-			if elapsed >= h.BufferThreshold {
+			// Use shorter threshold when trailing silence was detected,
+			// enabling faster re-processing after the user pauses.
+			threshold := h.BufferThreshold
+			if state.trailingSilenceDetected {
+				threshold = silenceBufferThreshold
+			}
+			if elapsed >= threshold {
 				// Threshold reached — grab valid WebM audio.
 				// GrabAudio always returns init segment + cluster data,
 				// ensuring every whisper request gets a valid WebM file.
@@ -917,9 +948,10 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 				audioData := state.webmParser.GrabAudio()
 				firstChunkTS := state.firstChunkClient
 				state.isProcessing = true
+				state.trailingSilenceDetected = false // reset for next cycle
 				state.mu.Unlock()
 
-				logger.Debug("buffer threshold reached", "elapsed", elapsed, "size", len(audioData))
+				logger.Debug("buffer threshold reached", "elapsed", elapsed, "threshold", threshold, "size", len(audioData))
 
 				if len(audioData) >= minAudioSize {
 					go h.processAudio(ctx, conn, state, audioData, firstChunkTS, logger)

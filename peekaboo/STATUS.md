@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 142 tasks completed.
+Production-ready voice-controlled web app for children. 143 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,18 +32,13 @@ Production-ready voice-controlled web app for children. 142 tasks completed.
 
 ## Last Completed
 
-- Task 142 (2026-02-06): TTS tool execution and multi-tool sequential processing
-  - Backend: `executeTTS` synthesizes speech via Piper, sends base64-encoded WAV as `tts_audio` WebSocket message
-  - Backend: `TTSProvider` field on `AudioWebSocketHandler`, wired in `main.go`
-  - Backend: Multi-tool execution in order (e.g., `text_to_speech` then `show_media`)
-  - Backend: TTS failure is graceful (warning logged, continues to next tool)
-  - Backend: TTS skipped silently when no provider configured
-  - Frontend: `TTSAudioMessage` type and `onTTSAudio` callback in `websocket-audio.ts`
-  - Frontend: `handleWsTTSAudio` plays base64 WAV via `data:` URL Audio element
-  - Frontend: `handleWsMedia` awaits TTS playback promise before displaying media
-  - Frontend: Client-side TTS fallback only when no server TTS was received
-  - Frontend: TTS audio cleanup in `destroy()` method
-  - 4 new backend tests, 5 new frontend tests (1 websocket-audio, 4 peekaboo-flow)
+- Task 143 (2026-02-06): Whisper VAD integration for silence-based triggering
+  - Backend: `vad=true` form field sent to whisper-server in both HTTP and WebSocket paths
+  - Backend: `detectTrailingSilence()` function analyzes word timing to find silence gaps
+  - Backend: Adaptive buffer threshold — uses shorter threshold (1s vs 3s) when trailing silence detected
+  - Backend: `trailingSilenceDetected` flag on `connectionState` enables faster re-processing after user pauses
+  - Backend: Silence threshold at 0.5s — gaps below this are ignored as natural speech rhythm
+  - 2 new backend tests (VAD form field for HTTP and WebSocket), 6 unit tests for silence detection
   - All 246 frontend unit tests, 19 E2E tests, backend tests pass
 
 ## Milestone History
@@ -67,3 +62,4 @@ Production-ready voice-controlled web app for children. 142 tasks completed.
 - Task 140 (2026-02-06): LLM boundary detection with tool_choice:any and three tools
 - Task 141 (2026-02-06): Audio buffer trimming at Cluster boundaries + transcript accumulation
 - Task 142 (2026-02-06): TTS tool execution and multi-tool sequential processing
+- Task 143 (2026-02-06): Whisper VAD integration for silence-based triggering
