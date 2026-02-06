@@ -482,7 +482,7 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 	}
 }
 
-// processAudio transcribes audio and extracts intent.
+// processAudio transcribes audio and processes transcript through LLM.
 // firstChunkClientTS is the client wall-clock timestamp (ms since epoch) of the
 // first audio chunk in this buffer, used to map whisper's audio-relative
 // timestamps to client wall-clock time. Zero means no framed timestamps available.
@@ -508,17 +508,83 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	// Send rich transcript to client (includes word-level timing if available)
 	h.sendRichTranscript(ctx, conn, whisperResp, firstChunkClientTS, logger)
 
-	// 2. Extract intent from transcript
-	subject, err := h.extractIntent(ctx, transcript)
+	// 2. Collect word data from whisper segments
+	var words []llm.WordData
+	for _, seg := range whisperResp.Segments {
+		for _, w := range seg.Words {
+			words = append(words, llm.WordData{
+				Word:        w.Word,
+				Start:       w.Start,
+				End:         w.End,
+				Probability: w.Probability,
+			})
+		}
+	}
+
+	// 3. Get available concepts from DB
+	var concepts []string
+	if h.Database != nil {
+		concepts, err = h.Database.ListConceptIDs()
+		if err != nil {
+			logger.Warn("failed to list concepts", "error", err)
+			// Continue without concepts — LLM can still process
+		}
+	}
+
+	// 4. Process transcript through LLM with tool_choice:any
+	result, err := h.processTranscript(ctx, transcript, words, concepts)
 	if err != nil {
-		logger.Error("intent extraction failed", "error", err)
+		logger.Error("transcript processing failed", "error", err)
 		h.sendError(ctx, conn, "intent extraction failed", logger)
 		return
 	}
 
-	logger.Info("intent extracted", "subject", subject)
+	// 5. Execute actions from LLM response
+	for _, action := range result.Actions {
+		switch action.Type {
+		case "show_media":
+			h.executeShowMedia(ctx, conn, action.Subject, logger)
 
-	// 3. Validate subject format (same validation as HTTP media endpoint)
+		case "text_to_speech":
+			logger.Debug("text_to_speech action received", "text", action.Text)
+			// TTS execution is a future task (Phase 4)
+
+		case "wait_for_more":
+			logger.Debug("wait_for_more action received", "reason", action.Reason)
+			// Do nothing — wait for more audio to arrive
+		}
+	}
+}
+
+// processTranscript uses LLM to process transcript with word-level data.
+// Uses a 30-second timeout consistent with the HTTP endpoint.
+func (h *AudioWebSocketHandler) processTranscript(ctx context.Context, text string, words []llm.WordData, concepts []string) (*llm.TranscriptResult, error) {
+	if h.LLMProvider == nil {
+		return nil, fmt.Errorf("LLM provider not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, intentTimeout)
+	defer cancel()
+
+	result, err := h.LLMProvider.ProcessTranscript(ctx, llm.TranscriptRequest{
+		Text:     text,
+		Words:    words,
+		Concepts: concepts,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("LLM returned nil result")
+	}
+	return result, nil
+}
+
+// executeShowMedia validates a subject and sends media to the client.
+func (h *AudioWebSocketHandler) executeShowMedia(ctx context.Context, conn *websocket.Conn, subject string, logger *slog.Logger) {
+	logger.Info("show_media action", "subject", subject)
+
+	// Validate subject format (same validation as HTTP media endpoint)
 	if subject == "" {
 		logger.Debug("empty subject from LLM")
 		h.sendError(ctx, conn, "I didn't understand what you want to see. Please try again.", logger)
@@ -535,7 +601,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		return
 	}
 
-	// 4. Look up media for subject
+	// Look up media for subject
 	if h.Database == nil {
 		logger.Error("database not configured")
 		h.sendError(ctx, conn, "media lookup unavailable", logger)
@@ -547,8 +613,13 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
 		return
 	}
+	if mediaSet == nil {
+		logger.Debug("no media set found", "subject", subject)
+		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
+		return
+	}
 
-	// 5. Send media to client
+	// Send media to client
 	h.sendMedia(ctx, conn, subject, mediaSet, logger)
 }
 
@@ -611,27 +682,6 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperRespo
 	}
 
 	return &whisperResp, nil
-}
-
-// extractIntent uses LLM to extract subject from transcript.
-// Uses a 30-second timeout consistent with the HTTP endpoint (api/intent.go).
-func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript string) (string, error) {
-	if h.LLMProvider == nil {
-		return "", fmt.Errorf("LLM provider not configured")
-	}
-
-	// Create a timeout context consistent with HTTP endpoint
-	ctx, cancel := context.WithTimeout(ctx, intentTimeout)
-	defer cancel()
-
-	result, err := h.LLMProvider.ExtractIntent(ctx, transcript)
-	if err != nil {
-		return "", err
-	}
-	if result == nil {
-		return "", fmt.Errorf("LLM returned nil result")
-	}
-	return result.Subject, nil
 }
 
 // Helper functions to send messages

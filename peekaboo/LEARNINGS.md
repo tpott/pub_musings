@@ -320,6 +320,22 @@ if strings.TrimSpace(transcript) == "" {
 
 ---
 
+### 2026-02-06: GetRandomMediaSet returns (nil, nil) — always check for nil result
+
+**Context:** After refactoring `processAudio` to use `ProcessTranscript` (which returns tool actions), the `executeShowMedia` function called `GetRandomMediaSet(subject)` and passed the result directly to `sendMedia()`. When testing with an in-memory DB that had concepts but no media_sets seeded, `GetRandomMediaSet` returned `(nil, nil)` (no error, but no result), causing a nil pointer dereference in `sendMedia()`.
+
+**Solution:** Added explicit nil check for `mediaSet` before calling `sendMedia()`:
+```go
+if mediaSet == nil {
+    h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
+    return
+}
+```
+
+**Lesson:** Go database query methods that return `(T, error)` often return `(nil, nil)` for "not found" (vs `sql.ErrNoRows` being handled internally). Always check for nil result separate from error, especially when refactoring code paths that previously didn't reach that state.
+
+---
+
 ### 2026-02-05: TDD "prove the bug" tests need t.Skip for pre-commit hooks
 
 **Context:** Task 135 required writing a failing test to prove the WebM container corruption bug. The test correctly demonstrates that after buffer split, subsequent whisper requests receive invalid WebM (missing EBML header). However, the pre-commit hook runs `go test ./...` and blocks commits when any test fails.

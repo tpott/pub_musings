@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 139 tasks completed.
+Production-ready voice-controlled web app for children. 140 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,15 +32,18 @@ Production-ready voice-controlled web app for children. 139 tasks completed.
 
 ## Last Completed
 
-- Task 139 (2026-02-06): Phase 2 — Framed audio protocol with 12-byte headers
-  - Frontend `sendAudioChunk` prepends 12-byte header: magic 0xAB01, uint16 seq, float64 timestamp
-  - Frontend `startRecording` includes `client_time` (Date.now()) in control message
-  - Sequence number resets on each new recording session
-  - Backend `handleAudioChunk` parses frame header, strips it before buffering
-  - Backward compatible: raw binary without magic prefix still works (legacy)
-  - `AudioChunkMeta` records seq, client timestamp, server timestamp per chunk
-  - `TranscriptMessage` includes `audio_start_time` (client wall-clock ms of first chunk)
-  - 4 new backend tests (`websocket_framing_test.go`), 2 updated frontend tests
+- Task 140 (2026-02-06): Phase 3 — LLM boundary detection with tool_choice:any
+  - Provider interface extended with `ProcessTranscript(TranscriptRequest) → TranscriptResult`
+  - Three tools: show_media (instruction_end_word_index), text_to_speech, wait_for_more
+  - Anthropic: tool_choice:any, system prompt with `<available-concepts>` XML tags
+  - OpenAI: tool_choice:required, function tools with same schema
+  - `processAudio` uses `ProcessTranscript` instead of `ExtractIntent`
+  - Word data from whisper segments forwarded to LLM (text, timing, probability)
+  - DB `ListConceptIDs()` provides concept list for LLM system prompt
+  - wait_for_more action skips media lookup (waits for more audio)
+  - At most one show_media per LLM response enforced in both providers
+  - Null media set handled gracefully (no nil pointer dereference)
+  - 4 new backend tests (`websocket_llm_test.go`)
 
 ## Milestone History
 
@@ -60,3 +63,4 @@ Production-ready voice-controlled web app for children. 139 tasks completed.
 - Task 137 (2026-02-06): Fix WebM container corruption with EBML init segment caching
 - Task 138 (2026-02-06): Parse full whisper verbose_json with word-level timing
 - Task 139 (2026-02-06): Framed audio protocol with 12-byte headers and timestamp mapping
+- Task 140 (2026-02-06): LLM boundary detection with tool_choice:any and three tools

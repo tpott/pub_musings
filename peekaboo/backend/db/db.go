@@ -207,6 +207,28 @@ func (db *DB) GetRandomMediaSet(conceptID string) (*MediaSet, error) {
 	return &ms, nil
 }
 
+// ListConceptIDs returns all concept IDs from the database.
+func (db *DB) ListConceptIDs() ([]string, error) {
+	rows, err := db.conn.Query("SELECT id FROM concepts ORDER BY id")
+	if err != nil {
+		return nil, fmt.Errorf("query concepts: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan concept id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate concepts: %w", err)
+	}
+	return ids, nil
+}
+
 // GetConcept checks if a concept exists by ID.
 func (db *DB) GetConcept(id string) (string, error) {
 	var name string

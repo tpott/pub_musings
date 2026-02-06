@@ -14,10 +14,43 @@ type IntentResult struct {
 	Subject string
 }
 
+// WordData contains per-word data from whisper's verbose_json response.
+type WordData struct {
+	Word        string  `json:"word"`
+	Start       float64 `json:"start"`
+	End         float64 `json:"end"`
+	Probability float64 `json:"probability"`
+}
+
+// TranscriptRequest is the input for the rich transcript processing method.
+type TranscriptRequest struct {
+	Text     string     // Full transcript text
+	Words    []WordData // Per-word timing and probability data
+	Concepts []string   // Available concepts from the database
+}
+
+// ToolAction represents one action the LLM wants to take.
+type ToolAction struct {
+	Type                  string // "show_media", "text_to_speech", or "wait_for_more"
+	Subject               string // For show_media: the concept to show
+	InstructionEndWordIdx int    // For show_media: 0-based index of last word in this command
+	Text                  string // For text_to_speech: the text to speak
+	Reason                string // For wait_for_more: why the transcript seems incomplete
+}
+
+// TranscriptResult is the output of the rich transcript processing method.
+type TranscriptResult struct {
+	Actions []ToolAction // Ordered list of actions to execute
+}
+
 // Provider is the interface for LLM providers.
 type Provider interface {
 	// ExtractIntent extracts a subject from text using function/tool calling.
 	ExtractIntent(ctx context.Context, text string) (*IntentResult, error)
+	// ProcessTranscript processes a transcript with word-level data using
+	// tool_choice:any with show_media, text_to_speech, and wait_for_more tools.
+	// Returns ordered actions to execute. At most one show_media per response.
+	ProcessTranscript(ctx context.Context, req TranscriptRequest) (*TranscriptResult, error)
 	// HealthCheck verifies the LLM provider is reachable and API key is valid.
 	HealthCheck(ctx context.Context) error
 }

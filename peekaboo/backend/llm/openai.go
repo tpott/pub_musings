@@ -183,6 +183,163 @@ func (p *openaiProvider) ExtractIntent(ctx context.Context, text string) (*Inten
 	return nil, nil
 }
 
+// ProcessTranscript processes a transcript with word-level data using tool_choice:required.
+func (p *openaiProvider) ProcessTranscript(ctx context.Context, req TranscriptRequest) (*TranscriptResult, error) {
+	systemPrompt := buildSystemPrompt(req.Concepts)
+	userMessage := buildUserMessage(req.Text, req.Words)
+
+	tools := []openaiTool{
+		{
+			Type: "function",
+			Function: openaiFunction{
+				Name:        "show_media",
+				Description: "Display a photo or video of the requested subject with its sound. At most one show_media call per request.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"subject": map[string]interface{}{
+							"type":        "string",
+							"description": "The media subject — must be one of the available concepts",
+						},
+						"instruction_end_word_index": map[string]interface{}{
+							"type":        "integer",
+							"description": "0-based index of the last transcript word belonging to this command",
+						},
+					},
+					"required": []string{"subject", "instruction_end_word_index"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: openaiFunction{
+				Name:        "text_to_speech",
+				Description: "Speak a short message to the user.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"text": map[string]interface{}{
+							"type":        "string",
+							"description": "The message to speak aloud. Keep under 30 words.",
+						},
+					},
+					"required": []string{"text"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: openaiFunction{
+				Name:        "wait_for_more",
+				Description: "The transcript appears incomplete — wait for more audio.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"reason": map[string]interface{}{
+							"type":        "string",
+							"description": "Why the transcript seems incomplete",
+						},
+					},
+					"required": []string{"reason"},
+				},
+			},
+		},
+	}
+
+	apiReq := openaiRequest{
+		Model: p.model,
+		Messages: []openaiMessage{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userMessage},
+		},
+		Tools:      tools,
+		ToolChoice: "required",
+		MaxTokens:  512,
+	}
+
+	body, err := json.Marshal(apiReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/v1/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(body))
+	}
+
+	var apiResp openaiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	if len(apiResp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in response")
+	}
+
+	return parseOpenAIToolActions(apiResp.Choices[0].ToolCalls)
+}
+
+// parseOpenAIToolActions extracts ToolActions from OpenAI tool calls.
+func parseOpenAIToolActions(calls []toolCall) (*TranscriptResult, error) {
+	var actions []ToolAction
+	showMediaSeen := false
+
+	for _, tc := range calls {
+		if tc.Type != "function" {
+			continue
+		}
+		switch tc.Function.Name {
+		case "show_media":
+			if showMediaSeen {
+				continue
+			}
+			showMediaSeen = true
+			var input showMediaInput
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
+				return nil, fmt.Errorf("unmarshal show_media: %w", err)
+			}
+			actions = append(actions, ToolAction{
+				Type:                  "show_media",
+				Subject:               input.Subject,
+				InstructionEndWordIdx: input.InstructionEndWordIdx,
+			})
+		case "text_to_speech":
+			var input textToSpeechInput
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
+				return nil, fmt.Errorf("unmarshal text_to_speech: %w", err)
+			}
+			actions = append(actions, ToolAction{
+				Type: "text_to_speech",
+				Text: input.Text,
+			})
+		case "wait_for_more":
+			var input waitForMoreInput
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
+				return nil, fmt.Errorf("unmarshal wait_for_more: %w", err)
+			}
+			actions = append(actions, ToolAction{
+				Type:   "wait_for_more",
+				Reason: input.Reason,
+			})
+		}
+	}
+
+	return &TranscriptResult{Actions: actions}, nil
+}
+
 // HealthCheck verifies the OpenAI API is reachable and API key is valid.
 // Uses a minimal completion request with max_tokens=1 to minimize cost.
 func (p *openaiProvider) HealthCheck(ctx context.Context) error {

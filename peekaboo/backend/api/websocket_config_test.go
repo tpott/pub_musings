@@ -87,6 +87,19 @@ func (m *mockLLMProvider) ExtractIntent(ctx context.Context, text string) (*llm.
 	return &llm.IntentResult{Subject: m.subject}, nil
 }
 
+func (m *mockLLMProvider) ProcessTranscript(ctx context.Context, req llm.TranscriptRequest) (*llm.TranscriptResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &llm.TranscriptResult{
+		Actions: []llm.ToolAction{{
+			Type:                  "show_media",
+			Subject:               m.subject,
+			InstructionEndWordIdx: len(req.Words) - 1,
+		}},
+	}, nil
+}
+
 func (m *mockLLMProvider) HealthCheck(ctx context.Context) error {
 	return m.healthErr
 }
@@ -101,6 +114,17 @@ func (m *dynamicMockLLMProvider) ExtractIntent(ctx context.Context, text string)
 	subject := m.subjects[m.callCount%len(m.subjects)]
 	m.callCount++
 	return &llm.IntentResult{Subject: subject}, nil
+}
+
+func (m *dynamicMockLLMProvider) ProcessTranscript(ctx context.Context, req llm.TranscriptRequest) (*llm.TranscriptResult, error) {
+	subject := m.subjects[m.callCount%len(m.subjects)]
+	m.callCount++
+	return &llm.TranscriptResult{
+		Actions: []llm.ToolAction{{
+			Type:    "show_media",
+			Subject: subject,
+		}},
+	}, nil
 }
 
 func (m *dynamicMockLLMProvider) HealthCheck(ctx context.Context) error {
