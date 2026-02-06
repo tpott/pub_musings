@@ -592,6 +592,10 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 
 	// 7. Execute actions from LLM response
 	for _, action := range result.Actions {
+		if ctx.Err() != nil {
+			logger.Debug("context canceled, stopping action execution")
+			return
+		}
 		switch action.Type {
 		case "show_media":
 			h.executeShowMedia(ctx, conn, action.Subject, logger)

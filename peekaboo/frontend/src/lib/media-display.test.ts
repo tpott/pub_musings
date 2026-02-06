@@ -190,6 +190,36 @@ describe('MediaDisplay', () => {
     });
   });
 
+  describe('media load errors', () => {
+    it('logs error when image fails to load', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await display.show({ photoUrl: '/data/media/missing/photo.jpg' });
+
+      const img = container.querySelector('img') as HTMLImageElement;
+      img.dispatchEvent(new Event('error'));
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[ERROR] Failed to load image:', '/data/media/missing/photo.jpg'
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('logs error when video fails to load', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await display.show({ videoUrl: '/data/media/missing/video.mp4' });
+
+      const video = container.querySelector('video') as HTMLVideoElement;
+      video.dispatchEvent(new Event('error'));
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[ERROR] Failed to load video:', '/data/media/missing/video.mp4'
+      );
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('accessibility', () => {
     it('sets aria-label on container when showing media with concept', async () => {
       await display.show({ photoUrl: '/data/media/cat/photo.jpg' }, 'cat');

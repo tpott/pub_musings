@@ -102,6 +102,9 @@ export class MediaDisplay {
     img.src = url;
     img.alt = concept ? `Photo of a ${concept}` : 'Media content';
     img.dataset.testid = 'media-image';
+    img.addEventListener('error', () => {
+      logger.error('Failed to load image:', url);
+    });
     this.container.appendChild(img);
   }
 
@@ -122,6 +125,9 @@ export class MediaDisplay {
     video.playsInline = true;
     video.dataset.testid = 'media-video';
     video.setAttribute('aria-label', concept ? `Video of a ${concept}` : 'Video content');
+    video.addEventListener('error', () => {
+      logger.error('Failed to load video:', url);
+    });
     this.container.appendChild(video);
   }
 
