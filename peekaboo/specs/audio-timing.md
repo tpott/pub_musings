@@ -1,7 +1,27 @@
 # Audio Timing & Transcription Architecture Analysis
 
 **Date:** 2026-02-05
-**Status:** Analysis / Proposal
+**Status:** Implemented (Tasks 137-144)
+
+---
+
+## Implementation Summary
+
+All 5 phases implemented in tasks 137-144:
+
+- **Phase 1** (Tasks 137-138): EBML init segment caching fixes WebM container corruption. Full whisper verbose_json parsing with word-level timing and probabilities.
+- **Phase 2** (Task 139): 12-byte framed audio protocol (magic 0xAB01, uint16 seq, float64 timestamp). Client timestamp mapping for wall-clock correlation.
+- **Phase 3** (Tasks 140-141): LLM boundary detection with `tool_choice:any` and three tools (show_media, text_to_speech, wait_for_more). Audio buffer trimming at Cluster boundaries. Transcript accumulation across cycles.
+- **Phase 4** (Task 142): TTS tool execution via Piper. Multi-tool sequential processing with per-call error handling. Frontend plays TTS before media display.
+- **Phase 5** (Tasks 143-144): Whisper VAD integration (`vad=true` form field). E2E endurance test for continuous listening surviving multiple buffer cycles.
+
+Key implementation files:
+- `backend/api/webm_parser.go` — incremental EBML parser using `at-wat/ebml-go`
+- `backend/api/websocket.go` — framed protocol, buffer management, LLM integration, TTS execution
+- `frontend/src/lib/websocket-audio.ts` — framed audio sending with 12-byte headers
+- `frontend/src/lib/peekaboo-flow.ts` — TTS audio playback, transcript display
+
+The analysis below is preserved as historical context documenting the problems and proposed solutions.
 
 ---
 
@@ -679,7 +699,7 @@ to within half a second, not syncing subtitles to music.
 All phases follow TDD: write the failing test first, then implement to make
 it pass.
 
-### Phase 1: Prove the Bugs, Parse What We Already Have
+### Phase 1: Prove the Bugs, Parse What We Already Have ✓ (Tasks 137-138)
 
 #### Step 1a: Write failing tests (before any implementation)
 
@@ -748,7 +768,7 @@ invalid WebM, causing "transcription failed" errors that trigger error state.
 6. Pass `split_on_word=true` to whisper for cleaner word boundaries.
    → Extended `real-services.spec.ts` passes.
 
-### Phase 2: Framed Audio Protocol + Timestamp Mapping
+### Phase 2: Framed Audio Protocol + Timestamp Mapping ✓ (Task 139)
 
 #### Step 2a: Write failing tests
 
@@ -768,7 +788,7 @@ invalid WebM, causing "transcription failed" errors that trigger error state.
 3. Map whisper timestamps to client wall-clock times
 4. Add `client_time` to `start_recording` for clock offset
 
-### Phase 3: Smart Triggering + LLM Boundary Detection
+### Phase 3: Smart Triggering + LLM Boundary Detection ✓ (Tasks 140-141)
 
 #### Step 3a: Write failing tests
 
@@ -799,7 +819,7 @@ invalid WebM, causing "transcription failed" errors that trigger error state.
 4. Implement audio buffer trimming at Cluster boundaries on instruction end
 5. Accumulate transcript across trigger cycles
 
-### Phase 4: TTS Tool + Multi-Tool Execution
+### Phase 4: TTS Tool + Multi-Tool Execution ✓ (Task 142)
 
 #### Step 4a: Write failing tests
 
@@ -822,7 +842,7 @@ invalid WebM, causing "transcription failed" errors that trigger error state.
 3. Add `tts_audio` WebSocket message type (server → client)
 4. Frontend: action queue that plays TTS before rendering media
 
-### Phase 5: VAD Integration
+### Phase 5: VAD Integration ✓ (Tasks 143-144)
 
 #### Step 5a: Write failing tests
 
