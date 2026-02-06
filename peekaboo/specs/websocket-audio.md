@@ -1,5 +1,10 @@
 # WebSocket Audio Streaming Spec
 
+> **Note:** This spec describes the original WebSocket implementation (Tasks 66-69).
+> The protocol has since evolved significantly — see [audio-timing.md](audio-timing.md)
+> for the framed audio protocol, rich transcripts with word-level timing, LLM tool-based
+> processing, TTS integration, and VAD-based triggering (Tasks 137-144).
+
 ## Overview
 
 This spec documents the WebSocket-based audio streaming implementation for Peekaboo.

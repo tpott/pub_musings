@@ -61,7 +61,11 @@ SQLite only supports one writer at a time, even with WAL mode enabled. The defau
 
 ### Buffer Threshold
 
-Audio is automatically processed when buffered for 3 seconds without `stop_recording`. This is hardcoded but could be made configurable if needed.
+Audio is automatically processed based on two thresholds:
+- **Default threshold (3s):** Audio is processed after 3 seconds of accumulation
+- **Silence threshold (1s):** When whisper VAD detects trailing silence, a shorter 1-second threshold triggers processing faster
+
+These thresholds are hardcoded but could be made configurable if needed. The buffer is trimmed at WebM Cluster boundaries after the LLM processes each instruction, carrying remaining audio forward.
 
 ## Rate Limiting
 

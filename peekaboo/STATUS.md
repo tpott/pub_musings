@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 148 tasks completed.
+Production-ready voice-controlled web app for children. 149 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,9 @@ Production-ready voice-controlled web app for children. 148 tasks completed.
 
 ## Last Completed
 
-- Task 148 (2026-02-06): Update API.md WebSocket protocol documentation
-  - Documented framed audio protocol (12-byte header: magic 0xAB01, seq, timestamp)
-  - Added tts_audio message type, rich transcript with words/segments
-  - Updated processing flow to describe LLM tool-based actions (show_media, text_to_speech, wait_for_more)
-  - Documented continuous listening with buffer trimming at instruction boundaries
+- Task 149 (2026-02-06): Update outdated documentation references to old WebSocket protocol
+  - PERFORMANCE.md: Updated buffer threshold to mention both 3s default and 1s silence thresholds
+  - websocket-audio.md: Added note pointing to audio-timing.md for current protocol
 
 ## Milestone History
 
@@ -65,3 +63,4 @@ Production-ready voice-controlled web app for children. 148 tasks completed.
 - Task 146 (2026-02-06): Split 5 remaining oversized test files (backend + frontend)
 - Task 147 (2026-02-06): Update audio-timing.md spec status to Implemented
 - Task 148 (2026-02-06): Update API.md WebSocket protocol documentation
+- Task 149 (2026-02-06): Update outdated documentation references
