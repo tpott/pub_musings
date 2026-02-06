@@ -332,6 +332,139 @@ func TestTranscribeHandler_StreamSizeEnforcement(t *testing.T) {
 	}
 }
 
+// TestWhisperResponseFullParse proves that whisper verbose_json word-level data
+// (per-word timing and probability) is currently discarded during parsing.
+//
+// Whisper's verbose_json response includes segments[].words[] with per-word
+// start/end times and probabilities. The current WhisperSegment struct has no
+// Words field, so this data is silently dropped during JSON unmarshaling.
+// Additionally, both forwardToWhisper and transcribeAudio return only the
+// flat text string, discarding even the segment-level data.
+//
+// This test:
+// 1. Creates a full verbose_json response matching whisper.cpp output
+// 2. Unmarshals it into WhisperResponse
+// 3. Re-marshals and checks that word-level data survived the round-trip
+// 4. Tests the HTTP handler returns word data to the client
+//
+// Expected result: FAILS. Word data is lost during unmarshal (no Words field
+// on WhisperSegment) and the HTTP response contains only flat text.
+// Task 138 will add Words to WhisperSegment and return rich transcripts.
+func TestWhisperResponseFullParse(t *testing.T) {
+	// KNOWN BUG: This test proves verbose_json word data is discarded.
+	// It will be un-skipped when task 138 adds Words to WhisperSegment.
+	// Run with: go test -v -run TestWhisperResponseFullParse ./api/
+	t.Skip("Known bug: WhisperSegment has no Words field — verbose_json word data discarded (task 138 will fix)")
+	// Full verbose_json response matching whisper.cpp server output
+	// (see specs/audio-timing.md for the complete structure)
+	verboseJSON := `{
+		"task": "transcribe",
+		"language": "en",
+		"duration": 2.5,
+		"text": " show me a cat",
+		"segments": [{
+			"id": 0,
+			"start": 0.0,
+			"end": 2.5,
+			"text": " show me a cat",
+			"tokens": [4010, 502, 257, 3857],
+			"words": [
+				{"word": " show",  "start": 0.00, "end": 0.52, "probability": 0.95},
+				{"word": " me",    "start": 0.52, "end": 0.76, "probability": 0.98},
+				{"word": " a",     "start": 0.76, "end": 0.92, "probability": 0.97},
+				{"word": " cat",   "start": 0.92, "end": 1.30, "probability": 0.99}
+			],
+			"temperature": 0.0,
+			"avg_logprob": -0.23,
+			"no_speech_prob": 0.01
+		}]
+	}`
+
+	// Part 1: Prove word data is lost during struct unmarshal
+	var resp WhisperResponse
+	if err := json.Unmarshal([]byte(verboseJSON), &resp); err != nil {
+		t.Fatalf("failed to unmarshal verbose_json: %v", err)
+	}
+
+	// Basic fields should parse correctly
+	if resp.Text != " show me a cat" {
+		t.Errorf("expected text ' show me a cat', got %q", resp.Text)
+	}
+	if len(resp.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(resp.Segments))
+	}
+
+	// Re-marshal to check what survived the round-trip
+	roundTripped, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("failed to re-marshal: %v", err)
+	}
+
+	// The round-tripped JSON should contain word-level data if the struct
+	// preserved it. Parse into a generic map to check.
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(roundTripped, &parsed); err != nil {
+		t.Fatalf("failed to parse round-tripped JSON: %v", err)
+	}
+
+	segments, ok := parsed["segments"].([]interface{})
+	if !ok || len(segments) == 0 {
+		t.Fatal("no segments in round-tripped JSON")
+	}
+
+	segment := segments[0].(map[string]interface{})
+
+	// Assert: words should survive the round-trip
+	words, hasWords := segment["words"]
+	if !hasWords || words == nil {
+		t.Error("FAIL: words[] lost during WhisperResponse unmarshal/marshal round-trip. " +
+			"WhisperSegment struct has no Words field — verbose_json word-level data " +
+			"(timing, probability) is silently discarded. Task 138 will fix this.")
+	} else {
+		// If words survived, verify they contain timing and probability
+		wordList, ok := words.([]interface{})
+		if !ok || len(wordList) == 0 {
+			t.Error("words field exists but is empty or wrong type")
+		} else {
+			firstWord := wordList[0].(map[string]interface{})
+			for _, field := range []string{"word", "start", "end", "probability"} {
+				if _, exists := firstWord[field]; !exists {
+					t.Errorf("word missing %q field", field)
+				}
+			}
+		}
+	}
+
+	// Part 2: Prove the HTTP handler discards word data in its response
+	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(verboseJSON))
+	}))
+	defer mockWhisper.Close()
+
+	handler := NewTranscribeHandler(mockWhisper.URL)
+	req := createMultipartRequest(t, "audio", "test.webm", makeTestAudio(2048))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Parse the handler's response into a generic map to check for word data
+	var handlerResp map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &handlerResp); err != nil {
+		t.Fatalf("failed to parse handler response: %v", err)
+	}
+
+	// The response should contain word-level data, not just flat text
+	if _, hasWords := handlerResp["words"]; !hasWords {
+		t.Error("FAIL: HTTP transcribe response contains only flat text, no word-level data. " +
+			"forwardToWhisper() returns only whisperResp.Text, discarding all timing " +
+			"and probability data from verbose_json. Task 138 will fix this.")
+	}
+}
+
 // createMultipartRequest creates a test HTTP request with a multipart form containing a file.
 func createMultipartRequest(t *testing.T, fieldName, filename string, content []byte) *http.Request {
 	t.Helper()

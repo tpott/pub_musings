@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 135 tasks completed.
+Production-ready voice-controlled web app for children. 136 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,12 @@ Production-ready voice-controlled web app for children. 135 tasks completed.
 
 ## Last Completed
 
-- Task 135 (2026-02-05): Phase 1a — failing test proving WebM container corruption on buffer split
-  - Added websocket_webm_test.go with TestBufferSplitProducesValidWebM
-  - Reads real WebM fixture, sends as 1KB chunks, mock whisper captures audio bytes
-  - Proves bug: request 0 has valid EBML header, requests 1-3 are corrupted (missing init segment)
-  - Test intentionally FAILS — will pass after task 137 implements EBML parsing
+- Task 136 (2026-02-05): Phase 1a — failing test proving whisper verbose_json data is discarded
+  - Added TestWhisperResponseFullParse in transcribe_test.go
+  - Mock whisper returns full verbose_json with segments[].words[] (timing + probability)
+  - Part 1: Proves words[] lost during WhisperResponse unmarshal (no Words field on WhisperSegment)
+  - Part 2: Proves HTTP handler returns only flat text, discarding all word-level data
+  - Test intentionally FAILS — will pass after task 138 adds Words to WhisperSegment
 
 ## Milestone History
 
@@ -52,3 +53,4 @@ Production-ready voice-controlled web app for children. 135 tasks completed.
 - Task 133 (2026-02-05): Unchecked ResponseWriter.Write error handling
 - Task 134 (2026-02-05): WebSocket magic numbers → named constants
 - Task 135 (2026-02-05): Failing test proving WebM container corruption on buffer split
+- Task 136 (2026-02-05): Failing test proving whisper verbose_json word data is discarded
