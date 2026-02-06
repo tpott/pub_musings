@@ -129,6 +129,23 @@ describe('AudioRecorder', () => {
     });
   });
 
+  describe('destroy', () => {
+    it('stops recording and releases resources', async () => {
+      const recorder = new AudioRecorder();
+      await recorder.startRecording();
+      expect(recorder.isRecording()).toBe(true);
+
+      recorder.destroy();
+      expect(recorder.isRecording()).toBe(false);
+    });
+
+    it('does nothing if not recording', () => {
+      const recorder = new AudioRecorder();
+      recorder.destroy(); // Should not throw
+      expect(recorder.isRecording()).toBe(false);
+    });
+  });
+
   describe('isRecording', () => {
     it('returns false when not recording', () => {
       const recorder = new AudioRecorder();

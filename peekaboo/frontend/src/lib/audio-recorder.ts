@@ -86,6 +86,16 @@ export class AudioRecorder {
   }
 
   /**
+   * Stop recording (if active) and release all resources
+   */
+  destroy(): void {
+    if (this.mediaRecorder?.state === 'recording') {
+      this.mediaRecorder.stop();
+    }
+    this.cleanup();
+  }
+
+  /**
    * Clean up resources
    */
   private cleanup(): void {

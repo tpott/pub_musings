@@ -525,6 +525,8 @@ export class PeekabooFlow {
     this.clearErrorTimeout();
     this.stopTTSAudio();
     this.cleanupWebSocketRecording();
+    this.recorder.destroy();
+    this.display.stopAudio();
     if (this.wsClient) {
       this.wsClient.disconnect();
     }

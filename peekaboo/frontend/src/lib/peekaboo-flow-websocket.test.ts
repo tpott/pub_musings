@@ -74,6 +74,14 @@ describe('PeekabooFlow WebSocket mode', () => {
       };
     });
 
+    // Setup AudioRecorder constructor mock
+    (audioRecorder.AudioRecorder as unknown as Mock).mockImplementation(() => ({
+      startRecording: vi.fn(),
+      stopRecording: vi.fn(),
+      isRecording: vi.fn().mockReturnValue(false),
+      destroy: vi.fn(),
+    }));
+
     // Setup MediaDisplay constructor mock
     mockShow = vi.fn();
     mockReset = vi.fn();

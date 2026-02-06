@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 149 tasks completed.
+Production-ready voice-controlled web app for children. 150 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 246+ unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 250+ unit tests, 19+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,9 +32,10 @@ Production-ready voice-controlled web app for children. 149 tasks completed.
 
 ## Last Completed
 
-- Task 149 (2026-02-06): Update outdated documentation references to old WebSocket protocol
-  - PERFORMANCE.md: Updated buffer threshold to mention both 3s default and 1s silence thresholds
-  - websocket-audio.md: Added note pointing to audio-timing.md for current protocol
+- Task 150 (2026-02-06): Fix PeekabooFlow.destroy() resource cleanup gaps
+  - Added public destroy() method to AudioRecorder (stops recording + releases stream)
+  - PeekabooFlow.destroy() now calls recorder.destroy() and display.stopAudio()
+  - 4 new unit tests (250 total frontend tests)
 
 ## Milestone History
 
@@ -64,3 +65,4 @@ Production-ready voice-controlled web app for children. 149 tasks completed.
 - Task 147 (2026-02-06): Update audio-timing.md spec status to Implemented
 - Task 148 (2026-02-06): Update API.md WebSocket protocol documentation
 - Task 149 (2026-02-06): Update outdated documentation references
+- Task 150 (2026-02-06): Fix PeekabooFlow.destroy() resource cleanup gaps

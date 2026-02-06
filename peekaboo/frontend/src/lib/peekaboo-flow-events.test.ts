@@ -58,6 +58,7 @@ describe('PeekabooFlow events', () => {
       startRecording: mockStartRecording,
       stopRecording: mockStopRecording,
       isRecording: mockIsRecording,
+      destroy: vi.fn(),
     }));
 
     // Setup transcribeAudio mock

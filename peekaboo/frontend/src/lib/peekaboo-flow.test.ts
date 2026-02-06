@@ -58,6 +58,7 @@ describe('PeekabooFlow', () => {
       startRecording: mockStartRecording,
       stopRecording: mockStopRecording,
       isRecording: mockIsRecording,
+      destroy: vi.fn(),
     }));
 
     // Setup transcribeAudio mock
@@ -459,6 +460,34 @@ describe('PeekabooFlow', () => {
       // State should still be error (timeout was cleared, no transition to idle)
       expect(flow.getState()).toBe('error');
       vi.useRealTimers();
+    });
+
+    it('calls recorder.destroy() to clean up HTTP-mode resources', () => {
+      const mockDestroy = vi.fn();
+      (audioRecorder.AudioRecorder as unknown as Mock).mockImplementation(() => ({
+        startRecording: vi.fn().mockResolvedValue(undefined),
+        stopRecording: vi.fn(),
+        isRecording: vi.fn().mockReturnValue(false),
+        destroy: mockDestroy,
+      }));
+
+      const f = new PeekabooFlow({ micButton, mediaContainer });
+      f.destroy();
+      expect(mockDestroy).toHaveBeenCalled();
+    });
+
+    it('calls display.stopAudio() to clean up media audio', () => {
+      const mockStopAudioFn = vi.fn();
+      (mediaDisplay.MediaDisplay as unknown as Mock).mockImplementation(() => ({
+        show: vi.fn(),
+        reset: vi.fn(),
+        stopAudio: mockStopAudioFn,
+        getAudioElement: vi.fn(),
+      }));
+
+      const f = new PeekabooFlow({ micButton, mediaContainer });
+      f.destroy();
+      expect(mockStopAudioFn).toHaveBeenCalled();
     });
   });
 
