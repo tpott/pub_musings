@@ -1052,6 +1052,124 @@ test.describe('WebSocket continuous listening', () => {
     await expect(transcriptEntries.nth(0)).toContainText('"show me a cat"');
     await expect(transcriptEntries.nth(1)).toContainText('"show me a dog"');
   });
+
+  test('sequential voice commands - two utterances in one session with gap', async ({ page }) => {
+    // This test simulates two distinct voice commands ("show me a cat" then "show me a dog")
+    // injected into a single WebSocket session with a gap between them.
+    // The mic stays on the entire time - only one click to start, no stop in between.
+    //
+    // The backend processes audio in 3-second buffer chunks. With no VAD, silence chunks
+    // are sent to whisper and return empty transcripts (handled gracefully, no media shown).
+    // We simulate this by having two "bursts" of audio separated by silence chunks.
+
+    let commandCount = 0;
+    const commands = [
+      { text: 'show me a cat', subject: 'cat' },
+      { text: 'show me a dog', subject: 'dog' },
+    ];
+
+    // Mock MediaRecorder with WebSocket timeslice support
+    await page.addInitScript(getWebSocketMockScript());
+
+    // Mock WebSocket server that simulates backend buffer-threshold processing.
+    // Audio chunks arrive continuously. We group them into "utterances" separated by gaps.
+    // Every audioThreshold chunks, we trigger processing. We alternate between:
+    // - Real utterance (returns transcript + media)
+    // - Silence gap (returns empty transcript error, gracefully ignored)
+    await page.routeWebSocket('**/ws/audio', async ws => {
+      let audioChunkCount = 0;
+      const audioThreshold = 4; // Process after 4 chunks (simulates ~2s of audio at 500ms intervals)
+      let processingRound = 0; // even = real utterance, odd = silence gap
+
+      ws.onMessage(message => {
+        if (typeof message === 'string') {
+          try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong' }));
+            } else if (parsed.type === 'start_recording') {
+              audioChunkCount = 0;
+              processingRound = 0;
+            }
+            // No stop_recording handling - continuous listening mode
+          } catch {
+            // Not valid JSON
+          }
+        } else {
+          // Binary audio data
+          audioChunkCount++;
+          if (audioChunkCount >= audioThreshold) {
+            if (processingRound % 2 === 0 && commandCount < commands.length) {
+              // Real utterance - send transcript + media
+              const cmd = commands[commandCount];
+              commandCount++;
+
+              ws.send(JSON.stringify({ type: 'transcript', text: cmd.text }));
+
+              setTimeout(() => {
+                ws.send(JSON.stringify({
+                  type: 'media',
+                  subject: cmd.subject,
+                  photo_url: `/fixtures/mock-${cmd.subject}-photo.jpg`,
+                  audio_url: `/fixtures/mock-${cmd.subject}-audio.mp3`,
+                }));
+              }, 50);
+            } else {
+              // Silence gap - send error that frontend handles gracefully
+              ws.send(JSON.stringify({ type: 'error', message: 'No speech detected. Please try again.' }));
+            }
+
+            processingRound++;
+            audioChunkCount = 0;
+          }
+        }
+      });
+    });
+
+    // Serve test fixtures
+    await page.route('**/fixtures/**', async route => {
+      const url = new URL(route.request().url());
+      const filePath = path.join(fixturesDir, url.pathname.replace('/fixtures/', ''));
+      await route.fulfill({ path: filePath });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('[data-testid="mic-button"]')).toBeVisible();
+
+    const micButton = page.locator('[data-testid="mic-button"]');
+    const img = page.locator('[data-testid="media-image"]');
+    const transcriptDisplay = page.locator('[data-testid="transcript-display"]');
+
+    // Click mic once to start recording - this is the ONLY click
+    await micButton.click();
+
+    // Wait for first command to be auto-processed (cat)
+    await expect(img).toBeVisible({ timeout: 15000 });
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-cat-photo.jpg');
+
+    // Mic should still be recording (no second click)
+    await expect(micButton).toHaveAttribute('aria-pressed', 'true');
+
+    // Wait for silence gap to pass, then second command auto-processes (dog)
+    await expect(img).toHaveAttribute('src', '/fixtures/mock-dog-photo.jpg', { timeout: 15000 });
+
+    // Verify both commands were processed
+    expect(commandCount).toBe(2);
+
+    // Verify both transcripts are displayed
+    const transcriptEntries = transcriptDisplay.locator('.transcript-entry');
+    await expect(transcriptEntries).toHaveCount(2);
+    await expect(transcriptEntries.nth(0)).toContainText('"show me a cat"');
+    await expect(transcriptEntries.nth(1)).toContainText('"show me a dog"');
+
+    // Mic should STILL be recording after both commands
+    await expect(micButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(micButton).toHaveClass(/recording/);
+
+    // Now stop recording with a click
+    await micButton.click();
+    await expect(micButton).toHaveAttribute('aria-pressed', 'false');
+  });
 });
 
 test.describe('Feedback submission', () => {
