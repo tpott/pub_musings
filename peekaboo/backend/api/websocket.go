@@ -247,7 +247,7 @@ func NewAudioWebSocketHandlerWithConnTracker(whisperURL string, provider llm.Pro
 // connectionState manages per-connection state.
 type connectionState struct {
 	mu           sync.Mutex
-	audioBuffer  []byte
+	webmParser   *WebMParser // WebM-aware audio buffer with init segment caching
 	isRecording  bool
 	lastActivity time.Time
 	bufferStart  time.Time
@@ -313,6 +313,7 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	// Initialize connection state
 	state := &connectionState{
+		webmParser:   NewWebMParser(),
 		lastActivity: time.Now(),
 	}
 
@@ -366,14 +367,14 @@ func (h *AudioWebSocketHandler) handleAudioChunk(ctx context.Context, conn *webs
 	}
 
 	// Start buffer timer on first chunk
-	if len(state.audioBuffer) == 0 {
+	if state.webmParser.BufferLen() == 0 {
 		state.bufferStart = time.Now()
 	}
 
-	// Append to buffer
-	state.audioBuffer = append(state.audioBuffer, data...)
+	// Append to WebM-aware buffer (also extracts init segment)
+	state.webmParser.Append(data)
 
-	logger.Debug("received audio chunk", "size", len(data), "buffer_size", len(state.audioBuffer))
+	logger.Debug("received audio chunk", "size", len(data), "buffer_size", state.webmParser.BufferLen())
 }
 
 // handleControlMessage processes JSON control messages.
@@ -389,7 +390,7 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 	case MsgTypeStartRecording:
 		state.mu.Lock()
 		state.isRecording = true
-		state.audioBuffer = nil // Clear previous buffer
+		state.webmParser.Reset() // Clear previous buffer and init segment
 		state.bufferStart = time.Time{}
 		state.mu.Unlock()
 		logger.Debug("recording started")
@@ -397,8 +398,8 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 	case MsgTypeStopRecording:
 		state.mu.Lock()
 		state.isRecording = false
-		audioData := state.audioBuffer
-		state.audioBuffer = nil
+		audioData := state.webmParser.GrabAudio()
+		state.webmParser.Clear()
 		state.mu.Unlock()
 
 		logger.Debug("recording stopped", "buffer_size", len(audioData))
@@ -672,17 +673,18 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 			return
 		case <-ticker.C:
 			state.mu.Lock()
-			if !state.isRecording || len(state.audioBuffer) == 0 {
+			if !state.isRecording || state.webmParser.BufferLen() == 0 {
 				state.mu.Unlock()
 				continue
 			}
 
 			elapsed := time.Since(state.bufferStart)
 			if elapsed >= h.BufferThreshold {
-				// Threshold reached, process the audio
-				audioData := state.audioBuffer
-				state.audioBuffer = nil
-				state.bufferStart = time.Time{}
+				// Threshold reached — grab valid WebM audio.
+				// GrabAudio always returns init segment + cluster data,
+				// ensuring every whisper request gets a valid WebM file.
+				audioData := state.webmParser.GrabAudio()
+				state.bufferStart = time.Now()
 				state.mu.Unlock()
 
 				logger.Debug("buffer threshold reached", "elapsed", elapsed, "size", len(audioData))

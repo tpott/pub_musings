@@ -298,6 +298,28 @@ if strings.TrimSpace(transcript) == "" {
 
 ---
 
+### 2026-02-06: WebM buffer splitting requires EBML init segment preservation
+
+**Context:** When the backend splits the audio buffer at a time threshold (default 3s), the first whisper request gets a valid WebM (contains EBML header from chunk 1), but subsequent requests are CORRUPTED because they start mid-Cluster without the required EBML Header + Track info.
+
+**Solution:** Created `WebMParser` that detects the Cluster element ID (`0x1F43B675`) in the byte stream, caches everything before it as the "init segment" (EBML Header + Segment + Info + Tracks — typically ~497 bytes), and prepends it to every `GrabAudio()` call. Current strategy re-sends the full accumulated buffer each time (initSegment + all cluster data so far). Future phases will optimize with selective cluster extraction.
+
+**Key insight:** A WebM from browser MediaRecorder typically has a single Cluster element containing all SimpleBlocks. You can't cleanly split within a Cluster at the EBML level, but whisper can decode a WebM with a valid header + partial cluster data (it just reads what's available).
+
+**Lesson:** Any system that splits a WebM byte stream must preserve and re-attach the init segment. The init segment contains codec ID, sample rate, channel count, and codec-private data (like OpusHead) that decoders need. Without it, the decoder has no idea how to interpret the raw audio bytes.
+
+---
+
+### 2026-02-06: ebml-go element hooks for byte position tracking
+
+**Context:** Needed to find byte offsets of EBML elements within a WebM file for the `ParseClusters()` function.
+
+**Solution:** `ebml.Unmarshal()` with `ebml.WithElementReadHooks()` provides `Element.Position` (byte offset of element ID) and `Element.Size` (content size, not including element header). The element header size varies (4 bytes for ID + variable-length size encoding). To get the full element byte range: from `Position` to the next element's `Position` (or end of file for the last element).
+
+**Lesson:** `ebml-go`'s `Element.Size` is the *content* size, not the total element size including the header. For byte-level slicing, use inter-element position differences rather than trying to compute header sizes manually.
+
+---
+
 ### 2026-02-05: TDD "prove the bug" tests need t.Skip for pre-commit hooks
 
 **Context:** Task 135 required writing a failing test to prove the WebM container corruption bug. The test correctly demonstrates that after buffer split, subsequent whisper requests receive invalid WebM (missing EBML header). However, the pre-commit hook runs `go test ./...` and blocks commits when any test fails.

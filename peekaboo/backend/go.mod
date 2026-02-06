@@ -7,6 +7,7 @@ toolchain go1.24.12
 require (
 	filippo.io/age v1.3.1 // indirect
 	filippo.io/hpke v0.4.0 // indirect
+	github.com/at-wat/ebml-go v0.17.2 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/mattn/go-sqlite3 v1.14.33 // indirect
 	golang.org/x/crypto v0.45.0 // indirect

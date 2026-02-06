@@ -34,10 +34,8 @@ var ebmlMagic = []byte{0x1A, 0x45, 0xDF, 0xA3}
 // Expected result: FAILS. The first request passes (has EBML header),
 // but request 2+ fail (missing EBML header = corrupted WebM container).
 func TestBufferSplitProducesValidWebM(t *testing.T) {
-	// KNOWN BUG: This test proves WebM container corruption on buffer split.
-	// It will be un-skipped when task 137 implements EBML parsing to fix the bug.
-	// Run with: go test -v -run TestBufferSplitProducesValidWebM ./api/
-	t.Skip("Known bug: WebM container corruption on buffer split (task 137 will fix)")
+	// Task 137: EBML parsing now ensures every buffer split produces valid WebM.
+	// The WebMParser caches the init segment and prepends it to every grab.
 
 	// Read the real WebM fixture
 	fixtureData, err := os.ReadFile("../../tests/fixtures/me-show-me-a-cat.webm")
