@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   AudioWebSocket,
-  createAudioWebSocket,
-  MediaMessage,
   AUDIO_FRAME_MAGIC,
   AUDIO_FRAME_HEADER_SIZE,
 } from './websocket-audio';
-import { ApiError } from './errors';
 
-// Mock WebSocket
+// Mock WebSocket for connection and recording tests.
 class MockWebSocket {
   static CONNECTING = 0;
   static OPEN = 1;
@@ -32,7 +29,6 @@ class MockWebSocket {
     this.url = url;
   }
 
-  // Call this to simulate successful connection
   simulateOpen(): void {
     if (this.readyState === MockWebSocket.CONNECTING) {
       this.readyState = MockWebSocket.OPEN;
@@ -54,22 +50,7 @@ class MockWebSocket {
     this.onclose?.({ wasClean: true, code: code || 1000 });
   }
 
-  // Test helpers
-  simulateMessage(data: string | ArrayBuffer): void {
-    this.onmessage?.({ data });
-  }
-
-  simulateError(): void {
-    this.onerror?.();
-  }
-
-  simulateUnexpectedClose(): void {
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.({ wasClean: false, code: 1006 });
-  }
-
   simulateConnectionFailure(): void {
-    // Simulate connection failure before onopen
     this.readyState = MockWebSocket.CLOSED;
     this.onclose?.({ wasClean: false, code: 1006 });
   }
@@ -77,10 +58,8 @@ class MockWebSocket {
 
 let mockWebSocketInstance: MockWebSocket | null = null;
 
-// Helper to connect and wait
 async function connectWebSocket(ws: AudioWebSocket): Promise<void> {
   const connectPromise = ws.connect();
-  // Synchronously simulate open after connect() sets up handlers
   mockWebSocketInstance?.simulateOpen();
   await connectPromise;
 }
@@ -88,7 +67,6 @@ async function connectWebSocket(ws: AudioWebSocket): Promise<void> {
 beforeEach(() => {
   mockWebSocketInstance = null;
 
-  // Mock WebSocket constructor with static constants
   const MockWebSocketClass = class extends MockWebSocket {
     static CONNECTING = 0;
     static OPEN = 1;
@@ -104,7 +82,6 @@ beforeEach(() => {
   // @ts-expect-error - mocking global
   global.WebSocket = MockWebSocketClass;
 
-  // Mock window.location
   Object.defineProperty(global, 'window', {
     value: {
       location: {
@@ -146,11 +123,9 @@ describe('AudioWebSocket', () => {
 
       const connectPromise = ws.connect();
 
-      // Should be connecting
       expect(ws.getState()).toBe('connecting');
       expect(onStateChange).toHaveBeenCalledWith('connecting');
 
-      // Simulate successful connection
       mockWebSocketInstance?.simulateOpen();
       await connectPromise;
 
@@ -184,7 +159,6 @@ describe('AudioWebSocket', () => {
       const ws = new AudioWebSocket();
       await connectWebSocket(ws);
 
-      // Second connect should resolve immediately
       await ws.connect();
       expect(ws.getState()).toBe('connected');
     });
@@ -200,7 +174,6 @@ describe('AudioWebSocket', () => {
       const ws = new AudioWebSocket();
       const connectPromise = ws.connect();
 
-      // Simulate connection failure
       mockWebSocketInstance?.simulateConnectionFailure();
 
       await expect(connectPromise).rejects.toThrow('WebSocket connection failed');
@@ -286,23 +259,18 @@ describe('AudioWebSocket', () => {
       const afterTime = Date.now();
 
       const messages = mockWebSocketInstance?.sentMessages || [];
-      // First message is start_recording (JSON), second is the framed audio chunk
       expect(messages.length).toBe(2);
 
       const frame = messages[1] as ArrayBuffer;
       expect(frame.byteLength).toBe(AUDIO_FRAME_HEADER_SIZE + testData.byteLength);
 
       const view = new DataView(frame);
-      // Magic bytes 0xAB01
       expect(view.getUint16(0, false)).toBe(AUDIO_FRAME_MAGIC);
-      // Sequence number = 0 (first chunk)
       expect(view.getUint16(2, false)).toBe(0);
-      // Timestamp is a valid Date.now() value
       const ts = view.getFloat64(4, false);
       expect(ts).toBeGreaterThanOrEqual(beforeTime);
       expect(ts).toBeLessThanOrEqual(afterTime);
 
-      // Audio data follows the header
       const audioPayload = new Uint8Array(frame, AUDIO_FRAME_HEADER_SIZE);
       expect(Array.from(audioPayload)).toEqual(Array.from(testData));
     });
@@ -322,7 +290,6 @@ describe('AudioWebSocket', () => {
       await ws.sendAudioChunk(chunk3);
 
       const messages = mockWebSocketInstance?.sentMessages || [];
-      // start_recording + 3 chunks
       expect(messages.length).toBe(4);
 
       expect(new DataView(messages[1] as ArrayBuffer).getUint16(2, false)).toBe(0);
@@ -339,15 +306,12 @@ describe('AudioWebSocket', () => {
       await ws.sendAudioChunk(new Uint8Array([2]).buffer);
       ws.stopRecording();
 
-      // Start a new recording session
       ws.startRecording();
       await ws.sendAudioChunk(new Uint8Array([3]).buffer);
 
       const messages = mockWebSocketInstance?.sentMessages || [];
-      // start + 2 chunks + stop + start + 1 chunk = 6 messages
       expect(messages.length).toBe(6);
 
-      // The chunk after the second startRecording should have seq=0
       const lastFrame = messages[5] as ArrayBuffer;
       expect(new DataView(lastFrame).getUint16(2, false)).toBe(0);
     });
@@ -356,7 +320,6 @@ describe('AudioWebSocket', () => {
       const ws = new AudioWebSocket();
       await connectWebSocket(ws);
 
-      // Not recording
       const blob = new Blob(['test']);
       await ws.sendAudioChunk(blob);
 
@@ -369,202 +332,5 @@ describe('AudioWebSocket', () => {
       const blob = new Blob(['test']);
       await ws.sendAudioChunk(blob); // Should not throw
     });
-  });
-
-  describe('message handling', () => {
-    it('calls onTranscript for transcript messages', async () => {
-      const onTranscript = vi.fn();
-      const ws = new AudioWebSocket({ onTranscript });
-      await connectWebSocket(ws);
-
-      mockWebSocketInstance?.simulateMessage(JSON.stringify({
-        type: 'transcript',
-        text: 'show me a cat',
-      }));
-
-      expect(onTranscript).toHaveBeenCalledWith('show me a cat');
-    });
-
-    it('calls onMedia for media messages', async () => {
-      const onMedia = vi.fn();
-      const ws = new AudioWebSocket({ onMedia });
-      await connectWebSocket(ws);
-
-      const mediaMsg: MediaMessage = {
-        type: 'media',
-        subject: 'cat',
-        photo_url: '/data/media/cat/set1/photo.jpg',
-        audio_url: '/data/media/cat/set1/audio.mp3',
-      };
-      mockWebSocketInstance?.simulateMessage(JSON.stringify(mediaMsg));
-
-      expect(onMedia).toHaveBeenCalledWith(mediaMsg);
-    });
-
-    it('calls onTTSAudio for tts_audio messages', async () => {
-      const onTTSAudio = vi.fn();
-      const ws = new AudioWebSocket({ onTTSAudio });
-      await connectWebSocket(ws);
-
-      const ttsMsg = {
-        type: 'tts_audio' as const,
-        audio_data: 'dGVzdA==', // base64 "test"
-        text: 'Here is a cat!',
-      };
-      mockWebSocketInstance?.simulateMessage(JSON.stringify(ttsMsg));
-
-      expect(onTTSAudio).toHaveBeenCalledWith(ttsMsg);
-    });
-
-    it('calls onError for error messages', async () => {
-      const onError = vi.fn();
-      const ws = new AudioWebSocket({ onError });
-      await connectWebSocket(ws);
-
-      mockWebSocketInstance?.simulateMessage(JSON.stringify({
-        type: 'error',
-        message: 'transcription failed',
-      }));
-
-      expect(onError).toHaveBeenCalled();
-      const error = onError.mock.calls[0][0];
-      expect(error).toBeInstanceOf(ApiError);
-      expect(error.message).toBe('transcription failed');
-    });
-
-    it('handles pong messages silently', async () => {
-      const onError = vi.fn();
-      const ws = new AudioWebSocket({ onError });
-      await connectWebSocket(ws);
-
-      mockWebSocketInstance?.simulateMessage(JSON.stringify({ type: 'pong' }));
-
-      // No error should be called for valid pong
-      expect(onError).not.toHaveBeenCalled();
-    });
-
-    it('ignores invalid JSON', async () => {
-      const onError = vi.fn();
-      const ws = new AudioWebSocket({ onError });
-      await connectWebSocket(ws);
-
-      mockWebSocketInstance?.simulateMessage('not valid json');
-
-      // Should not call onError for parse errors
-      expect(onError).not.toHaveBeenCalled();
-    });
-
-    it('ignores binary messages', async () => {
-      const onTranscript = vi.fn();
-      const ws = new AudioWebSocket({ onTranscript });
-      await connectWebSocket(ws);
-
-      mockWebSocketInstance?.simulateMessage(new ArrayBuffer(10));
-
-      expect(onTranscript).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('reconnection', () => {
-    it('attempts reconnect on unexpected close', async () => {
-      const onStateChange = vi.fn();
-      const ws = new AudioWebSocket({ onStateChange }, { reconnectDelay: 100 });
-      await connectWebSocket(ws);
-
-      // Simulate unexpected close
-      mockWebSocketInstance?.simulateUnexpectedClose();
-
-      expect(ws.getState()).toBe('reconnecting');
-      expect(onStateChange).toHaveBeenCalledWith('reconnecting');
-    });
-
-    it('gives up after max attempts', async () => {
-      const onError = vi.fn();
-      const onStateChange = vi.fn();
-      const ws = new AudioWebSocket({ onError, onStateChange }, {
-        reconnectDelay: 10,
-        maxReconnectAttempts: 0, // Give up immediately
-      });
-      await connectWebSocket(ws);
-
-      // Unexpected close - should give up immediately since max is 0
-      mockWebSocketInstance?.simulateUnexpectedClose();
-
-      expect(ws.getState()).toBe('disconnected');
-      expect(onError).toHaveBeenCalled();
-      expect(onError.mock.calls[0][0].message).toContain('max reconnect attempts');
-    });
-
-    it('clears reconnect timer on disconnect', async () => {
-      vi.useFakeTimers();
-      const onStateChange = vi.fn();
-      const ws = new AudioWebSocket({ onStateChange }, {
-        reconnectDelay: 5000,
-        maxReconnectAttempts: 3,
-      });
-      await connectWebSocket(ws);
-
-      // Simulate unexpected close - triggers reconnect timer
-      mockWebSocketInstance?.simulateUnexpectedClose();
-      expect(ws.getState()).toBe('reconnecting');
-
-      // Disconnect before the reconnect timer fires
-      ws.disconnect();
-      expect(ws.getState()).toBe('disconnected');
-
-      // Advance past the reconnect delay - timer should have been cleared
-      vi.advanceTimersByTime(10000);
-
-      // State should still be disconnected (no reconnect happened)
-      expect(ws.getState()).toBe('disconnected');
-      vi.useRealTimers();
-    });
-
-    it('does not reconnect on clean close', async () => {
-      const onStateChange = vi.fn();
-      const ws = new AudioWebSocket({ onStateChange });
-      await connectWebSocket(ws);
-
-      // Clean close via disconnect
-      ws.disconnect();
-
-      expect(ws.getState()).toBe('disconnected');
-      // Should not have gone through reconnecting state
-      const states = onStateChange.mock.calls.map(call => call[0]);
-      expect(states).not.toContain('reconnecting');
-    });
-  });
-
-  describe('ping', () => {
-    it('sends ping message', async () => {
-      const ws = new AudioWebSocket();
-      await connectWebSocket(ws);
-
-      ws.ping();
-
-      const messages = mockWebSocketInstance?.sentMessages || [];
-      expect(JSON.parse(messages[0] as string)).toEqual({ type: 'ping' });
-    });
-
-    it('does nothing if not connected', () => {
-      const ws = new AudioWebSocket();
-      ws.ping(); // Should not throw
-    });
-  });
-});
-
-describe('createAudioWebSocket', () => {
-  it('creates AudioWebSocket instance', () => {
-    const ws = createAudioWebSocket();
-    expect(ws).toBeInstanceOf(AudioWebSocket);
-  });
-
-  it('passes callbacks and options', () => {
-    const onTranscript = vi.fn();
-    const ws = createAudioWebSocket(
-      { onTranscript },
-      { url: 'wss://test.host/ws' }
-    );
-    expect(ws).toBeInstanceOf(AudioWebSocket);
   });
 });

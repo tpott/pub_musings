@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 145 tasks completed.
+Production-ready voice-controlled web app for children. 146 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,12 @@ Production-ready voice-controlled web app for children. 145 tasks completed.
 
 ## Last Completed
 
-- Task 145 (2026-02-06): Split websocket_llm_test.go (679→270+342 lines)
-  - Moved capturingMockLLMProvider and sequentialMockLLMProvider to websocket_config_test.go (shared mock infrastructure)
-  - Split into websocket_llm_test.go (word/concept data forwarding) and websocket_llm_tools_test.go (tool action behavior)
-  - All three files under 500 lines (270, 342, 283)
+- Task 146 (2026-02-06): Split 5 remaining oversized test files under 500 lines
+  - transcribe_test.go (534→203+317): basic handler + validation/whisper tests
+  - intent_test.go (519→286+245): core handler + validation/OpenAI tests
+  - feedback_test.go (512→226+300): success/basic + validation tests
+  - peekaboo-flow-websocket.test.ts (574→394+291): basic WebSocket flow + TTS/transcript tests
+  - websocket-audio.test.ts (570→336+287): connection/recording + messages/reconnection tests
 
 ## Milestone History
 
@@ -61,3 +63,4 @@ Production-ready voice-controlled web app for children. 145 tasks completed.
 - Task 143 (2026-02-06): Whisper VAD integration for silence-based triggering
 - Task 144 (2026-02-06): E2E endurance test for continuous listening
 - Task 145 (2026-02-06): Split oversized websocket_llm_test.go into two files
+- Task 146 (2026-02-06): Split 5 remaining oversized test files (backend + frontend)
