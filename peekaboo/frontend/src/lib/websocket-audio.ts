@@ -364,7 +364,8 @@ export class AudioWebSocket {
           );
         }
       } catch {
-        // Reconnect failed, attemptReconnect will be called again via onclose
+        // Reconnect failed — try again if attempts remain
+        this.attemptReconnect(wasRecording);
       }
     }, delay);
   }

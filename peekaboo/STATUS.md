@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 152 tasks completed.
+Production-ready voice-controlled web app for children. 153 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 250+ unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 264 unit tests, 19+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,10 +32,11 @@ Production-ready voice-controlled web app for children. 152 tasks completed.
 
 ## Last Completed
 
-- Task 152 (2026-02-06): Fix InstructionEndWordIdx zero-value ambiguity in LLM tool parsing
-  - Changed showMediaInput.InstructionEndWordIdx from int to *int
-  - Missing field now yields -1 (clear buffer) instead of 0 (trim at first word)
-  - 5 new backend tests (missing/zero/provided for Anthropic, missing/zero for OpenAI)
+- Task 153 (2026-02-06): Fix WebSocket reconnection bug and add reconnect/ping/message tests
+  - Fixed reconnect retry: catch block now calls attemptReconnect directly (was dead code)
+  - 13 new tests: reconnection (6), ping (4), message handling (3)
+  - Split into websocket-audio.test.ts and websocket-audio-reconnect.test.ts
+  - 264 total frontend tests
 
 ## Milestone History
 
@@ -68,3 +69,4 @@ Production-ready voice-controlled web app for children. 152 tasks completed.
 - Task 150 (2026-02-06): Fix PeekabooFlow.destroy() resource cleanup gaps
 - Task 151 (2026-02-06): Fix response body leak in fetchWithRetry on retryable status codes
 - Task 152 (2026-02-06): Fix InstructionEndWordIdx zero-value ambiguity in LLM tool parsing
+- Task 153 (2026-02-06): Fix WebSocket reconnection bug + reconnect/ping/message tests
