@@ -69,6 +69,7 @@ export class AudioWebSocket {
   private state: ConnectionState = 'disconnected';
   private reconnectAttempts = 0;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private isRecording = false;
 
   constructor(callbacks: AudioWebSocketCallbacks = {}, options: AudioWebSocketOptions = {}) {
@@ -166,6 +167,7 @@ export class AudioWebSocket {
    */
   disconnect(): void {
     this.stopPingTimer();
+    this.clearReconnectTimer();
     this.isRecording = false;
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect');
@@ -291,6 +293,13 @@ export class AudioWebSocket {
     }
   }
 
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
   private attemptReconnect(wasRecording: boolean): void {
     if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {
       this.setState('disconnected');
@@ -305,7 +314,8 @@ export class AudioWebSocket {
 
     const delay = this.options.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
-    setTimeout(async () => {
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
       try {
         await this.connect();
         // Reconnected successfully

@@ -411,6 +411,31 @@ describe('AudioWebSocket', () => {
       expect(onError.mock.calls[0][0].message).toContain('max reconnect attempts');
     });
 
+    it('clears reconnect timer on disconnect', async () => {
+      vi.useFakeTimers();
+      const onStateChange = vi.fn();
+      const ws = new AudioWebSocket({ onStateChange }, {
+        reconnectDelay: 5000,
+        maxReconnectAttempts: 3,
+      });
+      await connectWebSocket(ws);
+
+      // Simulate unexpected close - triggers reconnect timer
+      mockWebSocketInstance?.simulateUnexpectedClose();
+      expect(ws.getState()).toBe('reconnecting');
+
+      // Disconnect before the reconnect timer fires
+      ws.disconnect();
+      expect(ws.getState()).toBe('disconnected');
+
+      // Advance past the reconnect delay - timer should have been cleared
+      vi.advanceTimersByTime(10000);
+
+      // State should still be disconnected (no reconnect happened)
+      expect(ws.getState()).toBe('disconnected');
+      vi.useRealTimers();
+    });
+
     it('does not reconnect on clean close', async () => {
       const onStateChange = vi.fn();
       const ws = new AudioWebSocket({ onStateChange });

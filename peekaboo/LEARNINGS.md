@@ -285,3 +285,13 @@ if strings.TrimSpace(transcript) == "" {
 **Solution:** Replaced `innerHTML` with `textContent` + `createElement`/`appendChild`. This is inherently safe regardless of input content since `textContent` auto-escapes HTML entities.
 
 **Lesson:** Never use `innerHTML` with dynamic content, even if the source seems trustworthy. API error messages can be controlled by a compromised backend or man-in-the-middle. Use `textContent` for text content and `createElement` for structure.
+
+---
+
+### 2026-02-05: Untracked setTimeout creates timer leaks on destroy/disconnect
+
+**Problem:** `PeekabooFlow.handleError()` used `setTimeout()` for auto-dismiss without storing the timer ID. If `destroy()` was called while the timeout was pending, the callback would fire and try to update state on a destroyed instance. Similarly, `AudioWebSocket.attemptReconnect()` used `setTimeout()` without tracking it, so `disconnect()` wouldn't cancel a pending reconnect.
+
+**Solution:** Store the timer ID as a class property (`errorTimeoutId`, `reconnectTimer`), null it when the callback fires, and clear it in cleanup methods (`destroy()`, `disconnect()`). Also clear previous error timeout when a new error occurs (prevents stale timeouts from overlapping).
+
+**Lesson:** Every `setTimeout`/`setInterval` in a class that has a lifecycle (create/destroy) must be tracked and cleared in the cleanup method. This is a common source of subtle bugs where callbacks fire on destroyed objects.

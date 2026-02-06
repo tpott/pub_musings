@@ -438,6 +438,30 @@ describe('PeekabooFlow', () => {
     });
   });
 
+  describe('destroy', () => {
+    it('clears pending error timeout', async () => {
+      vi.useFakeTimers();
+
+      (audioRecorder.transcribeAudio as Mock).mockRejectedValue(
+        new Error('Test error')
+      );
+
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+      expect(flow.getState()).toBe('error');
+
+      // Destroy while error timeout is pending
+      flow.destroy();
+
+      // Advance past the error timeout (3 seconds)
+      vi.advanceTimersByTime(5000);
+
+      // State should still be error (timeout was cleared, no transition to idle)
+      expect(flow.getState()).toBe('error');
+      vi.useRealTimers();
+    });
+  });
+
   // Event tests (click, touch, keyboard) moved to peekaboo-flow-events.test.ts
   // WebSocket mode tests moved to peekaboo-flow-websocket.test.ts
 });

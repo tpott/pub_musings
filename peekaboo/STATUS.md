@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 131 tasks completed.
+Production-ready voice-controlled web app for children. 132 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 237+ unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 239+ unit tests, 19+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,11 +32,10 @@ Production-ready voice-controlled web app for children. 131 tasks completed.
 
 ## Last Completed
 
-- Tasks 128-131 (2026-02-05):
-  - Task 128: Added HTTP server timeouts (ReadHeaderTimeout 10s, IdleTimeout 120s) to prevent slowloris DoS
-  - Task 129: Replaced innerHTML XSS vector in media-display.ts reset() with textContent/DOM APIs
-  - Task 130: Fixed doc inconsistencies: wrong error messages, missing rate limits, build command
-  - Task 131: Added event listener cleanup to PeekabooFlow destroy() to prevent memory leaks
+- Task 132 (2026-02-05): Fixed timer leaks in PeekabooFlow error timeout and AudioWebSocket reconnect
+  - PeekabooFlow: track errorTimeoutId, clear in destroy() and on new errors
+  - AudioWebSocket: track reconnectTimer, clear in disconnect()
+  - Added 2 new unit tests verifying timer cleanup
 
 ## Milestone History
 
@@ -48,3 +47,4 @@ Production-ready voice-controlled web app for children. 131 tasks completed.
 - Tasks 103-123 (2026-02-05): Code organization, feedback, theme, linting
 - Tasks 124-127 (2026-02-05): Security hardening, code cleanup, docs, CI guard
 - Tasks 128-131 (2026-02-05): Server timeouts, XSS fix, doc fixes, event listener cleanup
+- Task 132 (2026-02-05): Timer leak fixes (error timeout, reconnect timeout)

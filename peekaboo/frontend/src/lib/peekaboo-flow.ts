@@ -50,6 +50,9 @@ export class PeekabooFlow {
   // Transcript display
   private transcriptContainer: HTMLElement | null = null;
 
+  // Error auto-dismiss timer
+  private errorTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   // Bound event handlers (stored for removal in destroy)
   private handleClick: (e: MouseEvent) => void;
   private handleTouchEnd: (e: TouchEvent) => void;
@@ -429,15 +432,26 @@ export class PeekabooFlow {
 
     this.onError?.(error);
 
+    // Clear any previous error timeout
+    this.clearErrorTimeout();
+
     // Longer timeout for rate limit errors
     const timeout = (error instanceof ApiError && error.type === 'rate_limit') ? 5000 : 3000;
 
     // Reset to idle after showing error
-    setTimeout(() => {
+    this.errorTimeoutId = setTimeout(() => {
+      this.errorTimeoutId = null;
       if (this.state === 'error') {
         this.setState('idle');
       }
     }, timeout);
+  }
+
+  private clearErrorTimeout(): void {
+    if (this.errorTimeoutId) {
+      clearTimeout(this.errorTimeoutId);
+      this.errorTimeoutId = null;
+    }
   }
 
   /**
@@ -460,6 +474,7 @@ export class PeekabooFlow {
    * Disconnect WebSocket, remove event listeners, and clean up all resources
    */
   destroy(): void {
+    this.clearErrorTimeout();
     this.cleanupWebSocketRecording();
     if (this.wsClient) {
       this.wsClient.disconnect();
