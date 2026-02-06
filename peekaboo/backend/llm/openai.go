@@ -311,10 +311,14 @@ func parseOpenAIToolActions(calls []toolCall) (*TranscriptResult, error) {
 			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
 				return nil, fmt.Errorf("unmarshal show_media: %w", err)
 			}
+			wordIdx := -1
+			if input.InstructionEndWordIdx != nil {
+				wordIdx = *input.InstructionEndWordIdx
+			}
 			actions = append(actions, ToolAction{
 				Type:                  "show_media",
 				Subject:               input.Subject,
-				InstructionEndWordIdx: input.InstructionEndWordIdx,
+				InstructionEndWordIdx: wordIdx,
 			})
 		case "text_to_speech":
 			var input textToSpeechInput

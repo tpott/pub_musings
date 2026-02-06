@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 151 tasks completed.
+Production-ready voice-controlled web app for children. 152 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,9 +32,10 @@ Production-ready voice-controlled web app for children. 151 tasks completed.
 
 ## Last Completed
 
-- Task 151 (2026-02-06): Fix response body leak in fetchWithRetry on retryable status codes
-  - Added response.body?.cancel() before retrying to free underlying connection
-  - 1 new unit test (251 total frontend tests)
+- Task 152 (2026-02-06): Fix InstructionEndWordIdx zero-value ambiguity in LLM tool parsing
+  - Changed showMediaInput.InstructionEndWordIdx from int to *int
+  - Missing field now yields -1 (clear buffer) instead of 0 (trim at first word)
+  - 5 new backend tests (missing/zero/provided for Anthropic, missing/zero for OpenAI)
 
 ## Milestone History
 
@@ -66,3 +67,4 @@ Production-ready voice-controlled web app for children. 151 tasks completed.
 - Task 149 (2026-02-06): Update outdated documentation references
 - Task 150 (2026-02-06): Fix PeekabooFlow.destroy() resource cleanup gaps
 - Task 151 (2026-02-06): Fix response body leak in fetchWithRetry on retryable status codes
+- Task 152 (2026-02-06): Fix InstructionEndWordIdx zero-value ambiguity in LLM tool parsing

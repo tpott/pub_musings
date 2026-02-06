@@ -404,6 +404,53 @@ func TestOpenAIProvider_ExtractIntent_ContextCancellation(t *testing.T) {
 	}
 }
 
+func TestParseOpenAIToolActions_MissingWordIdx(t *testing.T) {
+	calls := []toolCall{
+		{
+			ID:   "call_1",
+			Type: "function",
+			Function: functionCall{
+				Name:      "show_media",
+				Arguments: `{"subject": "cat"}`,
+			},
+		},
+	}
+
+	result, err := parseOpenAIToolActions(calls)
+	if err != nil {
+		t.Fatalf("parseOpenAIToolActions failed: %v", err)
+	}
+	if len(result.Actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(result.Actions))
+	}
+	if result.Actions[0].InstructionEndWordIdx != -1 {
+		t.Errorf("expected InstructionEndWordIdx=-1 for missing field, got %d",
+			result.Actions[0].InstructionEndWordIdx)
+	}
+}
+
+func TestParseOpenAIToolActions_ZeroWordIdx(t *testing.T) {
+	calls := []toolCall{
+		{
+			ID:   "call_1",
+			Type: "function",
+			Function: functionCall{
+				Name:      "show_media",
+				Arguments: `{"subject": "cat", "instruction_end_word_index": 0}`,
+			},
+		},
+	}
+
+	result, err := parseOpenAIToolActions(calls)
+	if err != nil {
+		t.Fatalf("parseOpenAIToolActions failed: %v", err)
+	}
+	if result.Actions[0].InstructionEndWordIdx != 0 {
+		t.Errorf("expected InstructionEndWordIdx=0, got %d",
+			result.Actions[0].InstructionEndWordIdx)
+	}
+}
+
 func containsSubstring(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

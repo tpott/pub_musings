@@ -330,6 +330,74 @@ func TestAnthropicProvider_ExtractIntent_ContextCancellation(t *testing.T) {
 	}
 }
 
+func TestParseToolActions_MissingWordIdx(t *testing.T) {
+	// When instruction_end_word_index is missing, InstructionEndWordIdx should be -1
+	blocks := []anthropicContentBlock{
+		{
+			Type:  "tool_use",
+			ID:    "toolu_1",
+			Name:  "show_media",
+			Input: json.RawMessage(`{"subject": "cat"}`),
+		},
+	}
+
+	result, err := parseToolActions(blocks)
+	if err != nil {
+		t.Fatalf("parseToolActions failed: %v", err)
+	}
+	if len(result.Actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(result.Actions))
+	}
+	if result.Actions[0].InstructionEndWordIdx != -1 {
+		t.Errorf("expected InstructionEndWordIdx=-1 for missing field, got %d",
+			result.Actions[0].InstructionEndWordIdx)
+	}
+}
+
+func TestParseToolActions_ZeroWordIdx(t *testing.T) {
+	// When instruction_end_word_index is explicitly 0, it should be 0 (not -1)
+	blocks := []anthropicContentBlock{
+		{
+			Type:  "tool_use",
+			ID:    "toolu_1",
+			Name:  "show_media",
+			Input: json.RawMessage(`{"subject": "cat", "instruction_end_word_index": 0}`),
+		},
+	}
+
+	result, err := parseToolActions(blocks)
+	if err != nil {
+		t.Fatalf("parseToolActions failed: %v", err)
+	}
+	if len(result.Actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(result.Actions))
+	}
+	if result.Actions[0].InstructionEndWordIdx != 0 {
+		t.Errorf("expected InstructionEndWordIdx=0 for explicit zero, got %d",
+			result.Actions[0].InstructionEndWordIdx)
+	}
+}
+
+func TestParseToolActions_ProvidedWordIdx(t *testing.T) {
+	blocks := []anthropicContentBlock{
+		{
+			Type:  "tool_use",
+			ID:    "toolu_1",
+			Name:  "show_media",
+			Input: json.RawMessage(`{"subject": "cat", "instruction_end_word_index": 3}`),
+		},
+	}
+
+	result, err := parseToolActions(blocks)
+	if err != nil {
+		t.Fatalf("parseToolActions failed: %v", err)
+	}
+	if result.Actions[0].InstructionEndWordIdx != 3 {
+		t.Errorf("expected InstructionEndWordIdx=3, got %d",
+			result.Actions[0].InstructionEndWordIdx)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsAt(s, substr, 0))
 }

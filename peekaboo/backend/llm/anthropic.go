@@ -84,7 +84,7 @@ type anthropicContentBlock struct {
 
 type showMediaInput struct {
 	Subject               string `json:"subject"`
-	InstructionEndWordIdx int    `json:"instruction_end_word_index"`
+	InstructionEndWordIdx *int   `json:"instruction_end_word_index"`
 }
 
 type textToSpeechInput struct {
@@ -329,10 +329,14 @@ func parseToolActions(blocks []anthropicContentBlock) (*TranscriptResult, error)
 			if err := json.Unmarshal(block.Input, &input); err != nil {
 				return nil, fmt.Errorf("unmarshal show_media input: %w", err)
 			}
+			wordIdx := -1
+			if input.InstructionEndWordIdx != nil {
+				wordIdx = *input.InstructionEndWordIdx
+			}
 			actions = append(actions, ToolAction{
 				Type:                  "show_media",
 				Subject:               input.Subject,
-				InstructionEndWordIdx: input.InstructionEndWordIdx,
+				InstructionEndWordIdx: wordIdx,
 			})
 		case "text_to_speech":
 			var input textToSpeechInput
