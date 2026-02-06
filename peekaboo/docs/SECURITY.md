@@ -70,7 +70,7 @@ Invalid concept IDs return 400 Bad Request with "invalid concept format" message
 |---------|----------|-------|
 | ReadHeaderTimeout | `main.go:192` | 10s (prevents slowloris) |
 | IdleTimeout | `main.go:193` | 120s (closes idle conns) |
-| Rate limiting | `api/ratelimit.go:78-91` | 10 req/min per IP |
+| Rate limiting | `api/ratelimit.go` `RateLimitMiddleware()` | 10 req/min per IP |
 | Multipart form size | `api/transcribe.go:79` | 10 MB max |
 | Audio file min size | `api/transcribe.go:93-97` | 1 KB min |
 | Audio file max size | `api/transcribe.go:100-104` | 5 MB max |
@@ -80,7 +80,9 @@ Rate limiter applied to expensive endpoints (`/api/transcribe`, `/api/intent`, `
 
 WebSocket connections are rate-limited BEFORE upgrade - returns HTTP 429 if limit exceeded.
 
-Cleanup goroutine prevents rate limiter memory growth (`main.go:79-90`).
+Cleanup goroutine prevents rate limiter memory growth (see `main.go` startup).
+
+**IP Extraction**: By default, `getClientIP()` uses only `RemoteAddr` to prevent clients from spoofing their IP via `X-Forwarded-For` or `X-Real-IP` headers to bypass rate limiting. Set `TRUST_PROXY_HEADERS=true` only when running behind a trusted reverse proxy that sets these headers.
 
 ### 5. Clickjacking
 
@@ -188,6 +190,7 @@ cd backend && go test ./api -v -run InvalidConcept
 
 ## Security Checklist for Deployment
 
+- [ ] Set `TRUST_PROXY_HEADERS=true` if behind a reverse proxy (default: false)
 - [ ] Set `ALLOWED_ORIGIN` to production domain (not `*`)
 - [ ] Use HTTPS (Caddy auto-HTTPS recommended)
 - [ ] Restrict age key file permissions (`chmod 600`)

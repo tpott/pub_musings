@@ -99,6 +99,7 @@ sops -d secrets.enc.yaml > .env
 | `OPENAI_API_KEY` | OpenAI API key | - |
 | `WHISPER_SERVER_URL` | Whisper server URL | - |
 | `PIPER_SERVER_URL` | Piper TTS server URL (optional) | - |
+| `TRUST_PROXY_HEADERS` | Trust X-Forwarded-For/X-Real-IP for IP extraction | `false` |
 | `ALLOWED_ORIGIN` | CORS allowed origin (e.g., `https://peekaboo.example.com`) | `*` (dev only) |
 | `WEBSOCKET_IDLE_TIMEOUT_SECS` | WebSocket idle timeout in seconds | `300` |
 | `WEBSOCKET_MAX_CONNECTIONS` | Max concurrent WebSocket connections | `100` |

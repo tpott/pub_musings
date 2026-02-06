@@ -32,11 +32,11 @@ Production-ready voice-controlled web app for children. 170 tasks completed.
 
 ## Last Completed
 
-- Tasks 167-170 (2026-02-06): JSON parse safety, TTS hardening, doc fixes
+- Tasks 167-170 (2026-02-06): JSON parse safety, TTS hardening, doc fixes, proxy trust
   - Task 167: Add try-catch around response.json() in intent.ts, audio-recorder.ts, media-display.ts
   - Task 168: Add io.LimitReader (10MB) to Piper TTS success response body read
   - Task 169: Fix API.md max audio size (10MB→5MB), SECURITY.md stale line numbers
-  - Task 170: Configurable proxy header trust for rate limiter (pending)
+  - Task 170: Configurable TRUST_PROXY_HEADERS for rate limiter IP extraction
 
 ## Milestone History
 
@@ -75,4 +75,4 @@ Production-ready voice-controlled web app for children. 170 tasks completed.
 - Task 156 (2026-02-06): Add tests for untested PeekabooFlow code paths
 - Tasks 157-162 (2026-02-06): Security hardening batch + E2E theme test coverage
 - Tasks 163-166 (2026-02-06): Piper TTS hardening, feedback improvements, spec maintenance
-- Tasks 167-169 (2026-02-06): JSON parse safety, TTS response limit, doc accuracy fixes
+- Tasks 167-170 (2026-02-06): JSON parse safety, TTS response limit, doc fixes, proxy header trust

@@ -96,6 +96,14 @@ func main() {
 		}
 	}()
 
+	// Configure proxy header trust for rate limiter IP extraction.
+	// Default is false (use RemoteAddr only) to prevent IP spoofing.
+	// Set TRUST_PROXY_HEADERS=true when behind a trusted reverse proxy.
+	if strings.EqualFold(os.Getenv("TRUST_PROXY_HEADERS"), "true") {
+		api.TrustProxyHeaders = true
+		slog.Info("proxy header trust enabled (X-Forwarded-For, X-Real-IP)")
+	}
+
 	// Get allowed origin from environment (used by CORS middleware and WebSocket)
 	allowedOrigin := os.Getenv("ALLOWED_ORIGIN")
 	if allowedOrigin == "" {

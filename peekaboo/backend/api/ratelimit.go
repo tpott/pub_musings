@@ -12,6 +12,11 @@ import (
 // This prevents memory exhaustion from many unique IPs hitting the server.
 const DefaultMaxEntries = 10000
 
+// TrustProxyHeaders controls whether getClientIP trusts X-Forwarded-For and
+// X-Real-IP headers. When false (default), only RemoteAddr is used for IP
+// extraction. Set to true only when running behind a trusted reverse proxy.
+var TrustProxyHeaders bool
+
 // RateLimiter implements a sliding window rate limiter per IP.
 type RateLimiter struct {
 	mu         sync.Mutex
@@ -146,22 +151,26 @@ func RateLimitMiddleware(next http.Handler, limiter *RateLimiter) http.Handler {
 }
 
 // getClientIP extracts the client IP from the request.
-// Handles X-Forwarded-For and X-Real-IP headers for proxy setups.
+// When TrustProxyHeaders is true, checks X-Forwarded-For and X-Real-IP headers
+// for proxy setups. When false (default), only uses RemoteAddr to prevent
+// clients from spoofing their IP to bypass rate limiting.
 func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For first (comma-separated list, first is client)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP in the list
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return xff[:i]
+	if TrustProxyHeaders {
+		// Check X-Forwarded-For first (comma-separated list, first is client)
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// Take the first IP in the list
+			for i := 0; i < len(xff); i++ {
+				if xff[i] == ',' {
+					return xff[:i]
+				}
 			}
+			return xff
 		}
-		return xff
-	}
 
-	// Check X-Real-IP
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
+		// Check X-Real-IP
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return xri
+		}
 	}
 
 	// Fall back to RemoteAddr (may include port)
