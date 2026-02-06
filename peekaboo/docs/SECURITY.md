@@ -68,6 +68,8 @@ Invalid concept IDs return 400 Bad Request with "invalid concept format" message
 **Mitigations**:
 | Control | Location | Limit |
 |---------|----------|-------|
+| ReadHeaderTimeout | `main.go:192` | 10s (prevents slowloris) |
+| IdleTimeout | `main.go:193` | 120s (closes idle conns) |
 | Rate limiting | `api/ratelimit.go:78-91` | 10 req/min per IP |
 | Multipart form size | `api/transcribe.go:79` | 10 MB max |
 | Audio file min size | `api/transcribe.go:93-97` | 1 KB min |

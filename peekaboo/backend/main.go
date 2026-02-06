@@ -184,10 +184,16 @@ func main() {
 	}
 	addr := ":" + port
 
-	// Create server with configured handler
+	// Create server with configured handler and timeouts.
+	// ReadHeaderTimeout prevents slowloris attacks (slow header sends).
+	// IdleTimeout closes idle keep-alive connections.
+	// ReadTimeout and WriteTimeout are NOT set because they apply to the
+	// entire connection lifetime, which would kill long-lived WebSocket connections.
 	server := &http.Server{
-		Addr:    addr,
-		Handler: handler,
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start server in goroutine so we can handle shutdown signals

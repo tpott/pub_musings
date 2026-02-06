@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 127 tasks completed.
+Production-ready voice-controlled web app for children. 131 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,11 @@ Production-ready voice-controlled web app for children. 127 tasks completed.
 
 ## Last Completed
 
-- Tasks 125-127 (2026-02-05):
-  - Task 125: Removed redundant `handler` parameter from `bufferThresholdWatcher` (method receiver `h` is the same)
-  - Task 126: Updated README.md with features added since initial write: WebSocket streaming, continuous listening, Piper TTS, theme toggle, feedback, expanded docs list
-  - Task 127: Added `PEEKABOO_REAL_SERVICES` env var skip guard to real-services E2E test
+- Tasks 128-131 (2026-02-05):
+  - Task 128: Added HTTP server timeouts (ReadHeaderTimeout 10s, IdleTimeout 120s) to prevent slowloris DoS
+  - Task 129: Replaced innerHTML XSS vector in media-display.ts reset() with textContent/DOM APIs
+  - Task 130: Fixed doc inconsistencies: wrong error messages, missing rate limits, build command
+  - Task 131: Added event listener cleanup to PeekabooFlow destroy() to prevent memory leaks
 
 ## Milestone History
 
@@ -46,3 +47,4 @@ Production-ready voice-controlled web app for children. 127 tasks completed.
 - Tasks 82-102 (2026-02-04/05): Performance tuning, error handling, continuous listening UX
 - Tasks 103-123 (2026-02-05): Code organization, feedback, theme, linting
 - Tasks 124-127 (2026-02-05): Security hardening, code cleanup, docs, CI guard
+- Tasks 128-131 (2026-02-05): Server timeouts, XSS fix, doc fixes, event listener cleanup

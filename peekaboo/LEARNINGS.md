@@ -265,3 +265,23 @@ if strings.TrimSpace(transcript) == "" {
 3. whisper-server not started with `--convert` flag (can't process webm/opus)
 
 **Lesson:** When adding user-facing validation to one code path (HTTP), check if similar paths (WebSocket) need the same validation. Consistent error messages across transport methods improve user experience.
+
+---
+
+### 2026-02-05: HTTP server timeouts with WebSocket - use ReadHeaderTimeout not ReadTimeout
+
+**Problem:** Go's `http.Server` has no default timeouts, making it vulnerable to slowloris attacks. But setting `ReadTimeout` or `WriteTimeout` kills long-lived WebSocket connections since those timeouts apply to the entire connection lifetime.
+
+**Solution:** Use `ReadHeaderTimeout` (10s) and `IdleTimeout` (120s) only. These protect against slow header attacks and idle keep-alive connections without affecting WebSocket connections (which upgrade before idle timeout applies).
+
+**Lesson:** When a Go server handles both HTTP and WebSocket, avoid `ReadTimeout` and `WriteTimeout` on `http.Server`. Use `ReadHeaderTimeout` for slowloris protection and manage WebSocket timeouts separately at the application layer (Peekaboo already does this via `WEBSOCKET_IDLE_TIMEOUT_SECS`).
+
+---
+
+### 2026-02-05: innerHTML with dynamic content is an XSS vector even with "trusted" sources
+
+**Problem:** `media-display.ts` used `innerHTML` with template literals containing `placeholderText` parameter. The text originated from `getUserFriendlyMessage()` which could include API error messages from the server (via `data.error` in JSON responses).
+
+**Solution:** Replaced `innerHTML` with `textContent` + `createElement`/`appendChild`. This is inherently safe regardless of input content since `textContent` auto-escapes HTML entities.
+
+**Lesson:** Never use `innerHTML` with dynamic content, even if the source seems trustworthy. API error messages can be controlled by a compromised backend or man-in-the-middle. Use `textContent` for text content and `createElement` for structure.

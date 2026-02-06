@@ -202,7 +202,13 @@ export class MediaDisplay {
    */
   reset(placeholderText: string = 'Say something like "show me a cat"'): void {
     this.stopAudio();
-    this.container.innerHTML = `<div class="placeholder"><p>${placeholderText}</p></div>`;
+    this.container.innerHTML = '';
+    const placeholder = document.createElement('div');
+    placeholder.className = 'placeholder';
+    const p = document.createElement('p');
+    p.textContent = placeholderText;
+    placeholder.appendChild(p);
+    this.container.appendChild(placeholder);
     this.container.setAttribute('aria-label', 'Media display area');
   }
 

@@ -528,7 +528,7 @@ curl -v -H "Connection: Upgrade" -H "Upgrade: websocket" \
 
 **Symptoms:**
 - WebSocket upgrade fails with HTTP 503
-- Error message: "maximum connections reached"
+- Error message: "server at capacity, try again later"
 - Works for first N connections but then fails
 
 **Cause:**

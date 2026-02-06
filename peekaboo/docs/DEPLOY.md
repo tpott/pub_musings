@@ -86,7 +86,8 @@ sops -d secrets.enc.yaml | grep -E '^[A-Z_]+:' | sed 's/: /=/' > .env
 ### 3. Build and run backend
 
 ```bash
-go build -o peekaboo
+cd backend && go build -o ../peekaboo
+cd ..
 ./peekaboo
 ```
 

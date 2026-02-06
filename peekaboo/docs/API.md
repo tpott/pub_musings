@@ -528,6 +528,8 @@ GET /ws/audio → WebSocket upgrade
 
 **Rate Limiting**: 10 WebSocket connections per minute per IP address. Rate-limited requests receive HTTP 429 before upgrade.
 
+**Connection Limit**: Maximum 100 concurrent WebSocket connections (configurable via `WEBSOCKET_MAX_CONNECTIONS`). Excess connections receive HTTP 503 with `"server at capacity, try again later"`.
+
 **Idle Timeout**: Connections are closed after 5 minutes of inactivity (configurable via `WEBSOCKET_IDLE_TIMEOUT_SECS`).
 
 **Max Message Size**: 5MB per binary message.
@@ -678,6 +680,9 @@ Expensive endpoints are rate limited to prevent abuse.
 - **Limit**: 10 requests per minute per IP address
 - **Applies to**: `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`, `GET /ws/audio` (connection upgrade)
 
+- **Limit**: 30 requests per minute per IP address
+- **Applies to**: `GET /api/media/{concept}`
+
 - **Limit**: 5 requests per minute per IP address
 - **Applies to**: `POST /api/feedback`
 
@@ -707,6 +712,7 @@ Common HTTP status codes:
 | 405 | Method Not Allowed |
 | 429 | Too Many Requests (rate limited) |
 | 500 | Internal Server Error |
+| 503 | Service Unavailable (WebSocket connection limit) |
 | 503 | Service Unavailable (dependency unavailable) |
 
 ---

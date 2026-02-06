@@ -50,6 +50,11 @@ export class PeekabooFlow {
   // Transcript display
   private transcriptContainer: HTMLElement | null = null;
 
+  // Bound event handlers (stored for removal in destroy)
+  private handleClick: (e: MouseEvent) => void;
+  private handleTouchEnd: (e: TouchEvent) => void;
+  private handleKeyDown: (e: KeyboardEvent) => void;
+
   constructor(options: PeekabooFlowOptions) {
     this.recorder = new AudioRecorder();
     this.display = new MediaDisplay(options.mediaContainer);
@@ -58,6 +63,23 @@ export class PeekabooFlow {
     this.onError = options.onError;
     this.useWebSocket = options.useWebSocket ?? false;
     this.transcriptContainer = options.transcriptContainer ?? null;
+
+    // Create bound handlers for event listener cleanup
+    this.handleClick = (e: MouseEvent) => {
+      e.preventDefault();
+      this.toggleRecording();
+    };
+    this.handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      this.toggleRecording();
+    };
+    this.handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.toggleRecording();
+      }
+    };
 
     if (this.useWebSocket) {
       this.wsClient = new AudioWebSocket(
@@ -76,28 +98,9 @@ export class PeekabooFlow {
   }
 
   private setupEventListeners(): void {
-    // Toggle recording on click - click to start, click again to stop
-    this.micButton.addEventListener('click', (e: MouseEvent) => {
-      e.preventDefault();
-      this.toggleRecording();
-    });
-
-    // Touch events - use touchend to toggle (prevents double-firing with click on some devices)
-    this.micButton.addEventListener('touchend', (e: TouchEvent) => {
-      e.preventDefault(); // Prevent click event from also firing
-      this.toggleRecording();
-    });
-
-    // Keyboard events - Enter and Space toggle recording
-    this.micButton.addEventListener('keydown', (e: KeyboardEvent) => {
-      // Ignore repeated keydown events (key held down)
-      if (e.repeat) return;
-
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault(); // Prevent scrolling on Space, form submission on Enter
-        this.toggleRecording();
-      }
-    });
+    this.micButton.addEventListener('click', this.handleClick);
+    this.micButton.addEventListener('touchend', this.handleTouchEnd);
+    this.micButton.addEventListener('keydown', this.handleKeyDown);
   }
 
   /**
@@ -454,12 +457,15 @@ export class PeekabooFlow {
   }
 
   /**
-   * Disconnect WebSocket and clean up all resources
+   * Disconnect WebSocket, remove event listeners, and clean up all resources
    */
   destroy(): void {
     this.cleanupWebSocketRecording();
     if (this.wsClient) {
       this.wsClient.disconnect();
     }
+    this.micButton.removeEventListener('click', this.handleClick);
+    this.micButton.removeEventListener('touchend', this.handleTouchEnd);
+    this.micButton.removeEventListener('keydown', this.handleKeyDown);
   }
 }
