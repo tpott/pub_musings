@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 162 tasks completed.
+Production-ready voice-controlled web app for children. 166 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 269 unit tests, 22+ E2E tests
+- **Astro frontend** with TypeScript, 271 unit tests, 23+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,13 +32,11 @@ Production-ready voice-controlled web app for children. 162 tasks completed.
 
 ## Last Completed
 
-- Tasks 157-162 (2026-02-06): Security hardening, XSS fix, memory leak fixes, debug logging, E2E theme tests
-  - Task 157: Limit LLM error response body reads with io.LimitReader (10KB cap)
-  - Task 158: Replace innerHTML with DOM methods in showBrowserSupportError
-  - Task 159: Track and clear success timeout in FeedbackButton
-  - Task 160: Add E2E test for theme toggle (3 tests: cycling, persistence, localStorage)
-  - Task 161: Add PeekabooFlow cleanup on page unload (pagehide → destroy)
-  - Task 162: Add debug logging to silent catch blocks in websocket-audio.ts and errors.ts
+- Tasks 163-166 (2026-02-06): Piper TTS hardening, feedback resilience, spec update, feedback UX
+  - Task 163: Add io.LimitReader to Piper TTS error response body read
+  - Task 164: Add try-catch around response.json() in feedback.ts for non-JSON responses
+  - Task 165: Update specs/feedback.md status from Planning to Implemented
+  - Task 166: Hide feedback button during recording state per spec (custom event + E2E test)
 
 ## Milestone History
 
@@ -76,3 +74,4 @@ Production-ready voice-controlled web app for children. 162 tasks completed.
 - Task 155 (2026-02-06): Wrap handleWsMedia in try-catch to prevent stuck state on display error
 - Task 156 (2026-02-06): Add tests for untested PeekabooFlow code paths
 - Tasks 157-162 (2026-02-06): Security hardening batch + E2E theme test coverage
+- Tasks 163-166 (2026-02-06): Piper TTS hardening, feedback improvements, spec maintenance

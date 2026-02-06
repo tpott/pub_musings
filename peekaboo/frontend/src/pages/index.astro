@@ -104,6 +104,7 @@ import '../styles/global.css';
       useWebSocket,
       onStateChange: (state) => {
         logger.debug('Peekaboo state:', state);
+        document.dispatchEvent(new CustomEvent('peekaboo:statechange', { detail: { state } }));
       },
       onError: (error) => {
         logger.error('Peekaboo error:', error);

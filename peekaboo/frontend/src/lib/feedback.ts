@@ -104,7 +104,16 @@ export async function submitFeedback(data: FeedbackData): Promise<FeedbackRespon
     body: JSON.stringify(body),
   });
 
-  const result: FeedbackResponse = await response.json();
+  let result: FeedbackResponse;
+  try {
+    result = await response.json();
+  } catch {
+    logger.debug('Failed to parse feedback response as JSON');
+    if (!response.ok) {
+      throw new Error('Failed to submit feedback');
+    }
+    return {};
+  }
 
   if (!response.ok) {
     logger.warn('Feedback submission failed', {

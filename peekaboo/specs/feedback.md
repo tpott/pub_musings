@@ -219,6 +219,9 @@ The feedback submission should capture current app context:
 
 ## Status
 
-**Status: Planning**
+**Status: Implemented**
+
+Implemented: Backend API, database schema, frontend component, rate limiting, E2E tests.
+Feedback button hides during recording state (task 166).
 
 Created: 2026-02-05

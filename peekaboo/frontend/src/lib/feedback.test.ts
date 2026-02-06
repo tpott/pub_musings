@@ -194,6 +194,44 @@ describe('feedback', () => {
       await expect(submitFeedback(data)).rejects.toThrow('Network error');
     });
 
+    it('throws generic error when error response is not JSON', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new Error('Unexpected token')),
+      } as unknown as Response);
+
+      const data: FeedbackData = {
+        type: 'general',
+        message: 'Test',
+        context: {
+          sessionId: 'session-123',
+          pageUrl: '/',
+        },
+      };
+
+      await expect(submitFeedback(data)).rejects.toThrow('Failed to submit feedback');
+    });
+
+    it('returns empty object when success response is not JSON', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.reject(new Error('Unexpected token')),
+      } as unknown as Response);
+
+      const data: FeedbackData = {
+        type: 'general',
+        message: 'Test',
+        context: {
+          sessionId: 'session-123',
+          pageUrl: '/',
+        },
+      };
+
+      const result = await submitFeedback(data);
+      expect(result).toEqual({});
+    });
+
     it('excludes null/undefined optional fields from request', async () => {
       const mockResponse = { id: 'feedback_789', status: 'ok' };
       fetchSpy.mockResolvedValueOnce({
