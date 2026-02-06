@@ -388,44 +388,48 @@ export class PeekabooFlow {
    * Handle media received from WebSocket
    */
   private async handleWsMedia(media: MediaMessage): Promise<void> {
-    // Wait for any pending TTS audio to finish before showing media
-    if (this.ttsPlaybackPromise) {
-      await this.ttsPlaybackPromise;
-      this.ttsPlaybackPromise = null;
-    }
-
-    const formattedMedia = {
-      photoUrl: media.photo_url,
-      audioUrl: media.audio_url,
-      videoUrl: media.video_url,
-    };
-
-    // Display the media with accessibility context
-    // Audio autoplay may be blocked - display handles showing indicator
-    await this.display.show(formattedMedia, media.subject);
-
-    // In continuous listening mode, keep recording state while showing media
-    // The mic stays active until user explicitly clicks to stop
-    // This enables "conversational" UX where multiple commands can be issued
-    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-      // Keep recording - don't change state, just update the UI
-      // The mic button stays in "recording" state
-      this.updateRecordingWithMediaUI(media.subject);
-    } else {
-      // Not recording (e.g., stop was already called or recorder failed)
-      this.setState('displaying');
-    }
-
-    // In WebSocket mode, TTS is handled via tts_audio messages from the server.
-    // Only use client-side TTS as fallback when no TTS audio was received.
-    if (!this.ttsAudio) {
-      try {
-        await speakSubject(media.subject);
-      } catch (ttsError) {
-        logger.warn('TTS unavailable:', ttsError);
+    try {
+      // Wait for any pending TTS audio to finish before showing media
+      if (this.ttsPlaybackPromise) {
+        await this.ttsPlaybackPromise;
+        this.ttsPlaybackPromise = null;
       }
+
+      const formattedMedia = {
+        photoUrl: media.photo_url,
+        audioUrl: media.audio_url,
+        videoUrl: media.video_url,
+      };
+
+      // Display the media with accessibility context
+      // Audio autoplay may be blocked - display handles showing indicator
+      await this.display.show(formattedMedia, media.subject);
+
+      // In continuous listening mode, keep recording state while showing media
+      // The mic stays active until user explicitly clicks to stop
+      // This enables "conversational" UX where multiple commands can be issued
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        // Keep recording - don't change state, just update the UI
+        // The mic button stays in "recording" state
+        this.updateRecordingWithMediaUI(media.subject);
+      } else {
+        // Not recording (e.g., stop was already called or recorder failed)
+        this.setState('displaying');
+      }
+
+      // In WebSocket mode, TTS is handled via tts_audio messages from the server.
+      // Only use client-side TTS as fallback when no TTS audio was received.
+      if (!this.ttsAudio) {
+        try {
+          await speakSubject(media.subject);
+        } catch (ttsError) {
+          logger.warn('TTS unavailable:', ttsError);
+        }
+      }
+      this.stopTTSAudio();
+    } catch (error) {
+      this.handleError(error as Error);
     }
-    this.stopTTSAudio();
   }
 
   /**

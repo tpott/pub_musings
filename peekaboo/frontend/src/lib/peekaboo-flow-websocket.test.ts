@@ -399,4 +399,30 @@ describe('PeekabooFlow WebSocket mode', () => {
     // Should transition to displaying since not recording
     expect(flow.getState()).toBe('displaying');
   });
+
+  it('transitions to error state if display.show() throws in handleWsMedia', async () => {
+    mockShow.mockRejectedValue(new Error('DOM failure'));
+
+    const flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      useWebSocket: true,
+      onStateChange: (state) => stateChanges.push(state),
+    });
+
+    await flow.startRecording();
+
+    // Simulate receiving media that triggers a display error
+    wsCallbacks.onMedia({
+      type: 'media',
+      subject: 'cat',
+      photo_url: '/cat.jpg',
+    });
+
+    // Allow async handleWsMedia to complete
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Should have transitioned to error state (not stuck in searching/transcribing)
+    expect(flow.getState()).toBe('error');
+  });
 });

@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 154 tasks completed.
+Production-ready voice-controlled web app for children. 155 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 266 unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 267 unit tests, 19+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,10 +32,10 @@ Production-ready voice-controlled web app for children. 154 tasks completed.
 
 ## Last Completed
 
-- Task 154 (2026-02-06): Add media load error handlers and action loop context check
-  - Image/video elements now log errors on load failure
-  - Backend action loop checks ctx.Err() before each action execution
-  - 2 new frontend tests; 266 total frontend tests
+- Task 155 (2026-02-06): Wrap handleWsMedia in try-catch to prevent stuck state
+  - handleWsMedia catches display errors and transitions to error state
+  - Prevents app from getting stuck if media display fails
+  - 267 total frontend tests
 
 ## Milestone History
 
@@ -70,3 +70,4 @@ Production-ready voice-controlled web app for children. 154 tasks completed.
 - Task 152 (2026-02-06): Fix InstructionEndWordIdx zero-value ambiguity in LLM tool parsing
 - Task 153 (2026-02-06): Fix WebSocket reconnection bug + reconnect/ping/message tests
 - Task 154 (2026-02-06): Add media load error handlers + action loop context cancellation
+- Task 155 (2026-02-06): Wrap handleWsMedia in try-catch to prevent stuck state on display error
