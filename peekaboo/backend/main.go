@@ -67,9 +67,11 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health check endpoints
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			slog.Debug("failed to write health response", "error", err)
+		}
 	})
 	mux.Handle("GET /health/live", api.NewLivenessHandler())
 	mux.Handle("GET /health/ready", api.NewReadinessHandlerWithLLM(database, llmProvider))

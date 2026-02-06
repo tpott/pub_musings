@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 132 tasks completed.
+Production-ready voice-controlled web app for children. 133 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,11 @@ Production-ready voice-controlled web app for children. 132 tasks completed.
 
 ## Last Completed
 
-- Task 132 (2026-02-05): Fixed timer leaks in PeekabooFlow error timeout and AudioWebSocket reconnect
-  - PeekabooFlow: track errorTimeoutId, clear in destroy() and on new errors
-  - AudioWebSocket: track reconnectTimer, clear in disconnect()
-  - Added 2 new unit tests verifying timer cleanup
+- Task 133 (2026-02-05): Added error handling to all unchecked http.ResponseWriter.Write() calls
+  - writeJSON helper now checks json.Encode error
+  - health.go refactored to use writeJSON instead of inline json.NewEncoder().Encode()
+  - w.Write() calls in speak.go, ratelimit.go, websocket.go, main.go now check errors
+  - All errors logged at Debug level (write failures after headers sent are not actionable)
 
 ## Milestone History
 
@@ -48,3 +49,4 @@ Production-ready voice-controlled web app for children. 132 tasks completed.
 - Tasks 124-127 (2026-02-05): Security hardening, code cleanup, docs, CI guard
 - Tasks 128-131 (2026-02-05): Server timeouts, XSS fix, doc fixes, event listener cleanup
 - Task 132 (2026-02-05): Timer leak fixes (error timeout, reconnect timeout)
+- Task 133 (2026-02-05): Unchecked ResponseWriter.Write error handling

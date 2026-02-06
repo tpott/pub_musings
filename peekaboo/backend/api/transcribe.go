@@ -204,5 +204,7 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (string, error) {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Debug("failed to write JSON response", "error", err)
+	}
 }

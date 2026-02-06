@@ -246,7 +246,9 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"rate limit exceeded, try again later"}`))
+			if _, err := w.Write([]byte(`{"error":"rate limit exceeded, try again later"}`)); err != nil {
+				logger.Debug("failed to write rate limit response", "error", err)
+			}
 			return
 		}
 	}
@@ -257,7 +259,9 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 			logger.Warn("websocket connection limit reached", "current", h.ConnTracker.Count(), "max", h.ConnTracker.Max())
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"error":"server at capacity, try again later"}`))
+			if _, err := w.Write([]byte(`{"error":"server at capacity, try again later"}`)); err != nil {
+				logger.Debug("failed to write capacity response", "error", err)
+			}
 			return
 		}
 		// Release the connection slot when done

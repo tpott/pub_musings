@@ -97,5 +97,7 @@ func (h *SpeakHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "audio/wav")
 	w.Header().Set("Content-Length", strconv.Itoa(len(audio)))
 	w.WriteHeader(http.StatusOK)
-	w.Write(audio)
+	if _, err := w.Write(audio); err != nil {
+		slog.Debug("failed to write audio response", "error", err)
+	}
 }

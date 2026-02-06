@@ -3,7 +3,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"os"
 	"time"
@@ -135,9 +134,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check database connectivity
 	if err := h.DB.Ping(); err != nil {
 		details["database"] = "unavailable"
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(HealthResponse{
+		writeJSON(w, http.StatusServiceUnavailable, HealthResponse{
 			Status:  "unavailable",
 			Error:   "database unavailable",
 			Details: details,
@@ -149,9 +146,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check whisper-server connectivity
 	if err := h.checkWhisperServer(); err != nil {
 		details["whisper"] = "unavailable"
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(HealthResponse{
+		writeJSON(w, http.StatusServiceUnavailable, HealthResponse{
 			Status:  "unavailable",
 			Error:   "whisper-server unavailable",
 			Details: details,
@@ -164,9 +159,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.PiperURL != "" {
 		if err := h.checkPiperServer(); err != nil {
 			details["piper"] = "unavailable"
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(HealthResponse{
+			writeJSON(w, http.StatusServiceUnavailable, HealthResponse{
 				Status:  "unavailable",
 				Error:   "piper-server unavailable",
 				Details: details,
@@ -182,9 +175,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		if err := h.LLMProvider.HealthCheck(ctx); err != nil {
 			details["llm"] = "unavailable"
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(HealthResponse{
+			writeJSON(w, http.StatusServiceUnavailable, HealthResponse{
 				Status:  "unavailable",
 				Error:   "llm provider unavailable",
 				Details: details,
