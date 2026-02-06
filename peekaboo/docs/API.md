@@ -514,7 +514,7 @@ Feedback submissions are limited to **5 requests per minute per IP address**.
 
 ## WebSocket Audio Streaming
 
-The WebSocket endpoint provides real-time audio streaming for continuous voice interaction. This enables a "mic stays active while results display" UX, allowing users to issue multiple commands without stopping recording.
+The WebSocket endpoint provides real-time audio streaming for continuous voice interaction. Audio is sent using a framed binary protocol with timestamps, transcribed via whisper-server, and processed by an LLM that decides what action to take (show media, speak, or wait for more input).
 
 ```
 GET /ws/audio → WebSocket upgrade
@@ -536,20 +536,29 @@ GET /ws/audio → WebSocket upgrade
 
 ### Message Protocol
 
-Messages are JSON for control/text and binary for audio data.
+Messages are JSON for control/text and framed binary for audio data.
 
 #### Client → Server
 
-**Audio chunks (binary)**
+**Audio frames (binary)**
 
-Raw audio bytes (webm/opus from MediaRecorder). Sent every ~500ms while recording. No JSON wrapper - pure binary for efficiency.
+Each audio chunk is sent as a binary WebSocket message with a 12-byte header:
+
+```
+Byte 0-1:   Magic number 0xAB01 (big-endian uint16)
+Byte 2-3:   Sequence number (big-endian uint16, wraps at 65535)
+Byte 4-11:  Client timestamp (big-endian float64, milliseconds since epoch)
+Byte 12+:   Audio data (WebM/Opus bytes from MediaRecorder)
+```
+
+Sent every ~500ms while recording. The header enables the server to correlate whisper's audio-relative timestamps with client wall-clock time.
 
 **Control messages (JSON)**
 
 ```json
-{"type": "start_recording"}
+{"type": "start_recording", "client_time": 1707234567890}
 ```
-Tells server to start buffering incoming audio.
+Tells server to start buffering incoming audio. `client_time` is `Date.now()` at recording start, used for clock offset calculation.
 
 ```json
 {"type": "stop_recording"}
@@ -565,15 +574,49 @@ Keep-alive message to prevent idle timeout.
 
 **Transcript**
 
-Sent when audio transcription completes:
+Sent when audio transcription completes. Includes per-word timing and probability data from whisper:
 
 ```json
-{"type": "transcript", "text": "show me a cat"}
+{
+  "type": "transcript",
+  "text": "show me a cat",
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 1.5,
+      "text": "show me a cat",
+      "words": [
+        {"word": "show", "start": 0.0, "end": 0.3, "probability": 0.98},
+        {"word": "me", "start": 0.4, "end": 0.6, "probability": 0.99},
+        {"word": "a", "start": 0.7, "end": 0.8, "probability": 0.97},
+        {"word": "cat", "start": 0.9, "end": 1.3, "probability": 0.99}
+      ]
+    }
+  ],
+  "audio_start_time": 1707234567890.0
+}
 ```
+
+Fields: `segments` and `audio_start_time` are optional (present when word-level data is available).
+
+**TTS audio**
+
+Sent when the LLM requests text-to-speech (requires Piper TTS). Contains base64-encoded WAV audio:
+
+```json
+{
+  "type": "tts_audio",
+  "audio_data": "UklGRiQAAABXQVZFZm10IBAAAA...",
+  "text": "Here is a cat!"
+}
+```
+
+The client should play TTS audio before displaying any subsequent media result.
 
 **Media result**
 
-Sent when media is found for the extracted intent:
+Sent when the LLM identifies a subject and media is found:
 
 ```json
 {
@@ -585,7 +628,7 @@ Sent when media is found for the extracted intent:
 }
 ```
 
-Note: `audio_url` and `video_url` are optional fields, only present when media is available.
+Note: `audio_url` and `video_url` are optional fields, only present when media is available. At most one `media` message is sent per LLM processing cycle.
 
 **Error**
 
@@ -615,15 +658,19 @@ Sent in response to ping:
 
 ### Processing Flow
 
-1. Client sends `start_recording`
-2. Client streams audio chunks (binary) while user speaks
-3. Server buffers audio (processes automatically after 3 seconds, or on `stop_recording`)
-4. Server transcribes audio via whisper-server
-5. Server sends `transcript` message to client
-6. Server extracts intent via LLM
-7. Server looks up media in database
-8. Server sends `media` message to client
-9. Client can continue recording for next command (mic stays active)
+1. Client sends `start_recording` with `client_time`
+2. Client streams framed audio chunks (binary with 12-byte headers) while user speaks
+3. Server accumulates audio and parses WebM container incrementally (EBML init segment + Clusters)
+4. Server triggers transcription when buffer threshold is reached (time-based) or on `stop_recording`
+5. Server transcribes audio via whisper-server with VAD enabled, getting per-word timing and probabilities
+6. Server sends `transcript` message to client with word-level data
+7. Server sends accumulated transcript + word data to LLM with `tool_choice: any`
+8. LLM returns one of three tool actions:
+   - **show_media**: Server looks up media in database, sends `media` message. Trims audio buffer at the instruction boundary (Cluster-aligned) for the next cycle.
+   - **text_to_speech**: Server synthesizes speech via Piper, sends `tts_audio` message. Often followed by `show_media`.
+   - **wait_for_more**: Transcript appears incomplete. Server waits for more audio without acting.
+9. If multiple tools are returned (e.g., `text_to_speech` + `show_media`), they execute in order
+10. Client can continue recording for the next command (mic stays active)
 
 ### Example (JavaScript)
 
@@ -636,6 +683,10 @@ ws.onmessage = (event) => {
     case 'transcript':
       console.log('Heard:', msg.text);
       break;
+    case 'tts_audio':
+      const audio = new Audio('data:audio/wav;base64,' + msg.audio_data);
+      await audio.play();
+      break;
     case 'media':
       displayMedia(msg.photo_url, msg.audio_url);
       break;
@@ -646,11 +697,12 @@ ws.onmessage = (event) => {
 };
 
 // Start recording
-ws.send(JSON.stringify({ type: 'start_recording' }));
+ws.send(JSON.stringify({ type: 'start_recording', client_time: Date.now() }));
 
-// Send audio chunks from MediaRecorder
+// Send framed audio chunks from MediaRecorder
 mediaRecorder.ondataavailable = (e) => {
   if (e.data.size > 0) {
+    // In practice, use AudioWebSocket which adds the 12-byte header
     ws.send(e.data);
   }
 };
@@ -659,7 +711,7 @@ mediaRecorder.ondataavailable = (e) => {
 ws.send(JSON.stringify({ type: 'stop_recording' }));
 ```
 
-For detailed implementation, see [specs/websocket-audio.md](../specs/websocket-audio.md).
+For detailed architecture, see [specs/audio-timing.md](../specs/audio-timing.md) and [specs/websocket-audio.md](../specs/websocket-audio.md).
 
 ---
 
