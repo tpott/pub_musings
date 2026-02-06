@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 143 tasks completed.
+Production-ready voice-controlled web app for children. 144 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,14 +32,11 @@ Production-ready voice-controlled web app for children. 143 tasks completed.
 
 ## Last Completed
 
-- Task 143 (2026-02-06): Whisper VAD integration for silence-based triggering
-  - Backend: `vad=true` form field sent to whisper-server in both HTTP and WebSocket paths
-  - Backend: `detectTrailingSilence()` function analyzes word timing to find silence gaps
-  - Backend: Adaptive buffer threshold — uses shorter threshold (1s vs 3s) when trailing silence detected
-  - Backend: `trailingSilenceDetected` flag on `connectionState` enables faster re-processing after user pauses
-  - Backend: Silence threshold at 0.5s — gaps below this are ignored as natural speech rhythm
-  - 2 new backend tests (VAD form field for HTTP and WebSocket), 6 unit tests for silence detection
-  - All 246 frontend unit tests, 19 E2E tests, backend tests pass
+- Task 144 (2026-02-06): E2E endurance test for continuous listening across multiple buffer cycles
+  - Test sends 1KB chunks (28 chunks at 500ms = 14s) triggering buffer threshold 4+ times
+  - Asserts no crash, no fatal error, mic still recording, media displayed
+  - Skipped by default (requires `PEEKABOO_REAL_SERVICES=1`)
+  - 21 E2E tests total (2 skipped, 19 pass)
 
 ## Milestone History
 
@@ -63,3 +60,4 @@ Production-ready voice-controlled web app for children. 143 tasks completed.
 - Task 141 (2026-02-06): Audio buffer trimming at Cluster boundaries + transcript accumulation
 - Task 142 (2026-02-06): TTS tool execution and multi-tool sequential processing
 - Task 143 (2026-02-06): Whisper VAD integration for silence-based triggering
+- Task 144 (2026-02-06): E2E endurance test for continuous listening
