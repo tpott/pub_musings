@@ -19,6 +19,7 @@ This file tracks high level progress on the peekaboo project.
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
 - **Playwright e2e tests** - 19 tests verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, WebSocket continuous listening (including sequential commands with gap), WebSocket error recovery, and feedback submission
+- **Theme system** - CSS custom properties in theme.css, ThemeInit (FOUC prevention), ThemeToggle (3-mode: light/dark/auto), localStorage persistence, warm neutral palette with terracotta accent
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
 - **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
@@ -58,6 +59,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 119: Add day and night mode with theme redesign (2026-02-05)
+  - Created theme.css with CSS custom properties for light and dark themes
+  - Warm neutral palette: terracotta accent (#d97757), cream backgrounds (light), slate backgrounds (dark)
+  - ThemeInit.astro prevents FOUC with inline script checking localStorage/system preference
+  - ThemeToggle.astro cycles light → dark → auto with sun/moon/palette icons
+  - Updated all components to use CSS variables: index.astro, MicButton, MediaDisplay, FeedbackButton, global.css
+  - 237 frontend unit tests pass, 19 e2e tests pass
 - Task 116: Research Bazel migration (2026-02-05)
   - specs/bazel.md documents findings for Go, Astro, vitest, Playwright
   - Go backend: production-ready with rules_go + Gazelle (cgo concern for go-sqlite3)

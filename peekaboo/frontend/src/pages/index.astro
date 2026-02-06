@@ -2,6 +2,9 @@
 import MicButton from '../components/MicButton.astro';
 import MediaDisplay from '../components/MediaDisplay.astro';
 import FeedbackButton from '../components/FeedbackButton.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import '../styles/theme.css';
 import '../styles/global.css';
 ---
 
@@ -13,9 +16,11 @@ import '../styles/global.css';
     <meta name="description" content="Voice-controlled media display for kids" />
     <title>Peekaboo</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <ThemeInit />
   </head>
   <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
+    <ThemeToggle />
     <main id="main-content" tabindex="-1">
       <h1 class="title">Peekaboo!</h1>
       <MediaDisplay />
@@ -102,8 +107,8 @@ import '../styles/global.css';
     top: 0;
     z-index: 9999;
     padding: 0.75rem 1rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--accent);
+    color: var(--text-on-accent);
     text-decoration: none;
     font-weight: 500;
     border-radius: 0 0 0.5rem 0.5rem;
@@ -111,7 +116,7 @@ import '../styles/global.css';
 
   .skip-link:focus {
     left: 0;
-    outline: 3px solid #4c1d95;
+    outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
@@ -123,10 +128,7 @@ import '../styles/global.css';
   .title {
     font-size: 2.5rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--accent);
   }
 
   @media (min-width: 768px) {
@@ -139,9 +141,10 @@ import '../styles/global.css';
   .browser-error {
     text-align: center;
     padding: 2rem;
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
     border-radius: 1rem;
-    color: #991b1b;
+    color: var(--error-text);
     max-width: 400px;
     margin: 0 auto;
   }
