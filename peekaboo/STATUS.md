@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 138 tasks completed.
+Production-ready voice-controlled web app for children. 139 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 239+ unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 241+ unit tests, 19+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,14 +32,15 @@ Production-ready voice-controlled web app for children. 138 tasks completed.
 
 ## Last Completed
 
-- Task 138 (2026-02-06): Phase 1b — Parse full whisper verbose_json response
-  - Added `Words`, `Tokens`, `Temperature`, `AvgLogProb`, `NoSpeechProb` to `WhisperSegment`
-  - Added `WhisperWord` struct (word, start, end, probability)
-  - `transcribeAudio` and `forwardToWhisper` now return `*WhisperResponse` (not just text)
-  - WebSocket sends rich transcript with segments + word-level data
-  - HTTP `/api/transcribe` response includes segments with word data
-  - Added `split_on_word=true` to whisper requests for cleaner word boundaries
-  - TestWhisperResponseFullParse now passes (was intentionally-failing since task 136)
+- Task 139 (2026-02-06): Phase 2 — Framed audio protocol with 12-byte headers
+  - Frontend `sendAudioChunk` prepends 12-byte header: magic 0xAB01, uint16 seq, float64 timestamp
+  - Frontend `startRecording` includes `client_time` (Date.now()) in control message
+  - Sequence number resets on each new recording session
+  - Backend `handleAudioChunk` parses frame header, strips it before buffering
+  - Backward compatible: raw binary without magic prefix still works (legacy)
+  - `AudioChunkMeta` records seq, client timestamp, server timestamp per chunk
+  - `TranscriptMessage` includes `audio_start_time` (client wall-clock ms of first chunk)
+  - 4 new backend tests (`websocket_framing_test.go`), 2 updated frontend tests
 
 ## Milestone History
 
@@ -58,3 +59,4 @@ Production-ready voice-controlled web app for children. 138 tasks completed.
 - Task 136 (2026-02-05): Failing test proving whisper verbose_json word data is discarded
 - Task 137 (2026-02-06): Fix WebM container corruption with EBML init segment caching
 - Task 138 (2026-02-06): Parse full whisper verbose_json with word-level timing
+- Task 139 (2026-02-06): Framed audio protocol with 12-byte headers and timestamp mapping

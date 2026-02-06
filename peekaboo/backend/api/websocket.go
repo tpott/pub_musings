@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -59,17 +60,37 @@ const (
 	defaultMaxMessageSize = 5 << 20
 )
 
+// Audio frame header constants.
+const (
+	// AudioFrameMagic is the 2-byte magic prefix for framed audio messages (0xAB01).
+	AudioFrameMagic = 0xAB01
+
+	// AudioFrameHeaderSize is the size of the audio frame header in bytes:
+	// 2 (magic) + 2 (sequence number) + 8 (float64 timestamp) = 12 bytes.
+	AudioFrameHeaderSize = 12
+)
+
 // ClientMessage represents a control message from the client.
 type ClientMessage struct {
-	Type string `json:"type"`
+	Type       string  `json:"type"`
+	ClientTime float64 `json:"client_time,omitempty"` // milliseconds since epoch, sent with start_recording
+}
+
+// AudioChunkMeta records metadata from a framed audio chunk's header.
+type AudioChunkMeta struct {
+	Seq      uint16  // sequence number from the frame header
+	ClientTS float64 // client Date.now() in milliseconds from the frame header
+	ServerTS time.Time
+	Offset   int // byte offset of this chunk's audio data in the raw buffer
 }
 
 // TranscriptMessage is sent to client with transcript text and optional
 // word-level timing data from whisper's verbose_json response.
 type TranscriptMessage struct {
-	Type     string           `json:"type"`
-	Text     string           `json:"text"`
-	Segments []WhisperSegment `json:"segments,omitempty"`
+	Type           string           `json:"type"`
+	Text           string           `json:"text"`
+	Segments       []WhisperSegment `json:"segments,omitempty"`
+	AudioStartTime float64          `json:"audio_start_time,omitempty"` // client wall-clock ms of first audio sample
 }
 
 // MediaMessage is sent to client with media URLs.
@@ -253,6 +274,10 @@ type connectionState struct {
 	isRecording  bool
 	lastActivity time.Time
 	bufferStart  time.Time
+
+	// Framed audio protocol metadata
+	chunkMetas       []AudioChunkMeta // metadata for each received audio chunk
+	firstChunkClient float64          // client timestamp (ms) of the first chunk in current buffer window
 }
 
 // ServeHTTP upgrades the connection to WebSocket and handles audio streaming.
@@ -359,6 +384,7 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 }
 
 // handleAudioChunk buffers incoming audio data.
+// Supports both framed (12-byte header with magic 0xAB01) and legacy raw binary.
 func (h *AudioWebSocketHandler) handleAudioChunk(ctx context.Context, conn *websocket.Conn, state *connectionState, data []byte, logger *slog.Logger) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
@@ -368,15 +394,47 @@ func (h *AudioWebSocketHandler) handleAudioChunk(ctx context.Context, conn *webs
 		return
 	}
 
+	audioData := data
+	var chunkMeta *AudioChunkMeta
+
+	// Check for framed audio protocol (12-byte header with magic 0xAB01)
+	if len(data) >= AudioFrameHeaderSize {
+		magic := uint16(data[0])<<8 | uint16(data[1])
+		if magic == AudioFrameMagic {
+			seq := uint16(data[2])<<8 | uint16(data[3])
+			clientTS := math.Float64frombits(
+				uint64(data[4])<<56 | uint64(data[5])<<48 |
+					uint64(data[6])<<40 | uint64(data[7])<<32 |
+					uint64(data[8])<<24 | uint64(data[9])<<16 |
+					uint64(data[10])<<8 | uint64(data[11]),
+			)
+			audioData = data[AudioFrameHeaderSize:]
+			chunkMeta = &AudioChunkMeta{
+				Seq:      seq,
+				ClientTS: clientTS,
+				ServerTS: time.Now(),
+				Offset:   state.webmParser.BufferLen(),
+			}
+		}
+	}
+
 	// Start buffer timer on first chunk
 	if state.webmParser.BufferLen() == 0 {
 		state.bufferStart = time.Now()
+		if chunkMeta != nil {
+			state.firstChunkClient = chunkMeta.ClientTS
+		}
 	}
 
-	// Append to WebM-aware buffer (also extracts init segment)
-	state.webmParser.Append(data)
+	// Append audio (without header) to WebM-aware buffer
+	state.webmParser.Append(audioData)
 
-	logger.Debug("received audio chunk", "size", len(data), "buffer_size", state.webmParser.BufferLen())
+	// Record chunk metadata
+	if chunkMeta != nil {
+		state.chunkMetas = append(state.chunkMetas, *chunkMeta)
+	}
+
+	logger.Debug("received audio chunk", "size", len(audioData), "buffer_size", state.webmParser.BufferLen())
 }
 
 // handleControlMessage processes JSON control messages.
@@ -394,6 +452,8 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		state.isRecording = true
 		state.webmParser.Reset() // Clear previous buffer and init segment
 		state.bufferStart = time.Time{}
+		state.chunkMetas = nil
+		state.firstChunkClient = 0
 		state.mu.Unlock()
 		logger.Debug("recording started")
 
@@ -402,13 +462,14 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		state.isRecording = false
 		audioData := state.webmParser.GrabAudio()
 		state.webmParser.Clear()
+		firstChunkTS := state.firstChunkClient
 		state.mu.Unlock()
 
 		logger.Debug("recording stopped", "buffer_size", len(audioData))
 
 		// Process the buffered audio
 		if len(audioData) >= minAudioSize {
-			go h.processAudio(ctx, conn, audioData, logger)
+			go h.processAudio(ctx, conn, audioData, firstChunkTS, logger)
 		} else if len(audioData) > 0 {
 			h.sendError(ctx, conn, "audio too short", logger)
 		} else {
@@ -422,7 +483,10 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 }
 
 // processAudio transcribes audio and extracts intent.
-func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocket.Conn, audioData []byte, logger *slog.Logger) {
+// firstChunkClientTS is the client wall-clock timestamp (ms since epoch) of the
+// first audio chunk in this buffer, used to map whisper's audio-relative
+// timestamps to client wall-clock time. Zero means no framed timestamps available.
+func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocket.Conn, audioData []byte, firstChunkClientTS float64, logger *slog.Logger) {
 	// 1. Send to whisper for transcription
 	whisperResp, err := h.transcribeAudio(audioData)
 	if err != nil {
@@ -442,7 +506,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	}
 
 	// Send rich transcript to client (includes word-level timing if available)
-	h.sendRichTranscript(ctx, conn, whisperResp, logger)
+	h.sendRichTranscript(ctx, conn, whisperResp, firstChunkClientTS, logger)
 
 	// 2. Extract intent from transcript
 	subject, err := h.extractIntent(ctx, transcript)
@@ -576,11 +640,12 @@ func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript st
 // 2. The connection is likely closing anyway if writes fail
 // The logger parameter should have client IP in its attributes for connection context.
 
-func (h *AudioWebSocketHandler) sendRichTranscript(ctx context.Context, conn *websocket.Conn, whisperResp *WhisperResponse, logger *slog.Logger) {
+func (h *AudioWebSocketHandler) sendRichTranscript(ctx context.Context, conn *websocket.Conn, whisperResp *WhisperResponse, firstChunkClientTS float64, logger *slog.Logger) {
 	msg := TranscriptMessage{
-		Type:     MsgTypeTranscript,
-		Text:     whisperResp.Text,
-		Segments: whisperResp.Segments,
+		Type:           MsgTypeTranscript,
+		Text:           whisperResp.Text,
+		Segments:       whisperResp.Segments,
+		AudioStartTime: firstChunkClientTS,
 	}
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -695,13 +760,16 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 				// GrabAudio always returns init segment + cluster data,
 				// ensuring every whisper request gets a valid WebM file.
 				audioData := state.webmParser.GrabAudio()
+				firstChunkTS := state.firstChunkClient
 				state.bufferStart = time.Now()
+				// Reset firstChunkClient for the next buffer window.
+				state.firstChunkClient = 0
 				state.mu.Unlock()
 
 				logger.Debug("buffer threshold reached", "elapsed", elapsed, "size", len(audioData))
 
 				if len(audioData) >= minAudioSize {
-					go h.processAudio(ctx, conn, audioData, logger)
+					go h.processAudio(ctx, conn, audioData, firstChunkTS, logger)
 				}
 			} else {
 				state.mu.Unlock()

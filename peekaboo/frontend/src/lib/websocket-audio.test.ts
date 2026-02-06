@@ -3,6 +3,8 @@ import {
   AudioWebSocket,
   createAudioWebSocket,
   MediaMessage,
+  AUDIO_FRAME_MAGIC,
+  AUDIO_FRAME_HEADER_SIZE,
 } from './websocket-audio';
 import { ApiError } from './errors';
 
@@ -230,14 +232,19 @@ describe('AudioWebSocket', () => {
   });
 
   describe('startRecording', () => {
-    it('sends start_recording message', async () => {
+    it('sends start_recording message with client_time', async () => {
       const ws = new AudioWebSocket();
       await connectWebSocket(ws);
 
+      const beforeTime = Date.now();
       ws.startRecording();
+      const afterTime = Date.now();
 
       const messages = mockWebSocketInstance?.sentMessages || [];
-      expect(JSON.parse(messages[0] as string)).toEqual({ type: 'start_recording' });
+      const msg = JSON.parse(messages[0] as string);
+      expect(msg.type).toBe('start_recording');
+      expect(msg.client_time).toBeGreaterThanOrEqual(beforeTime);
+      expect(msg.client_time).toBeLessThanOrEqual(afterTime);
       expect(ws.getIsRecording()).toBe(true);
     });
 
@@ -267,20 +274,82 @@ describe('AudioWebSocket', () => {
   });
 
   describe('sendAudioChunk', () => {
-    it('sends ArrayBuffer while recording', async () => {
+    it('sends framed ArrayBuffer with 12-byte header while recording', async () => {
       const ws = new AudioWebSocket();
       await connectWebSocket(ws);
 
       ws.startRecording();
 
-      // Create a real ArrayBuffer to send
       const testData = new TextEncoder().encode('test audio data');
+      const beforeTime = Date.now();
       await ws.sendAudioChunk(testData.buffer);
+      const afterTime = Date.now();
 
       const messages = mockWebSocketInstance?.sentMessages || [];
-      // First message is start_recording, second is the audio chunk
+      // First message is start_recording (JSON), second is the framed audio chunk
       expect(messages.length).toBe(2);
-      expect(messages[1]).toBe(testData.buffer);
+
+      const frame = messages[1] as ArrayBuffer;
+      expect(frame.byteLength).toBe(AUDIO_FRAME_HEADER_SIZE + testData.byteLength);
+
+      const view = new DataView(frame);
+      // Magic bytes 0xAB01
+      expect(view.getUint16(0, false)).toBe(AUDIO_FRAME_MAGIC);
+      // Sequence number = 0 (first chunk)
+      expect(view.getUint16(2, false)).toBe(0);
+      // Timestamp is a valid Date.now() value
+      const ts = view.getFloat64(4, false);
+      expect(ts).toBeGreaterThanOrEqual(beforeTime);
+      expect(ts).toBeLessThanOrEqual(afterTime);
+
+      // Audio data follows the header
+      const audioPayload = new Uint8Array(frame, AUDIO_FRAME_HEADER_SIZE);
+      expect(Array.from(audioPayload)).toEqual(Array.from(testData));
+    });
+
+    it('increments sequence number for each chunk', async () => {
+      const ws = new AudioWebSocket();
+      await connectWebSocket(ws);
+
+      ws.startRecording();
+
+      const chunk1 = new Uint8Array([1, 2, 3]).buffer;
+      const chunk2 = new Uint8Array([4, 5, 6]).buffer;
+      const chunk3 = new Uint8Array([7, 8, 9]).buffer;
+
+      await ws.sendAudioChunk(chunk1);
+      await ws.sendAudioChunk(chunk2);
+      await ws.sendAudioChunk(chunk3);
+
+      const messages = mockWebSocketInstance?.sentMessages || [];
+      // start_recording + 3 chunks
+      expect(messages.length).toBe(4);
+
+      expect(new DataView(messages[1] as ArrayBuffer).getUint16(2, false)).toBe(0);
+      expect(new DataView(messages[2] as ArrayBuffer).getUint16(2, false)).toBe(1);
+      expect(new DataView(messages[3] as ArrayBuffer).getUint16(2, false)).toBe(2);
+    });
+
+    it('resets sequence number on new recording session', async () => {
+      const ws = new AudioWebSocket();
+      await connectWebSocket(ws);
+
+      ws.startRecording();
+      await ws.sendAudioChunk(new Uint8Array([1]).buffer);
+      await ws.sendAudioChunk(new Uint8Array([2]).buffer);
+      ws.stopRecording();
+
+      // Start a new recording session
+      ws.startRecording();
+      await ws.sendAudioChunk(new Uint8Array([3]).buffer);
+
+      const messages = mockWebSocketInstance?.sentMessages || [];
+      // start + 2 chunks + stop + start + 1 chunk = 6 messages
+      expect(messages.length).toBe(6);
+
+      // The chunk after the second startRecording should have seq=0
+      const lastFrame = messages[5] as ArrayBuffer;
+      expect(new DataView(lastFrame).getUint16(2, false)).toBe(0);
     });
 
     it('does not send if not recording', async () => {

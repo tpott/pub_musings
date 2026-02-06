@@ -62,6 +62,12 @@ const DEFAULT_OPTIONS: Required<AudioWebSocketOptions> = {
 /**
  * AudioWebSocket manages WebSocket connection for streaming audio
  */
+/** Magic bytes identifying an audio frame (0xAB01). */
+export const AUDIO_FRAME_MAGIC = 0xAB01;
+
+/** Size of the audio frame header in bytes: 2 (magic) + 2 (seq) + 8 (timestamp). */
+export const AUDIO_FRAME_HEADER_SIZE = 12;
+
 export class AudioWebSocket {
   private ws: WebSocket | null = null;
   private options: Required<AudioWebSocketOptions>;
@@ -71,6 +77,7 @@ export class AudioWebSocket {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private isRecording = false;
+  private sequenceNumber = 0;
 
   constructor(callbacks: AudioWebSocketCallbacks = {}, options: AudioWebSocketOptions = {}) {
     this.callbacks = callbacks;
@@ -185,7 +192,10 @@ export class AudioWebSocket {
     }
 
     this.isRecording = true;
-    this.sendControlMessage('start_recording');
+    this.sequenceNumber = 0;
+    if (this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'start_recording', client_time: Date.now() }));
+    }
   }
 
   /**
@@ -201,7 +211,14 @@ export class AudioWebSocket {
   }
 
   /**
-   * Send an audio chunk to the server
+   * Send an audio chunk to the server with a 12-byte frame header.
+   *
+   * Frame format:
+   *   Byte 0-1: Magic 0xAB01 (big-endian uint16)
+   *   Byte 2-3: Sequence number (big-endian uint16, wraps at 65535)
+   *   Byte 4-11: Client timestamp (float64, milliseconds since epoch)
+   *   Byte 12+: Audio data (WebM/Opus bytes)
+   *
    * @param chunk Audio data (Blob or ArrayBuffer)
    */
   async sendAudioChunk(chunk: Blob | ArrayBuffer): Promise<void> {
@@ -209,15 +226,24 @@ export class AudioWebSocket {
       return;
     }
 
-    let data: ArrayBuffer;
+    let audioData: ArrayBuffer;
     if (chunk instanceof Blob) {
-      data = await chunk.arrayBuffer();
+      audioData = await chunk.arrayBuffer();
     } else {
-      data = chunk;
+      audioData = chunk;
     }
 
     if (this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(data);
+      // Build framed message: 12-byte header + audio data
+      const frame = new ArrayBuffer(AUDIO_FRAME_HEADER_SIZE + audioData.byteLength);
+      const view = new DataView(frame);
+      view.setUint16(0, AUDIO_FRAME_MAGIC, false); // big-endian
+      view.setUint16(2, this.sequenceNumber & 0xFFFF, false); // big-endian, wrap at 65535
+      view.setFloat64(4, Date.now(), false); // big-endian
+      new Uint8Array(frame, AUDIO_FRAME_HEADER_SIZE).set(new Uint8Array(audioData));
+
+      this.sequenceNumber = (this.sequenceNumber + 1) & 0xFFFF;
+      this.ws.send(frame);
     }
   }
 
