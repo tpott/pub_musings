@@ -38,6 +38,27 @@ const (
 	MsgTypePong       = "pong"
 )
 
+// WebSocket handler configuration defaults
+const (
+	// defaultBufferThreshold is how long to accumulate audio before auto-processing.
+	defaultBufferThreshold = 3 * time.Second
+
+	// bufferCheckInterval is how often the buffer threshold watcher ticks.
+	bufferCheckInterval = 500 * time.Millisecond
+
+	// idleCheckInterval is how often the idle timeout watcher ticks.
+	idleCheckInterval = 30 * time.Second
+
+	// intentTimeout is the context timeout for LLM intent extraction.
+	intentTimeout = 30 * time.Second
+
+	// whisperClientTimeout is the HTTP client timeout for whisper-server requests.
+	whisperClientTimeout = 120 * time.Second
+
+	// defaultMaxMessageSize is the maximum WebSocket binary message size (5MB).
+	defaultMaxMessageSize = 5 << 20
+)
+
 // ClientMessage represents a control message from the client.
 type ClientMessage struct {
 	Type string `json:"type"`
@@ -165,10 +186,10 @@ func NewAudioWebSocketHandler(whisperURL string, provider llm.Provider, database
 		WhisperURL:      whisperURL,
 		LLMProvider:     provider,
 		Database:        database,
-		Client:          &http.Client{Timeout: 120 * time.Second},
-		BufferThreshold: 3 * time.Second,
+		Client:          &http.Client{Timeout: whisperClientTimeout},
+		BufferThreshold: defaultBufferThreshold,
 		IdleTimeout:     getIdleTimeout(),
-		MaxMessageSize:  5 << 20, // 5MB
+		MaxMessageSize:  defaultMaxMessageSize,
 	}
 }
 
@@ -179,11 +200,11 @@ func NewAudioWebSocketHandlerWithRateLimiter(whisperURL string, provider llm.Pro
 		WhisperURL:      whisperURL,
 		LLMProvider:     provider,
 		Database:        database,
-		Client:          &http.Client{Timeout: 120 * time.Second},
+		Client:          &http.Client{Timeout: whisperClientTimeout},
 		RateLimiter:     rateLimiter,
-		BufferThreshold: 3 * time.Second,
+		BufferThreshold: defaultBufferThreshold,
 		IdleTimeout:     getIdleTimeout(),
-		MaxMessageSize:  5 << 20, // 5MB
+		MaxMessageSize:  defaultMaxMessageSize,
 	}
 }
 
@@ -196,13 +217,13 @@ func NewAudioWebSocketHandlerWithOptions(whisperURL string, provider llm.Provide
 		WhisperURL:      whisperURL,
 		LLMProvider:     provider,
 		Database:        database,
-		Client:          &http.Client{Timeout: 120 * time.Second},
+		Client:          &http.Client{Timeout: whisperClientTimeout},
 		RateLimiter:     rateLimiter,
 		AllowedOrigin:   allowedOrigin,
 		ConnTracker:     NewConnectionTracker(getMaxConnections()),
-		BufferThreshold: 3 * time.Second,
+		BufferThreshold: defaultBufferThreshold,
 		IdleTimeout:     getIdleTimeout(),
-		MaxMessageSize:  5 << 20, // 5MB
+		MaxMessageSize:  defaultMaxMessageSize,
 	}
 }
 
@@ -213,13 +234,13 @@ func NewAudioWebSocketHandlerWithConnTracker(whisperURL string, provider llm.Pro
 		WhisperURL:      whisperURL,
 		LLMProvider:     provider,
 		Database:        database,
-		Client:          &http.Client{Timeout: 120 * time.Second},
+		Client:          &http.Client{Timeout: whisperClientTimeout},
 		RateLimiter:     rateLimiter,
 		AllowedOrigin:   allowedOrigin,
 		ConnTracker:     connTracker,
-		BufferThreshold: 3 * time.Second,
+		BufferThreshold: defaultBufferThreshold,
 		IdleTimeout:     getIdleTimeout(),
-		MaxMessageSize:  5 << 20, // 5MB
+		MaxMessageSize:  defaultMaxMessageSize,
 	}
 }
 
@@ -528,7 +549,7 @@ func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript st
 	}
 
 	// Create a timeout context consistent with HTTP endpoint
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, intentTimeout)
 	defer cancel()
 
 	result, err := h.LLMProvider.ExtractIntent(ctx, transcript)
@@ -618,7 +639,7 @@ func logWriteError(logger *slog.Logger, msgType string, err error) {
 
 // idleTimeoutWatcher closes connection after idle timeout.
 func (h *AudioWebSocketHandler) idleTimeoutWatcher(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, state *connectionState, logger *slog.Logger) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(idleCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -642,7 +663,7 @@ func (h *AudioWebSocketHandler) idleTimeoutWatcher(ctx context.Context, cancel c
 
 // bufferThresholdWatcher processes audio when buffer threshold is reached.
 func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn *websocket.Conn, state *connectionState, logger *slog.Logger) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(bufferCheckInterval)
 	defer ticker.Stop()
 
 	for {
