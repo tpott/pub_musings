@@ -3,6 +3,7 @@ package api
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,9 +40,17 @@ func (s *EncryptedFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	// Clean the path to prevent directory traversal
 	requestPath := filepath.Clean(r.URL.Path)
 
+	// Defense-in-depth: verify resolved path stays within BaseDir
+	resolvedPath := filepath.Join(s.BaseDir, requestPath)
+	cleanBase := filepath.Clean(s.BaseDir) + string(filepath.Separator)
+	if !strings.HasPrefix(resolvedPath, cleanBase) && resolvedPath != filepath.Clean(s.BaseDir) {
+		http.NotFound(w, r)
+		return
+	}
+
 	// Try encrypted file first (.age extension)
-	encryptedPath := filepath.Join(s.BaseDir, requestPath+".age")
-	plainPath := filepath.Join(s.BaseDir, requestPath)
+	encryptedPath := resolvedPath + ".age"
+	plainPath := resolvedPath
 
 	// Check for encrypted version
 	if _, err := os.Stat(encryptedPath); err == nil {
@@ -83,7 +92,8 @@ func (s *EncryptedFileServer) serveEncrypted(w http.ResponseWriter, r *http.Requ
 
 	// Copy decrypted content to response
 	if _, err := io.Copy(w, decrypted); err != nil {
-		// Log but don't error - response may have already started
+		// Log but don't send HTTP error - response headers may have already been sent
+		slog.Error("failed to send decrypted file", "error", err, "path", requestPath)
 		return
 	}
 }

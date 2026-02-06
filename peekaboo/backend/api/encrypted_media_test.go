@@ -227,6 +227,55 @@ func TestEncryptedFileServer_ContentTypes(t *testing.T) {
 	}
 }
 
+func TestEncryptedFileServer_PathTraversal(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a file inside the base directory
+	plaintext := []byte("inside base dir")
+	if err := os.WriteFile(filepath.Join(dir, "legit.txt"), plaintext, 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	identity, _ := crypto.GenerateKey()
+	server := NewEncryptedFileServer(dir, identity)
+
+	// Test path traversal attempts that bypass Go's HTTP mux normalization.
+	// We test by constructing requests with already-cleaned paths that
+	// would resolve outside BaseDir.
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"parent_dir", "/../../../etc/passwd"},
+		{"encoded_traversal", "/%2e%2e/%2e%2e/etc/passwd"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			rr := httptest.NewRecorder()
+
+			server.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusNotFound {
+				t.Errorf("Expected status 404 for path %q, got %d", tc.path, rr.Code)
+			}
+		})
+	}
+
+	// Verify legitimate nested paths still work
+	t.Run("legit_file", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/legit.txt", nil)
+		rr := httptest.NewRecorder()
+
+		server.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200 for legit file, got %d", rr.Code)
+		}
+	})
+}
+
 func TestEncryptedFileServer_PrefersEncrypted(t *testing.T) {
 	dir := t.TempDir()
 

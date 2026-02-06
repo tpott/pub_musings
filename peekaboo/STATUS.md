@@ -4,446 +4,52 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-- **Go backend fully wired** - backend/ with main.go, all API handlers, database init, static files, CORS via ALLOWED_ORIGIN env
-- **Astro frontend scaffolded** - mobile-first layout with mic button and media display
-- **Media assets sourced** - 6 animals with CC0 photos and audio via scripts/source-media.sh
-- **SQLite database** - db package with concepts/media_sets tables, WAL mode, busy timeout, tests pass
-- **Age encryption** - crypto package with EncryptFile/DecryptFile/DecryptReader, encrypted media serving via EncryptedFileServer
-- **Whisper API** - api/transcribe.go forwards audio to whisper-server, returns transcript
-- **LLM Intent API** - api/intent.go uses llm.Provider interface for intent extraction
-- **LLM Provider abstraction** - llm package supports Anthropic and OpenAI; validates API keys at initialization
-- **Media lookup API** - api/media.go returns random media set for a concept, with input validation
-- **Environment config** - .env.example documents all required environment variables
-- **Frontend mic recording** - MicButton with MediaRecorder, sends audio to /api/transcribe
-- **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
-- **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
-- **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
-- **Playwright e2e tests** - 19 tests across 4 spec files (basic, websocket-errors, websocket-listening, feedback) verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, WebSocket continuous listening (including sequential commands with gap), WebSocket error recovery, and feedback submission
-- **Theme system** - CSS custom properties in theme.css, ThemeInit (FOUC prevention), ThemeToggle (3-mode: light/dark/auto), localStorage persistence, warm neutral palette with terracotta accent
-- **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
-- **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
-- **Piper TTS integration** - backend/tts package with Provider interface, POST /api/speak endpoint; frontend text-to-speech.ts calls TTS after media display (optional, requires PIPER_SERVER_URL)
-- **Accessibility** - ARIA labels on mic button, aria-live region for media display, screen reader support, keyboard navigation (Enter/Space)
-- **API documentation** - docs/API.md documents all backend endpoints including WebSocket audio streaming with curl examples
-- **Health probes** - Kubernetes-style /health/live and /health/ready endpoints with database, whisper-server, optional Piper, and LLM provider checks
-- **Input validation** - Audio file size limits (1KB-5MB), text length limits (500 chars) for API endpoints
-- **Rate limiting** - 10 req/min per IP on /api/transcribe, /api/intent, /ws/audio; 30 req/min on /api/media; 5 req/min on /api/feedback; all with cleanup goroutine
-- **HTTPS documentation** - docs/DEPLOY.md documents TLS requirements, Caddy auto-HTTPS, security warnings
-- **Security headers** - Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection on all responses
-- **Graceful shutdown** - Signal handling (SIGINT/SIGTERM) with 30s timeout and clean database closure
-- **Structured logging** - slog with configurable log levels (LOG_LEVEL), JSON output (LOG_FORMAT=json), request ID middleware
-- **Request timing** - RequestLoggerMiddleware logs method, path, status code, duration_ms for all requests
-- **Frontend retry** - fetchWithRetry utility with exponential backoff (1s, 2s, 4s) on 429/5xx responses
-- **Database index** - idx_media_sets_concept_id for faster media lookups
-- **Troubleshooting guide** - docs/TROUBLESHOOTING.md with microphone, whisper, database, and LLM debugging
-- **Differentiated error messages** - Frontend errors.ts module with ApiError class, user-friendly messages for network/rate-limit/server errors
-- **Astro dev proxy** - Vite proxy config in astro.config.mjs forwards /api/* and /data/media/* to Go backend at port 8080
-- **Security documentation** - docs/SECURITY.md with threat model, mitigation references, and security testing commands
-- **Stream size enforcement** - api/transcribe.go uses io.LimitReader to validate actual upload size, not just Content-Length
-- **Rate limiter memory cap** - MaxEntries limit (10K IPs) prevents memory exhaustion from many unique IPs
-- **Key file permissions** - crypto/age.go validates key file mode <= 0600 before loading
-- **WCAG zoom compliance** - Viewport meta allows user zoom (no maximum-scale restriction)
-- **URL validation** - Frontend validates media URLs to prevent javascript: XSS attacks
-- **Browser support error** - Visible error banner when MediaRecorder is unavailable
-- **CORS test coverage** - backend/api/cors.go extracted from main.go with unit tests for preflight handling
-- **WebSocket audio streaming** - GET /ws/audio backend endpoint, frontend AudioWebSocket client, PeekabooFlow WebSocket integration (useWebSocket mode), with rate limiting and origin validation
-- **TTS troubleshooting** - docs/TROUBLESHOOTING.md documents Piper TTS as optional, with diagnostic commands
-- **Frontend logging** - logger.ts with configurable log levels (VITE_LOG_LEVEL env var), replaces console.error/warn calls
-- **WebSocket connection limit** - WEBSOCKET_MAX_CONNECTIONS env var (default 100) prevents resource exhaustion
-- **Request body size limits** - /api/intent (5KB), /api/speak (2KB) limits prevent DoS via unbounded JSON
-- **WebSocket concept validation** - Same validation as HTTP media endpoint (format pattern, max 50 chars)
-- **Transcript display UI** - Scrollable transcript history below media display with aria-live for accessibility
-- **Feedback feature** - Floating feedback button with modal form, POST /api/feedback endpoint with rate limiting (5/min), SQLite persistence
-- **Skip-to-content link** - Keyboard accessibility link that appears on focus, jumps to main content
-- **Frontend log forwarding** - Development-only POST /api/log endpoint for forwarding console logs to backend (gated by FORWARD_FRONTEND_LOGS env var)
+Production-ready voice-controlled web app for children. 124 tasks completed.
+
+### Architecture
+- **Go backend** with SQLite, WebSocket audio streaming, age encryption
+- **Astro frontend** with TypeScript, 237+ unit tests, 19+ E2E tests
+- **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
+
+### Key Features
+- Full voice flow: record → transcribe → intent → media display
+- WebSocket streaming (default) with continuous listening mode
+- Day/night theme (light/dark/auto) with warm neutral palette
+- Feedback form with database persistence and rate limiting
+- Piper TTS integration (optional)
+- Accessibility: ARIA labels, skip-to-content, keyboard navigation, screen reader support
+- Security: CSP headers, path traversal defense, URL validation, rate limiting, CORS
+- Structured logging, health probes, graceful shutdown
+
+### Documentation
+- docs/API.md, docs/DEPLOY.md, docs/SECURITY.md, docs/TROUBLESHOOTING.md, docs/PERFORMANCE.md
+- specs/ directory with architecture, WebSocket protocol, continuous listening, feedback, Piper TTS, Bazel research
+
+### Quality
+- Linting: gofmt, go vet, golangci-lint, npm build, filesize lint (scripts/lint.sh)
+- Pre-commit hook runs lint + tests for changed projects
+- Test organization: files split to stay under 500 lines
 
 ## Last Completed
 
-- Task 123: Add linters for peekaboo (2026-02-05)
-  - Created scripts/lint.sh: gofmt, go vet, golangci-lint, npm run build, filesize lint
-  - Created scripts/lint-filesize.py: checks all source files under 1000 lines
-  - Created backend/.golangci.yml v2 config with errcheck exclusions for standard patterns
-  - Fixed 3 Go formatting issues (gofmt) and 3 ineffectual assignments (ineffassign)
-  - Updated pre-commit hook to run lint before tests
-  - All linting passes, all tests pass
-- Task 122: Update pre-commit hook for peekaboo (2026-02-05)
-  - Updated subtitler/scripts/pre-commit to handle pub_musings monorepo
-  - Detects staged peekaboo/ files and runs Go backend + frontend tests
-  - Detects staged subtitler/ files and runs subtitler lint + tests
-  - Skips if neither project has changes
-- Task 121: peekaboo-flow.test.ts already under 500 lines (2026-02-05)
-  - Already split into 3 files: peekaboo-flow.test.ts (443), peekaboo-flow-events.test.ts (235), peekaboo-flow-websocket.test.ts (472)
-- Task 120: Refactor peekaboo.spec.ts E2E tests into smaller files (2026-02-05)
-  - Split 1253-line peekaboo.spec.ts into 4 focused files (all under 500 lines)
-  - peekaboo-basic.spec.ts (299 lines): voice command flow + microphone permission
-  - peekaboo-websocket-errors.spec.ts (261 lines): invalid JSON, connection close, server error, reconnection
-  - peekaboo-websocket-listening.spec.ts (373 lines): multi-command, continuous listening, transcript, sequential
-  - peekaboo-feedback.spec.ts (66 lines): feedback form submission, cancel, escape
-  - Created tests/helpers/e2e-helpers.ts with shared routeFixtures() and setupHttpMocks()
-  - All 19 e2e tests pass
-- Task 119: Add day and night mode with theme redesign (2026-02-05)
-  - Created theme.css with CSS custom properties for light and dark themes
-  - Warm neutral palette: terracotta accent (#d97757), cream backgrounds (light), slate backgrounds (dark)
-  - ThemeInit.astro prevents FOUC with inline script checking localStorage/system preference
-  - ThemeToggle.astro cycles light → dark → auto with sun/moon/palette icons
-  - Updated all components to use CSS variables: index.astro, MicButton, MediaDisplay, FeedbackButton, global.css
-  - 237 frontend unit tests pass, 19 e2e tests pass
-- Task 116: Research Bazel migration (2026-02-05)
-  - specs/bazel.md documents findings for Go, Astro, vitest, Playwright
-  - Go backend: production-ready with rules_go + Gazelle (cgo concern for go-sqlite3)
-  - Astro: no native support, requires custom genrule (fragile)
-  - Vitest: beta support via fremtind_rules_vitest (known issues)
-  - Playwright: functional but complex (browser binary management)
-  - Recommendation: do not migrate - project is small, builds are fast, ROI is negative
-- Task 117: Add development-gated console.log forwarding to backend (2026-02-05)
-  - Backend: POST /api/log handler gated by FORWARD_FRONTEND_LOGS=true env var
-  - Frontend: logger.ts forwards logs to backend when VITE_FORWARD_LOGS=true
-  - Fire-and-forget fetch, silently ignores errors to prevent recursion
-  - 10 backend tests, 7 new frontend tests (237 total)
-  - docs/FRONTEND-LOGGING.md with setup, verification steps, and example breakage
-- Task 118: Add e2e test for sequential voice commands under continuous listening (2026-02-05)
-  - New test: "sequential voice commands - two utterances in one session with gap"
-  - Click mic once → cat audio → silence gap → dog audio → verify both photos
-  - Mic stays on the entire time, no second click between commands
-  - Mock WebSocket alternates between real utterances and silence gaps
-  - Verifies transcript accumulation, mic recording state, photo transitions
-  - All 19 E2E tests pass
-- Task 115: Add skip-to-content link for keyboard accessibility (2026-02-05)
-  - Added .skip-link as first focusable element in body
-  - Link is visually hidden until focused
-  - Jumps to #main-content with tabindex=-1 for focus management
-- Task 114: Add timeout to WebSocket LLM ExtractIntent calls (2026-02-05)
-  - Added 30-second timeout context to extractIntent(), matching HTTP endpoint
-- Task 113: Add E2E test for feedback submission flow (2026-02-05)
-  - Added 3 new tests: form submission, cancel button, Escape key handling
-  - All 18 E2E tests pass
-- Task 112: Replace console.log/error with logger in frontend index.astro (2026-02-05)
-  - Imported logger from lib/logger.ts
-  - Replaced console.error with logger.error, console.log with logger.debug
-- Task 111: Fix real-services E2E test to use existing .webm fixture (2026-02-05)
-  - Changed from non-existent .wav file to existing me-show-me-a-cat.webm
-  - Fixed mimeType from audio/wav to audio/webm;codecs=opus
-  - Aligned test implementation with specs/real-services-e2e.md spec
-  - All 15 mock E2E tests pass; real-services test requires running services
-- Task 110: Add WebSocket troubleshooting section to docs/TROUBLESHOOTING.md (2026-02-05)
-  - Expanded WebSocket Mode Issues section with 8 new troubleshooting scenarios
-  - Covers 403 Forbidden (CORS/origin mismatch)
-  - Covers 429 Too Many Requests (rate limiting)
-  - Covers 503 Service Unavailable (connection limit)
-  - Documents connection drops, proxy issues, and debugging tools
-- Task 109: Extract MockMediaRecorder from E2E tests to shared helper (2026-02-05)
-  - Created frontend/tests/helpers/mock-media-recorder.ts with three mock functions:
-    - getSimpleMockScript() - HTTP mode tests (single blob on stop)
-    - getWebSocketMockScript() - WebSocket mode tests (timeslice support for streaming)
-    - getPermissionDeniedMockScript() - Permission denied tests
-  - Replaced 14 duplicate MockMediaRecorder class definitions with helper imports
-  - Reduced peekaboo.spec.ts from 1740 to 1055 lines (39% reduction, -685 lines)
-  - All 15 peekaboo.spec.ts tests pass
-- Task 108: Add feedback viewing/export mechanism for admin use (2026-02-05)
-  - Added "Viewing User Feedback" section to docs/DEPLOY.md
-  - Includes queries for: recent feedback, CSV export, stats, by-rating, status updates
-  - Documents 90-day retention cleanup query
-  - Verified all SQL queries work on live database
-- Task 107: Document database backup strategy in docs/DEPLOY.md (2026-02-05)
-  - Added "Backup and Recovery" section with manual backup, cron example, restore procedure
-  - Uses `sqlite3 .backup` command for safe backup while server runs
-  - Includes 7-day retention cleanup cron example
-  - Verified all commands work
-- Task 106: Add rate limiting to GET /api/media/{concept} endpoint (2026-02-05)
-  - Added mediaLimiter (30 req/min per IP) in main.go
-  - Wrapped MediaHandler with RateLimitMiddleware
-  - Added TestMediaHandler_RateLimited unit test
-  - Updated docs/API.md with 429 error response and rate limit info
-- Task 105: Add feedback feature with floating button and database persistence (2026-02-05)
-  - Created specs/feedback.md with complete feature design
-  - Added feedback table to database schema with indexes
-  - Implemented POST /api/feedback endpoint with validation and rate limiting (5 req/min per IP)
-  - Created FeedbackButton.astro component with modal, star rating, and form validation
-  - Created feedback.ts library with submitFeedback() and session ID management
-  - Added 18 backend tests for feedback handler, 11 frontend tests for feedback lib
-  - Updated docs/API.md with feedback endpoint documentation
-  - All 230 frontend tests pass, all backend tests pass
-- Task 102: Update specs to document continuous listening behavior (2026-02-05)
-  - Added Session Lifecycle (Continuous Listening) section to specs/websocket-audio.md
-  - Updated specs/continuous-listening-ux.md status to "Implemented"
-  - Added transcript display note to specs/architecture.md
-  - docs/API.md already had good continuous listening documentation
-- Task 101: Add E2E tests for continuous listening and transcript display (2026-02-05)
-  - Added 3 new E2E tests in peekaboo.spec.ts:
-    - 'continuous listening - mic stays active after media display' - verifies aria-pressed stays true
-    - 'transcript display shows recognized speech' - verifies transcript-display element shows text
-    - 'transcript display accumulates multiple commands' - verifies multiple entries
-  - All 8 continuous listening/transcript tests pass (15/16 total E2E tests pass)
-- Task 100: Add transcript display UI below media display area (2026-02-05)
-  - Added transcript-display element to MediaDisplay.astro with data-testid, role="log", aria-live="polite"
-  - Added appendTranscript() to PeekabooFlow that appends transcript entries to scrollable history
-  - Styled subtly with smaller font (0.875rem), muted color (#9ca3af), auto-scrolling
-  - Transcript area hidden when empty via CSS :empty selector
-  - Added transcriptContainer option to PeekabooFlowOptions, wired in index.astro
-  - Added 4 unit tests for transcript display functionality
-  - 219 frontend tests pass
-- Task 99: Frontend continuous listening - keep recording after media display (2026-02-05)
-  - Modified handleWsMedia() to keep 'recording' state when MediaRecorder is active
-  - Added updateRecordingWithMediaUI() to update aria-label with "Still listening"
-  - handleWsTranscript() now stays in 'recording' state in continuous mode
-  - Added 2 unit tests: keeps recording state, transitions when not recording
-  - 215 frontend tests pass, 12/13 E2E tests pass
-- Task 98: Backend WebSocket handler already supports continuous listening (2026-02-05)
-  - Verified that bufferThresholdWatcher clears buffer but keeps isRecording=true
-  - Added TestAudioWebSocketHandler_MultiUtteranceWithoutReconnect test
-  - Test sends two utterances in single WebSocket session, both processed correctly
-  - No code changes needed - backend already supported continuous listening
-- Task 97: Handle audio autoplay blocking with user-visible feedback (2026-02-05)
-  - MediaDisplay.show() now async, returns boolean (true if audio played, false if blocked)
-  - Added showAudioBlockedIndicator() that shows "Tap to play sound" button
-  - Indicator is accessible (role="button", tabindex=0, keyboard support)
-  - aria-label updated to mention "Audio playback blocked - tap to play" when blocked
-  - Added CSS for indicator in MediaDisplay.astro
-  - Added 6 new tests for autoplay blocking scenarios
-- Task 96: Add connection context to WebSocket message send error logs (2026-02-05)
-  - Added client IP to logger at connection start, passed logger to all send methods
-  - Added logWriteError helper that distinguishes normal closure (DEBUG) vs write errors (WARN)
-  - All send functions now include client_ip and message_type in logs
-- Task 95: Log database close error during graceful shutdown (2026-02-05)
-  - Changed `defer database.Close()` to defer a closure that logs error at WARN level
-  - Database close errors previously silently discarded, now visible in logs
-- Task 94: Apply consistent concept validation in WebSocket media lookup (2026-02-04)
-  - Added validation in api/websocket.go processAudio() using same validConceptPattern and maxConceptLength as HTTP endpoint
-  - Empty subject returns "I didn't understand what you want to see" error
-  - Invalid format (spaces, special chars) returns user-friendly message mentioning the invalid subject
-  - Subject > 50 chars returns "too long" error
-  - Added 4 unit tests: InvalidSubjectFormat, EmptySubject, SubjectTooLong, ValidSubjectAtMaxLength
-- Task 92: Add error handling to WebSocket JSON encoding methods (2026-02-04)
-  - sendTranscript/sendMedia/sendError/sendPong now check json.Marshal errors
-  - Marshal failures logged at ERROR level, write failures at DEBUG level
-  - Added comment explaining why errors aren't returned (caller can't recover)
-- Task 91: Add test for concurrent rate limiter operations (2026-02-04)
-  - Added TestRateLimiter_ConcurrentAllowAndCleanup to verify thread safety
-  - Added TestRateLimiter_ConcurrentAllowWithEviction for eviction stress test
-  - All tests pass with go test -race ./api (no data races)
-- Task 90: Add request body size limit to /api/intent and /api/speak (2026-02-04)
-  - api/intent.go uses http.MaxBytesReader to limit body to 5KB
-  - api/speak.go uses http.MaxBytesReader to limit body to 2KB
-  - Returns 413 Payload Too Large when limit exceeded
-  - Added unit tests for body size limits in both handlers
-- Task 89: Add maximum concurrent WebSocket connections limit (2026-02-04)
-  - Added ConnectionTracker with atomic counter for thread-safe tracking
-  - Configurable via WEBSOCKET_MAX_CONNECTIONS env var (default: 100)
-  - Returns HTTP 503 Service Unavailable when limit reached
-  - Connection slot released automatically on disconnect via defer
-  - Added unit tests for tracking, limit enforcement, and release on close
-  - Updated .env.example, CLAUDE.md, and docs/PERFORMANCE.md
-- Task 88: Create docs/PERFORMANCE.md (2026-02-04)
-  - Documents database connection pool tuning for SQLite
-  - Documents WebSocket idle timeout configuration
-  - Documents rate limiter max entries behavior and memory impact
-  - Includes monitoring recommendations with log query examples
-  - Covers health checks, request tracing, and performance baselines
-- Task 86: Add E2E test for WebSocket reconnection during active recording (2026-02-04)
-  - Added test "handles connection drop mid-recording and resumes gracefully"
-  - Test starts recording, server closes connection after receiving audio chunks
-  - Verifies error message displayed to user
-  - Verifies retry works after error state resets and reconnection
-  - All 12 Playwright E2E tests pass
-- Task 87: Add observability to rate limiter (2026-02-04)
-  - Added WARN level logging when rate limit exceeded (includes ip, method, path)
-  - Added INFO level logging when IP eviction occurs due to max entries limit
-  - Uses slog structured logging for consistent log format
-- Task 85: Add unit test for WebSocket buffer threshold auto-processing (2026-02-04)
-  - Added TestAudioWebSocketHandler_BufferThresholdAutoProcess to api/websocket_test.go
-  - Test sends start_recording + audio chunks without sending stop_recording
-  - Verifies transcript is received automatically after buffer threshold (~1s in test)
-  - Uses shorter threshold (1s instead of 3s) for faster test execution
-- Task 84: Add E2E test for microphone permission denial flow (2026-02-04)
-  - Added Playwright test that mocks getUserMedia to reject with NotAllowedError
-  - Verifies error message is displayed to user when microphone permission is denied
-  - Verifies mic button aria-label indicates error state with "try again"
-  - All 11 Playwright E2E tests pass
-- Task 83: Add test for LLM ExtractIntent context cancellation (2026-02-04)
-  - Added TestAnthropicProvider_ExtractIntent_ContextCancellation to llm/anthropic_test.go
-  - Added TestOpenAIProvider_ExtractIntent_ContextCancellation to llm/openai_test.go
-  - Tests verify context.Canceled error returned when request context is cancelled
-  - Uses mock server with coordination channels to reliably test cancellation timing
-- Task 82: Add unit tests for LLM provider HealthCheck methods (2026-02-04)
-  - Added tests for Anthropic HealthCheck: success, API error (401), network error
-  - Added tests for OpenAI HealthCheck: success, API error (401), network error
-  - Coverage improved from 57.6% to 82.4%, HealthCheck methods now at 88%+ coverage
-- Task 81: Document WebSocket /ws/audio endpoint in docs/API.md (2026-02-04)
-  - Added comprehensive WebSocket Audio Streaming section to docs/API.md
-  - Documented connection upgrade, rate limiting (10/min), idle timeout (5 min), max message size (5MB)
-  - Documented all message types: client (binary audio, JSON control) and server (transcript, media, error, pong)
-  - Included processing flow, JavaScript example, and reference to specs/websocket-audio.md
-  - Updated rate limiting section to include /ws/audio endpoint
-- Task 75: Add WebSocket error recovery E2E tests (2026-02-04)
-  - Added E2E test for server sending invalid JSON (gracefully ignored, valid messages processed)
-  - Added E2E test for server closing connection mid-recording (error state displayed)
-  - Added E2E test for client retry after server error message (retry succeeds after error state resets)
-  - All 10 Playwright E2E tests pass
-- Task 76: Add frontend logging utility with log level support (2026-02-04)
-  - Created frontend/src/lib/logger.ts with debug/info/warn/error methods
-  - Log level controlled by VITE_LOG_LEVEL environment variable (default: info)
-  - Replaced console.error/warn calls in media-display.ts, text-to-speech.ts, peekaboo-flow.ts with logger
-  - Added 12 unit tests in logger.test.ts, all 207 frontend tests pass
-- Task 78: Make WebSocket idle timeout configurable via env var (2026-02-04)
-  - Added WEBSOCKET_IDLE_TIMEOUT_SECS environment variable
-  - Defaults to 300 seconds (5 minutes)
-  - Added getIdleTimeout helper with tests (handles invalid/zero/negative values)
-  - Updated .env.example and CLAUDE.md
-- Task 77: Make database connection pool size configurable via env vars (2026-02-04)
-  - Added DB_MAX_OPEN_CONNS and DB_MAX_IDLE_CONNS environment variables
-  - Defaults to 1 for both (SQLite-safe, not 25/5 as in task description)
-  - Added getEnvInt helper function with tests
-  - Updated .env.example and CLAUDE.md with new variables and SQLite note
-- Task 79: Add test for media set randomness with multiple sets (2026-02-04)
-  - Added TestGetRandomMediaSetRandomness test to db/db_test.go
-  - Seeds 3 media sets for a concept, calls GetRandomMediaSet() 20 times
-  - Verifies at least 2 different sets are returned (proving randomness works)
-- Task 80: Add test for empty audio buffer on immediate stop_recording (2026-02-04)
-  - Added TestAudioWebSocketHandler_EmptyBuffer_ImmediateStop test
-  - Fixed backend to send "No audio recorded" error when stop_recording with empty buffer
-  - Previously empty buffer was silently ignored (no message sent to client)
-- FEEDBACK: Add empty transcript handling to WebSocket mode (2026-02-04)
-  - Added empty transcript check in backend/api/websocket.go - returns "No speech detected" error instead of "intent extraction failed"
-  - Added unit tests for empty and whitespace-only transcripts in WebSocket mode
-  - Updated docs/TROUBLESHOOTING.md with emphasis on `--convert` flag as primary cause of empty transcripts
-  - Added new WebSocket Mode Issues section to troubleshooting docs
-  - Updated LEARNINGS.md with WebSocket empty transcript handling lesson
-  - Root cause of user's issue: likely whisper-server not started with `--convert` flag, and WebSocket mode not enabled (default is HTTP mode)
-- FEEDBACK: Fix WebSocket deployment issues (2026-02-04)
-  - Added WebSocket proxy to Vite config in astro.config.mjs (`/ws` -> `ws://localhost:8080`, `ws: true`)
-  - Updated Caddy config in docs/DEPLOY.md to include `/ws/*`, `/health/*`, `/data/media/*` reverse proxies
-  - Fixed empty transcript handling in peekaboo-flow.ts - throws user-friendly error instead of sending empty text to /api/intent
-  - Added unit tests for empty transcript scenarios
-  - Updated LEARNINGS.md with WebSocket proxy and empty transcript lessons
-- Task 74: Add max length validation for concept ID in media lookup (2026-02-04)
-  - Added maxConceptLength constant (50 characters) to api/media.go
-  - Validates concept ID length after format validation
-  - Returns 400 Bad Request with "concept ID too long (max 50 characters)" error
-  - Added TestMediaHandler_ConceptTooLong test (51 char concept rejected)
-  - Added TestMediaHandler_ConceptAtMaxLength test (50 char concept passes validation)
-  - Updated docs/API.md with concept ID constraints (pattern, max length)
-- Task 73: Add CORS origin validation for WebSocket connections (2026-02-04)
-  - Added AllowedOrigin field to AudioWebSocketHandler
-  - Created NewAudioWebSocketHandlerWithOptions constructor with all options
-  - Origin validated using websocket.AcceptOptions.OriginPatterns
-  - Wildcard or empty origin enables InsecureSkipVerify (dev mode)
-  - Specific origin restricts connections (returns 403 for mismatches)
-  - Updated main.go to pass ALLOWED_ORIGIN to WebSocket handler
-  - Added unit tests for origin validation scenarios
-  - Updated docs/SECURITY.md with WebSocket CORS details
-- Task 72: Add rate limiting to WebSocket /ws/audio endpoint (2026-02-04)
-  - Added RateLimiter field to AudioWebSocketHandler
-  - Rate limit checked before WebSocket upgrade (returns HTTP 429)
-  - Created NewAudioWebSocketHandlerWithRateLimiter constructor
-  - Wired rate limiter in main.go (shares 10 req/min limiter with HTTP endpoints)
-  - Added unit tests for rate limiting, no-limiter, and response format
-  - Updated LEARNINGS.md with design decision
-- Task 71: Add LLM provider connectivity check to /health/ready endpoint (2026-02-04)
-  - Added HealthCheck method to llm.Provider interface
-  - Implemented HealthCheck for Anthropic and OpenAI providers (minimal completion request)
-  - ReadinessHandler now checks LLM provider availability when configured
-  - Returns 503 with "llm provider unavailable" error if API key invalid or provider unreachable
-  - Added unit tests for LLM health check success, failure, and nil provider cases
-  - Updated docs/API.md with full readiness probe documentation
-- Task 69: Integrate WebSocket audio into PeekabooFlow (2026-02-04)
-  - PeekabooFlow supports useWebSocket option for WebSocket mode
-  - Streams audio chunks every 500ms while recording
-  - Receives transcript and media via WebSocket callbacks
-  - Media displays while mic stays active (continuous listening UX)
-  - User can issue multiple commands without stopping recording
-  - E2E test verifies continuous listening with 2 sequential commands
-  - All 193 unit tests pass, all 7 E2E tests pass
-- Task 68: Implement frontend WebSocket client for audio streaming (2026-02-04)
-  - frontend/src/lib/websocket-audio.ts with AudioWebSocket class
-  - Manages connection state (connecting/connected/reconnecting/disconnected)
-  - Sends binary audio chunks, receives JSON transcript/media/error messages
-  - Reconnection with exponential backoff (up to maxReconnectAttempts)
-  - Ping/pong keepalive mechanism
-  - 31 unit tests in websocket-audio.test.ts
-- Task 70: Document test fixture me-show-me-a-cat.webm in LICENSE.txt (2026-02-04)
-- Task 67: Implement WebSocket endpoint GET /ws/audio (2026-02-04)
-  - api/websocket.go with AudioWebSocketHandler
-  - Buffers audio chunks, processes on stop or 3s threshold
-  - Sends transcript, extracts intent, returns media URLs
-  - Unit tests in api/websocket_test.go
-- Task 66: Research WebSocket libraries, write specs/websocket-audio.md (2026-02-04)
-  - Evaluated gorilla/websocket (archived), coder/websocket (active), gobwas/ws (complex)
-  - Selected github.com/coder/websocket for active maintenance and idiomatic API
-  - Spec includes message protocol design for audio chunks/transcripts/media
-  - LEARNINGS.md updated with library selection rationale
-- FEEDBACK: End-to-end testing review (2026-02-04)
-  - All Go backend tests pass, all frontend unit tests pass (151 tests), all e2e tests pass (6 tests)
-  - Tested live transcribe -> intent -> media flow with Anthropic API key
-  - Discovered whisper-server needs --convert flag for webm/opus audio
-  - Added LEARNINGS entry about --convert flag requirement
-  - Added Task 70: Document new test fixture me-show-me-a-cat.webm
-  - Next major work: WebSocket streaming (tasks 67-69) for "mic stays active" UX
-- Task 65: Add TTS troubleshooting section to docs/TROUBLESHOOTING.md (2026-02-04)
-- Task 64: Add CORS middleware unit test (2026-02-04)
-- Task 63: Add E2E test for TTS synthesis flow (2026-02-04)
-- Task 62: Add Piper connectivity check to /health/ready endpoint (2026-02-04)
-- Task 61: Integrate TTS into frontend - speakSubject() called after media display (2026-02-04)
-- Task 60: Implement Piper TTS integration with /api/speak endpoint (2026-02-04)
-- Task 59: Add visible error message when MediaRecorder unavailable (2026-02-04)
-- Task 58: Add URL validation for media URLs to prevent XSS (2026-02-04)
-- Task 56: Validate age key file permissions on startup (2026-02-04)
-- Task 57: Remove viewport zoom restrictions for WCAG compliance (2026-02-04)
-- Task 55: Add max entries limit to rate limiter (2026-02-04)
-- Task 54: Validate actual upload size during streaming (2026-02-04)
-- Task 53: Add E2E test for error recovery flow - transcribe succeeds, intent fails, then retry succeeds (2026-02-04)
-- Task 52: Create docs/SECURITY.md with threat model and mitigations (2026-02-04)
-- FEEDBACK: Fixed go.mod module path (trevorsmith -> tpott), added Astro proxy config for API routes, documented API key requirement (2026-02-04)
-- Task 51: Add differentiated error messages for network vs server failures in frontend (2026-02-04)
-- Task 50: Add loading state indicators - Listening, Processing, Searching (2026-02-04)
-- Task 49: Add E2E tests for dog and duck animals (2026-02-04)
-- Task 48: Create docs/TROUBLESHOOTING.md with common issues and solutions (2026-02-04)
-- Task 47: Add Content-Security-Policy header with script-src, style-src, img-src, media-src directives (2026-02-04)
-- Task 46: Add database index on media_sets.concept_id (2026-02-04)
-- Task 42: Add retry with exponential backoff to frontend API calls (2026-02-04)
-- Task 45: Add request timing metrics to API handlers (2026-02-04)
-- Task 40: Add structured logging with slog - log levels, request IDs, JSON output (2026-02-04)
-- Task 44: Document HTTPS requirements and TLS configuration in docs/DEPLOY.md (2026-02-04)
-- Task 43: Add max audio file size validation (5MB) to transcribe endpoint (2026-02-04)
-- Task 41: Add max text length validation (500 chars) to /api/intent endpoint (2026-02-04)
-- Task 39: Add whisper-server connectivity check to /health/ready endpoint (2026-02-04)
-- Task 38: Add keyboard support (Enter/Space) for mic button with focus styles (2026-02-04)
-- Task 37: Add security headers middleware (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection) (2026-02-04)
-- Task 36: Add graceful shutdown with SIGINT/SIGTERM handling, 30s timeout (2026-02-04)
-- Task 35: Start rate limiter cleanup goroutine to prevent memory leak (2026-02-04)
-- FEEDBACK: Updated README with LLM config, whisper.cpp setup, and env var documentation (2026-02-04)
-- Task 34: Add rate limiting (10 req/min per IP) to expensive API endpoints (2026-02-04)
-- Task 33: Validate API key format in LLM provider initialization (2026-02-04)
-- Task 32: Add minimum audio file size validation (1KB) to transcribe endpoint (2026-02-04)
-- Task 31: Add liveness and readiness health probes with database connectivity check (2026-02-04)
-- Task 30: Create docs/API.md with comprehensive endpoint documentation including curl examples (2026-02-04)
-- Task 29: Add accessibility features - ARIA labels on mic button, role=region and aria-live=polite on media display (2026-02-04)
-- Task 28: Sanitize error messages in API responses to prevent info leakage (2026-02-04)
-- Task 27: api/media_test.go was already complete (2026-02-04)
-- FEEDBACK: Move backend code to backend/ subdirectory (2026-02-04)
-- FEEDBACK: Add exponential backoff to ralph.py for API server errors (2026-02-04)
-- Task 26: Add input validation for concept ID in media API (2026-02-04)
-- Task 25: Create .env.example file with documented environment variables (2026-02-04)
-- Task 24: Optimize SQLite configuration with WAL mode, busy timeout, connection limits (2026-02-04)
-- Task 23: Configure CORS properly with ALLOWED_ORIGIN env var (2026-02-04)
-- Task 22: Integrate media encryption - encrypted .age files served with on-demand decryption (2026-02-04)
-- Task 21: Wire up LLM provider abstraction - api/intent.go now uses llm.Provider (2026-02-04)
-- Task 20: Wire up backend main.go with handlers, DB init, static files, CORS (2026-02-04)
-- Task 18: Add OpenAI function calling support (2026-02-04)
-- Task 17: Research piper TTS deployment (2026-02-04)
-- Task 19: Deploy peekaboo via webhook-deployer (2026-02-04)
-- Task 16: Add webhook-deployer config (2026-02-04) - config already existed, completed with task 19
-- Task 15: Setup sops for env var encryption (2026-02-04)
-- Task 14: Create Playwright e2e test with mocked APIs (2026-02-04)
-- Task 13: Create test fixtures for Playwright e2e tests (2026-02-04)
-- Task 12: Wire up full frontend flow with state management (2026-02-04)
-- Task 11: Frontend media display with image/video/audio support (2026-02-04)
-- Task 10: Frontend microphone recording with MediaRecorder (2026-02-04)
-- Task 9: Media lookup API GET /api/media/{concept} (2026-02-04)
-- Task 8: LLM intent recognition with Anthropic tool calls (2026-02-04)
-- Task 7: Whisper-server integration (2026-02-03)
-- Task 6: Age encryption (2026-02-03)
-- Task 5: SQLite media database (2026-02-03)
-- Task 4: source-media.sh script (2026-02-03)
-- Task 3: .gitignore (2026-02-03)
-- Task 2: Astro frontend scaffold (2026-02-03)
-- Task 1: Go backend scaffold (2026-02-03)
+- Task 124: Path traversal defense-in-depth for EncryptedFileServer (2026-02-05)
+  - Added strings.HasPrefix validation to ensure resolved paths stay within BaseDir
+  - Added slog.Error logging for failed io.Copy in serveEncrypted
+  - Added path traversal test cases (parent_dir, encoded_traversal, legit file)
+  - All backend tests pass, linting passes
+
+## Open Tasks
+
+- Task 125: Remove redundant handler parameter from bufferThresholdWatcher
+- Task 126: Update README.md with feedback, theme, continuous listening, WebSocket default
+- Task 127: Add CI skip guard to real-services E2E test
+
+## Milestone History
+
+- Tasks 1-14 (2026-02-03/04): Initial scaffold, media, DB, APIs, frontend flow, E2E
+- Tasks 15-25 (2026-02-04): Deployment, env config, CORS, SQLite optimization
+- Tasks 26-59 (2026-02-04): Security, validation, health checks, rate limiting, accessibility
+- Tasks 60-81 (2026-02-04): Piper TTS, WebSocket audio streaming, comprehensive testing
+- Tasks 82-102 (2026-02-04/05): Performance tuning, error handling, continuous listening UX
+- Tasks 103-123 (2026-02-05): Code organization, feedback, theme, linting
+- Task 124 (2026-02-05): Security hardening - path traversal defense

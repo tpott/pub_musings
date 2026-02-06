@@ -228,6 +228,24 @@ if (!transcript || transcript.trim() === '') {
 
 ---
 
+### 2026-02-05: Path traversal defense-in-depth in file servers
+
+**Context:** EncryptedFileServer used `filepath.Clean` + `filepath.Join` to construct file paths from request URLs. While Go's HTTP mux normalizes paths (redirecting `..` sequences), defense-in-depth is important for file-serving code.
+
+**Solution:** Added explicit `strings.HasPrefix` check after resolving the full path:
+```go
+resolvedPath := filepath.Join(s.BaseDir, requestPath)
+cleanBase := filepath.Clean(s.BaseDir) + string(filepath.Separator)
+if !strings.HasPrefix(resolvedPath, cleanBase) && resolvedPath != filepath.Clean(s.BaseDir) {
+    http.NotFound(w, r)
+    return
+}
+```
+
+**Lesson:** Go's `net/http` ServeMux normalizes URL paths before routing, so `/../../../etc/passwd` is cleaned to `/etc/passwd` and won't match a `/data/media/` prefix. However, `filepath.Clean` + `filepath.Join` alone don't prevent traversal if the HTTP layer is bypassed (e.g., a reverse proxy passes raw paths). Always add explicit prefix validation for file-serving handlers.
+
+---
+
 ### 2026-02-04: WebSocket mode also needs empty transcript handling
 
 **Context:** After implementing empty transcript handling in HTTP mode, discovered the same issue existed in WebSocket mode. When whisper returns empty text, the backend would try to extract intent and fail with a confusing "intent extraction failed" error.
