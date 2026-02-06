@@ -18,7 +18,7 @@ This file tracks high level progress on the peekaboo project.
 - **Frontend media display** - MediaDisplay class renders images/videos, auto-plays audio
 - **Full frontend flow** - PeekabooFlow orchestrates: record -> transcribe -> intent -> media -> display with loading indicators
 - **Test fixtures** - tests/fixtures/ with CC0 mock media and synthetic audio for e2e tests
-- **Playwright e2e tests** - 19 tests verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, WebSocket continuous listening (including sequential commands with gap), WebSocket error recovery, and feedback submission
+- **Playwright e2e tests** - 19 tests across 4 spec files (basic, websocket-errors, websocket-listening, feedback) verify cat/dog/duck media display, error handling, error recovery, TTS synthesis, WebSocket continuous listening (including sequential commands with gap), WebSocket error recovery, and feedback submission
 - **Theme system** - CSS custom properties in theme.css, ThemeInit (FOUC prevention), ThemeToggle (3-mode: light/dark/auto), localStorage persistence, warm neutral palette with terracotta accent
 - **Sops encryption** - secrets.enc.yaml with age encryption, docs/DEPLOY.md documents decrypt process
 - **Deployment ready** - webhook-deployer scripts, systemd service, Caddy config documented
@@ -59,6 +59,14 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 120: Refactor peekaboo.spec.ts E2E tests into smaller files (2026-02-05)
+  - Split 1253-line peekaboo.spec.ts into 4 focused files (all under 500 lines)
+  - peekaboo-basic.spec.ts (299 lines): voice command flow + microphone permission
+  - peekaboo-websocket-errors.spec.ts (261 lines): invalid JSON, connection close, server error, reconnection
+  - peekaboo-websocket-listening.spec.ts (373 lines): multi-command, continuous listening, transcript, sequential
+  - peekaboo-feedback.spec.ts (66 lines): feedback form submission, cancel, escape
+  - Created tests/helpers/e2e-helpers.ts with shared routeFixtures() and setupHttpMocks()
+  - All 19 e2e tests pass
 - Task 119: Add day and night mode with theme redesign (2026-02-05)
   - Created theme.css with CSS custom properties for light and dark themes
   - Warm neutral palette: terracotta accent (#d97757), cream backgrounds (light), slate backgrounds (dark)
