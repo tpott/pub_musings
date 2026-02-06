@@ -272,12 +272,18 @@ type connectionState struct {
 	mu           sync.Mutex
 	webmParser   *WebMParser // WebM-aware audio buffer with init segment caching
 	isRecording  bool
+	isProcessing bool // true while processAudio is running (prevents overlapping calls)
 	lastActivity time.Time
 	bufferStart  time.Time
 
 	// Framed audio protocol metadata
 	chunkMetas       []AudioChunkMeta // metadata for each received audio chunk
 	firstChunkClient float64          // client timestamp (ms) of the first chunk in current buffer window
+
+	// Transcript accumulation across buffer cycles.
+	// When the LLM returns wait_for_more, accumulated words carry forward
+	// to the next transcription cycle so the LLM sees the full context.
+	accumulatedWords []llm.WordData
 }
 
 // ServeHTTP upgrades the connection to WebSocket and handles audio streaming.
@@ -454,6 +460,7 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		state.bufferStart = time.Time{}
 		state.chunkMetas = nil
 		state.firstChunkClient = 0
+		state.accumulatedWords = nil
 		state.mu.Unlock()
 		logger.Debug("recording started")
 
@@ -463,13 +470,14 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		audioData := state.webmParser.GrabAudio()
 		state.webmParser.Clear()
 		firstChunkTS := state.firstChunkClient
+		state.accumulatedWords = nil // clear accumulation on stop
 		state.mu.Unlock()
 
 		logger.Debug("recording stopped", "buffer_size", len(audioData))
 
-		// Process the buffered audio
+		// Process the buffered audio (no state needed — stop is final)
 		if len(audioData) >= minAudioSize {
-			go h.processAudio(ctx, conn, audioData, firstChunkTS, logger)
+			go h.processAudio(ctx, conn, state, audioData, firstChunkTS, logger)
 		} else if len(audioData) > 0 {
 			h.sendError(ctx, conn, "audio too short", logger)
 		} else {
@@ -483,10 +491,16 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 }
 
 // processAudio transcribes audio and processes transcript through LLM.
-// firstChunkClientTS is the client wall-clock timestamp (ms since epoch) of the
-// first audio chunk in this buffer, used to map whisper's audio-relative
-// timestamps to client wall-clock time. Zero means no framed timestamps available.
-func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocket.Conn, audioData []byte, firstChunkClientTS float64, logger *slog.Logger) {
+// state is the connection state used for transcript accumulation and buffer
+// trimming. firstChunkClientTS is the client wall-clock timestamp (ms since
+// epoch) of the first audio chunk in this buffer.
+func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocket.Conn, state *connectionState, audioData []byte, firstChunkClientTS float64, logger *slog.Logger) {
+	defer func() {
+		state.mu.Lock()
+		state.isProcessing = false
+		state.mu.Unlock()
+	}()
+
 	// 1. Send to whisper for transcription
 	whisperResp, err := h.transcribeAudio(audioData)
 	if err != nil {
@@ -508,11 +522,11 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	// Send rich transcript to client (includes word-level timing if available)
 	h.sendRichTranscript(ctx, conn, whisperResp, firstChunkClientTS, logger)
 
-	// 2. Collect word data from whisper segments
-	var words []llm.WordData
+	// 2. Collect word data from whisper segments for this buffer
+	var currentWords []llm.WordData
 	for _, seg := range whisperResp.Segments {
 		for _, w := range seg.Words {
-			words = append(words, llm.WordData{
+			currentWords = append(currentWords, llm.WordData{
 				Word:        w.Word,
 				Start:       w.Start,
 				End:         w.End,
@@ -521,17 +535,22 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 	}
 
-	// 3. Get available concepts from DB
+	// 3. Use accumulated words from previous cycles (if any) merged with current.
+	// Since we re-transcribe the full buffer each time (GrabAudio returns all
+	// cluster data), the current whisper response already covers accumulated audio.
+	// We use currentWords directly — accumulation happens at the buffer level.
+	words := currentWords
+
+	// 4. Get available concepts from DB
 	var concepts []string
 	if h.Database != nil {
 		concepts, err = h.Database.ListConceptIDs()
 		if err != nil {
 			logger.Warn("failed to list concepts", "error", err)
-			// Continue without concepts — LLM can still process
 		}
 	}
 
-	// 4. Process transcript through LLM with tool_choice:any
+	// 5. Process transcript through LLM with tool_choice:any
 	result, err := h.processTranscript(ctx, transcript, words, concepts)
 	if err != nil {
 		logger.Error("transcript processing failed", "error", err)
@@ -539,11 +558,35 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		return
 	}
 
-	// 5. Execute actions from LLM response
+	// 6. Execute actions from LLM response
 	for _, action := range result.Actions {
 		switch action.Type {
 		case "show_media":
 			h.executeShowMedia(ctx, conn, action.Subject, logger)
+
+			// Trim audio buffer at instruction boundary
+			state.mu.Lock()
+			if action.InstructionEndWordIdx >= 0 && action.InstructionEndWordIdx < len(words) {
+				endWord := words[action.InstructionEndWordIdx]
+				// Convert word end time (seconds) to cluster timecode (milliseconds)
+				trimTimeMs := uint64(endWord.End * 1000)
+				trimmed := state.webmParser.TrimBefore(trimTimeMs)
+				if trimmed == 0 {
+					// TrimBefore couldn't find cluster boundaries — clear buffer
+					state.webmParser.Clear()
+				}
+				logger.Debug("trimmed audio buffer at instruction boundary",
+					"word_idx", action.InstructionEndWordIdx,
+					"word_end_s", endWord.End,
+					"trim_time_ms", trimTimeMs,
+					"bytes_trimmed", trimmed)
+			} else {
+				// No valid word index — clear the entire buffer
+				state.webmParser.Clear()
+			}
+			state.accumulatedWords = nil
+			state.bufferStart = time.Now()
+			state.mu.Unlock()
 
 		case "text_to_speech":
 			logger.Debug("text_to_speech action received", "text", action.Text)
@@ -551,7 +594,12 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 
 		case "wait_for_more":
 			logger.Debug("wait_for_more action received", "reason", action.Reason)
-			// Do nothing — wait for more audio to arrive
+			// Keep buffer intact for next transcription cycle.
+			// Reset bufferStart so the threshold timer waits for more audio
+			// before triggering the next transcription.
+			state.mu.Lock()
+			state.bufferStart = time.Now()
+			state.mu.Unlock()
 		}
 	}
 }
@@ -799,7 +847,7 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 			return
 		case <-ticker.C:
 			state.mu.Lock()
-			if !state.isRecording || state.webmParser.BufferLen() == 0 {
+			if !state.isRecording || state.webmParser.BufferLen() == 0 || state.isProcessing {
 				state.mu.Unlock()
 				continue
 			}
@@ -809,17 +857,22 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 				// Threshold reached — grab valid WebM audio.
 				// GrabAudio always returns init segment + cluster data,
 				// ensuring every whisper request gets a valid WebM file.
+				// Note: buffer is NOT cleared here — processAudio will
+				// trim at the instruction boundary (if LLM returns one)
+				// or keep all data for the next cycle (wait_for_more).
 				audioData := state.webmParser.GrabAudio()
 				firstChunkTS := state.firstChunkClient
-				state.bufferStart = time.Now()
-				// Reset firstChunkClient for the next buffer window.
-				state.firstChunkClient = 0
+				state.isProcessing = true
 				state.mu.Unlock()
 
 				logger.Debug("buffer threshold reached", "elapsed", elapsed, "size", len(audioData))
 
 				if len(audioData) >= minAudioSize {
-					go h.processAudio(ctx, conn, audioData, firstChunkTS, logger)
+					go h.processAudio(ctx, conn, state, audioData, firstChunkTS, logger)
+				} else {
+					state.mu.Lock()
+					state.isProcessing = false
+					state.mu.Unlock()
 				}
 			} else {
 				state.mu.Unlock()

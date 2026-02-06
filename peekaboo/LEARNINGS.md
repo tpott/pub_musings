@@ -320,6 +320,26 @@ if strings.TrimSpace(transcript) == "" {
 
 ---
 
+### 2026-02-06: ebml-go read hooks fire before child elements are populated
+
+**Problem:** `ParseClusters` used `WithElementReadHooks` to capture both position AND timecode from `elem.Value.(webm.Cluster)`. All clusters showed `Timecode=0` even though the data had different timecodes (500, 1000, 1500).
+
+**Root cause:** Read hooks fire when the Cluster element is encountered but before its child elements (like Timecode) are parsed into the struct. `elem.Value` at hook time is a zero-value `webm.Cluster`.
+
+**Solution:** Use hooks ONLY for byte positions, then pair with fully parsed `Segment.Cluster` timecodes after unmarshal completes:
+```go
+_ = ebml.Unmarshal(r, &ws, ebml.WithElementReadHooks(func(elem *ebml.Element) {
+    if elem.Name == "Cluster" {
+        positions = append(positions, elem.Position) // only position!
+    }
+}))
+// After unmarshal: ws.Segment.Cluster[i].Timecode has correct values
+```
+
+**Lesson:** ebml-go read hooks provide structural metadata (position, name) but NOT populated values. For child element values, always use the deserialized struct after unmarshal completes.
+
+---
+
 ### 2026-02-06: GetRandomMediaSet returns (nil, nil) — always check for nil result
 
 **Context:** After refactoring `processAudio` to use `ProcessTranscript` (which returns tool actions), the `executeShowMedia` function called `GetRandomMediaSet(subject)` and passed the result directly to `sendMedia()`. When testing with an in-memory DB that had concepts but no media_sets seeded, `GetRandomMediaSet` returned `(nil, nil)` (no error, but no result), causing a nil pointer dereference in `sendMedia()`.

@@ -1,8 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"os"
 	"testing"
+
+	ebml "github.com/at-wat/ebml-go"
+	"github.com/at-wat/ebml-go/webm"
 )
 
 func TestWebMParserExtractsInitSegment(t *testing.T) {
@@ -171,4 +175,165 @@ func TestParseClusters(t *testing.T) {
 	if clusters[0].ByteOffset != 497 {
 		t.Errorf("expected first cluster at offset 497, got %d", clusters[0].ByteOffset)
 	}
+}
+
+// buildMultiClusterWebM creates a minimal valid WebM with multiple Cluster
+// elements at known timecodes. Each cluster contains a small dummy audio frame.
+func buildMultiClusterWebM(t *testing.T, timecodes []uint64) []byte {
+	t.Helper()
+
+	type webmFile struct {
+		Header  webm.EBMLHeader `ebml:"EBML"`
+		Segment struct {
+			Info struct {
+				TimecodeScale uint64 `ebml:"TimecodeScale"`
+				MuxingApp     string `ebml:"MuxingApp"`
+			} `ebml:"Info"`
+			Tracks struct {
+				TrackEntry []struct {
+					TrackNumber uint64 `ebml:"TrackNumber"`
+					TrackType   uint64 `ebml:"TrackType"`
+					CodecID     string `ebml:"CodecID"`
+				} `ebml:"TrackEntry"`
+			} `ebml:"Tracks"`
+			Cluster []webm.Cluster `ebml:"Cluster"`
+		} `ebml:"Segment"`
+	}
+
+	f := webmFile{}
+	f.Header.EBMLVersion = 1
+	f.Header.EBMLReadVersion = 1
+	f.Header.EBMLMaxIDLength = 4
+	f.Header.EBMLMaxSizeLength = 8
+	f.Header.DocType = "webm"
+	f.Header.DocTypeVersion = 4
+	f.Header.DocTypeReadVersion = 2
+	f.Segment.Info.TimecodeScale = 1000000 // 1ms
+	f.Segment.Info.MuxingApp = "test"
+	f.Segment.Tracks.TrackEntry = []struct {
+		TrackNumber uint64 `ebml:"TrackNumber"`
+		TrackType   uint64 `ebml:"TrackType"`
+		CodecID     string `ebml:"CodecID"`
+	}{{TrackNumber: 1, TrackType: 2, CodecID: "A_OPUS"}}
+
+	for _, tc := range timecodes {
+		// SimpleBlock: trackNum=1 (0x81), timecode=0, keyframe flag=0x80
+		block := []byte{0x81, 0x00, 0x00, 0x80}
+		block = append(block, make([]byte, 100)...) // dummy audio data
+		f.Segment.Cluster = append(f.Segment.Cluster, webm.Cluster{
+			Timecode:    tc,
+			SimpleBlock: []ebml.Block{{Data: [][]byte{block}}},
+		})
+	}
+
+	var buf bytes.Buffer
+	if err := ebml.Marshal(&f, &buf); err != nil {
+		t.Fatalf("failed to marshal WebM: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestWebMParserTrimBeforeMultiCluster(t *testing.T) {
+	// Create a WebM with 4 clusters at 0ms, 500ms, 1000ms, 1500ms
+	data := buildMultiClusterWebM(t, []uint64{0, 500, 1000, 1500})
+
+	// Verify we can parse 4 clusters
+	clusters := ParseClusters(data)
+	if len(clusters) != 4 {
+		t.Fatalf("expected 4 clusters, got %d", len(clusters))
+	}
+	t.Logf("clusters before trim: %d", len(clusters))
+	for i, c := range clusters {
+		t.Logf("  cluster %d: timecode=%d, offset=%d, len=%d", i, c.TimecodeMs, c.ByteOffset, c.ByteLength)
+	}
+
+	// Load into parser
+	p := NewWebMParser()
+	p.Append(data)
+
+	if !p.Parsed() {
+		t.Fatal("parser should be parsed")
+	}
+
+	bufBefore := p.BufferLen()
+
+	// Trim clusters before 1000ms (should remove clusters at 0ms and 500ms)
+	trimmed := p.TrimBefore(1000)
+	if trimmed <= 0 {
+		t.Fatalf("expected positive trim, got %d", trimmed)
+	}
+
+	bufAfter := p.BufferLen()
+	if bufAfter >= bufBefore {
+		t.Errorf("buffer should be smaller after trim: before=%d, after=%d", bufBefore, bufAfter)
+	}
+
+	// GrabAudio should still produce valid WebM (init + remaining clusters)
+	audio := p.GrabAudio()
+	if audio == nil {
+		t.Fatal("GrabAudio returned nil after trim")
+	}
+
+	// Must start with EBML magic
+	if audio[0] != 0x1A || audio[1] != 0x45 || audio[2] != 0xDF || audio[3] != 0xA3 {
+		t.Errorf("trimmed audio does not start with EBML magic")
+	}
+
+	// Parse the trimmed output — should have only clusters at 1000ms and 1500ms
+	remainingClusters := ParseClusters(audio)
+	if len(remainingClusters) != 2 {
+		t.Fatalf("expected 2 remaining clusters, got %d", len(remainingClusters))
+	}
+	if remainingClusters[0].TimecodeMs != 1000 {
+		t.Errorf("expected first remaining cluster at 1000ms, got %d", remainingClusters[0].TimecodeMs)
+	}
+	if remainingClusters[1].TimecodeMs != 1500 {
+		t.Errorf("expected second remaining cluster at 1500ms, got %d", remainingClusters[1].TimecodeMs)
+	}
+}
+
+func TestWebMParserTrimBeforeNoOp(t *testing.T) {
+	data := buildMultiClusterWebM(t, []uint64{0, 500, 1000})
+
+	p := NewWebMParser()
+	p.Append(data)
+
+	// Trim at 0 should be a no-op (first cluster is at 0, nothing before it)
+	trimmed := p.TrimBefore(0)
+	if trimmed != 0 {
+		t.Errorf("expected no trim at timecode 0, got %d bytes", trimmed)
+	}
+
+	// Trim beyond all clusters should be a no-op (no cluster at or after 9999ms)
+	trimmed = p.TrimBefore(9999)
+	if trimmed != 0 {
+		t.Errorf("expected no trim beyond all clusters, got %d bytes", trimmed)
+	}
+}
+
+func TestWebMParserTrimBeforeUnparsed(t *testing.T) {
+	p := NewWebMParser()
+	p.Append([]byte{0x01, 0x02, 0x03})
+
+	// Should be no-op on unparsed buffer
+	trimmed := p.TrimBefore(1000)
+	if trimmed != 0 {
+		t.Errorf("expected no trim on unparsed buffer, got %d", trimmed)
+	}
+}
+
+func TestWebMParserClusterDataLen(t *testing.T) {
+	data := buildMultiClusterWebM(t, []uint64{0, 500})
+
+	p := NewWebMParser()
+	if p.ClusterDataLen() != 0 {
+		t.Error("expected 0 cluster data len before any data")
+	}
+
+	p.Append(data)
+	cdl := p.ClusterDataLen()
+	if cdl <= 0 {
+		t.Errorf("expected positive cluster data len, got %d", cdl)
+	}
+	t.Logf("cluster data len: %d bytes", cdl)
 }

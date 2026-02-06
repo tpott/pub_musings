@@ -128,15 +128,82 @@ func (p *WebMParser) Reset() {
 	p.parsed = false
 }
 
-// ParseClusters uses ebml-go to parse a complete WebM byte stream and return
-// cluster references with timecodes and byte positions. This is intended for
-// audio trimming in later phases.
-func ParseClusters(data []byte) []ClusterRef {
-	type clusterHook struct {
-		position uint64
-		timecode uint64
+// TrimBefore discards all Cluster data in the raw buffer with timecodes
+// strictly before the given timecode (in milliseconds). The init segment is
+// preserved. Returns the number of bytes trimmed.
+//
+// This is used after LLM boundary detection: once the LLM confirms an
+// instruction ends at a certain word, we map that word's end time to a
+// Cluster boundary and trim everything before it. The remaining audio
+// (after the instruction) stays in the buffer for the next transcription.
+//
+// If the buffer is not parsed or no clusters are found, this is a no-op.
+func (p *WebMParser) TrimBefore(timecodeMs uint64) int {
+	if !p.parsed || len(p.rawBuffer) <= p.clusterPos {
+		return 0
 	}
-	var hooks []clusterHook
+
+	// Build a valid WebM (init + clusters) so ParseClusters can parse it
+	fullWebM := p.GrabAudio()
+	clusters := ParseClusters(fullWebM)
+	if len(clusters) == 0 {
+		return 0
+	}
+
+	// Find the first cluster with TimecodeMs >= timecodeMs
+	trimIdx := -1
+	for i, c := range clusters {
+		if c.TimecodeMs >= timecodeMs {
+			trimIdx = i
+			break
+		}
+	}
+
+	if trimIdx <= 0 {
+		// Nothing to trim (first cluster is already at or after the timecode,
+		// or no cluster matches)
+		return 0
+	}
+
+	// The cluster offsets in ParseClusters are relative to the full WebM
+	// (init + clusters). Convert to rawBuffer offset.
+	// In fullWebM: initSegment occupies [0, len(initSegment))
+	//              clusters start at len(initSegment)
+	// In rawBuffer: clusters start at p.clusterPos
+	keepOffset := clusters[trimIdx].ByteOffset
+	// Convert from fullWebM offset to rawBuffer offset
+	rawKeepOffset := p.clusterPos + (keepOffset - len(p.initSegment))
+
+	if rawKeepOffset <= p.clusterPos || rawKeepOffset >= len(p.rawBuffer) {
+		return 0
+	}
+
+	trimmed := rawKeepOffset - p.clusterPos
+	remaining := make([]byte, p.clusterPos+len(p.rawBuffer)-rawKeepOffset)
+	copy(remaining, p.rawBuffer[:p.clusterPos])                 // keep init segment area
+	copy(remaining[p.clusterPos:], p.rawBuffer[rawKeepOffset:]) // keep clusters from keepOffset onward
+	p.rawBuffer = remaining
+
+	return trimmed
+}
+
+// ClusterDataLen returns the length of cluster data (audio) in the buffer,
+// excluding the init segment. Returns 0 if not yet parsed.
+func (p *WebMParser) ClusterDataLen() int {
+	if !p.parsed || len(p.rawBuffer) <= p.clusterPos {
+		return 0
+	}
+	return len(p.rawBuffer) - p.clusterPos
+}
+
+// ParseClusters uses ebml-go to parse a complete WebM byte stream and return
+// cluster references with timecodes and byte positions.
+//
+// Note: ebml-go read hooks fire before a Cluster's children are populated,
+// so we use hooks only for byte positions and pair them with the fully
+// parsed Segment.Cluster timecodes after unmarshal completes.
+func ParseClusters(data []byte) []ClusterRef {
+	var positions []uint64
 
 	var ws struct {
 		Header  webm.EBMLHeader `ebml:"EBML"`
@@ -146,23 +213,25 @@ func ParseClusters(data []byte) []ClusterRef {
 	r := bytes.NewReader(data)
 	_ = ebml.Unmarshal(r, &ws, ebml.WithElementReadHooks(func(elem *ebml.Element) {
 		if elem.Name == "Cluster" {
-			if cluster, ok := elem.Value.(webm.Cluster); ok {
-				hooks = append(hooks, clusterHook{
-					position: elem.Position,
-					timecode: cluster.Timecode,
-				})
-			}
+			positions = append(positions, elem.Position)
 		}
 	}))
 
+	// Pair hook positions with parsed cluster timecodes.
+	// If counts don't match (shouldn't happen), use whichever is shorter.
+	n := len(positions)
+	if len(ws.Segment.Cluster) < n {
+		n = len(ws.Segment.Cluster)
+	}
+
 	var refs []ClusterRef
-	for i, h := range hooks {
+	for i := 0; i < n; i++ {
 		ref := ClusterRef{
-			TimecodeMs: h.timecode,
-			ByteOffset: int(h.position),
+			TimecodeMs: ws.Segment.Cluster[i].Timecode,
+			ByteOffset: int(positions[i]),
 		}
-		if i+1 < len(hooks) {
-			ref.ByteLength = int(hooks[i+1].position) - ref.ByteOffset
+		if i+1 < n {
+			ref.ByteLength = int(positions[i+1]) - ref.ByteOffset
 		} else {
 			ref.ByteLength = len(data) - ref.ByteOffset
 		}

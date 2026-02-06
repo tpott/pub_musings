@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 140 tasks completed.
+Production-ready voice-controlled web app for children. 141 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,18 +32,18 @@ Production-ready voice-controlled web app for children. 140 tasks completed.
 
 ## Last Completed
 
-- Task 140 (2026-02-06): Phase 3 — LLM boundary detection with tool_choice:any
-  - Provider interface extended with `ProcessTranscript(TranscriptRequest) → TranscriptResult`
-  - Three tools: show_media (instruction_end_word_index), text_to_speech, wait_for_more
-  - Anthropic: tool_choice:any, system prompt with `<available-concepts>` XML tags
-  - OpenAI: tool_choice:required, function tools with same schema
-  - `processAudio` uses `ProcessTranscript` instead of `ExtractIntent`
-  - Word data from whisper segments forwarded to LLM (text, timing, probability)
-  - DB `ListConceptIDs()` provides concept list for LLM system prompt
-  - wait_for_more action skips media lookup (waits for more audio)
-  - At most one show_media per LLM response enforced in both providers
-  - Null media set handled gracefully (no nil pointer dereference)
-  - 4 new backend tests (`websocket_llm_test.go`)
+- Task 141 (2026-02-06): Audio buffer trimming at Cluster boundaries + transcript accumulation
+  - `WebMParser.TrimBefore(timecodeMs)` — trims Cluster data before a given timecode
+  - `WebMParser.ClusterDataLen()` — returns cluster data size excluding init segment
+  - Fixed `ParseClusters` — read hooks fire before child elements are populated,
+    so positions come from hooks but timecodes come from parsed `Segment.Cluster`
+  - `processAudio` now takes `connectionState` for buffer trimming after show_media
+  - `instruction_end_word_index` from LLM mapped to word end time → Cluster boundary
+  - `isProcessing` flag prevents overlapping processAudio goroutines
+  - `wait_for_more` resets buffer timer without clearing data (accumulates audio)
+  - `accumulatedWords` field on connectionState (cleared on show_media or start_recording)
+  - 6 new tests: 4 WebM parser tests (TrimBefore, ClusterDataLen), 2 WebSocket integration
+  - All 241 frontend unit tests, 19 E2E tests, backend tests pass
 
 ## Milestone History
 
@@ -64,3 +64,4 @@ Production-ready voice-controlled web app for children. 140 tasks completed.
 - Task 138 (2026-02-06): Parse full whisper verbose_json with word-level timing
 - Task 139 (2026-02-06): Framed audio protocol with 12-byte headers and timestamp mapping
 - Task 140 (2026-02-06): LLM boundary detection with tool_choice:any and three tools
+- Task 141 (2026-02-06): Audio buffer trimming at Cluster boundaries + transcript accumulation
