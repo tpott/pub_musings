@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -129,6 +130,88 @@ func (m *dynamicMockLLMProvider) ProcessTranscript(ctx context.Context, req llm.
 
 func (m *dynamicMockLLMProvider) HealthCheck(ctx context.Context) error {
 	return nil
+}
+
+// capturingMockLLMProvider captures the TranscriptRequest passed to ProcessTranscript.
+type capturingMockLLMProvider struct {
+	mu      sync.Mutex
+	subject string
+	result  *llm.TranscriptResult // custom result; if nil, defaults to show_media
+	err     error
+
+	// Captured values from the last call
+	lastRequest *llm.TranscriptRequest
+}
+
+func (m *capturingMockLLMProvider) ExtractIntent(ctx context.Context, text string) (*llm.IntentResult, error) {
+	return &llm.IntentResult{Subject: m.subject}, nil
+}
+
+func (m *capturingMockLLMProvider) ProcessTranscript(ctx context.Context, req llm.TranscriptRequest) (*llm.TranscriptResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	reqCopy := req
+	m.lastRequest = &reqCopy
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &llm.TranscriptResult{
+		Actions: []llm.ToolAction{{
+			Type:    "show_media",
+			Subject: m.subject,
+		}},
+	}, nil
+}
+
+func (m *capturingMockLLMProvider) HealthCheck(ctx context.Context) error {
+	return nil
+}
+
+func (m *capturingMockLLMProvider) getLastRequest() *llm.TranscriptRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastRequest
+}
+
+// sequentialMockLLMProvider returns different results on successive calls.
+type sequentialMockLLMProvider struct {
+	mu       sync.Mutex
+	results  []*llm.TranscriptResult // results to return in order
+	callIdx  int                     // index of next call
+	requests []*llm.TranscriptRequest
+}
+
+func (m *sequentialMockLLMProvider) ExtractIntent(ctx context.Context, text string) (*llm.IntentResult, error) {
+	return &llm.IntentResult{Subject: "cat"}, nil
+}
+
+func (m *sequentialMockLLMProvider) ProcessTranscript(ctx context.Context, req llm.TranscriptRequest) (*llm.TranscriptResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	reqCopy := req
+	m.requests = append(m.requests, &reqCopy)
+	idx := m.callIdx
+	if idx < len(m.results) {
+		m.callIdx++
+		return m.results[idx], nil
+	}
+	// Default: show_media
+	return &llm.TranscriptResult{
+		Actions: []llm.ToolAction{{Type: "show_media", Subject: "cat"}},
+	}, nil
+}
+
+func (m *sequentialMockLLMProvider) HealthCheck(ctx context.Context) error {
+	return nil
+}
+
+func (m *sequentialMockLLMProvider) getRequests() []*llm.TranscriptRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.requests
 }
 
 func TestConnectionTracker(t *testing.T) {

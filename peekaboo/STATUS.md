@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 144 tasks completed.
+Production-ready voice-controlled web app for children. 145 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,10 @@ Production-ready voice-controlled web app for children. 144 tasks completed.
 
 ## Last Completed
 
-- Task 144 (2026-02-06): E2E endurance test for continuous listening across multiple buffer cycles
-  - Test sends 1KB chunks (28 chunks at 500ms = 14s) triggering buffer threshold 4+ times
-  - Asserts no crash, no fatal error, mic still recording, media displayed
-  - Skipped by default (requires `PEEKABOO_REAL_SERVICES=1`)
-  - 21 E2E tests total (2 skipped, 19 pass)
+- Task 145 (2026-02-06): Split websocket_llm_test.go (679→270+342 lines)
+  - Moved capturingMockLLMProvider and sequentialMockLLMProvider to websocket_config_test.go (shared mock infrastructure)
+  - Split into websocket_llm_test.go (word/concept data forwarding) and websocket_llm_tools_test.go (tool action behavior)
+  - All three files under 500 lines (270, 342, 283)
 
 ## Milestone History
 
@@ -61,3 +60,4 @@ Production-ready voice-controlled web app for children. 144 tasks completed.
 - Task 142 (2026-02-06): TTS tool execution and multi-tool sequential processing
 - Task 143 (2026-02-06): Whisper VAD integration for silence-based triggering
 - Task 144 (2026-02-06): E2E endurance test for continuous listening
+- Task 145 (2026-02-06): Split oversized websocket_llm_test.go into two files
