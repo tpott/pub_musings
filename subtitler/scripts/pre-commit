@@ -1,36 +1,63 @@
 #!/bin/bash
-# Git pre-commit hook
-# Runs linting, unit tests, and E2E tests before allowing a commit
+# Git pre-commit hook for pub_musings monorepo
+# Runs project-specific checks based on which files are staged
 #
-# To install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+# To install: ln -sf ../../subtitler/scripts/pre-commit .git/hooks/pre-commit
 
 set -e
 
-# Only run checks if subtitler/ files are being committed
-if ! git diff --cached --name-only | grep -q "^subtitler/"; then
-    exit 0
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+STAGED_FILES="$(git diff --cached --name-only)"
+
+HAS_SUBTITLER=false
+HAS_PEEKABOO=false
+
+if echo "$STAGED_FILES" | grep -q "^subtitler/"; then
+    HAS_SUBTITLER=true
+fi
+if echo "$STAGED_FILES" | grep -q "^peekaboo/"; then
+    HAS_PEEKABOO=true
 fi
 
-SCRIPT_DIR="$(dirname "$0")"
-
-# If running as a git hook, SCRIPT_DIR will be .git/hooks
-# Adjust path accordingly - scripts are in subtitler/scripts/
-if [[ "$SCRIPT_DIR" == *".git/hooks"* ]]; then
-    SCRIPT_DIR="$(git rev-parse --show-toplevel)/subtitler/scripts"
+# Nothing to check
+if ! $HAS_SUBTITLER && ! $HAS_PEEKABOO; then
+    exit 0
 fi
 
 echo "Pre-commit verification..."
 echo ""
 
-# Run lint check
-"$SCRIPT_DIR/lint.sh"
+# --- Subtitler checks ---
+if $HAS_SUBTITLER; then
+    echo "=== Subtitler checks ==="
+    SCRIPT_DIR="$REPO_ROOT/subtitler/scripts"
 
-# Run unit tests
-"$SCRIPT_DIR/test-backend.sh"
-"$SCRIPT_DIR/test-frontend.sh"
+    "$SCRIPT_DIR/lint.sh"
+    "$SCRIPT_DIR/test-backend.sh"
+    "$SCRIPT_DIR/test-frontend.sh"
+    "$SCRIPT_DIR/test-e2e.sh"
 
-# Run E2E tests
-"$SCRIPT_DIR/test-e2e.sh"
+    echo "Subtitler checks passed!"
+    echo ""
+fi
 
-echo ""
+# --- Peekaboo checks ---
+if $HAS_PEEKABOO; then
+    echo "=== Peekaboo checks ==="
+
+    # Lint
+    "$REPO_ROOT/peekaboo/scripts/lint.sh"
+
+    # Backend tests
+    echo "Running peekaboo backend tests..."
+    (cd "$REPO_ROOT/peekaboo/backend" && go test ./...)
+
+    # Frontend tests
+    echo "Running peekaboo frontend tests..."
+    (cd "$REPO_ROOT/peekaboo/frontend" && npm test)
+
+    echo "Peekaboo checks passed!"
+    echo ""
+fi
+
 echo "Pre-commit checks passed!"
