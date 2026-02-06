@@ -54,9 +54,16 @@ This file tracks high level progress on the peekaboo project.
 - **Transcript display UI** - Scrollable transcript history below media display with aria-live for accessibility
 - **Feedback feature** - Floating feedback button with modal form, POST /api/feedback endpoint with rate limiting (5/min), SQLite persistence
 - **Skip-to-content link** - Keyboard accessibility link that appears on focus, jumps to main content
+- **Frontend log forwarding** - Development-only POST /api/log endpoint for forwarding console logs to backend (gated by FORWARD_FRONTEND_LOGS env var)
 
 ## Last Completed
 
+- Task 117: Add development-gated console.log forwarding to backend (2026-02-05)
+  - Backend: POST /api/log handler gated by FORWARD_FRONTEND_LOGS=true env var
+  - Frontend: logger.ts forwards logs to backend when VITE_FORWARD_LOGS=true
+  - Fire-and-forget fetch, silently ignores errors to prevent recursion
+  - 10 backend tests, 7 new frontend tests (237 total)
+  - docs/FRONTEND-LOGGING.md with setup, verification steps, and example breakage
 - Task 118: Add e2e test for sequential voice commands under continuous listening (2026-02-05)
   - New test: "sequential voice commands - two utterances in one session with gap"
   - Click mic once → cat audio → silence gap → dog audio → verify both photos

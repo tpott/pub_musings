@@ -115,6 +115,12 @@ func main() {
 	feedbackLimiter := api.NewRateLimiter(5, time.Minute)
 	mux.Handle("POST /api/feedback", api.RateLimitMiddleware(api.NewFeedbackHandler(database), feedbackLimiter))
 
+	// Frontend log forwarding (development only, gated by FORWARD_FRONTEND_LOGS=true)
+	if strings.EqualFold(os.Getenv("FORWARD_FRONTEND_LOGS"), "true") {
+		mux.Handle("POST /api/log", api.NewLogHandler())
+		slog.Info("frontend log forwarding enabled (POST /api/log)")
+	}
+
 	// WebSocket endpoint for audio streaming with rate limiting and origin validation
 	whisperURL := os.Getenv("WHISPER_SERVER_URL")
 	if whisperURL == "" {

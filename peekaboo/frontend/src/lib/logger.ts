@@ -9,6 +9,10 @@
  * - 'silent': No logs
  *
  * Default: 'info' in production, 'debug' in development
+ *
+ * Log forwarding to backend (development only):
+ * Set VITE_FORWARD_LOGS=true to also send logs to POST /api/log.
+ * The backend must have FORWARD_FRONTEND_LOGS=true to accept them.
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
@@ -35,7 +39,31 @@ function getConfiguredLevel(): LogLevel {
   return 'info';
 }
 
+function isForwardingEnabled(): boolean {
+  return (import.meta.env?.VITE_FORWARD_LOGS || '').toLowerCase() === 'true';
+}
+
 let currentLevel: LogLevel = getConfiguredLevel();
+let forwardLogs: boolean = isForwardingEnabled();
+
+/**
+ * Forward a log message to the backend via POST /api/log.
+ * Fire-and-forget - errors are silently ignored to avoid infinite loops.
+ */
+function forwardToBackend(level: string, message: string): void {
+  if (!forwardLogs) return;
+  try {
+    fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, message }),
+    }).catch(() => {
+      // Silently ignore - we can't log a forwarding failure without recursion
+    });
+  } catch {
+    // Silently ignore synchronous errors (e.g., fetch not available)
+  }
+}
 
 /**
  * Set the current log level
@@ -51,6 +79,13 @@ export function getLogLevel(): LogLevel {
   return currentLevel;
 }
 
+/**
+ * Enable or disable log forwarding to the backend
+ */
+export function setForwardLogs(enabled: boolean): void {
+  forwardLogs = enabled;
+}
+
 function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
 }
@@ -61,6 +96,7 @@ function shouldLog(level: LogLevel): boolean {
 export function debug(message: string, ...args: unknown[]): void {
   if (shouldLog('debug')) {
     console.debug(`[DEBUG] ${message}`, ...args);
+    forwardToBackend('debug', message);
   }
 }
 
@@ -70,6 +106,7 @@ export function debug(message: string, ...args: unknown[]): void {
 export function info(message: string, ...args: unknown[]): void {
   if (shouldLog('info')) {
     console.info(`[INFO] ${message}`, ...args);
+    forwardToBackend('info', message);
   }
 }
 
@@ -79,6 +116,7 @@ export function info(message: string, ...args: unknown[]): void {
 export function warn(message: string, ...args: unknown[]): void {
   if (shouldLog('warn')) {
     console.warn(`[WARN] ${message}`, ...args);
+    forwardToBackend('warn', message);
   }
 }
 
@@ -88,6 +126,7 @@ export function warn(message: string, ...args: unknown[]): void {
 export function error(message: string, ...args: unknown[]): void {
   if (shouldLog('error')) {
     console.error(`[ERROR] ${message}`, ...args);
+    forwardToBackend('error', message);
   }
 }
 
@@ -101,6 +140,7 @@ export const logger = {
   error,
   setLogLevel,
   getLogLevel,
+  setForwardLogs,
 };
 
 export default logger;

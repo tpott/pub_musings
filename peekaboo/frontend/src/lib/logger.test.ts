@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { logger, setLogLevel, getLogLevel, debug, info, warn, error, LogLevel } from './logger';
+import { logger, setLogLevel, getLogLevel, debug, info, warn, error, LogLevel, setForwardLogs } from './logger';
 
 describe('logger', () => {
   // Save original console methods
@@ -29,6 +29,8 @@ describe('logger', () => {
 
     // Reset log level to debug for consistent testing
     setLogLevel('debug');
+    // Disable forwarding by default in tests
+    setForwardLogs(false);
   });
 
   afterEach(() => {
@@ -165,12 +167,83 @@ describe('logger', () => {
       expect(typeof logger.error).toBe('function');
       expect(typeof logger.setLogLevel).toBe('function');
       expect(typeof logger.getLogLevel).toBe('function');
+      expect(typeof logger.setForwardLogs).toBe('function');
     });
 
     it('methods work through logger object', () => {
       logger.setLogLevel('debug');
       logger.debug('test');
       expect(mockDebug).toHaveBeenCalled();
+    });
+  });
+
+  describe('log forwarding', () => {
+    let mockFetch: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      mockFetch = vi.fn().mockResolvedValue({ ok: true });
+      vi.stubGlobal('fetch', mockFetch);
+      setForwardLogs(true);
+      setLogLevel('debug');
+    });
+
+    afterEach(() => {
+      setForwardLogs(false);
+      vi.unstubAllGlobals();
+    });
+
+    it('forwards error logs to backend when enabled', () => {
+      error('test error');
+      expect(mockFetch).toHaveBeenCalledWith('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: 'error', message: 'test error' }),
+      });
+    });
+
+    it('forwards warn logs to backend when enabled', () => {
+      warn('test warning');
+      expect(mockFetch).toHaveBeenCalledWith('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: 'warn', message: 'test warning' }),
+      });
+    });
+
+    it('forwards info logs to backend when enabled', () => {
+      info('test info');
+      expect(mockFetch).toHaveBeenCalledWith('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: 'info', message: 'test info' }),
+      });
+    });
+
+    it('forwards debug logs to backend when enabled', () => {
+      debug('test debug');
+      expect(mockFetch).toHaveBeenCalledWith('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: 'debug', message: 'test debug' }),
+      });
+    });
+
+    it('does not forward when forwarding is disabled', () => {
+      setForwardLogs(false);
+      error('test error');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('does not forward when log level suppresses the message', () => {
+      setLogLevel('error');
+      debug('suppressed debug');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('silently ignores fetch errors', () => {
+      mockFetch.mockRejectedValue(new Error('network error'));
+      // Should not throw
+      expect(() => error('test error')).not.toThrow();
     });
   });
 });
