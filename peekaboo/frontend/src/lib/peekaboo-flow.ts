@@ -13,7 +13,7 @@ import { getUserFriendlyMessage, ApiError } from './errors';
 import { speakSubject } from './text-to-speech';
 import { AudioWebSocket } from './websocket-audio';
 import { logger } from './logger';
-import type { MediaMessage, ConnectionState } from './websocket-audio';
+import type { MediaMessage, TTSAudioMessage, ConnectionState } from './websocket-audio';
 
 export type FlowState = 'idle' | 'recording' | 'transcribing' | 'searching' | 'displaying' | 'error';
 
@@ -49,6 +49,10 @@ export class PeekabooFlow {
 
   // Transcript display
   private transcriptContainer: HTMLElement | null = null;
+
+  // TTS audio playback state
+  private ttsAudio: HTMLAudioElement | null = null;
+  private ttsPlaybackPromise: Promise<void> | null = null;
 
   // Error auto-dismiss timer
   private errorTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -89,6 +93,7 @@ export class PeekabooFlow {
         {
           onTranscript: (text) => this.handleWsTranscript(text),
           onMedia: (media) => this.handleWsMedia(media),
+          onTTSAudio: (tts) => this.handleWsTTSAudio(tts),
           onError: (error) => this.handleError(error),
           onStateChange: (wsState) => this.handleWsStateChange(wsState),
         },
@@ -347,9 +352,48 @@ export class PeekabooFlow {
   }
 
   /**
+   * Handle TTS audio received from WebSocket.
+   * Plays the base64-encoded WAV audio and stores a promise that resolves
+   * when playback ends, so handleWsMedia can await it before showing media.
+   */
+  private handleWsTTSAudio(tts: TTSAudioMessage): void {
+    this.stopTTSAudio();
+
+    const audio = new Audio(`data:audio/wav;base64,${tts.audio_data}`);
+    this.ttsAudio = audio;
+
+    this.ttsPlaybackPromise = new Promise<void>((resolve) => {
+      audio.addEventListener('ended', () => resolve(), { once: true });
+      audio.addEventListener('error', () => resolve(), { once: true });
+      audio.play().catch(() => {
+        // Autoplay blocked — resolve immediately so media can still display
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Stop any currently playing TTS audio.
+   */
+  private stopTTSAudio(): void {
+    if (this.ttsAudio) {
+      this.ttsAudio.pause();
+      this.ttsAudio.src = '';
+      this.ttsAudio = null;
+    }
+    this.ttsPlaybackPromise = null;
+  }
+
+  /**
    * Handle media received from WebSocket
    */
   private async handleWsMedia(media: MediaMessage): Promise<void> {
+    // Wait for any pending TTS audio to finish before showing media
+    if (this.ttsPlaybackPromise) {
+      await this.ttsPlaybackPromise;
+      this.ttsPlaybackPromise = null;
+    }
+
     const formattedMedia = {
       photoUrl: media.photo_url,
       audioUrl: media.audio_url,
@@ -372,12 +416,16 @@ export class PeekabooFlow {
       this.setState('displaying');
     }
 
-    // Attempt to speak the subject using TTS (if available)
-    try {
-      await speakSubject(media.subject);
-    } catch (ttsError) {
-      logger.warn('TTS unavailable:', ttsError);
+    // In WebSocket mode, TTS is handled via tts_audio messages from the server.
+    // Only use client-side TTS as fallback when no TTS audio was received.
+    if (!this.ttsAudio) {
+      try {
+        await speakSubject(media.subject);
+      } catch (ttsError) {
+        logger.warn('TTS unavailable:', ttsError);
+      }
     }
+    this.stopTTSAudio();
   }
 
   /**
@@ -475,6 +523,7 @@ export class PeekabooFlow {
    */
   destroy(): void {
     this.clearErrorTimeout();
+    this.stopTTSAudio();
     this.cleanupWebSocketRecording();
     if (this.wsClient) {
       this.wsClient.disconnect();

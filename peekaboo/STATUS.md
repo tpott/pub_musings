@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 141 tasks completed.
+Production-ready voice-controlled web app for children. 142 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 241+ unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 246+ unit tests, 19+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,18 +32,19 @@ Production-ready voice-controlled web app for children. 141 tasks completed.
 
 ## Last Completed
 
-- Task 141 (2026-02-06): Audio buffer trimming at Cluster boundaries + transcript accumulation
-  - `WebMParser.TrimBefore(timecodeMs)` — trims Cluster data before a given timecode
-  - `WebMParser.ClusterDataLen()` — returns cluster data size excluding init segment
-  - Fixed `ParseClusters` — read hooks fire before child elements are populated,
-    so positions come from hooks but timecodes come from parsed `Segment.Cluster`
-  - `processAudio` now takes `connectionState` for buffer trimming after show_media
-  - `instruction_end_word_index` from LLM mapped to word end time → Cluster boundary
-  - `isProcessing` flag prevents overlapping processAudio goroutines
-  - `wait_for_more` resets buffer timer without clearing data (accumulates audio)
-  - `accumulatedWords` field on connectionState (cleared on show_media or start_recording)
-  - 6 new tests: 4 WebM parser tests (TrimBefore, ClusterDataLen), 2 WebSocket integration
-  - All 241 frontend unit tests, 19 E2E tests, backend tests pass
+- Task 142 (2026-02-06): TTS tool execution and multi-tool sequential processing
+  - Backend: `executeTTS` synthesizes speech via Piper, sends base64-encoded WAV as `tts_audio` WebSocket message
+  - Backend: `TTSProvider` field on `AudioWebSocketHandler`, wired in `main.go`
+  - Backend: Multi-tool execution in order (e.g., `text_to_speech` then `show_media`)
+  - Backend: TTS failure is graceful (warning logged, continues to next tool)
+  - Backend: TTS skipped silently when no provider configured
+  - Frontend: `TTSAudioMessage` type and `onTTSAudio` callback in `websocket-audio.ts`
+  - Frontend: `handleWsTTSAudio` plays base64 WAV via `data:` URL Audio element
+  - Frontend: `handleWsMedia` awaits TTS playback promise before displaying media
+  - Frontend: Client-side TTS fallback only when no server TTS was received
+  - Frontend: TTS audio cleanup in `destroy()` method
+  - 4 new backend tests, 5 new frontend tests (1 websocket-audio, 4 peekaboo-flow)
+  - All 246 frontend unit tests, 19 E2E tests, backend tests pass
 
 ## Milestone History
 
@@ -65,3 +66,4 @@ Production-ready voice-controlled web app for children. 141 tasks completed.
 - Task 139 (2026-02-06): Framed audio protocol with 12-byte headers and timestamp mapping
 - Task 140 (2026-02-06): LLM boundary detection with tool_choice:any and three tools
 - Task 141 (2026-02-06): Audio buffer trimming at Cluster boundaries + transcript accumulation
+- Task 142 (2026-02-06): TTS tool execution and multi-tool sequential processing

@@ -123,17 +123,12 @@ func main() {
 		slog.Info("frontend log forwarding enabled (POST /api/log)")
 	}
 
-	// WebSocket endpoint for audio streaming with rate limiting and origin validation
-	whisperURL := os.Getenv("WHISPER_SERVER_URL")
-	if whisperURL == "" {
-		whisperURL = "http://127.0.0.1:8765"
-	}
-	mux.Handle("GET /ws/audio", api.NewAudioWebSocketHandlerWithOptions(whisperURL, llmProvider, database, rateLimiter, allowedOrigin))
-
-	// TTS endpoint (optional - only enabled if PIPER_SERVER_URL is set)
+	// TTS provider (optional - only enabled if PIPER_SERVER_URL is set)
 	piperURL := os.Getenv("PIPER_SERVER_URL")
+	var ttsProvider tts.Provider
 	if piperURL != "" {
-		ttsProvider, err := tts.NewProvider(tts.Config{
+		var err error
+		ttsProvider, err = tts.NewProvider(tts.Config{
 			Provider:  "piper",
 			ServerURL: piperURL,
 		})
@@ -146,6 +141,15 @@ func main() {
 	} else {
 		slog.Debug("TTS disabled (PIPER_SERVER_URL not set)")
 	}
+
+	// WebSocket endpoint for audio streaming with rate limiting and origin validation
+	whisperURL := os.Getenv("WHISPER_SERVER_URL")
+	if whisperURL == "" {
+		whisperURL = "http://127.0.0.1:8765"
+	}
+	wsHandler := api.NewAudioWebSocketHandlerWithOptions(whisperURL, llmProvider, database, rateLimiter, allowedOrigin)
+	wsHandler.TTSProvider = ttsProvider // nil if Piper not configured
+	mux.Handle("GET /ws/audio", wsHandler)
 
 	// Static file server for media files
 	mediaDir := os.Getenv("MEDIA_DIR")

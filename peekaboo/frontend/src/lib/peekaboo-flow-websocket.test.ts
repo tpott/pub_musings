@@ -392,6 +392,108 @@ describe('PeekabooFlow WebSocket mode', () => {
     expect(flow.getState()).toBe('displaying');
   });
 
+  describe('TTS audio handling', () => {
+    it('plays TTS audio when tts_audio message received', async () => {
+      mockWsGetState.mockReturnValue('connected');
+      const mockPlay = vi.fn().mockResolvedValue(undefined);
+      const mockAudioInstance = {
+        play: mockPlay, pause: vi.fn(),
+        addEventListener: vi.fn(), src: '',
+      };
+      (global as any).Audio = vi.fn(() => mockAudioInstance);
+
+      new PeekabooFlow({ micButton, mediaContainer, useWebSocket: true });
+
+      wsCallbacks.onTTSAudio({
+        type: 'tts_audio', audio_data: 'dGVzdA==', text: 'Here is a cat!',
+      });
+
+      expect(global.Audio).toHaveBeenCalledWith('data:audio/wav;base64,dGVzdA==');
+      expect(mockPlay).toHaveBeenCalled();
+    });
+
+    it('waits for TTS to finish before showing media', async () => {
+      mockWsGetState.mockReturnValue('connected');
+      let endedCallback: (() => void) | null = null;
+      const mockAudioInstance = {
+        play: vi.fn().mockResolvedValue(undefined), pause: vi.fn(),
+        addEventListener: vi.fn((event: string, cb: () => void) => {
+          if (event === 'ended') endedCallback = cb;
+        }),
+        src: '',
+      };
+      (global as any).Audio = vi.fn(() => mockAudioInstance);
+
+      const flow = new PeekabooFlow({ micButton, mediaContainer, useWebSocket: true });
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      wsCallbacks.onTTSAudio({
+        type: 'tts_audio', audio_data: 'dGVzdA==', text: 'Here is a cat!',
+      });
+
+      const mediaPromise = wsCallbacks.onMedia({
+        type: 'media', subject: 'cat', photo_url: '/cat.jpg',
+      });
+
+      // Media display should not be called yet (TTS still playing)
+      expect(mockShow).not.toHaveBeenCalled();
+
+      // Simulate TTS playback ending
+      endedCallback?.();
+      await mediaPromise;
+
+      expect(mockShow).toHaveBeenCalled();
+    });
+
+    it('cleans up TTS audio on destroy', () => {
+      mockWsGetState.mockReturnValue('connected');
+      const mockPause = vi.fn();
+      const mockAudioInstance = {
+        play: vi.fn().mockResolvedValue(undefined), pause: mockPause,
+        addEventListener: vi.fn(), src: '',
+      };
+      (global as any).Audio = vi.fn(() => mockAudioInstance);
+
+      const flow = new PeekabooFlow({ micButton, mediaContainer, useWebSocket: true });
+      wsCallbacks.onTTSAudio({
+        type: 'tts_audio', audio_data: 'dGVzdA==', text: 'Hello!',
+      });
+
+      flow.destroy();
+      expect(mockPause).toHaveBeenCalled();
+    });
+
+    it('skips client-side TTS when server TTS was played', async () => {
+      mockWsGetState.mockReturnValue('connected');
+      let endedCallback: (() => void) | null = null;
+      const mockAudioInstance = {
+        play: vi.fn().mockResolvedValue(undefined), pause: vi.fn(),
+        addEventListener: vi.fn((event: string, cb: () => void) => {
+          if (event === 'ended') endedCallback = cb;
+        }),
+        src: '',
+      };
+      (global as any).Audio = vi.fn(() => mockAudioInstance);
+
+      const flow = new PeekabooFlow({ micButton, mediaContainer, useWebSocket: true });
+      await flow.startRecording();
+      await flow.stopRecordingAndProcess();
+
+      wsCallbacks.onTTSAudio({
+        type: 'tts_audio', audio_data: 'dGVzdA==', text: 'Here is a cat!',
+      });
+
+      endedCallback?.();
+      await wsCallbacks.onMedia({
+        type: 'media', subject: 'cat', photo_url: '/cat.jpg',
+      });
+
+      // speakSubject should NOT be called when server TTS was used
+      expect(textToSpeech.speakSubject).not.toHaveBeenCalled();
+    });
+  });
+
   describe('transcript display', () => {
     it('appends transcript to transcript container when provided', async () => {
       mockWsGetState.mockReturnValue('connected');

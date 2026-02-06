@@ -25,11 +25,17 @@ export interface ErrorMessage {
   message: string;
 }
 
+export interface TTSAudioMessage {
+  type: 'tts_audio';
+  audio_data: string; // base64-encoded WAV audio
+  text: string;       // the text that was spoken
+}
+
 export interface PongMessage {
   type: 'pong';
 }
 
-export type ServerMessage = TranscriptMessage | MediaMessage | ErrorMessage | PongMessage;
+export type ServerMessage = TranscriptMessage | MediaMessage | TTSAudioMessage | ErrorMessage | PongMessage;
 
 // Connection states
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -37,6 +43,7 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'rec
 export interface AudioWebSocketCallbacks {
   onTranscript?: (text: string) => void;
   onMedia?: (media: MediaMessage) => void;
+  onTTSAudio?: (tts: TTSAudioMessage) => void;
   onError?: (error: Error) => void;
   onStateChange?: (state: ConnectionState) => void;
 }
@@ -286,6 +293,10 @@ export class AudioWebSocket {
 
         case 'media':
           this.callbacks.onMedia?.(message);
+          break;
+
+        case 'tts_audio':
+          this.callbacks.onTTSAudio?.(message);
           break;
 
         case 'error':

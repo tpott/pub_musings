@@ -401,6 +401,21 @@ describe('AudioWebSocket', () => {
       expect(onMedia).toHaveBeenCalledWith(mediaMsg);
     });
 
+    it('calls onTTSAudio for tts_audio messages', async () => {
+      const onTTSAudio = vi.fn();
+      const ws = new AudioWebSocket({ onTTSAudio });
+      await connectWebSocket(ws);
+
+      const ttsMsg = {
+        type: 'tts_audio' as const,
+        audio_data: 'dGVzdA==', // base64 "test"
+        text: 'Here is a cat!',
+      };
+      mockWebSocketInstance?.simulateMessage(JSON.stringify(ttsMsg));
+
+      expect(onTTSAudio).toHaveBeenCalledWith(ttsMsg);
+    });
+
     it('calls onError for error messages', async () => {
       const onError = vi.fn();
       const ws = new AudioWebSocket({ onError });

@@ -4,6 +4,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
+	"github.com/tpott/pub_musings/peekaboo/backend/tts"
 )
 
 // WebSocket message types from client
@@ -35,6 +37,7 @@ const (
 const (
 	MsgTypeTranscript = "transcript"
 	MsgTypeMedia      = "media"
+	MsgTypeTTSAudio   = "tts_audio"
 	MsgTypeError      = "error"
 	MsgTypePong       = "pong"
 )
@@ -102,6 +105,13 @@ type MediaMessage struct {
 	VideoURL string `json:"video_url,omitempty"`
 }
 
+// TTSAudioMessage is sent to client with base64-encoded TTS audio.
+type TTSAudioMessage struct {
+	Type      string `json:"type"`
+	AudioData string `json:"audio_data"` // base64-encoded WAV audio
+	Text      string `json:"text"`       // the text that was spoken
+}
+
 // ErrorMessage is sent to client on error.
 type ErrorMessage struct {
 	Type    string `json:"type"`
@@ -160,6 +170,7 @@ func (ct *ConnectionTracker) Max() int {
 type AudioWebSocketHandler struct {
 	WhisperURL    string
 	LLMProvider   llm.Provider
+	TTSProvider   tts.Provider // Optional - nil means TTS disabled
 	Database      *db.DB
 	Client        *http.Client
 	RateLimiter   *RateLimiter       // Optional - nil means no rate limiting
@@ -589,8 +600,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 			state.mu.Unlock()
 
 		case "text_to_speech":
-			logger.Debug("text_to_speech action received", "text", action.Text)
-			// TTS execution is a future task (Phase 4)
+			h.executeTTS(ctx, conn, action.Text, logger)
 
 		case "wait_for_more":
 			logger.Debug("wait_for_more action received", "reason", action.Reason)
@@ -669,6 +679,34 @@ func (h *AudioWebSocketHandler) executeShowMedia(ctx context.Context, conn *webs
 
 	// Send media to client
 	h.sendMedia(ctx, conn, subject, mediaSet, logger)
+}
+
+// executeTTS synthesizes speech from text via the TTS provider and sends
+// the resulting WAV audio to the client as a base64-encoded tts_audio message.
+// If the TTS provider is not configured or fails, a warning is logged and
+// execution continues (TTS is non-critical).
+func (h *AudioWebSocketHandler) executeTTS(ctx context.Context, conn *websocket.Conn, text string, logger *slog.Logger) {
+	if h.TTSProvider == nil {
+		logger.Debug("text_to_speech skipped: TTS provider not configured")
+		return
+	}
+	if text == "" {
+		logger.Debug("text_to_speech skipped: empty text")
+		return
+	}
+
+	logger.Info("text_to_speech action", "text", text)
+
+	ttsCtx, ttsCancel := context.WithTimeout(ctx, intentTimeout)
+	defer ttsCancel()
+
+	audioData, err := h.TTSProvider.Synthesize(ttsCtx, text)
+	if err != nil {
+		logger.Warn("TTS synthesis failed", "error", err, "text", text)
+		return
+	}
+
+	h.sendTTSAudio(ctx, conn, audioData, text, logger)
 }
 
 // transcribeAudio sends audio to whisper-server and returns the full response
@@ -774,6 +812,22 @@ func (h *AudioWebSocketHandler) sendMedia(ctx context.Context, conn *websocket.C
 	}
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		logWriteError(logger, "media", err)
+	}
+}
+
+func (h *AudioWebSocketHandler) sendTTSAudio(ctx context.Context, conn *websocket.Conn, audioData []byte, text string, logger *slog.Logger) {
+	msg := TTSAudioMessage{
+		Type:      MsgTypeTTSAudio,
+		AudioData: base64.StdEncoding.EncodeToString(audioData),
+		Text:      text,
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		logger.Error("failed to marshal tts_audio message", "error", err)
+		return
+	}
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+		logWriteError(logger, "tts_audio", err)
 	}
 }
 
