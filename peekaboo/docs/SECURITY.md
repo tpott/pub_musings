@@ -20,9 +20,9 @@ Peekaboo is a voice-controlled web app for children. The threat model assumes:
 **Mitigations**:
 | Control | Location | Implementation |
 |---------|----------|----------------|
-| Content-Security-Policy | `api/security.go:14` | Restricts script-src to 'self' |
-| X-XSS-Protection | `api/security.go:22` | Legacy browser XSS filtering |
-| Content-Type headers | `api/encrypted_media.go:78-117` | Explicit MIME types prevent sniffing |
+| Content-Security-Policy | `api/security.go` `ContentSecurityPolicy` | Restricts script-src to 'self' |
+| X-XSS-Protection | `api/security.go` `SecurityHeadersMiddleware()` | Legacy browser XSS filtering |
+| Content-Type headers | `api/encrypted_media.go` `getContentType()` | Explicit MIME types prevent sniffing |
 
 **CSP Directives**:
 ```
@@ -56,8 +56,8 @@ All queries use parameterized statements with `?` placeholders. No string interp
 **Mitigations**:
 | Control | Location | Implementation |
 |---------|----------|----------------|
-| Path sanitization | `api/encrypted_media.go:40` | `filepath.Clean()` removes `..` |
-| Concept ID validation | `api/media.go:15` | Regex `^[a-z0-9_]+$` |
+| Path sanitization | `api/encrypted_media.go` `ServeHTTP()` | `filepath.Clean()` removes `..` |
+| Concept ID validation | `api/media.go` `validConceptPattern` | Regex `^[a-z0-9_]+$` |
 
 Invalid concept IDs return 400 Bad Request with "invalid concept format" message.
 
@@ -68,13 +68,13 @@ Invalid concept IDs return 400 Bad Request with "invalid concept format" message
 **Mitigations**:
 | Control | Location | Limit |
 |---------|----------|-------|
-| ReadHeaderTimeout | `main.go:192` | 10s (prevents slowloris) |
-| IdleTimeout | `main.go:193` | 120s (closes idle conns) |
+| ReadHeaderTimeout | `main.go` `main()` | 10s (prevents slowloris) |
+| IdleTimeout | `main.go` `main()` | 120s (closes idle conns) |
 | Rate limiting | `api/ratelimit.go` `RateLimitMiddleware()` | 10 req/min per IP |
-| Multipart form size | `api/transcribe.go:79` | 10 MB max |
-| Audio file min size | `api/transcribe.go:93-97` | 1 KB min |
-| Audio file max size | `api/transcribe.go:100-104` | 5 MB max |
-| Text length limit | `api/intent.go:68-71` | 500 chars max |
+| Multipart form size | `api/transcribe.go` `ServeHTTP()` | 10 MB max |
+| Audio file min size | `api/transcribe.go` `ServeHTTP()` | 1 KB min |
+| Audio file max size | `api/transcribe.go` `ServeHTTP()` | 5 MB max |
+| Text length limit | `api/intent.go` `ServeHTTP()` | 500 chars max |
 
 Rate limiter applied to expensive endpoints (`/api/transcribe`, `/api/intent`, `/ws/audio`) in `main.go`.
 
@@ -91,8 +91,8 @@ Cleanup goroutine prevents rate limiter memory growth (see `main.go` startup).
 **Mitigations**:
 | Control | Location | Value |
 |---------|----------|-------|
-| X-Frame-Options | `api/security.go:20` | `DENY` |
-| frame-ancestors | `api/security.go:14` | `'none'` (in CSP) |
+| X-Frame-Options | `api/security.go` `SecurityHeadersMiddleware()` | `DENY` |
+| frame-ancestors | `api/security.go` `ContentSecurityPolicy` | `'none'` (in CSP) |
 
 ### 6. Information Leakage
 
@@ -101,10 +101,10 @@ Cleanup goroutine prevents rate limiter memory growth (see `main.go` startup).
 **Mitigations**:
 | Endpoint | Location | Behavior |
 |----------|----------|----------|
-| /api/media | `api/media.go:65,80` | Generic "media lookup failed" |
-| /api/intent | `api/intent.go:83` | Generic "intent extraction failed" |
-| /api/transcribe | `api/transcribe.go:112` | Generic "transcription failed" |
-| Rate limit | `api/ratelimit.go:86` | Generic "rate limit exceeded" |
+| /api/media | `api/media.go` `ServeHTTP()` | Generic "media lookup failed" |
+| /api/intent | `api/intent.go` `ServeHTTP()` | Generic "intent extraction failed" |
+| /api/transcribe | `api/transcribe.go` `ServeHTTP()` | Generic "transcription failed" |
+| Rate limit | `api/ratelimit.go` `RateLimitMiddleware()` | Generic "rate limit exceeded" |
 
 Actual errors logged server-side with request ID for debugging.
 
@@ -115,9 +115,9 @@ Actual errors logged server-side with request ID for debugging.
 **Mitigations**:
 | Control | Location | Implementation |
 |---------|----------|----------------|
-| HTTP CORS middleware | `api/cors.go:14-39` | Validates `ALLOWED_ORIGIN` for HTTP requests |
-| WebSocket origin check | `api/websocket.go:151-159` | Validates Origin header before upgrade |
-| Warning for wildcard | `main.go:98-102` | Logs warning if `*` used |
+| HTTP CORS middleware | `api/cors.go` `CORSMiddleware()` | Validates `ALLOWED_ORIGIN` for HTTP requests |
+| WebSocket origin check | `api/websocket.go` `ServeHTTP()` | Validates Origin header before upgrade |
+| Warning for wildcard | `main.go` `main()` | Logs warning if `*` used |
 
 **HTTP requests**: Standard CORS headers applied via middleware.
 
@@ -132,8 +132,8 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 **Mitigations**:
 | Control | Location | Implementation |
 |---------|----------|----------------|
-| X-Content-Type-Options | `api/security.go:21` | `nosniff` |
-| Explicit Content-Type | `api/encrypted_media.go:78-117` | Based on file extension |
+| X-Content-Type-Options | `api/security.go` `SecurityHeadersMiddleware()` | `nosniff` |
+| Explicit Content-Type | `api/encrypted_media.go` `getContentType()` | Based on file extension |
 
 ### 9. Encryption at Rest
 
@@ -143,8 +143,8 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 | Control | Location | Implementation |
 |---------|----------|----------------|
 | Age encryption | `crypto/age.go` | X25519 encryption |
-| On-demand decrypt | `api/encrypted_media.go:62-89` | Decrypts when serving |
-| Key file permissions | `crypto/age.go:167-184` | 0600 on key file |
+| On-demand decrypt | `api/encrypted_media.go` `serveEncrypted()` | Decrypts when serving |
+| Key file permissions | `crypto/age.go` `LoadIdentityFromFile()` | 0600 on key file |
 
 ## Remaining Risks
 
