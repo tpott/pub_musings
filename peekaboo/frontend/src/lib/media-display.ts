@@ -244,7 +244,13 @@ export async function fetchMedia(concept: string): Promise<MediaContent> {
     throw await createApiErrorFromResponse(response, 'Media fetch failed');
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ApiError('Media fetch failed: invalid response', 'server');
+  }
+
   if (data.error) {
     throw new ApiError(data.error, 'client');
   }

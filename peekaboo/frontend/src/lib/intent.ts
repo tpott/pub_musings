@@ -33,7 +33,13 @@ export async function extractIntent(text: string): Promise<IntentResult> {
     throw await createApiErrorFromResponse(response, 'Intent extraction failed');
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ApiError('Intent extraction failed: invalid response', 'server');
+  }
+
   if (data.error) {
     throw new ApiError(data.error, 'client');
   }

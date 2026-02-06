@@ -211,6 +211,19 @@ describe('transcribeAudio', () => {
     await expect(transcribeAudio(blob)).rejects.toThrow('Bad request');
   });
 
+  it('throws server error when response is not valid JSON', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers(),
+      json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token')),
+    };
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+
+    const blob = new Blob(['audio data'], { type: 'audio/webm' });
+
+    await expect(transcribeAudio(blob)).rejects.toThrow('Transcription failed: invalid response');
+  });
+
   it('throws error when response contains error field', async () => {
     const mockResponse = {
       ok: true,

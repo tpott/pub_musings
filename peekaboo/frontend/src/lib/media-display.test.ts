@@ -462,6 +462,17 @@ describe('fetchMedia', () => {
     await expect(fetchMedia('cat')).rejects.toThrow('no media found for concept');
   });
 
+  it('throws server error when response is not valid JSON', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers(),
+      json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token')),
+    };
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+
+    await expect(fetchMedia('cat')).rejects.toThrow('Media fetch failed: invalid response');
+  });
+
   it('includes video_url when available', async () => {
     const mockResponse = {
       ok: true,

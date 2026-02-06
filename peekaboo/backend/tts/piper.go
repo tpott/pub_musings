@@ -31,6 +31,10 @@ type piperProvider struct {
 	client      *http.Client
 }
 
+// maxAudioResponseSize is the maximum allowed TTS audio response (10MB).
+// A 60-second WAV at 22050Hz/16-bit is ~2.5MB, so 10MB is generous.
+const maxAudioResponseSize = 10 << 20
+
 // piperRequest is the JSON payload for Piper API.
 type piperRequest struct {
 	Text        string  `json:"text"`
@@ -99,10 +103,13 @@ func (p *piperProvider) Synthesize(ctx context.Context, text string) ([]byte, er
 		return nil, fmt.Errorf("piper returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Read audio data
-	audio, err := io.ReadAll(resp.Body)
+	// Read audio data with size limit to prevent OOM
+	audio, err := io.ReadAll(io.LimitReader(resp.Body, maxAudioResponseSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read audio: %w", err)
+	}
+	if len(audio) > maxAudioResponseSize {
+		return nil, fmt.Errorf("audio response exceeds %d byte limit", maxAudioResponseSize)
 	}
 
 	return audio, nil

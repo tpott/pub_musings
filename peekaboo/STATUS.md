@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 166 tasks completed.
+Production-ready voice-controlled web app for children. 170 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 271 unit tests, 23+ E2E tests
+- **Astro frontend** with TypeScript, 274 unit tests, 23+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,11 +32,11 @@ Production-ready voice-controlled web app for children. 166 tasks completed.
 
 ## Last Completed
 
-- Tasks 163-166 (2026-02-06): Piper TTS hardening, feedback resilience, spec update, feedback UX
-  - Task 163: Add io.LimitReader to Piper TTS error response body read
-  - Task 164: Add try-catch around response.json() in feedback.ts for non-JSON responses
-  - Task 165: Update specs/feedback.md status from Planning to Implemented
-  - Task 166: Hide feedback button during recording state per spec (custom event + E2E test)
+- Tasks 167-170 (2026-02-06): JSON parse safety, TTS hardening, doc fixes
+  - Task 167: Add try-catch around response.json() in intent.ts, audio-recorder.ts, media-display.ts
+  - Task 168: Add io.LimitReader (10MB) to Piper TTS success response body read
+  - Task 169: Fix API.md max audio size (10MB→5MB), SECURITY.md stale line numbers
+  - Task 170: Configurable proxy header trust for rate limiter (pending)
 
 ## Milestone History
 
@@ -75,3 +75,4 @@ Production-ready voice-controlled web app for children. 166 tasks completed.
 - Task 156 (2026-02-06): Add tests for untested PeekabooFlow code paths
 - Tasks 157-162 (2026-02-06): Security hardening batch + E2E theme test coverage
 - Tasks 163-166 (2026-02-06): Piper TTS hardening, feedback improvements, spec maintenance
+- Tasks 167-169 (2026-02-06): JSON parse safety, TTS response limit, doc accuracy fixes

@@ -66,6 +66,17 @@ describe('extractIntent', () => {
     await expect(extractIntent('hello there')).rejects.toThrow('no show_media tool call in response');
   });
 
+  it('throws server error when response is not valid JSON', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers(),
+      json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token')),
+    };
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+
+    await expect(extractIntent('show me a cat')).rejects.toThrow('Intent extraction failed: invalid response');
+  });
+
   it('throws error when no subject extracted', async () => {
     const mockResponse = {
       ok: true,

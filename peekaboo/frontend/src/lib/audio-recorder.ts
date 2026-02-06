@@ -132,7 +132,13 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
     throw await createApiErrorFromResponse(response, 'Transcription failed');
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ApiError('Transcription failed: invalid response', 'server');
+  }
+
   if (data.error) {
     throw new ApiError(data.error, 'client');
   }

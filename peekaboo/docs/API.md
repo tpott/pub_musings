@@ -128,7 +128,7 @@ POST /api/transcribe
 
 - **Content-Type**: `multipart/form-data`
 - **Min Size**: 1KB
-- **Max Size**: 10MB
+- **Max Size**: 5MB
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|

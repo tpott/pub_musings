@@ -42,10 +42,10 @@ frame-ancestors 'none'
 **Mitigations**:
 | Query | Location | Parameterization |
 |-------|----------|------------------|
-| Seed concepts | `db/db.go:110-112` | `INSERT ... VALUES (?, ?)` |
-| Seed media sets | `db/db.go:125-127` | `INSERT ... VALUES (?, ?, ?, ?)` |
-| Get random media | `db/db.go:138-144` | `WHERE concept_id = ?` |
-| Get concept | `db/db.go:166` | `WHERE id = ?` |
+| Seed concepts | `db/db.go` `Init()` | `INSERT ... VALUES (?, ?)` |
+| Seed media sets | `db/db.go` `SeedMediaSet()` | `INSERT ... VALUES (?, ?, ?, ?)` |
+| Get random media | `db/db.go` `GetRandomMediaSet()` | `WHERE concept_id = ?` |
+| Get concept | `db/db.go` `GetConcept()` | `WHERE id = ?` |
 
 All queries use parameterized statements with `?` placeholders. No string interpolation.
 

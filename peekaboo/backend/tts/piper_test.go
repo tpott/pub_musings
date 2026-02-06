@@ -167,6 +167,33 @@ func TestPiperProvider_Synthesize_ServerError(t *testing.T) {
 	}
 }
 
+func TestPiperProvider_Synthesize_OversizedResponse(t *testing.T) {
+	// Create mock server that returns a response exceeding the limit
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/wav")
+		// Write just over the limit
+		data := make([]byte, maxAudioResponseSize+1)
+		copy(data, []byte("RIFF"))
+		w.Write(data)
+	}))
+	defer mockServer.Close()
+
+	provider, err := NewPiperProvider(PiperConfig{
+		ServerURL: mockServer.URL,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+
+	_, err = provider.Synthesize(context.Background(), "Test")
+	if err == nil {
+		t.Error("Expected error for oversized response")
+	}
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("Expected size limit error, got: %v", err)
+	}
+}
+
 func TestPiperProvider_Synthesize_ContextCanceled(t *testing.T) {
 	// Create mock server that delays response
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
