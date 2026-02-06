@@ -400,6 +400,59 @@ describe('PeekabooFlow WebSocket mode', () => {
     expect(flow.getState()).toBe('displaying');
   });
 
+  it('keeps recording state when transcript arrives during recording', async () => {
+    let recorderState = 'inactive';
+    const MockMediaRecorder = vi.fn().mockImplementation(() => ({
+      start: vi.fn(() => { recorderState = 'recording'; }),
+      stop: vi.fn(() => { recorderState = 'inactive'; }),
+      get state() { return recorderState; },
+      ondataavailable: null,
+    }));
+    MockMediaRecorder.isTypeSupported = vi.fn().mockReturnValue(true);
+    (global as any).MediaRecorder = MockMediaRecorder;
+
+    const flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      useWebSocket: true,
+      onStateChange: (state) => stateChanges.push(state),
+    });
+
+    await flow.startRecording();
+    expect(flow.getState()).toBe('recording');
+    stateChanges.length = 0;
+
+    // Simulate transcript while recording (continuous listening)
+    wsCallbacks.onTranscript('show me a cat');
+
+    // State should still be recording, not searching
+    expect(flow.getState()).toBe('recording');
+    expect(stateChanges).not.toContain('searching');
+  });
+
+  it('uses client-side TTS fallback when no server TTS received', async () => {
+    const flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      useWebSocket: true,
+    });
+
+    await flow.startRecording();
+
+    // Simulate receiving media WITHOUT any prior tts_audio message
+    wsCallbacks.onMedia({
+      type: 'media',
+      subject: 'cat',
+      photo_url: '/cat.jpg',
+    });
+
+    // Allow async handleWsMedia to complete
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // speakSubject should have been called as fallback
+    expect(textToSpeech.speakSubject).toHaveBeenCalledWith('cat');
+  });
+
   it('transitions to error state if display.show() throws in handleWsMedia', async () => {
     mockShow.mockRejectedValue(new Error('DOM failure'));
 
