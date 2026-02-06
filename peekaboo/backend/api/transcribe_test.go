@@ -351,10 +351,7 @@ func TestTranscribeHandler_StreamSizeEnforcement(t *testing.T) {
 // on WhisperSegment) and the HTTP response contains only flat text.
 // Task 138 will add Words to WhisperSegment and return rich transcripts.
 func TestWhisperResponseFullParse(t *testing.T) {
-	// KNOWN BUG: This test proves verbose_json word data is discarded.
-	// It will be un-skipped when task 138 adds Words to WhisperSegment.
-	// Run with: go test -v -run TestWhisperResponseFullParse ./api/
-	t.Skip("Known bug: WhisperSegment has no Words field — verbose_json word data discarded (task 138 will fix)")
+	// Task 138: WhisperSegment now includes Words with timing and probability.
 	// Full verbose_json response matching whisper.cpp server output
 	// (see specs/audio-timing.md for the complete structure)
 	verboseJSON := `{
@@ -457,11 +454,26 @@ func TestWhisperResponseFullParse(t *testing.T) {
 		t.Fatalf("failed to parse handler response: %v", err)
 	}
 
-	// The response should contain word-level data, not just flat text
-	if _, hasWords := handlerResp["words"]; !hasWords {
-		t.Error("FAIL: HTTP transcribe response contains only flat text, no word-level data. " +
-			"forwardToWhisper() returns only whisperResp.Text, discarding all timing " +
-			"and probability data from verbose_json. Task 138 will fix this.")
+	// The response should contain segments with word-level data
+	respSegments, hasSegments := handlerResp["segments"]
+	if !hasSegments || respSegments == nil {
+		t.Fatal("HTTP transcribe response has no segments field — word data discarded")
+	}
+
+	respSegList, ok := respSegments.([]interface{})
+	if !ok || len(respSegList) == 0 {
+		t.Fatal("segments field is empty or wrong type")
+	}
+
+	respSeg := respSegList[0].(map[string]interface{})
+	respWords, hasWords := respSeg["words"]
+	if !hasWords || respWords == nil {
+		t.Error("HTTP response segments[0] has no words field — word data discarded")
+	} else {
+		wordList, ok := respWords.([]interface{})
+		if !ok || len(wordList) == 0 {
+			t.Error("words field exists but is empty or wrong type")
+		}
 	}
 }
 

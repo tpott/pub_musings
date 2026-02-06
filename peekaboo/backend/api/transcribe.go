@@ -23,11 +23,12 @@ type TranscribeRequest struct {
 
 // TranscribeResponse is the response from /api/transcribe.
 type TranscribeResponse struct {
-	Text  string `json:"text"`
-	Error string `json:"error,omitempty"`
+	Text     string           `json:"text"`
+	Error    string           `json:"error,omitempty"`
+	Segments []WhisperSegment `json:"segments,omitempty"`
 }
 
-// WhisperResponse represents the response from whisper-server.
+// WhisperResponse represents the full verbose_json response from whisper-server.
 type WhisperResponse struct {
 	Task     string           `json:"task"`
 	Language string           `json:"language"`
@@ -36,12 +37,26 @@ type WhisperResponse struct {
 	Segments []WhisperSegment `json:"segments"`
 }
 
-// WhisperSegment represents a segment from whisper-server.
+// WhisperSegment represents a segment from whisper-server's verbose_json output.
 type WhisperSegment struct {
-	ID    int     `json:"id"`
-	Start float64 `json:"start"`
-	End   float64 `json:"end"`
-	Text  string  `json:"text"`
+	ID           int           `json:"id"`
+	Start        float64       `json:"start"`
+	End          float64       `json:"end"`
+	Text         string        `json:"text"`
+	Tokens       []int         `json:"tokens,omitempty"`
+	Words        []WhisperWord `json:"words,omitempty"`
+	Temperature  float64       `json:"temperature,omitempty"`
+	AvgLogProb   float64       `json:"avg_logprob,omitempty"`
+	NoSpeechProb float64       `json:"no_speech_prob,omitempty"`
+}
+
+// WhisperWord represents a single word with timing and confidence from
+// whisper's verbose_json response. Available when split_on_word=true.
+type WhisperWord struct {
+	Word        string  `json:"word"`
+	Start       float64 `json:"start"`
+	End         float64 `json:"end"`
+	Probability float64 `json:"probability"`
 }
 
 // maxAudioSize is the maximum allowed audio file size (5MB).
@@ -111,7 +126,7 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Forward to whisper-server with stream size limit enforcement
-	text, err := h.forwardToWhisper(file)
+	whisperResp, err := h.forwardToWhisper(file)
 	if err != nil {
 		// Check if stream exceeded size limit (attacker lied about Content-Length)
 		if err == errStreamTooLarge {
@@ -125,16 +140,20 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, TranscribeResponse{Text: text})
+	writeJSON(w, http.StatusOK, TranscribeResponse{
+		Text:     whisperResp.Text,
+		Segments: whisperResp.Segments,
+	})
 }
 
 // errStreamTooLarge is returned when the audio stream exceeds the max size limit.
 var errStreamTooLarge = fmt.Errorf("audio stream exceeds maximum size of %d bytes", maxAudioSize)
 
-// forwardToWhisper sends audio to whisper-server and returns the transcript.
+// forwardToWhisper sends audio to whisper-server and returns the full response
+// including word-level timing and probabilities.
 // It enforces a maximum stream size of maxAudioSize bytes to prevent attacks
 // that lie about Content-Length.
-func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (string, error) {
+func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse, error) {
 	// Create multipart form
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -143,61 +162,64 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (string, error) {
 	// We read maxAudioSize+1 bytes to detect if the stream exceeds the limit.
 	part, err := writer.CreateFormFile("file", "audio.webm")
 	if err != nil {
-		return "", fmt.Errorf("create form file: %w", err)
+		return nil, fmt.Errorf("create form file: %w", err)
 	}
 
 	// Use LimitReader to cap the read, but read one extra byte to detect overflow
 	limitedReader := io.LimitReader(audio, maxAudioSize+1)
 	n, err := io.Copy(part, limitedReader)
 	if err != nil {
-		return "", fmt.Errorf("copy audio: %w", err)
+		return nil, fmt.Errorf("copy audio: %w", err)
 	}
 
 	// If we read more than maxAudioSize, the stream exceeded the limit
 	if n > maxAudioSize {
-		return "", errStreamTooLarge
+		return nil, errStreamTooLarge
 	}
 
 	// Add required fields
 	if err := writer.WriteField("response_format", "verbose_json"); err != nil {
-		return "", fmt.Errorf("write response_format: %w", err)
+		return nil, fmt.Errorf("write response_format: %w", err)
 	}
 	if err := writer.WriteField("temperature", "0"); err != nil {
-		return "", fmt.Errorf("write temperature: %w", err)
+		return nil, fmt.Errorf("write temperature: %w", err)
 	}
 	if err := writer.WriteField("language", "en"); err != nil {
-		return "", fmt.Errorf("write language: %w", err)
+		return nil, fmt.Errorf("write language: %w", err)
+	}
+	if err := writer.WriteField("split_on_word", "true"); err != nil {
+		return nil, fmt.Errorf("write split_on_word: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {
-		return "", fmt.Errorf("close writer: %w", err)
+		return nil, fmt.Errorf("close writer: %w", err)
 	}
 
 	// Send request to whisper-server
 	req, err := http.NewRequest(http.MethodPost, h.WhisperURL+"/inference", &buf)
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := h.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var whisperResp WhisperResponse
 	if err := json.NewDecoder(resp.Body).Decode(&whisperResp); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return whisperResp.Text, nil
+	return &whisperResp, nil
 }
 
 // writeJSON writes a JSON response with the given status code.

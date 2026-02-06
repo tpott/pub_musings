@@ -64,10 +64,12 @@ type ClientMessage struct {
 	Type string `json:"type"`
 }
 
-// TranscriptMessage is sent to client with transcript text.
+// TranscriptMessage is sent to client with transcript text and optional
+// word-level timing data from whisper's verbose_json response.
 type TranscriptMessage struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string           `json:"type"`
+	Text     string           `json:"text"`
+	Segments []WhisperSegment `json:"segments,omitempty"`
 }
 
 // MediaMessage is sent to client with media URLs.
@@ -422,13 +424,14 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 // processAudio transcribes audio and extracts intent.
 func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocket.Conn, audioData []byte, logger *slog.Logger) {
 	// 1. Send to whisper for transcription
-	transcript, err := h.transcribeAudio(audioData)
+	whisperResp, err := h.transcribeAudio(audioData)
 	if err != nil {
 		logger.Error("transcription failed", "error", err)
 		h.sendError(ctx, conn, "transcription failed", logger)
 		return
 	}
 
+	transcript := whisperResp.Text
 	logger.Info("transcription complete", "text", transcript)
 
 	// Check for empty transcript (silence or no recognizable speech)
@@ -438,8 +441,8 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		return
 	}
 
-	// Send transcript to client
-	h.sendTranscript(ctx, conn, transcript, logger)
+	// Send rich transcript to client (includes word-level timing if available)
+	h.sendRichTranscript(ctx, conn, whisperResp, logger)
 
 	// 2. Extract intent from transcript
 	subject, err := h.extractIntent(ctx, transcript)
@@ -485,61 +488,65 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	h.sendMedia(ctx, conn, subject, mediaSet, logger)
 }
 
-// transcribeAudio sends audio to whisper-server.
-func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (string, error) {
+// transcribeAudio sends audio to whisper-server and returns the full response
+// including word-level timing and probabilities.
+func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperResponse, error) {
 	// Create multipart form
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
 	part, err := writer.CreateFormFile("file", "audio.webm")
 	if err != nil {
-		return "", fmt.Errorf("create form file: %w", err)
+		return nil, fmt.Errorf("create form file: %w", err)
 	}
 
 	if _, err := io.Copy(part, bytes.NewReader(audioData)); err != nil {
-		return "", fmt.Errorf("copy audio: %w", err)
+		return nil, fmt.Errorf("copy audio: %w", err)
 	}
 
 	// Add required fields
 	if err := writer.WriteField("response_format", "verbose_json"); err != nil {
-		return "", fmt.Errorf("write response_format: %w", err)
+		return nil, fmt.Errorf("write response_format: %w", err)
 	}
 	if err := writer.WriteField("temperature", "0"); err != nil {
-		return "", fmt.Errorf("write temperature: %w", err)
+		return nil, fmt.Errorf("write temperature: %w", err)
 	}
 	if err := writer.WriteField("language", "en"); err != nil {
-		return "", fmt.Errorf("write language: %w", err)
+		return nil, fmt.Errorf("write language: %w", err)
+	}
+	if err := writer.WriteField("split_on_word", "true"); err != nil {
+		return nil, fmt.Errorf("write split_on_word: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {
-		return "", fmt.Errorf("close writer: %w", err)
+		return nil, fmt.Errorf("close writer: %w", err)
 	}
 
 	// Send request to whisper-server
 	req, err := http.NewRequest(http.MethodPost, h.WhisperURL+"/inference", &buf)
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := h.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var whisperResp WhisperResponse
 	if err := json.NewDecoder(resp.Body).Decode(&whisperResp); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return whisperResp.Text, nil
+	return &whisperResp, nil
 }
 
 // extractIntent uses LLM to extract subject from transcript.
@@ -569,8 +576,12 @@ func (h *AudioWebSocketHandler) extractIntent(ctx context.Context, transcript st
 // 2. The connection is likely closing anyway if writes fail
 // The logger parameter should have client IP in its attributes for connection context.
 
-func (h *AudioWebSocketHandler) sendTranscript(ctx context.Context, conn *websocket.Conn, text string, logger *slog.Logger) {
-	msg := TranscriptMessage{Type: MsgTypeTranscript, Text: text}
+func (h *AudioWebSocketHandler) sendRichTranscript(ctx context.Context, conn *websocket.Conn, whisperResp *WhisperResponse, logger *slog.Logger) {
+	msg := TranscriptMessage{
+		Type:     MsgTypeTranscript,
+		Text:     whisperResp.Text,
+		Segments: whisperResp.Segments,
+	}
 	data, err := json.Marshal(msg)
 	if err != nil {
 		logger.Error("failed to marshal transcript message", "error", err)

@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 137 tasks completed.
+Production-ready voice-controlled web app for children. 138 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,14 +32,14 @@ Production-ready voice-controlled web app for children. 137 tasks completed.
 
 ## Last Completed
 
-- Task 137 (2026-02-06): Phase 1b — Fix WebM container corruption on buffer split
-  - Added `at-wat/ebml-go` dependency for EBML/WebM parsing
-  - Created `WebMParser` in `api/webm_parser.go`: extracts init segment (EBML Header + Segment + Info + Tracks), caches it, prepends to every buffer grab
-  - Replaced raw `[]byte audioBuffer` in connectionState with `*WebMParser`
-  - `GrabAudio()` always returns valid WebM: initSegment + accumulated cluster data
-  - TestBufferSplitProducesValidWebM now passes (was intentionally-failing since task 135)
-  - Added 6 parser unit tests in `api/webm_parser_test.go`
-  - Also includes `ParseClusters()` for future audio trimming phases
+- Task 138 (2026-02-06): Phase 1b — Parse full whisper verbose_json response
+  - Added `Words`, `Tokens`, `Temperature`, `AvgLogProb`, `NoSpeechProb` to `WhisperSegment`
+  - Added `WhisperWord` struct (word, start, end, probability)
+  - `transcribeAudio` and `forwardToWhisper` now return `*WhisperResponse` (not just text)
+  - WebSocket sends rich transcript with segments + word-level data
+  - HTTP `/api/transcribe` response includes segments with word data
+  - Added `split_on_word=true` to whisper requests for cleaner word boundaries
+  - TestWhisperResponseFullParse now passes (was intentionally-failing since task 136)
 
 ## Milestone History
 
@@ -57,3 +57,4 @@ Production-ready voice-controlled web app for children. 137 tasks completed.
 - Task 135 (2026-02-05): Failing test proving WebM container corruption on buffer split
 - Task 136 (2026-02-05): Failing test proving whisper verbose_json word data is discarded
 - Task 137 (2026-02-06): Fix WebM container corruption with EBML init segment caching
+- Task 138 (2026-02-06): Parse full whisper verbose_json with word-level timing
