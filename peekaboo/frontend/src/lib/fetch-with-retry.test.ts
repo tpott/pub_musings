@@ -196,6 +196,35 @@ describe('fetchWithRetry', () => {
     expect(response).toBe(successResponse);
   });
 
+  it('discards response body before retrying', async () => {
+    const mockCancel = vi.fn();
+    const rateLimitedResponse = {
+      ok: false,
+      status: 429,
+      headers: new Headers(),
+      body: { cancel: mockCancel },
+    };
+    const successResponse = {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+    };
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(rateLimitedResponse)
+      .mockResolvedValueOnce(successResponse);
+
+    const fetchPromise = fetchWithRetry('/api/test', undefined, {
+      maxRetries: 3,
+      baseDelay: 100,
+    });
+
+    await vi.runAllTimersAsync();
+    await fetchPromise;
+
+    expect(mockCancel).toHaveBeenCalledTimes(1);
+  });
+
   it('passes through request options', async () => {
     const mockResponse = {
       ok: true,

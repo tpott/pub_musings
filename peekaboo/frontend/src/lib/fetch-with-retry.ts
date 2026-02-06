@@ -70,6 +70,9 @@ export async function fetchWithRetry(
       // Check if we should retry based on status code
       if (opts.retryStatusCodes.includes(response.status)) {
         if (attempt < opts.maxRetries) {
+          // Discard response body to free the underlying connection
+          response.body?.cancel();
+
           // Use Retry-After header if present, otherwise calculate backoff
           let delay: number;
           const retryAfter = response.headers.get('Retry-After');
