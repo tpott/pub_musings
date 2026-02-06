@@ -299,7 +299,7 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	go h.idleTimeoutWatcher(ctx, cancel, conn, state, logger)
 
 	// Start buffer threshold goroutine
-	go h.bufferThresholdWatcher(ctx, conn, state, logger, h)
+	go h.bufferThresholdWatcher(ctx, conn, state, logger)
 
 	// Message read loop
 	for {
@@ -637,7 +637,7 @@ func (h *AudioWebSocketHandler) idleTimeoutWatcher(ctx context.Context, cancel c
 }
 
 // bufferThresholdWatcher processes audio when buffer threshold is reached.
-func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn *websocket.Conn, state *connectionState, logger *slog.Logger, handler *AudioWebSocketHandler) {
+func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn *websocket.Conn, state *connectionState, logger *slog.Logger) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -663,7 +663,7 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 				logger.Debug("buffer threshold reached", "elapsed", elapsed, "size", len(audioData))
 
 				if len(audioData) >= minAudioSize {
-					go handler.processAudio(ctx, conn, audioData, logger)
+					go h.processAudio(ctx, conn, audioData, logger)
 				}
 			} else {
 				state.mu.Unlock()

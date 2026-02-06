@@ -4,27 +4,33 @@ A voice-controlled web app for children that responds to prompts like "show me a
 
 ## Features
 
-- **Voice Input** - Press button, speak "show me a cat", release
-- **Speech-to-Text** - Audio forwarded to whisper-server for transcription
+- **Voice Input** - Tap the mic, speak "show me a cat" - continuous listening keeps the mic active across commands
+- **Speech-to-Text** - Audio streamed via WebSocket to whisper-server for transcription
 - **Intent Recognition** - LLM extracts subject from natural language (supports Anthropic and OpenAI)
 - **Media Display** - Shows curated CC0/public domain photos and plays animal sounds
-- **Mobile-First** - Designed for touch devices
+- **Text-to-Speech** - Optional Piper TTS speaks the animal name after displaying media
+- **Day/Night Theme** - Light, dark, and auto modes with a warm neutral palette
+- **Feedback** - Built-in feedback form for bug reports and feature requests
+- **Mobile-First** - Designed for touch devices with accessibility support (ARIA, keyboard navigation)
 
 ## Architecture
 
 ```
 Browser (mobile-first)
     │
-    │ /api/transcribe, /api/intent, /api/media/*
+    │ WebSocket /ws/audio (default) or HTTP /api/*
     ▼
 Go Backend
-    ├── SQLite DB (concepts, media_sets)
+    ├── SQLite DB (concepts, media_sets, feedback)
     ├── LLM Provider (Anthropic/OpenAI)
-    └── Whisper Client
-            │
-            ▼
-        whisper-server (external)
+    ├── Whisper Client
+    │       │
+    │       ▼
+    │   whisper-server (external)
+    └── Piper TTS (optional)
 ```
+
+WebSocket mode is the default - the browser streams audio chunks in real-time and the backend auto-processes after 3 seconds of accumulated audio. HTTP mode is available as a fallback via `?useWebSocket=false`.
 
 ## Quick Start
 
@@ -206,14 +212,17 @@ WHISPER_SERVER_URL=http://127.0.0.1:8765
 peekaboo/
 ├── backend/          # Go backend
 │   ├── main.go       # Entry point
-│   ├── api/          # HTTP handlers
+│   ├── api/          # HTTP handlers and WebSocket
 │   │   ├── intent.go     # POST /api/intent - LLM intent extraction
 │   │   ├── media.go      # GET /api/media/{concept} - Media lookup
 │   │   ├── transcribe.go # POST /api/transcribe - Whisper forwarding
+│   │   ├── websocket.go  # GET /ws/audio - WebSocket audio streaming
 │   │   └── encrypted_media.go # Encrypted file serving
 │   ├── crypto/       # Age encryption utilities
 │   ├── db/           # SQLite database
-│   └── llm/          # LLM provider abstraction (Anthropic/OpenAI)
+│   ├── llm/          # LLM provider abstraction (Anthropic/OpenAI)
+│   ├── tts/          # Text-to-speech (Piper integration)
+│   └── logging/      # Request logging middleware
 ├── frontend/         # Astro frontend
 │   ├── src/lib/      # Core TypeScript modules
 │   └── tests/        # Playwright e2e tests
@@ -246,10 +255,13 @@ cd frontend && npx playwright test
 
 ## Documentation
 
-- [API Reference](docs/API.md) - Backend endpoint documentation
+- [API Reference](docs/API.md) - Backend endpoint documentation with curl examples
 - [Architecture Spec](specs/architecture.md) - System design and components
-- [Piper TTS Spec](specs/piper.md) - Future TTS integration
-- [Deployment Guide](docs/DEPLOY.md) - Production deployment
+- [WebSocket Audio Spec](specs/websocket-audio.md) - WebSocket streaming protocol
+- [Deployment Guide](docs/DEPLOY.md) - Production deployment, backups, feedback queries
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Security](docs/SECURITY.md) - Threat model and mitigations
+- [Performance](docs/PERFORMANCE.md) - Tuning and monitoring
 
 ## License
 

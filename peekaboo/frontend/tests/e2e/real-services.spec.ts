@@ -7,7 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fixturesDir = path.join(__dirname, '..', '..', '..', 'tests', 'fixtures');
 
+// Skip unless PEEKABOO_REAL_SERVICES=1 is set (requires whisper-server + LLM API)
 test.describe('Real services e2e', () => {
+  test.skip(!process.env.PEEKABOO_REAL_SERVICES, 'Set PEEKABOO_REAL_SERVICES=1 to run (requires whisper-server and LLM API key)');
+
   test('voice command "show me a cat" with real whisper and LLM', async ({ page }) => {
     // Read audio file and split into ~4KB chunks
     // Note: webm/opus works with whisper-server when started with --convert flag
