@@ -2,6 +2,8 @@
  * Error types for differentiated user-facing error messages
  */
 
+import { logger } from './logger';
+
 export type ErrorType = 'network' | 'rate_limit' | 'server' | 'client' | 'unknown';
 
 /**
@@ -76,8 +78,8 @@ export async function createApiErrorFromResponse(response: Response, defaultMess
     if (data.error) {
       message = data.error;
     }
-  } catch {
-    // Ignore JSON parse errors
+  } catch (error) {
+    logger.debug('Failed to parse error response JSON:', error);
   }
 
   // Get Retry-After header for rate limiting

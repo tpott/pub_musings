@@ -154,7 +154,7 @@ func (p *openaiProvider) ExtractIntent(ctx context.Context, text string) (*Inten
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -276,7 +276,7 @@ func (p *openaiProvider) ProcessTranscript(ctx context.Context, req TranscriptRe
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -377,7 +377,7 @@ func (p *openaiProvider) HealthCheck(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(respBody))
 	}
 

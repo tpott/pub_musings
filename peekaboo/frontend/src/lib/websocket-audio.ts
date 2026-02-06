@@ -5,6 +5,7 @@
  */
 
 import { ApiError } from './errors';
+import { logger } from './logger';
 
 // Message types from server
 export interface TranscriptMessage {
@@ -311,8 +312,8 @@ export class AudioWebSocket {
           // Unknown message type, ignore
           break;
       }
-    } catch {
-      // Invalid JSON, ignore
+    } catch (error) {
+      logger.debug('WebSocket received invalid JSON:', error);
     }
   }
 
@@ -363,8 +364,8 @@ export class AudioWebSocket {
             new ApiError('Recording interrupted by connection loss', 'network')
           );
         }
-      } catch {
-        // Reconnect failed — try again if attempts remain
+      } catch (error) {
+        logger.debug('WebSocket reconnect attempt failed:', error);
         this.attemptReconnect(wasRecording);
       }
     }, delay);

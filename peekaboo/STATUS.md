@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 156 tasks completed.
+Production-ready voice-controlled web app for children. 162 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 269 unit tests, 19+ E2E tests
+- **Astro frontend** with TypeScript, 269 unit tests, 22+ E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,10 +32,13 @@ Production-ready voice-controlled web app for children. 156 tasks completed.
 
 ## Last Completed
 
-- Task 156 (2026-02-06): Add tests for untested PeekabooFlow code paths
-  - Test transcript during recording keeps recording state (continuous listening)
-  - Test client-side TTS fallback when no server TTS received
-  - 269 total frontend tests
+- Tasks 157-162 (2026-02-06): Security hardening, XSS fix, memory leak fixes, debug logging, E2E theme tests
+  - Task 157: Limit LLM error response body reads with io.LimitReader (10KB cap)
+  - Task 158: Replace innerHTML with DOM methods in showBrowserSupportError
+  - Task 159: Track and clear success timeout in FeedbackButton
+  - Task 160: Add E2E test for theme toggle (3 tests: cycling, persistence, localStorage)
+  - Task 161: Add PeekabooFlow cleanup on page unload (pagehide → destroy)
+  - Task 162: Add debug logging to silent catch blocks in websocket-audio.ts and errors.ts
 
 ## Milestone History
 
@@ -72,3 +75,4 @@ Production-ready voice-controlled web app for children. 156 tasks completed.
 - Task 154 (2026-02-06): Add media load error handlers + action loop context cancellation
 - Task 155 (2026-02-06): Wrap handleWsMedia in try-catch to prevent stuck state on display error
 - Task 156 (2026-02-06): Add tests for untested PeekabooFlow code paths
+- Tasks 157-162 (2026-02-06): Security hardening batch + E2E theme test coverage

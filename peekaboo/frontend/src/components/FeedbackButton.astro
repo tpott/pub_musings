@@ -127,6 +127,7 @@
     const starBtns = ratingContainer.querySelectorAll('.star-btn') as NodeListOf<HTMLButtonElement>;
 
     let selectedRating: number | null = null;
+    let successTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let capturedContext: { conceptId: string | null; transcript: string | null } = {
       conceptId: null,
       transcript: null,
@@ -162,6 +163,10 @@
 
     // Close modal
     function closeModal(): void {
+      if (successTimeoutId !== null) {
+        clearTimeout(successTimeoutId);
+        successTimeoutId = null;
+      }
       modal.classList.add('hidden');
       document.body.style.overflow = '';
       resetForm();
@@ -198,7 +203,7 @@
     function showSuccess(): void {
       form.classList.add('hidden');
       successMessage.classList.remove('hidden');
-      setTimeout(closeModal, 1500);
+      successTimeoutId = setTimeout(closeModal, 1500);
     }
 
     // Event: Open modal

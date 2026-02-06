@@ -144,7 +144,7 @@ func (p *anthropicProvider) ExtractIntent(ctx context.Context, text string) (*In
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf("anthropic API error: %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -297,7 +297,7 @@ func (p *anthropicProvider) ProcessTranscript(ctx context.Context, req Transcrip
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf("anthropic API error: %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -396,7 +396,7 @@ func (p *anthropicProvider) HealthCheck(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return fmt.Errorf("anthropic API error: %d: %s", resp.StatusCode, string(respBody))
 	}
 

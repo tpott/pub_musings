@@ -39,19 +39,32 @@ import '../styles/global.css';
    * Show a visible error message when the browser doesn't support voice recording
    */
   function showBrowserSupportError(container: HTMLElement): void {
-    container.innerHTML = `
-      <div class="browser-error" role="alert">
-        <h2>Browser Not Supported</h2>
-        <p>Your browser doesn't support voice recording.</p>
-        <p>Please try one of these browsers:</p>
-        <ul>
-          <li>Chrome (version 49+)</li>
-          <li>Firefox (version 25+)</li>
-          <li>Safari (version 14.1+)</li>
-          <li>Edge (version 79+)</li>
-        </ul>
-      </div>
-    `;
+    container.innerHTML = '';
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'browser-error';
+    errorDiv.setAttribute('role', 'alert');
+
+    const h2 = document.createElement('h2');
+    h2.textContent = 'Browser Not Supported';
+    errorDiv.appendChild(h2);
+
+    const p1 = document.createElement('p');
+    p1.textContent = "Your browser doesn't support voice recording.";
+    errorDiv.appendChild(p1);
+
+    const p2 = document.createElement('p');
+    p2.textContent = 'Please try one of these browsers:';
+    errorDiv.appendChild(p2);
+
+    const ul = document.createElement('ul');
+    for (const browser of ['Chrome (version 49+)', 'Firefox (version 25+)', 'Safari (version 14.1+)', 'Edge (version 79+)']) {
+      const li = document.createElement('li');
+      li.textContent = browser;
+      ul.appendChild(li);
+    }
+    errorDiv.appendChild(ul);
+
+    container.appendChild(errorDiv);
     container.setAttribute('aria-label', 'Browser not supported error');
   }
 
@@ -84,7 +97,7 @@ import '../styles/global.css';
                         (window as any).__PEEKABOO_USE_WEBSOCKET__ !== false;
 
     // Initialize the full flow
-    new PeekabooFlow({
+    const flow = new PeekabooFlow({
       micButton,
       mediaContainer,
       transcriptContainer,
@@ -95,6 +108,11 @@ import '../styles/global.css';
       onError: (error) => {
         logger.error('Peekaboo error:', error);
       },
+    });
+
+    // Clean up resources when the page is unloaded
+    window.addEventListener('pagehide', () => {
+      flow.destroy();
     });
   });
 </script>
