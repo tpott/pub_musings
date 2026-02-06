@@ -28,11 +28,11 @@ var validFeedbackTypes = map[string]bool{
 
 // FeedbackContext contains optional context about the user's session.
 type FeedbackContext struct {
-	SessionID string  `json:"session_id"`
-	ConceptID *string `json:"concept_id,omitempty"`
+	SessionID  string  `json:"session_id"`
+	ConceptID  *string `json:"concept_id,omitempty"`
 	Transcript *string `json:"transcript,omitempty"`
-	PageURL   string  `json:"page_url"`
-	UserAgent *string `json:"user_agent,omitempty"`
+	PageURL    string  `json:"page_url"`
+	UserAgent  *string `json:"user_agent,omitempty"`
 }
 
 // FeedbackRequest is the incoming request to POST /api/feedback.

@@ -460,9 +460,9 @@ func TestIntentHandler_OpenAIProvider(t *testing.T) {
 		// Return OpenAI-style response with tool call
 		// Note: tool_calls is at the choice level, not inside message
 		resp := map[string]interface{}{
-			"id":      "chatcmpl-123",
-			"object":  "chat.completion",
-			"model":   "gpt-4o-mini",
+			"id":     "chatcmpl-123",
+			"object": "chat.completion",
+			"model":  "gpt-4o-mini",
 			"choices": []map[string]interface{}{
 				{
 					"index": 0,

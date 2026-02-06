@@ -59,6 +59,13 @@ This file tracks high level progress on the peekaboo project.
 
 ## Last Completed
 
+- Task 123: Add linters for peekaboo (2026-02-05)
+  - Created scripts/lint.sh: gofmt, go vet, golangci-lint, npm run build, filesize lint
+  - Created scripts/lint-filesize.py: checks all source files under 1000 lines
+  - Created backend/.golangci.yml v2 config with errcheck exclusions for standard patterns
+  - Fixed 3 Go formatting issues (gofmt) and 3 ineffectual assignments (ineffassign)
+  - Updated pre-commit hook to run lint before tests
+  - All linting passes, all tests pass
 - Task 122: Update pre-commit hook for peekaboo (2026-02-05)
   - Updated subtitler/scripts/pre-commit to handle pub_musings monorepo
   - Detects staged peekaboo/ files and runs Go backend + frontend tests

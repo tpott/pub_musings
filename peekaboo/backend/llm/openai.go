@@ -47,11 +47,11 @@ func newOpenAIProvider(cfg Config) (*openaiProvider, error) {
 // OpenAI API types
 
 type openaiRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openaiMessage `json:"messages"`
-	Tools       []openaiTool    `json:"tools,omitempty"`
-	ToolChoice  string          `json:"tool_choice,omitempty"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
+	Model      string          `json:"model"`
+	Messages   []openaiMessage `json:"messages"`
+	Tools      []openaiTool    `json:"tools,omitempty"`
+	ToolChoice string          `json:"tool_choice,omitempty"`
+	MaxTokens  int             `json:"max_tokens,omitempty"`
 }
 
 type openaiMessage struct {

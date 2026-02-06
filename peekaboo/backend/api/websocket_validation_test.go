@@ -283,7 +283,7 @@ func TestAudioWebSocketHandler_EmptySubject(t *testing.T) {
 	}
 
 	// Second message should be error about empty subject
-	msgType, respData, err = conn.Read(ctx)
+	_, respData, err = conn.Read(ctx)
 	if err != nil {
 		t.Fatalf("failed to read error: %v", err)
 	}
@@ -360,7 +360,7 @@ func TestAudioWebSocketHandler_SubjectTooLong(t *testing.T) {
 	}
 
 	// Second message should be error about subject too long
-	msgType, respData, err = conn.Read(ctx)
+	_, respData, err = conn.Read(ctx)
 	if err != nil {
 		t.Fatalf("failed to read error: %v", err)
 	}
@@ -439,7 +439,7 @@ func TestAudioWebSocketHandler_ValidSubjectAtMaxLength(t *testing.T) {
 
 	// Second message should be error about "media lookup unavailable" (no database)
 	// NOT a validation error - this proves validation passed
-	msgType, respData, err = conn.Read(ctx)
+	_, respData, err = conn.Read(ctx)
 	if err != nil {
 		t.Fatalf("failed to read error: %v", err)
 	}
