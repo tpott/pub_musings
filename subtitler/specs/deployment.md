@@ -242,9 +242,15 @@ Runs on the Mac Mini host for GPU acceleration.
 ```bash
 # Install ffmpeg (required for --convert flag to process browser audio formats)
 brew install ffmpeg
+
+# Download VAD model (required if any client sends vad=true)
+cd ~/Github/whisper.cpp/models
+bash download-vad-model.sh silero-v6.2.0
 ```
 
 > **Note:** The `--convert` flag is required because browsers record audio in webm/opus format, which whisper.cpp cannot process natively. The flag enables ffmpeg conversion before transcription.
+
+> **Note:** The `--vad-model` flag is required if any client sends `vad=true` in transcription requests. Without it, whisper-server will fail with "failed to open VAD model ''" and return 500 on every request that enables VAD. The VAD model file is ~864KB.
 
 **Launch script (`~/bin/start-whisper-server.sh`):**
 ```bash
@@ -255,6 +261,7 @@ cd ~/Github/whisper.cpp
   --host 0.0.0.0 \
   --port 8765 \
   --convert \
+  --vad-model models/ggml-silero-v6.2.0.bin \
   -t 8
 ```
 
