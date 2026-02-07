@@ -363,3 +363,30 @@ if mediaSet == nil {
 **Solution:** Use `t.Skip("Known bug: ...")` with a clear reference to the fix task. The test still compiles, can be run explicitly with `go test -v -run TestName`, and will be un-skipped when the fix is implemented (task 137).
 
 **Lesson:** In TDD workflows with pre-commit hooks, use `t.Skip` for known-failing tests that prove bugs exist. The skip message should reference which task will fix the bug and un-skip the test.
+
+---
+
+### 2026-02-06: Real-services E2E tests require backend with correct MEDIA_DIR
+
+**Problem:** Both `real-services.spec.ts` tests failed with "Network issue - please check your connection and try again." The page never showed media.
+
+**Root causes (3 issues):**
+1. **No media in `backend/data/media/`** — the `source-media.sh` script had never been run, so the directory didn't exist. Media existed at `data/media/` (wrong location) from an earlier manual setup.
+2. **Backend not running** — the Go backend on port 8080 was not started, so WebSocket connections from the frontend (proxied from Astro dev server at :4321) failed immediately.
+3. **Empty `media_sets` table** — even when the backend had been run previously, `seedMediaFromDisk()` silently skipped seeding because it couldn't find the media directory (logged at DEBUG level only).
+4. **Path mismatch when running from `backend/`** — the `.env` has `MEDIA_DIR=backend/data/media` and `DB_PATH=backend/data/peekaboo.db`, which are relative to the project root. But `go run main.go` must be run from `backend/` (where `go.mod` lives), so the paths need to be overridden: `MEDIA_DIR=data/media DB_PATH=data/peekaboo.db`.
+
+**Solution:**
+```bash
+# 1. Download media
+bash scripts/source-media.sh
+
+# 2. Start backend with corrected relative paths
+cd backend && (set -a && source ../.env && set +a && \
+  MEDIA_DIR=data/media DB_PATH=data/peekaboo.db go run main.go) &
+
+# 3. Run tests
+cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-services.spec.ts
+```
+
+**Lesson:** The `.env` paths assume the backend runs from the project root, but Go requires running from `backend/` (where `go.mod` is). When starting the backend manually, override `MEDIA_DIR` and `DB_PATH` to be relative to `backend/`. The `seedMediaFromDisk` skip is logged at DEBUG level — use `LOG_LEVEL=debug` to catch seeding failures.
