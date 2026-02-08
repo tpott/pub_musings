@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/tpott/pub_musings/peekaboo/backend/auth"
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
@@ -217,6 +218,9 @@ type connectionState struct {
 	lastActivity time.Time
 	bufferStart  time.Time
 
+	// Connection identity for interaction logging.
+	connectionID string
+
 	// Auth: populated during WS upgrade from session cookie/bearer token.
 	// Empty strings for anonymous connections.
 	userID    string
@@ -338,10 +342,18 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	logger.Info("websocket connection established")
 
+	// Generate connection ID for interaction logging
+	connID, err := auth.GenerateID()
+	if err != nil {
+		logger.Error("failed to generate connection ID", "error", err)
+		connID = fmt.Sprintf("err-%d", time.Now().UnixNano())
+	}
+
 	// Initialize connection state
 	state := &connectionState{
 		webmParser:   NewWebMParser(),
 		lastActivity: time.Now(),
+		connectionID: connID,
 		userID:       wsUserID,
 		sessionID:    wsSessionID,
 		clientIP:     clientIP,
@@ -492,10 +504,48 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 // trimming. firstChunkClientTS is the client wall-clock timestamp (ms since
 // epoch) of the first audio chunk in this buffer.
 func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocket.Conn, state *connectionState, audioData []byte, firstChunkClientTS float64, logger *slog.Logger) {
+	// Build interaction log progressively; defer ensures it's always saved.
+	interactionID, err := auth.GenerateID()
+	if err != nil {
+		logger.Error("failed to generate interaction ID", "error", err)
+		interactionID = fmt.Sprintf("err-%d", time.Now().UnixNano())
+	}
+
+	var (
+		sttLog    *db.STTLog
+		llmLog    *db.LLMLog
+		ttsLog    *db.TTSLog
+		bufferLog *db.BufferLog
+		startTime = time.Now()
+	)
+
 	defer func() {
 		state.mu.Lock()
 		state.isProcessing = false
 		state.mu.Unlock()
+
+		// Build and save interaction log
+		var userID, sessionID *string
+		if state.userID != "" {
+			userID = &state.userID
+		}
+		if state.sessionID != "" {
+			sessionID = &state.sessionID
+		}
+
+		interaction := &db.InteractionLog{
+			ID:             interactionID,
+			ConnectionID:   state.connectionID,
+			UserID:         userID,
+			SessionID:      sessionID,
+			STT:            sttLog,
+			LLM:            llmLog,
+			TTS:            ttsLog,
+			Buffer:         bufferLog,
+			TotalLatencyMs: time.Since(startTime).Milliseconds(),
+			CreatedAt:      time.Now().UTC(),
+		}
+		h.saveInteraction(interaction, audioData, logger)
 	}()
 
 	// Check anonymous interaction rate limit
@@ -523,8 +573,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	}
 
 	// Build STT log data
-	sttLog := buildSTTLog(whisperResp, sttLatency, chunkCount, sttRequestAt)
-	_ = sttLog // will be used by saveInteraction in task 215
+	sttLog = buildSTTLog(whisperResp, sttLatency, chunkCount, sttRequestAt)
 
 	transcript := whisperResp.Text
 	logger.Info("transcription complete", "text", transcript)
@@ -589,12 +638,9 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	}
 
 	// Build LLM log data
-	llmLog := buildLLMLog(result, h.LLMProviderName, concepts, llmLatency, llmRequestAt)
-	_ = llmLog // will be used by saveInteraction in task 215
+	llmLog = buildLLMLog(result, h.LLMProviderName, concepts, llmLatency, llmRequestAt)
 
 	// 7. Execute actions from LLM response
-	var ttsLog *db.TTSLog
-	var bufferLog *db.BufferLog
 	for _, action := range result.Actions {
 		if ctx.Err() != nil {
 			logger.Debug("context canceled, stopping action execution")
@@ -662,34 +708,6 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 	}
 
-	// Compute total latency (threshold fire to end of all actions)
-	totalLatency := time.Since(sttRequestAt)
-
-	_, _, _ = ttsLog, bufferLog, totalLatency // will be used by saveInteraction in task 215
-}
-
-// processTranscript uses LLM to process transcript with word-level data.
-// Uses a 30-second timeout consistent with the HTTP endpoint.
-func (h *AudioWebSocketHandler) processTranscript(ctx context.Context, text string, words []llm.WordData, concepts []string) (*llm.TranscriptResult, error) {
-	if h.LLMProvider == nil {
-		return nil, fmt.Errorf("LLM provider not configured")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, intentTimeout)
-	defer cancel()
-
-	result, err := h.LLMProvider.ProcessTranscript(ctx, llm.TranscriptRequest{
-		Text:     text,
-		Words:    words,
-		Concepts: concepts,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		return nil, fmt.Errorf("LLM returned nil result")
-	}
-	return result, nil
 }
 
 // executeShowMedia validates a subject and sends media to the client.

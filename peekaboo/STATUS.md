@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 185 tasks completed.
+Production-ready voice-controlled web app for children. 186 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,13 @@ Production-ready voice-controlled web app for children. 185 tasks completed.
 
 ## Last Completed
 
-- Task 214 (2026-02-08): Capture TTS and buffer data in processAudio
-  - executeTTS returns ttsResult (latency, audioSize, requestAt) for interaction logging
-  - show_media captures buffer trim data (bytesBeforeTrim, bytesAfterTrim, trimTimeMs)
-  - wait_for_more captures accumulated transcript
-  - total_latency_ms computed from sttRequestAt to end of all actions
-  - Moved executeTTS to websocket_interaction.go (websocket.go was over 1000 lines)
+- Task 215 (2026-02-08): Persist interaction logs with defer-save
+  - Every processAudio() call writes one row via deferred saveInteraction
+  - Partial data persisted on error (failed transcription still logs STT data)
+  - INTERACTION_LOG_AUDIO=true saves WebM to data/interactions/{date}/{id}.webm async
+  - UpdateInteractionAudioPath updates DB row after file write
+  - connectionID generated per WebSocket connection for grouping interactions
+  - 5 new tests (persist, nil-db, partial, audio blob, audio disabled)
 
 ## Milestone History
 
@@ -91,3 +92,4 @@ Production-ready voice-controlled web app for children. 185 tasks completed.
 - Task 212 (2026-02-08): STT data capture in processAudio (buildSTTLog, 6 tests)
 - Task 213 (2026-02-08): LLM data capture in processAudio (buildLLMLog, 7 tests)
 - Task 214 (2026-02-08): TTS and buffer data capture in processAudio
+- Task 215 (2026-02-08): Interaction log persistence with defer-save (5 tests)

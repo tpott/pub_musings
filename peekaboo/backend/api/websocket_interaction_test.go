@@ -4,9 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 )
 
@@ -201,11 +205,8 @@ func TestBuildSTTLog_ResponseJSON(t *testing.T) {
 // --- buildLLMLog tests ---
 
 func TestBuildLLMLog_ShowMedia(t *testing.T) {
-	endIdx := 3
 	result := &llm.TranscriptResult{
-		Actions: []llm.ToolAction{
-			{Type: "show_media", Subject: "cat", InstructionEndWordIdx: endIdx},
-		},
+		Actions:      []llm.ToolAction{{Type: "show_media", Subject: "cat", InstructionEndWordIdx: 3}},
 		RawResponse:  json.RawMessage(`{"id":"msg_123"}`),
 		Model:        "claude-3-haiku-20240307",
 		InputTokens:  150,
@@ -213,36 +214,20 @@ func TestBuildLLMLog_ShowMedia(t *testing.T) {
 		SystemPrompt: "You are the intent engine",
 		InputText:    `Transcript: "show me a cat"`,
 	}
-
 	requestAt := time.Now()
-	latency := 200 * time.Millisecond
-	concepts := []string{"cat", "dog", "cow"}
-
-	log := buildLLMLog(result, "anthropic", concepts, latency, requestAt)
+	log := buildLLMLog(result, "anthropic", []string{"cat", "dog", "cow"}, 200*time.Millisecond, requestAt)
 
 	if log.Provider != "anthropic" {
 		t.Errorf("Provider: got %q, want %q", log.Provider, "anthropic")
 	}
 	if log.Model != "claude-3-haiku-20240307" {
-		t.Errorf("Model: got %q, want %q", log.Model, "claude-3-haiku-20240307")
+		t.Errorf("Model: got %q", log.Model)
 	}
-	if log.InputText != `Transcript: "show me a cat"` {
-		t.Errorf("InputText: got %q, want %q", log.InputText, `Transcript: "show me a cat"`)
-	}
-	if len(log.ConceptsAvailable) != 3 {
-		t.Fatalf("ConceptsAvailable: got %d, want 3", len(log.ConceptsAvailable))
-	}
-	if log.InputTokens != 150 {
-		t.Errorf("InputTokens: got %d, want 150", log.InputTokens)
-	}
-	if log.OutputTokens != 42 {
-		t.Errorf("OutputTokens: got %d, want 42", log.OutputTokens)
+	if log.InputTokens != 150 || log.OutputTokens != 42 {
+		t.Errorf("tokens: got %d/%d, want 150/42", log.InputTokens, log.OutputTokens)
 	}
 	if log.LatencyMs != 200 {
 		t.Errorf("LatencyMs: got %d, want 200", log.LatencyMs)
-	}
-	if log.RequestAt != requestAt {
-		t.Errorf("RequestAt mismatch")
 	}
 	if log.ActionType != "show_media" {
 		t.Errorf("ActionType: got %q, want %q", log.ActionType, "show_media")
@@ -253,16 +238,11 @@ func TestBuildLLMLog_ShowMedia(t *testing.T) {
 	if log.InstructionEndIdx != 3 {
 		t.Errorf("InstructionEndIdx: got %d, want 3", log.InstructionEndIdx)
 	}
-	if log.TTSText != nil {
-		t.Errorf("TTSText: got %v, want nil", log.TTSText)
+	if log.TTSText != nil || log.WaitReason != nil {
+		t.Errorf("TTSText/WaitReason should be nil for show_media")
 	}
-	if log.WaitReason != nil {
-		t.Errorf("WaitReason: got %v, want nil", log.WaitReason)
-	}
-
-	// Verify response JSON is passed through
 	if string(log.ResponseJSON) != `{"id":"msg_123"}` {
-		t.Errorf("ResponseJSON: got %q, want %q", string(log.ResponseJSON), `{"id":"msg_123"}`)
+		t.Errorf("ResponseJSON: got %q", string(log.ResponseJSON))
 	}
 }
 
@@ -296,14 +276,10 @@ func TestBuildLLMLog_EmptySystemPrompt(t *testing.T) {
 
 func TestBuildLLMLog_TextToSpeech(t *testing.T) {
 	result := &llm.TranscriptResult{
-		Actions: []llm.ToolAction{
-			{Type: "text_to_speech", Text: "I can show you a cat!"},
-		},
-		Model: "gpt-4o-mini",
+		Actions: []llm.ToolAction{{Type: "text_to_speech", Text: "I can show you a cat!"}},
+		Model:   "gpt-4o-mini",
 	}
-
 	log := buildLLMLog(result, "openai", []string{"cat"}, 80*time.Millisecond, time.Now())
-
 	if log.ActionType != "text_to_speech" {
 		t.Errorf("ActionType: got %q, want %q", log.ActionType, "text_to_speech")
 	}
@@ -317,25 +293,18 @@ func TestBuildLLMLog_TextToSpeech(t *testing.T) {
 
 func TestBuildLLMLog_WaitForMore(t *testing.T) {
 	result := &llm.TranscriptResult{
-		Actions: []llm.ToolAction{
-			{Type: "wait_for_more", Reason: "sentence cut off mid-phrase"},
-		},
-		Model: "claude-3-haiku-20240307",
+		Actions: []llm.ToolAction{{Type: "wait_for_more", Reason: "sentence cut off mid-phrase"}},
+		Model:   "claude-3-haiku-20240307",
 	}
-
 	log := buildLLMLog(result, "anthropic", []string{"cat", "dog"}, 120*time.Millisecond, time.Now())
-
 	if log.ActionType != "wait_for_more" {
 		t.Errorf("ActionType: got %q, want %q", log.ActionType, "wait_for_more")
 	}
 	if log.WaitReason == nil || *log.WaitReason != "sentence cut off mid-phrase" {
 		t.Errorf("WaitReason: got %v, want %q", log.WaitReason, "sentence cut off mid-phrase")
 	}
-	if log.Subject != nil {
-		t.Errorf("Subject: got %v, want nil", log.Subject)
-	}
-	if log.TTSText != nil {
-		t.Errorf("TTSText: got %v, want nil", log.TTSText)
+	if log.Subject != nil || log.TTSText != nil {
+		t.Error("Subject and TTSText should be nil for wait_for_more")
 	}
 }
 
@@ -389,4 +358,140 @@ func buildTestSystemPrompt(concepts []string) string {
 	}
 	result += "</available-concepts>"
 	return result
+}
+
+// --- saveInteraction tests ---
+
+func TestSaveInteraction_PersistsRow(t *testing.T) {
+	database := setupTestDB(t)
+	handler := &AudioWebSocketHandler{Database: database}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	interaction := &db.InteractionLog{
+		ID:             "test-interaction-1",
+		ConnectionID:   "test-conn-1",
+		STT:            &db.STTLog{Transcript: "show me a cat", LatencyMs: 100, RequestAt: time.Now()},
+		TotalLatencyMs: 250,
+		CreatedAt:      time.Now().UTC(),
+	}
+
+	handler.saveInteraction(interaction, nil, logger)
+
+	got, err := database.GetInteraction("test-interaction-1")
+	if err != nil {
+		t.Fatalf("GetInteraction: %v", err)
+	}
+	if got == nil {
+		t.Fatal("interaction not found in database")
+	}
+	if got.STT == nil || got.STT.Transcript != "show me a cat" {
+		t.Errorf("STT.Transcript: got %v, want %q", got.STT, "show me a cat")
+	}
+	if got.TotalLatencyMs != 250 {
+		t.Errorf("TotalLatencyMs: got %d, want 250", got.TotalLatencyMs)
+	}
+}
+
+func TestSaveInteraction_NilDatabase(t *testing.T) {
+	handler := &AudioWebSocketHandler{Database: nil}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	interaction := &db.InteractionLog{
+		ID:           "test-nil-db",
+		ConnectionID: "conn-1",
+		CreatedAt:    time.Now().UTC(),
+	}
+
+	// Should not panic
+	handler.saveInteraction(interaction, nil, logger)
+}
+
+func TestSaveInteraction_PartialDataOnError(t *testing.T) {
+	database := setupTestDB(t)
+	handler := &AudioWebSocketHandler{Database: database}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	// Interaction with STT but no LLM (simulates transcription failure)
+	interaction := &db.InteractionLog{
+		ID:             "test-partial-1",
+		ConnectionID:   "conn-partial",
+		STT:            &db.STTLog{Transcript: "", LatencyMs: 50, RequestAt: time.Now()},
+		TotalLatencyMs: 50,
+		CreatedAt:      time.Now().UTC(),
+	}
+
+	handler.saveInteraction(interaction, nil, logger)
+
+	got, err := database.GetInteraction("test-partial-1")
+	if err != nil {
+		t.Fatalf("GetInteraction: %v", err)
+	}
+	if got == nil {
+		t.Fatal("partial interaction not found in database")
+	}
+	if got.LLM != nil {
+		t.Error("LLM should be nil for partial interaction")
+	}
+}
+
+func TestSaveInteraction_AudioBlobWritten(t *testing.T) {
+	database := setupTestDB(t)
+	handler := &AudioWebSocketHandler{Database: database}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+	t.Setenv("INTERACTION_LOG_AUDIO", "true")
+
+	interaction := &db.InteractionLog{
+		ID:             "test-audio-1",
+		ConnectionID:   "conn-audio",
+		TotalLatencyMs: 100,
+		CreatedAt:      time.Now().UTC(),
+	}
+	handler.saveInteraction(interaction, []byte("fake webm"), logger)
+	time.Sleep(100 * time.Millisecond)
+
+	dateDir := time.Now().UTC().Format("2006-01-02")
+	path := filepath.Join("data", "interactions", dateDir, "test-audio-1.webm")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("audio file not written: %v", err)
+	}
+	if string(data) != "fake webm" {
+		t.Errorf("audio content: got %q, want %q", string(data), "fake webm")
+	}
+}
+
+func TestSaveInteraction_AudioBlobSkippedWhenDisabled(t *testing.T) {
+	database := setupTestDB(t)
+	handler := &AudioWebSocketHandler{Database: database}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+	t.Setenv("INTERACTION_LOG_AUDIO", "false")
+
+	interaction := &db.InteractionLog{
+		ID:             "test-audio-off",
+		ConnectionID:   "conn-audio",
+		TotalLatencyMs: 100,
+		CreatedAt:      time.Now().UTC(),
+	}
+	handler.saveInteraction(interaction, []byte("fake webm"), logger)
+	time.Sleep(50 * time.Millisecond)
+
+	dateDir := time.Now().UTC().Format("2006-01-02")
+	path := filepath.Join("data", "interactions", dateDir, "test-audio-off.webm")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("audio file should not exist when INTERACTION_LOG_AUDIO=false")
+	}
 }

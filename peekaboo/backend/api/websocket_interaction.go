@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/coder/websocket"
@@ -93,6 +95,30 @@ func buildLLMLog(result *llm.TranscriptResult, provider string, concepts []strin
 	return llmLog
 }
 
+// processTranscript uses LLM to process transcript with word-level data.
+// Uses a 30-second timeout consistent with the HTTP endpoint.
+func (h *AudioWebSocketHandler) processTranscript(ctx context.Context, text string, words []llm.WordData, concepts []string) (*llm.TranscriptResult, error) {
+	if h.LLMProvider == nil {
+		return nil, fmt.Errorf("LLM provider not configured")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, intentTimeout)
+	defer cancel()
+
+	result, err := h.LLMProvider.ProcessTranscript(ctx, llm.TranscriptRequest{
+		Text:     text,
+		Words:    words,
+		Concepts: concepts,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, fmt.Errorf("LLM returned nil result")
+	}
+	return result, nil
+}
+
 // ttsResult holds timing and size data from a TTS synthesis call.
 type ttsResult struct {
 	latency   time.Duration
@@ -132,4 +158,43 @@ func (h *AudioWebSocketHandler) executeTTS(ctx context.Context, conn *websocket.
 		audioSize: len(audioData),
 		requestAt: requestAt,
 	}
+}
+
+// saveInteraction persists an interaction log to the database.
+// If INTERACTION_LOG_AUDIO=true, the audio blob is written to disk asynchronously.
+func (h *AudioWebSocketHandler) saveInteraction(interaction *db.InteractionLog, audioData []byte, logger *slog.Logger) {
+	if h.Database == nil {
+		return
+	}
+
+	if err := h.Database.InsertInteraction(interaction); err != nil {
+		logger.Error("failed to save interaction", "error", err, "id", interaction.ID)
+		return
+	}
+
+	// Optionally save audio blob to disk
+	if os.Getenv("INTERACTION_LOG_AUDIO") != "true" || len(audioData) == 0 {
+		return
+	}
+
+	id := interaction.ID
+	go func() {
+		dateDir := time.Now().UTC().Format("2006-01-02")
+		dir := filepath.Join("data", "interactions", dateDir)
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			logger.Error("failed to create interaction audio dir", "error", err, "dir", dir)
+			return
+		}
+
+		path := filepath.Join(dir, id+".webm")
+		if err := os.WriteFile(path, audioData, 0o640); err != nil {
+			logger.Error("failed to write interaction audio", "error", err, "path", path)
+			return
+		}
+
+		// Update the interaction row with the audio blob path
+		if err := h.Database.UpdateInteractionAudioPath(id, path); err != nil {
+			logger.Error("failed to update interaction audio path", "error", err, "id", id)
+		}
+	}()
 }

@@ -514,3 +514,12 @@ func (db *DB) GetInteraction(id string) (*InteractionLog, error) {
 
 	return &log, nil
 }
+
+// UpdateInteractionAudioPath sets the audio_blob_path for an interaction.
+func (db *DB) UpdateInteractionAudioPath(id, path string) error {
+	_, err := db.conn.Exec("UPDATE interactions SET audio_blob_path = ? WHERE id = ?", path, id)
+	if err != nil {
+		return fmt.Errorf("update interaction audio path: %w", err)
+	}
+	return nil
+}
