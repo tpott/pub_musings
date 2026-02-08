@@ -367,3 +367,80 @@ func TestInitInteractionsIdempotent(t *testing.T) {
 		t.Fatalf("second InitInteractions failed: %v", err)
 	}
 }
+
+func TestListExpiredAudioBlobs(t *testing.T) {
+	db := openTestDB(t)
+
+	// Insert an old interaction with audio blob path
+	oldTime := time.Now().UTC().Add(-40 * 24 * time.Hour)
+	oldLog := &InteractionLog{
+		ID:             "old-1",
+		ConnectionID:   "conn-1",
+		TotalLatencyMs: 100,
+		CreatedAt:      oldTime,
+		STT:            &STTLog{RequestAt: oldTime},
+	}
+	if err := db.InsertInteraction(oldLog); err != nil {
+		t.Fatalf("InsertInteraction: %v", err)
+	}
+	if err := db.UpdateInteractionAudioPath("old-1", "/data/interactions/old.webm"); err != nil {
+		t.Fatalf("UpdateInteractionAudioPath: %v", err)
+	}
+
+	// Insert a recent interaction with audio blob path
+	recentLog := &InteractionLog{
+		ID:             "recent-1",
+		ConnectionID:   "conn-2",
+		TotalLatencyMs: 100,
+		CreatedAt:      time.Now().UTC(),
+		STT:            &STTLog{RequestAt: time.Now()},
+	}
+	if err := db.InsertInteraction(recentLog); err != nil {
+		t.Fatalf("InsertInteraction: %v", err)
+	}
+	if err := db.UpdateInteractionAudioPath("recent-1", "/data/interactions/recent.webm"); err != nil {
+		t.Fatalf("UpdateInteractionAudioPath: %v", err)
+	}
+
+	// Cutoff at 30 days ago — only old one should be returned
+	cutoff := time.Now().UTC().Add(-30 * 24 * time.Hour)
+	entries, err := db.ListExpiredAudioBlobs(cutoff)
+	if err != nil {
+		t.Fatalf("ListExpiredAudioBlobs: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 expired entry, got %d", len(entries))
+	}
+	if entries[0].ID != "old-1" {
+		t.Errorf("expired entry ID: got %q, want %q", entries[0].ID, "old-1")
+	}
+}
+
+func TestClearAudioBlobPath(t *testing.T) {
+	db := openTestDB(t)
+
+	log := &InteractionLog{
+		ID:             "clear-test",
+		ConnectionID:   "conn-1",
+		TotalLatencyMs: 100,
+		CreatedAt:      time.Now().UTC(),
+	}
+	if err := db.InsertInteraction(log); err != nil {
+		t.Fatalf("InsertInteraction: %v", err)
+	}
+	if err := db.UpdateInteractionAudioPath("clear-test", "/data/test.webm"); err != nil {
+		t.Fatalf("UpdateInteractionAudioPath: %v", err)
+	}
+
+	if err := db.ClearAudioBlobPath("clear-test"); err != nil {
+		t.Fatalf("ClearAudioBlobPath: %v", err)
+	}
+
+	got, err := db.GetInteraction("clear-test")
+	if err != nil {
+		t.Fatalf("GetInteraction: %v", err)
+	}
+	if got.STT != nil && got.STT.AudioBlobPath != nil {
+		t.Errorf("AudioBlobPath should be nil after clear, got %q", *got.STT.AudioBlobPath)
+	}
+}

@@ -523,3 +523,41 @@ func (db *DB) UpdateInteractionAudioPath(id, path string) error {
 	}
 	return nil
 }
+
+// AudioBlobEntry represents an interaction row with an audio blob path.
+type AudioBlobEntry struct {
+	ID            string
+	AudioBlobPath string
+}
+
+// ListExpiredAudioBlobs returns interactions with audio_blob_path set that are
+// older than the given cutoff time.
+func (db *DB) ListExpiredAudioBlobs(cutoff time.Time) ([]AudioBlobEntry, error) {
+	rows, err := db.conn.Query(
+		"SELECT id, audio_blob_path FROM interactions WHERE audio_blob_path IS NOT NULL AND created_at < ?",
+		cutoff,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list expired audio blobs: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []AudioBlobEntry
+	for rows.Next() {
+		var e AudioBlobEntry
+		if err := rows.Scan(&e.ID, &e.AudioBlobPath); err != nil {
+			return nil, fmt.Errorf("scan expired audio blob: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+// ClearAudioBlobPath sets audio_blob_path to NULL for the given interaction ID.
+func (db *DB) ClearAudioBlobPath(id string) error {
+	_, err := db.conn.Exec("UPDATE interactions SET audio_blob_path = NULL WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("clear audio blob path: %w", err)
+	}
+	return nil
+}

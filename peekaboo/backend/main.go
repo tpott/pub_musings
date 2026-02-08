@@ -98,6 +98,9 @@ func main() {
 		}
 	}()
 
+	// Start daily audio blob cleanup if INTERACTION_LOG_AUDIO is enabled
+	api.StartAudioBlobCleanupTicker(database, slog.Default(), cleanupCtx.Done())
+
 	// Configure proxy header trust for rate limiter IP extraction.
 	// Default is false (use RemoteAddr only) to prevent IP spoofing.
 	// Set TRUST_PROXY_HEADERS=true when behind a trusted reverse proxy.
