@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 189 tasks completed.
+Production-ready voice-controlled web app for children. 190 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 305 unit tests, 40 E2E tests
+- **Astro frontend** with TypeScript, 305 unit tests, 42 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,11 +32,11 @@ Production-ready voice-controlled web app for children. 189 tasks completed.
 
 ## Last Completed
 
-- Task 210 (2026-02-08): Piper TTS welcome greeting on login
-  - Authenticated user's first WS connection speaks "Welcome back!" via TTS
-  - In-memory greetedSessions map prevents repeat greetings in same session
-  - Anonymous connections and no-TTS configs silently skip greeting
-  - 3 new tests (first connection, not repeated, anonymous skipped)
+- Task 217 (2026-02-08): Interaction logging E2E integration tests
+  - Authenticated user voice command → verify interactions row with user_id, stt_transcript, action_type, llm_model
+  - INTERACTION_LOG_AUDIO=true → verify .webm file exists at audio_blob_path
+  - Tests register + verify + login via real API, query SQLite directly
+  - 2 new real-services E2E tests (real-services-interaction.spec.ts)
 
 ## Milestone History
 
@@ -94,3 +94,4 @@ Production-ready voice-controlled web app for children. 189 tasks completed.
 - Task 216 (2026-02-08): Audio blob retention cleanup (6 tests)
 - Task 218 (2026-02-08): Piper TTS feedback for unrecognized concepts (2 tests)
 - Task 210 (2026-02-08): Piper TTS welcome greeting on login (3 tests)
+- Task 217 (2026-02-08): Interaction logging E2E integration tests (2 real-services tests)
