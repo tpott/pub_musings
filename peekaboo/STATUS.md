@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 180 tasks completed.
+Production-ready voice-controlled web app for children. 181 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 305 unit tests, 23+ E2E tests
+- **Astro frontend** with TypeScript, 305 unit tests, 40 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,13 +32,13 @@ Production-ready voice-controlled web app for children. 180 tasks completed.
 
 ## Last Completed
 
-- Task 207 (2026-02-08): Frontend login/register pages
-  - login.astro: email + password + conditional TOTP field, client-side validation
-  - register.astro: email + password, success message after registration
-  - auth.ts: API client with validateEmail, validatePassword, login, register functions
-  - 22 new tests in auth.test.ts (validation + API calls)
-  - Mobile-first design with large touch targets, theme-aware styling
-  - 12 new tests in websocket_auth_test.go (5 unit + 7 integration)
+- Task 209 (2026-02-08): Auth E2E integration tests
+  - peekaboo-auth.spec.ts: 17 Playwright tests covering full auth flows
+  - Registration: success, duplicate email, client-side validation
+  - Login: success redirect, wrong password, unverified email, lockout, TOTP flow, validation
+  - Email verification: valid/expired/missing token
+  - Magic link: valid token redirect, expired/missing token
+  - Navigation: cross-links between login and register pages
 
 ## Milestone History
 
@@ -86,3 +86,5 @@ Production-ready voice-controlled web app for children. 180 tasks completed.
 - Task 205 (2026-02-08): Auth security headers upgrade (Referrer-Policy, Permissions-Policy, HSTS)
 - Task 206 (2026-02-08): WebSocket authentication (session extraction, per-user/IP limits)
 - Task 207 (2026-02-08): Frontend login/register pages (auth.ts, login.astro, register.astro, 22 tests)
+- Task 208 (2026-02-08): Email verification and magic link pages (verify-email.astro, magic-link.astro, 9 tests)
+- Task 209 (2026-02-08): Auth E2E integration tests (17 Playwright tests for auth flows)
