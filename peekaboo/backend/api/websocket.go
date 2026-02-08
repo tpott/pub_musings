@@ -648,7 +648,13 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 		switch action.Type {
 		case "show_media":
-			h.executeShowMedia(ctx, conn, action.Subject, logger)
+			if tr := h.executeShowMedia(ctx, conn, action.Subject, logger); tr != nil {
+				ttsLog = &db.TTSLog{
+					LatencyMs:      tr.latency.Milliseconds(),
+					AudioSizeBytes: tr.audioSize,
+					RequestAt:      tr.requestAt,
+				}
+			}
 
 			// Trim audio buffer at instruction boundary
 			state.mu.Lock()
@@ -711,46 +717,49 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 }
 
 // executeShowMedia validates a subject and sends media to the client.
-func (h *AudioWebSocketHandler) executeShowMedia(ctx context.Context, conn *websocket.Conn, subject string, logger *slog.Logger) {
+// Returns a *ttsResult if TTS was used for an unrecognized subject, nil otherwise.
+func (h *AudioWebSocketHandler) executeShowMedia(ctx context.Context, conn *websocket.Conn, subject string, logger *slog.Logger) *ttsResult {
 	logger.Info("show_media action", "subject", subject)
 
 	// Validate subject format (same validation as HTTP media endpoint)
 	if subject == "" {
 		logger.Debug("empty subject from LLM")
 		h.sendError(ctx, conn, "I didn't understand what you want to see. Please try again.", logger)
-		return
+		return nil
 	}
 	if !validConceptPattern.MatchString(subject) {
 		logger.Debug("invalid subject format", "subject", subject)
 		h.sendError(ctx, conn, fmt.Sprintf("I don't have media for '%s'. Try a simple animal name like 'cat' or 'dog'.", subject), logger)
-		return
+		return nil
 	}
 	if len(subject) > maxConceptLength {
 		logger.Debug("subject too long", "subject", subject, "length", len(subject))
 		h.sendError(ctx, conn, "That's too long! Try a simple animal name like 'cat' or 'dog'.", logger)
-		return
+		return nil
 	}
 
 	// Look up media for subject
 	if h.Database == nil {
 		logger.Error("database not configured")
 		h.sendError(ctx, conn, "media lookup unavailable", logger)
-		return
+		return nil
 	}
 	mediaSet, err := h.Database.GetRandomMediaSet(subject)
 	if err != nil {
 		logger.Warn("media lookup failed", "subject", subject, "error", err)
 		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
-		return
+		return nil
 	}
 	if mediaSet == nil {
 		logger.Debug("no media set found", "subject", subject)
-		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
-		return
+		msg := "I don't know that one yet! Try saying cat, dog, or duck."
+		h.sendError(ctx, conn, msg, logger)
+		return h.executeTTS(ctx, conn, msg, logger)
 	}
 
 	// Send media to client
 	h.sendMedia(ctx, conn, subject, mediaSet, logger)
+	return nil
 }
 
 // transcribeAudio sends audio to whisper-server and returns the full response

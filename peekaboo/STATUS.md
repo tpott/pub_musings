@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 187 tasks completed.
+Production-ready voice-controlled web app for children. 188 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,11 @@ Production-ready voice-controlled web app for children. 187 tasks completed.
 
 ## Last Completed
 
-- Task 216 (2026-02-08): Audio blob retention cleanup
-  - Daily goroutine deletes audio files older than INTERACTION_RETENTION_DAYS (default 30)
-  - Sets audio_blob_path to NULL in corresponding interaction rows
-  - getRetentionDays() reads env var with validation
-  - StartAudioBlobCleanupTicker wired into main.go with graceful shutdown
-  - 6 new tests (cleanup, short retention, retention days default/custom, DB list/clear)
+- Task 218 (2026-02-08): Piper TTS feedback for unrecognized concepts
+  - When show_media subject not found, speaks "I don't know that one yet!" via TTS
+  - Text error still sent as fallback when TTS unavailable
+  - executeShowMedia returns *ttsResult for interaction logging
+  - 2 new tests (TTS feedback, no-TTS fallback)
 
 ## Milestone History
 
@@ -93,3 +92,4 @@ Production-ready voice-controlled web app for children. 187 tasks completed.
 - Task 214 (2026-02-08): TTS and buffer data capture in processAudio
 - Task 215 (2026-02-08): Interaction log persistence with defer-save (5 tests)
 - Task 216 (2026-02-08): Audio blob retention cleanup (6 tests)
+- Task 218 (2026-02-08): Piper TTS feedback for unrecognized concepts (2 tests)
