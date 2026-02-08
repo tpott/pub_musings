@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -288,6 +289,358 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, verifyResponse{
 		Message: "Email verified successfully. You can now log in.",
 	})
+}
+
+// loginRequest is the incoming request to POST /api/auth/login.
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	TOTPCode string `json:"totp_code,omitempty"`
+}
+
+// loginResponse is the response from POST /api/auth/login.
+type loginResponse struct {
+	User         *loginUserSummary `json:"user,omitempty"`
+	Token        string            `json:"token,omitempty"`
+	Error        string            `json:"error,omitempty"`
+	TOTPRequired bool              `json:"totp_required,omitempty"`
+	// Returned when email is not verified
+	EmailNotVerified      bool `json:"email_not_verified,omitempty"`
+	CanResendVerification bool `json:"can_resend_verification,omitempty"`
+	// Returned when account is locked
+	RetryAfterMin *int `json:"retry_after_min,omitempty"`
+}
+
+// loginUserSummary is user info returned on login.
+type loginUserSummary struct {
+	ID          string `json:"id"`
+	Email       string `json:"email"`
+	TOTPEnabled bool   `json:"totp_enabled"`
+}
+
+// logoutResponse is the response from POST /api/auth/logout.
+type logoutResponse struct {
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// meResponse is the response from GET /api/auth/me.
+type meResponse struct {
+	User  *meUserSummary `json:"user,omitempty"`
+	Error string         `json:"error,omitempty"`
+}
+
+// meUserSummary is detailed user info for /me endpoint.
+type meUserSummary struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	TOTPEnabled   bool   `json:"totp_enabled"`
+	EmailVerified bool   `json:"email_verified"`
+	CreatedAt     string `json:"created_at"`
+}
+
+// HandleLogin handles POST /api/auth/login.
+func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxAuthBodySize)
+
+	var req loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err.Error() == "http: request body too large" {
+			writeJSON(w, http.StatusRequestEntityTooLarge, loginResponse{Error: "request body too large"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, loginResponse{Error: "invalid JSON body"})
+		return
+	}
+
+	email := auth.NormalizeEmail(req.Email)
+	if err := auth.ValidateEmail(email); err != nil {
+		// Use generic message to prevent email enumeration
+		writeJSON(w, http.StatusUnauthorized, loginResponse{Error: "invalid email or password"})
+		return
+	}
+
+	// Check account lockout
+	since := time.Now().UTC().Add(-auth.LockoutWindow)
+	failedCount, err := h.DB.CountRecentFailedAttempts(email, since)
+	if err != nil {
+		slog.Error("login: failed to count login attempts",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+		return
+	}
+	if failedCount >= auth.LockoutThreshold {
+		retryMin := int(auth.LockoutDuration.Minutes())
+		writeJSON(w, http.StatusTooManyRequests, loginResponse{
+			Error:         "too many failed login attempts, please try again later",
+			RetryAfterMin: &retryMin,
+		})
+		return
+	}
+
+	// Look up user
+	user, err := h.DB.GetUserByEmail(email)
+	if err != nil {
+		slog.Error("login: failed to look up user",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+		return
+	}
+
+	clientIP := getClientIP(r)
+
+	if user == nil {
+		// Record failed attempt even for nonexistent users (prevents timing attacks)
+		if err := h.DB.RecordLoginAttempt(email, clientIP, false); err != nil {
+			slog.Error("login: failed to record login attempt",
+				"error", err,
+				"request_id", logging.GetRequestID(r.Context()))
+		}
+		writeJSON(w, http.StatusUnauthorized, loginResponse{Error: "invalid email or password"})
+		return
+	}
+
+	// Verify password
+	if err := auth.VerifyPassword(user.PasswordHash, req.Password); err != nil {
+		if err := h.DB.RecordLoginAttempt(email, clientIP, false); err != nil {
+			slog.Error("login: failed to record login attempt",
+				"error", err,
+				"request_id", logging.GetRequestID(r.Context()))
+		}
+		writeJSON(w, http.StatusUnauthorized, loginResponse{Error: "invalid email or password"})
+		return
+	}
+
+	// Record successful attempt
+	if err := h.DB.RecordLoginAttempt(email, clientIP, true); err != nil {
+		slog.Error("login: failed to record login attempt",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+	}
+
+	// Check email verified
+	if !user.EmailVerified {
+		writeJSON(w, http.StatusForbidden, loginResponse{
+			Error:                 "Please verify your email address before logging in",
+			EmailNotVerified:      true,
+			CanResendVerification: true,
+		})
+		return
+	}
+
+	// Check 2FA
+	if user.TOTPEnabled {
+		if req.TOTPCode == "" {
+			writeJSON(w, http.StatusUnauthorized, loginResponse{
+				Error:        "2FA code required",
+				TOTPRequired: true,
+			})
+			return
+		}
+		// TODO: TOTP validation will be added in a future task
+	}
+
+	// Clear failed attempts on successful login
+	if err := h.DB.ClearLoginAttempts(email); err != nil {
+		slog.Error("login: failed to clear login attempts",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+	}
+
+	// Create session
+	sessionID, err := auth.GenerateID()
+	if err != nil {
+		slog.Error("login: failed to generate session ID",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+		return
+	}
+
+	sessionToken, err := auth.GenerateToken(32)
+	if err != nil {
+		slog.Error("login: failed to generate session token",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+		return
+	}
+
+	now := time.Now().UTC()
+	session := &db.Session{
+		ID:        sessionID,
+		UserID:    user.ID,
+		Token:     sessionToken,
+		ExpiresAt: now.Add(auth.SessionDuration),
+		CreatedAt: now,
+	}
+
+	if err := h.DB.CreateSession(session); err != nil {
+		slog.Error("login: failed to create session",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+		return
+	}
+
+	// Set session cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    sessionToken,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isHTTPSOnly(),
+		MaxAge:   int(auth.SessionDuration.Seconds()),
+	})
+
+	writeJSON(w, http.StatusOK, loginResponse{
+		User: &loginUserSummary{
+			ID:          user.ID,
+			Email:       user.Email,
+			TOTPEnabled: user.TOTPEnabled,
+		},
+		Token: sessionToken,
+	})
+}
+
+// HandleLogout handles POST /api/auth/logout.
+func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sessionToken := extractSessionToken(r)
+	if sessionToken == "" {
+		writeJSON(w, http.StatusUnauthorized, logoutResponse{Error: "not authenticated"})
+		return
+	}
+
+	session, err := h.DB.GetSessionByToken(sessionToken)
+	if err != nil {
+		slog.Error("logout: failed to look up session",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, logoutResponse{Error: "internal error"})
+		return
+	}
+
+	if session == nil {
+		writeJSON(w, http.StatusUnauthorized, logoutResponse{Error: "not authenticated"})
+		return
+	}
+
+	// Delete session from DB
+	if err := h.DB.DeleteSession(session.ID); err != nil {
+		slog.Error("logout: failed to delete session",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, logoutResponse{Error: "internal error"})
+		return
+	}
+
+	// Clear session cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isHTTPSOnly(),
+		MaxAge:   -1,
+	})
+
+	writeJSON(w, http.StatusOK, logoutResponse{Message: "Logged out"})
+}
+
+// HandleMe handles GET /api/auth/me.
+func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sessionToken := extractSessionToken(r)
+	if sessionToken == "" {
+		writeJSON(w, http.StatusUnauthorized, meResponse{Error: "not authenticated"})
+		return
+	}
+
+	session, err := h.DB.GetSessionByToken(sessionToken)
+	if err != nil {
+		slog.Error("me: failed to look up session",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, meResponse{Error: "internal error"})
+		return
+	}
+
+	if session == nil || time.Now().UTC().After(session.ExpiresAt) {
+		if session != nil {
+			// Clean up expired session
+			if err := h.DB.DeleteSession(session.ID); err != nil {
+				slog.Error("me: failed to delete expired session",
+					"error", err,
+					"request_id", logging.GetRequestID(r.Context()))
+			}
+		}
+		writeJSON(w, http.StatusUnauthorized, meResponse{Error: "not authenticated"})
+		return
+	}
+
+	user, err := h.DB.GetUserByID(session.UserID)
+	if err != nil {
+		slog.Error("me: failed to look up user",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, meResponse{Error: "internal error"})
+		return
+	}
+
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, meResponse{Error: "not authenticated"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, meResponse{
+		User: &meUserSummary{
+			ID:            user.ID,
+			Email:         user.Email,
+			TOTPEnabled:   user.TOTPEnabled,
+			EmailVerified: user.EmailVerified,
+			CreatedAt:     user.CreatedAt.Format(time.RFC3339),
+		},
+	})
+}
+
+// extractSessionToken extracts the session token from the request.
+// It checks the Authorization header first, then the session cookie.
+func extractSessionToken(r *http.Request) string {
+	// Check Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimPrefix(authHeader, "Bearer ")
+	}
+
+	// Check session cookie
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+// isHTTPSOnly returns true if the HTTPS_ONLY env var is set to "true".
+func isHTTPSOnly() bool {
+	return strings.EqualFold(os.Getenv("HTTPS_ONLY"), "true")
 }
 
 // HandleResendVerification handles POST /api/auth/resend-verification.

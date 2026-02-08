@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 173 tasks completed.
+Production-ready voice-controlled web app for children. 174 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,14 @@ Production-ready voice-controlled web app for children. 173 tasks completed.
 
 ## Last Completed
 
-- Task 201 (2026-02-07): Auth registration and email verification endpoints
-  - api/handlers_auth.go: HandleRegister, HandleVerify, HandleResendVerification
-  - auth/auth.go: NormalizeEmail, ValidateEmail, ValidatePassword helpers
-  - EmailSender interface with LogEmailSender for dev, mockEmailSender for tests
-  - Routes wired in main.go with rate limiting on resend-verification
-  - 22 handler tests + 3 auth validation tests, all passing
+- Task 202 (2026-02-07): Auth login, logout, /me, and account lockout
+  - HandleLogin: bcrypt verify, email_verified check, TOTP placeholder, session cookie, lockout
+  - HandleLogout: session deletion, cookie clearing, Bearer + cookie auth
+  - HandleMe: session validation, expiry cleanup, user info response
+  - extractSessionToken: Authorization Bearer header, then session cookie
+  - isHTTPSOnly: HTTPS_ONLY env var for Secure cookie flag
+  - Account lockout: 5 failed attempts in 15 min → 429 with retry_after_min
+  - 21 new tests in handlers_auth_login_test.go including full register→verify→login→me→logout flow
 
 ## Milestone History
 
@@ -79,3 +81,4 @@ Production-ready voice-controlled web app for children. 173 tasks completed.
 - Tasks 167-171 (2026-02-06): JSON parse safety, TTS response limit, doc fixes, proxy header trust
 - Task 200 (2026-02-07): Auth database schema and auth module (bcrypt, sessions, tokens, CSRF)
 - Task 201 (2026-02-07): Auth registration and email verification endpoints (register, verify, resend)
+- Task 202 (2026-02-07): Auth login, logout, /me, account lockout (21 tests)

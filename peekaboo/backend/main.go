@@ -120,6 +120,9 @@ func main() {
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
 	mux.HandleFunc("GET /api/auth/verify", authHandler.HandleVerify)
 	mux.Handle("POST /api/auth/resend-verification", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleResendVerification), resendVerificationLimiter))
+	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
+	mux.HandleFunc("POST /api/auth/logout", authHandler.HandleLogout)
+	mux.HandleFunc("GET /api/auth/me", authHandler.HandleMe)
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
