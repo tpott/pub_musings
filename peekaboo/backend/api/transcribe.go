@@ -66,6 +66,10 @@ const maxAudioSize = 5 << 20
 // minAudioSize is the minimum allowed audio file size (1KB).
 const minAudioSize = 1024
 
+// maxErrorBodyBytes limits how much of an error response body we read
+// from external services to prevent memory exhaustion.
+const maxErrorBodyBytes = 10 * 1024 // 10 KB
+
 // TranscribeHandler handles POST /api/transcribe requests.
 // It accepts audio as multipart/form-data and forwards to whisper-server.
 type TranscribeHandler struct {
@@ -212,7 +216,7 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
 	}
 

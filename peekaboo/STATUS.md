@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 193 tasks completed.
+Production-ready voice-controlled web app for children. 194 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,10 @@ Production-ready voice-controlled web app for children. 193 tasks completed.
 
 ## Last Completed
 
-- Task 220 (2026-02-08): Implement TOTP 2FA validation
-  - stdlib TOTP implementation (HMAC-SHA1 per RFC 6238, no external dependency)
-  - Three endpoints: /api/auth/totp/setup, /enable, /disable (password confirmation required)
-  - Login handler validates TOTP codes with ±1 period clock skew
-  - 21 handler tests + RFC 6238 test vectors + DB tests
+- Task 223 (2026-02-08): Add io.LimitReader to Whisper error body reads + drain health check bodies
+  - transcribe.go and websocket.go: error body reads now capped at 10KB via io.LimitReader
+  - health.go: checkWhisperServer and checkPiperServer now drain response bodies for connection reuse
+  - Prevents memory exhaustion from large error responses and HTTP connection pool leaks
 
 ## Milestone History
 
@@ -98,3 +97,4 @@ Production-ready voice-controlled web app for children. 193 tasks completed.
 - Task 219 (2026-02-08): Update SECURITY.md for auth system
 - Task 220 (2026-02-08): Implement TOTP 2FA validation (stdlib, RFC 6238, 21 handler tests)
 - Task 222 (2026-02-08): Document auth API endpoints in API.md
+- Task 223 (2026-02-08): io.LimitReader for error body reads + health check body draining

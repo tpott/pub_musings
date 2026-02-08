@@ -789,7 +789,7 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperRespo
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 		return nil, fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
 	}
 

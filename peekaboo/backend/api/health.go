@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -201,6 +202,7 @@ func (h *ReadinessHandler) checkWhisperServer() error {
 		return err
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain for connection reuse
 
 	// Any response (even 404) means the server is reachable
 	// whisper.cpp server typically returns 200 OK on root
@@ -220,6 +222,7 @@ func (h *ReadinessHandler) checkPiperServer() error {
 		return err
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain for connection reuse
 
 	// Any response means the server is reachable
 	// Piper HTTP server may return different status codes on root
