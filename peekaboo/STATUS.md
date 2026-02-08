@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 177 tasks completed.
+Production-ready voice-controlled web app for children. 178 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,13 @@ Production-ready voice-controlled web app for children. 177 tasks completed.
 
 ## Last Completed
 
-- Task 205 (2026-02-08): Auth security headers upgrade
-  - Added Referrer-Policy: strict-origin-when-cross-origin
-  - Added Permissions-Policy: microphone=(self), camera/geo/payment/usb/interest-cohort denied
-  - Conditional HSTS (Strict-Transport-Security) when HTTPS_ONLY=true
-  - 3 new tests in security_test.go (HSTS on/off, PermissionsPolicy directives)
-  - Existing CSP/X-Frame-Options/X-Content-Type-Options unchanged
+- Task 206 (2026-02-08): WebSocket authentication
+  - Extract session cookie/bearer token during WS upgrade, populate connectionState.userID/sessionID
+  - WSAuthTracker: per-user and per-IP connection and interaction limits
+  - Anonymous: 1 concurrent WS, 30 interactions/hr; Registered: 3 concurrent, unlimited
+  - Anonymous interaction rate limiting in processAudio
+  - Moved ConnectionTracker and config to websocket_auth.go to keep websocket.go under 1000 lines
+  - 12 new tests in websocket_auth_test.go (5 unit + 7 integration)
 
 ## Milestone History
 
@@ -83,3 +84,4 @@ Production-ready voice-controlled web app for children. 177 tasks completed.
 - Task 203 (2026-02-08): Auth magic link endpoints (15 tests)
 - Task 204 (2026-02-08): Auth CSRF middleware (15 tests)
 - Task 205 (2026-02-08): Auth security headers upgrade (Referrer-Policy, Permissions-Policy, HSTS)
+- Task 206 (2026-02-08): WebSocket authentication (session extraction, per-user/IP limits)

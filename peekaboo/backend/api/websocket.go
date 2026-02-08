@@ -12,11 +12,8 @@ import (
 	"math"
 	"mime/multipart"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -128,49 +125,6 @@ type PongMessage struct {
 	Type string `json:"type"`
 }
 
-// ConnectionTracker tracks the number of active WebSocket connections.
-type ConnectionTracker struct {
-	count atomic.Int32
-	max   int32
-}
-
-// NewConnectionTracker creates a new connection tracker with the given max limit.
-func NewConnectionTracker(maxConnections int) *ConnectionTracker {
-	return &ConnectionTracker{
-		max: int32(maxConnections),
-	}
-}
-
-// TryAcquire attempts to acquire a connection slot.
-// Returns true if successful, false if at capacity.
-func (ct *ConnectionTracker) TryAcquire() bool {
-	for {
-		current := ct.count.Load()
-		if current >= ct.max {
-			return false
-		}
-		if ct.count.CompareAndSwap(current, current+1) {
-			return true
-		}
-		// CAS failed, another goroutine changed the value; retry
-	}
-}
-
-// Release releases a connection slot.
-func (ct *ConnectionTracker) Release() {
-	ct.count.Add(-1)
-}
-
-// Count returns the current number of active connections.
-func (ct *ConnectionTracker) Count() int {
-	return int(ct.count.Load())
-}
-
-// Max returns the maximum number of allowed connections.
-func (ct *ConnectionTracker) Max() int {
-	return int(ct.max)
-}
-
 // AudioWebSocketHandler handles WebSocket connections for audio streaming.
 type AudioWebSocketHandler struct {
 	WhisperURL    string
@@ -181,42 +135,12 @@ type AudioWebSocketHandler struct {
 	RateLimiter   *RateLimiter       // Optional - nil means no rate limiting
 	AllowedOrigin string             // Optional - "*" or empty means allow all
 	ConnTracker   *ConnectionTracker // Optional - nil means no connection limit
+	AuthTracker   *WSAuthTracker     // Optional - nil means no per-user/IP auth limits
 
 	// Configuration
 	BufferThreshold time.Duration // How long to buffer before processing
 	IdleTimeout     time.Duration // Connection idle timeout
 	MaxMessageSize  int64         // Max binary message size
-}
-
-// getIdleTimeout returns the WebSocket idle timeout from WEBSOCKET_IDLE_TIMEOUT_SECS env var.
-// Defaults to 300 seconds (5 minutes) if not set or invalid.
-func getIdleTimeout() time.Duration {
-	val := os.Getenv("WEBSOCKET_IDLE_TIMEOUT_SECS")
-	if val == "" {
-		return 5 * time.Minute
-	}
-	secs, err := strconv.Atoi(val)
-	if err != nil || secs <= 0 {
-		return 5 * time.Minute
-	}
-	return time.Duration(secs) * time.Second
-}
-
-// defaultMaxConnections is the default maximum number of concurrent WebSocket connections.
-const defaultMaxConnections = 100
-
-// getMaxConnections returns the max WebSocket connections from WEBSOCKET_MAX_CONNECTIONS env var.
-// Defaults to 100 if not set or invalid.
-func getMaxConnections() int {
-	val := os.Getenv("WEBSOCKET_MAX_CONNECTIONS")
-	if val == "" {
-		return defaultMaxConnections
-	}
-	n, err := strconv.Atoi(val)
-	if err != nil || n <= 0 {
-		return defaultMaxConnections
-	}
-	return n
 }
 
 // NewAudioWebSocketHandler creates a new WebSocket handler.
@@ -292,6 +216,12 @@ type connectionState struct {
 	lastActivity time.Time
 	bufferStart  time.Time
 
+	// Auth: populated during WS upgrade from session cookie/bearer token.
+	// Empty strings for anonymous connections.
+	userID    string
+	sessionID string
+	clientIP  string
+
 	// Framed audio protocol metadata
 	chunkMetas       []AudioChunkMeta // metadata for each received audio chunk
 	firstChunkClient float64          // client timestamp (ms) of the first chunk in current buffer window
@@ -343,6 +273,48 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		defer h.ConnTracker.Release()
 	}
 
+	// Extract session from cookie or bearer token for auth-aware limits
+	var wsUserID, wsSessionID string
+	if h.Database != nil {
+		if token := extractSessionToken(r); token != "" {
+			session, err := h.Database.GetSessionByToken(token)
+			if err != nil {
+				logger.Error("websocket auth: failed to look up session", "error", err)
+			} else if session != nil && time.Now().UTC().Before(session.ExpiresAt) {
+				wsUserID = session.UserID
+				wsSessionID = session.ID
+				logger = logger.With("user_id", wsUserID)
+			}
+		}
+	}
+
+	// Apply per-user/per-IP connection limits
+	if h.AuthTracker != nil {
+		if wsUserID != "" {
+			if !h.AuthTracker.TryAcquireUser(wsUserID) {
+				logger.Warn("websocket user connection limit reached", "user_id", wsUserID)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				if _, err := w.Write([]byte(`{"error":"too many concurrent connections"}`)); err != nil {
+					logger.Debug("failed to write user limit response", "error", err)
+				}
+				return
+			}
+			defer h.AuthTracker.ReleaseUser(wsUserID)
+		} else {
+			if !h.AuthTracker.TryAcquireAnon(clientIP) {
+				logger.Warn("websocket anonymous connection limit reached", "ip", clientIP)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				if _, err := w.Write([]byte(`{"error":"too many concurrent connections"}`)); err != nil {
+					logger.Debug("failed to write anon limit response", "error", err)
+				}
+				return
+			}
+			defer h.AuthTracker.ReleaseAnon(clientIP)
+		}
+	}
+
 	// Accept WebSocket connection with origin validation
 	acceptOpts := &websocket.AcceptOptions{}
 	if h.AllowedOrigin == "" || h.AllowedOrigin == "*" {
@@ -369,6 +341,9 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	state := &connectionState{
 		webmParser:   NewWebMParser(),
 		lastActivity: time.Now(),
+		userID:       wsUserID,
+		sessionID:    wsSessionID,
+		clientIP:     clientIP,
 	}
 
 	// Create context for this connection
@@ -521,6 +496,15 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		state.isProcessing = false
 		state.mu.Unlock()
 	}()
+
+	// Check anonymous interaction rate limit
+	if h.AuthTracker != nil && state.userID == "" {
+		if !h.AuthTracker.AllowAnonInteraction(state.clientIP) {
+			logger.Warn("anonymous interaction rate limit exceeded", "ip", state.clientIP)
+			h.sendError(ctx, conn, "rate limit exceeded, try again later", logger)
+			return
+		}
+	}
 
 	// 1. Send to whisper for transcription
 	whisperResp, err := h.transcribeAudio(audioData)
