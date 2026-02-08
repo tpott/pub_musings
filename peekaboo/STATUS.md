@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 175 tasks completed.
+Production-ready voice-controlled web app for children. 176 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,13 @@ Production-ready voice-controlled web app for children. 175 tasks completed.
 
 ## Last Completed
 
-- Task 203 (2026-02-08): Auth magic link endpoints
-  - POST /api/auth/magic-link: generate 15-min single-use token, send email, anti-enumeration (always 200)
-  - GET /api/auth/magic-link/verify: validate token, create session, set cookie, bypasses TOTP
-  - EmailSender interface extended with SendMagicLinkEmail
-  - Rate limited: 5/min per IP via RateLimitMiddleware
-  - 15 new tests in handlers_auth_magiclink_test.go (happy path, expiry, reuse, enumeration, TOTP bypass, full flow)
+- Task 204 (2026-02-08): Auth CSRF middleware
+  - GET /api/auth/csrf: returns HMAC-SHA256 token derived from session, requires auth
+  - CSRFMiddleware: validates X-CSRF-Token on POST/PUT/DELETE/PATCH
+  - Exempt: /api/auth/login, /api/auth/register, /api/auth/resend-verification, /api/auth/magic-link
+  - CSRF_SECRET env var (random fallback if unset)
+  - Split handlers_auth.go into 3 files (auth, magiclink, csrf) to stay under 1000-line limit
+  - 15 new tests in handlers_auth_csrf_test.go
 
 ## Milestone History
 
@@ -81,3 +82,4 @@ Production-ready voice-controlled web app for children. 175 tasks completed.
 - Task 201 (2026-02-07): Auth registration and email verification endpoints (register, verify, resend)
 - Task 202 (2026-02-07): Auth login, logout, /me, account lockout (21 tests)
 - Task 203 (2026-02-08): Auth magic link endpoints (15 tests)
+- Task 204 (2026-02-08): Auth CSRF middleware (15 tests)

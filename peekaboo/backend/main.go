@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"os"
@@ -114,8 +116,12 @@ func main() {
 		slog.Info("CORS configured", "allowed_origin", allowedOrigin)
 	}
 
+	// Initialize CSRF secret from env var or generate random one
+	csrfSecret := initCSRFSecret()
+
 	// Auth endpoints
 	authHandler := api.NewAuthHandler(database, nil) // nil = LogEmailSender for dev
+	authHandler.CSRFSecret = csrfSecret
 	resendVerificationLimiter := api.NewRateLimiter(3, 15*time.Minute)
 	magicLinkLimiter := api.NewRateLimiter(5, time.Minute)
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
@@ -126,6 +132,7 @@ func main() {
 	mux.HandleFunc("GET /api/auth/me", authHandler.HandleMe)
 	mux.Handle("POST /api/auth/magic-link", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleMagicLink), magicLinkLimiter))
 	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.HandleMagicLinkVerify)
+	mux.HandleFunc("GET /api/auth/csrf", authHandler.HandleCSRF)
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
@@ -202,8 +209,8 @@ func main() {
 	// Static file server for test fixtures (for e2e tests)
 	mux.Handle("/fixtures/", http.StripPrefix("/fixtures/", http.FileServer(http.Dir("tests/fixtures"))))
 
-	// Wrap with middleware chain: request logger -> request ID -> security headers -> CORS
-	handler := logging.RequestLoggerMiddleware(logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(api.CORSMiddleware(mux, allowedOrigin))))
+	// Wrap with middleware chain: request logger -> request ID -> security headers -> CSRF -> CORS
+	handler := logging.RequestLoggerMiddleware(logging.RequestIDMiddleware(api.SecurityHeadersMiddleware(api.CSRFMiddleware(api.CORSMiddleware(mux, allowedOrigin), csrfSecret, database))))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -254,6 +261,30 @@ func main() {
 
 	// Database will be closed by defer database.Close() when main returns
 	slog.Info("shutdown complete")
+}
+
+// initCSRFSecret reads the CSRF secret from CSRF_SECRET env var.
+// If unset, generates a random 32-byte secret (tokens won't survive restarts).
+func initCSRFSecret() []byte {
+	if secret := os.Getenv("CSRF_SECRET"); secret != "" {
+		decoded, err := hex.DecodeString(secret)
+		if err != nil {
+			// Not hex — use the raw string as-is
+			slog.Info("CSRF secret loaded from environment")
+			return []byte(secret)
+		}
+		slog.Info("CSRF secret loaded from environment (hex)")
+		return decoded
+	}
+
+	// Generate random secret
+	secret := make([]byte, 32)
+	if _, err := cryptorand.Read(secret); err != nil {
+		slog.Error("failed to generate CSRF secret", "error", err)
+		os.Exit(1)
+	}
+	slog.Warn("CSRF_SECRET not set, using random secret (tokens won't survive restarts)")
+	return secret
 }
 
 // seedMediaFromDisk scans data/media/{concept}/set* directories and seeds the database.

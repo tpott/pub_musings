@@ -106,6 +106,8 @@ sops -d secrets.enc.yaml > .env
 | `LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
 | `LOG_FORMAT` | Log format (`text` or `json`) | `text` |
 | `FORWARD_FRONTEND_LOGS` | Enable frontend log forwarding (dev only) | - |
+| `CSRF_SECRET` | HMAC key for CSRF tokens (hex or raw string) | random |
+| `HTTPS_ONLY` | Set Secure flag on cookies | `false` |
 
 > **Note on DB connections:** SQLite only supports one writer at a time, even with WAL mode. The default of 1 connection is recommended. Higher values may improve read performance but can cause "database is locked" errors on write-heavy workloads.
 
