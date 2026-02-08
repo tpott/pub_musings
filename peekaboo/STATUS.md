@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 171 tasks completed.
+Production-ready voice-controlled web app for children. 172 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,9 +32,10 @@ Production-ready voice-controlled web app for children. 171 tasks completed.
 
 ## Last Completed
 
-- Tasks 170-171 (2026-02-06): Proxy header trust, SECURITY.md line refs cleanup
-  - Task 170: Configurable TRUST_PROXY_HEADERS for rate limiter IP extraction
-  - Task 171: Replace all stale line number refs in SECURITY.md with function names
+- Task 200 (2026-02-07): Auth database schema and auth module
+  - db/db_auth.go: users, sessions, email_verification_tokens, magic_link_tokens, login_attempts tables
+  - auth/auth.go: bcrypt hashing (cost 12), token generation, SHA-256 hashing, HMAC-SHA256 CSRF
+  - Tests: db/db_auth_test.go, db/db_auth_token_test.go, auth/auth_test.go
 
 ## Milestone History
 
@@ -74,3 +75,4 @@ Production-ready voice-controlled web app for children. 171 tasks completed.
 - Tasks 157-162 (2026-02-06): Security hardening batch + E2E theme test coverage
 - Tasks 163-166 (2026-02-06): Piper TTS hardening, feedback improvements, spec maintenance
 - Tasks 167-171 (2026-02-06): JSON parse safety, TTS response limit, doc fixes, proxy header trust
+- Task 200 (2026-02-07): Auth database schema and auth module (bcrypt, sessions, tokens, CSRF)
