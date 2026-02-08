@@ -143,6 +143,11 @@ type AudioWebSocketHandler struct {
 	BufferThreshold time.Duration // How long to buffer before processing
 	IdleTimeout     time.Duration // Connection idle timeout
 	MaxMessageSize  int64         // Max binary message size
+
+	// Track sessions that have already received a TTS welcome greeting.
+	// Resets on server restart, which is acceptable.
+	greetedMu       sync.Mutex
+	greetedSessions map[string]bool
 }
 
 // NewAudioWebSocketHandler creates a new WebSocket handler.
@@ -362,6 +367,23 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	// Create context for this connection
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+
+	// Send TTS welcome greeting for authenticated user's first connection in this session
+	if wsUserID != "" && wsSessionID != "" && h.TTSProvider != nil {
+		h.greetedMu.Lock()
+		if h.greetedSessions == nil {
+			h.greetedSessions = make(map[string]bool)
+		}
+		alreadyGreeted := h.greetedSessions[wsSessionID]
+		if !alreadyGreeted {
+			h.greetedSessions[wsSessionID] = true
+		}
+		h.greetedMu.Unlock()
+
+		if !alreadyGreeted {
+			h.executeTTS(ctx, conn, "Welcome back!", logger)
+		}
+	}
 
 	// Start idle timeout goroutine
 	go h.idleTimeoutWatcher(ctx, cancel, conn, state, logger)
@@ -714,52 +736,6 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 	}
 
-}
-
-// executeShowMedia validates a subject and sends media to the client.
-// Returns a *ttsResult if TTS was used for an unrecognized subject, nil otherwise.
-func (h *AudioWebSocketHandler) executeShowMedia(ctx context.Context, conn *websocket.Conn, subject string, logger *slog.Logger) *ttsResult {
-	logger.Info("show_media action", "subject", subject)
-
-	// Validate subject format (same validation as HTTP media endpoint)
-	if subject == "" {
-		logger.Debug("empty subject from LLM")
-		h.sendError(ctx, conn, "I didn't understand what you want to see. Please try again.", logger)
-		return nil
-	}
-	if !validConceptPattern.MatchString(subject) {
-		logger.Debug("invalid subject format", "subject", subject)
-		h.sendError(ctx, conn, fmt.Sprintf("I don't have media for '%s'. Try a simple animal name like 'cat' or 'dog'.", subject), logger)
-		return nil
-	}
-	if len(subject) > maxConceptLength {
-		logger.Debug("subject too long", "subject", subject, "length", len(subject))
-		h.sendError(ctx, conn, "That's too long! Try a simple animal name like 'cat' or 'dog'.", logger)
-		return nil
-	}
-
-	// Look up media for subject
-	if h.Database == nil {
-		logger.Error("database not configured")
-		h.sendError(ctx, conn, "media lookup unavailable", logger)
-		return nil
-	}
-	mediaSet, err := h.Database.GetRandomMediaSet(subject)
-	if err != nil {
-		logger.Warn("media lookup failed", "subject", subject, "error", err)
-		h.sendError(ctx, conn, fmt.Sprintf("no media found for %s", subject), logger)
-		return nil
-	}
-	if mediaSet == nil {
-		logger.Debug("no media set found", "subject", subject)
-		msg := "I don't know that one yet! Try saying cat, dog, or duck."
-		h.sendError(ctx, conn, msg, logger)
-		return h.executeTTS(ctx, conn, msg, logger)
-	}
-
-	// Send media to client
-	h.sendMedia(ctx, conn, subject, mediaSet, logger)
-	return nil
 }
 
 // transcribeAudio sends audio to whisper-server and returns the full response

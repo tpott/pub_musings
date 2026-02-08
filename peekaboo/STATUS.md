@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 188 tasks completed.
+Production-ready voice-controlled web app for children. 189 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,11 @@ Production-ready voice-controlled web app for children. 188 tasks completed.
 
 ## Last Completed
 
-- Task 218 (2026-02-08): Piper TTS feedback for unrecognized concepts
-  - When show_media subject not found, speaks "I don't know that one yet!" via TTS
-  - Text error still sent as fallback when TTS unavailable
-  - executeShowMedia returns *ttsResult for interaction logging
-  - 2 new tests (TTS feedback, no-TTS fallback)
+- Task 210 (2026-02-08): Piper TTS welcome greeting on login
+  - Authenticated user's first WS connection speaks "Welcome back!" via TTS
+  - In-memory greetedSessions map prevents repeat greetings in same session
+  - Anonymous connections and no-TTS configs silently skip greeting
+  - 3 new tests (first connection, not repeated, anonymous skipped)
 
 ## Milestone History
 
@@ -93,3 +93,4 @@ Production-ready voice-controlled web app for children. 188 tasks completed.
 - Task 215 (2026-02-08): Interaction log persistence with defer-save (5 tests)
 - Task 216 (2026-02-08): Audio blob retention cleanup (6 tests)
 - Task 218 (2026-02-08): Piper TTS feedback for unrecognized concepts (2 tests)
+- Task 210 (2026-02-08): Piper TTS welcome greeting on login (3 tests)
