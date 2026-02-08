@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { validateEmail, validatePassword, login, register } from './auth';
+import { validateEmail, validatePassword, login, register, verifyEmail, verifyMagicLink } from './auth';
 
 describe('auth', () => {
   describe('validateEmail', () => {
@@ -205,6 +205,125 @@ describe('auth', () => {
 
       await expect(register({ email: 'a@b.c', password: 'password123' }))
         .rejects.toThrow('Unexpected server response');
+    });
+  });
+
+  describe('verifyEmail', () => {
+    let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      fetchSpy = vi.spyOn(globalThis, 'fetch');
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+    });
+
+    it('calls verify endpoint with token and returns message', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ message: 'Email verified successfully.' }),
+      } as Response);
+
+      const result = await verifyEmail('test-token-123');
+
+      expect(fetchSpy).toHaveBeenCalledWith('/api/auth/verify?token=test-token-123');
+      expect(result.message).toBe('Email verified successfully.');
+    });
+
+    it('URL-encodes the token', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ message: 'ok' }),
+      } as Response);
+
+      await verifyEmail('token with spaces&special=chars');
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/auth/verify?token=token%20with%20spaces%26special%3Dchars'
+      );
+    });
+
+    it('throws on expired token', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'token expired' }),
+      } as Response);
+
+      await expect(verifyEmail('old-token')).rejects.toThrow('token expired');
+    });
+
+    it('throws on already used token', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'token already used' }),
+      } as Response);
+
+      await expect(verifyEmail('used-token')).rejects.toThrow('token already used');
+    });
+
+    it('throws on non-JSON response', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.reject(new Error('not JSON')),
+      } as Response);
+
+      await expect(verifyEmail('token')).rejects.toThrow('Unexpected server response');
+    });
+  });
+
+  describe('verifyMagicLink', () => {
+    let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      fetchSpy = vi.spyOn(globalThis, 'fetch');
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+    });
+
+    it('calls magic-link verify endpoint and returns user', async () => {
+      const mockResponse = {
+        message: 'Signed in',
+        user: { id: 'user-1', email: 'test@example.com', totp_enabled: false },
+      };
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      const result = await verifyMagicLink('magic-token');
+
+      expect(fetchSpy).toHaveBeenCalledWith('/api/auth/magic-link/verify?token=magic-token');
+      expect(result.user?.email).toBe('test@example.com');
+    });
+
+    it('throws on expired magic link', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'token expired' }),
+      } as Response);
+
+      await expect(verifyMagicLink('old-token')).rejects.toThrow('token expired');
+    });
+
+    it('throws on already used magic link', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'token already used' }),
+      } as Response);
+
+      await expect(verifyMagicLink('used-token')).rejects.toThrow('token already used');
+    });
+
+    it('throws on non-JSON response', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.reject(new Error('not JSON')),
+      } as Response);
+
+      await expect(verifyMagicLink('token')).rejects.toThrow('Unexpected server response');
     });
   });
 });

@@ -30,6 +30,18 @@ export interface RegisterResponse {
   error?: string;
 }
 
+export interface VerifyResponse {
+  message?: string;
+  error?: string;
+}
+
+export interface MagicLinkVerifyResponse {
+  message?: string;
+  user?: { id: string; email: string; totp_enabled: boolean };
+  token?: string;
+  error?: string;
+}
+
 /**
  * Validates an email address format.
  */
@@ -108,6 +120,46 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
 
   if (!response.ok) {
     throw new Error(result.error || 'Registration failed');
+  }
+
+  return result;
+}
+
+/**
+ * Verifies an email address with a token.
+ */
+export async function verifyEmail(token: string): Promise<VerifyResponse> {
+  const response = await fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`);
+
+  let result: VerifyResponse;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('Unexpected server response');
+  }
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Verification failed');
+  }
+
+  return result;
+}
+
+/**
+ * Verifies a magic link token and creates a session.
+ */
+export async function verifyMagicLink(token: string): Promise<MagicLinkVerifyResponse> {
+  const response = await fetch(`/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`);
+
+  let result: MagicLinkVerifyResponse;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('Unexpected server response');
+  }
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Magic link verification failed');
   }
 
   return result;
