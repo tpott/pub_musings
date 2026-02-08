@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 176 tasks completed.
+Production-ready voice-controlled web app for children. 177 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,13 +32,12 @@ Production-ready voice-controlled web app for children. 176 tasks completed.
 
 ## Last Completed
 
-- Task 204 (2026-02-08): Auth CSRF middleware
-  - GET /api/auth/csrf: returns HMAC-SHA256 token derived from session, requires auth
-  - CSRFMiddleware: validates X-CSRF-Token on POST/PUT/DELETE/PATCH
-  - Exempt: /api/auth/login, /api/auth/register, /api/auth/resend-verification, /api/auth/magic-link
-  - CSRF_SECRET env var (random fallback if unset)
-  - Split handlers_auth.go into 3 files (auth, magiclink, csrf) to stay under 1000-line limit
-  - 15 new tests in handlers_auth_csrf_test.go
+- Task 205 (2026-02-08): Auth security headers upgrade
+  - Added Referrer-Policy: strict-origin-when-cross-origin
+  - Added Permissions-Policy: microphone=(self), camera/geo/payment/usb/interest-cohort denied
+  - Conditional HSTS (Strict-Transport-Security) when HTTPS_ONLY=true
+  - 3 new tests in security_test.go (HSTS on/off, PermissionsPolicy directives)
+  - Existing CSP/X-Frame-Options/X-Content-Type-Options unchanged
 
 ## Milestone History
 
@@ -83,3 +82,4 @@ Production-ready voice-controlled web app for children. 176 tasks completed.
 - Task 202 (2026-02-07): Auth login, logout, /me, account lockout (21 tests)
 - Task 203 (2026-02-08): Auth magic link endpoints (15 tests)
 - Task 204 (2026-02-08): Auth CSRF middleware (15 tests)
+- Task 205 (2026-02-08): Auth security headers upgrade (Referrer-Policy, Permissions-Policy, HSTS)

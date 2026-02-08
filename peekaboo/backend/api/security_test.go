@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -38,6 +39,8 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		{"X-Frame-Options", "DENY"},
 		{"X-Content-Type-Options", "nosniff"},
 		{"X-XSS-Protection", "1; mode=block"},
+		{"Referrer-Policy", "strict-origin-when-cross-origin"},
+		{"Permissions-Policy", PermissionsPolicy},
 	}
 
 	for _, tt := range tests {
@@ -87,6 +90,59 @@ func TestContentSecurityPolicy_Directives(t *testing.T) {
 	for _, directive := range directives {
 		if !strings.Contains(ContentSecurityPolicy, directive) {
 			t.Errorf("CSP missing directive: %q", directive)
+		}
+	}
+}
+
+func TestSecurityHeadersMiddleware_HSTS_WhenHTTPSOnly(t *testing.T) {
+	os.Setenv("HTTPS_ONLY", "true")
+	defer os.Unsetenv("HTTPS_ONLY")
+
+	innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := SecurityHeadersMiddleware(innerHandler)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	got := rec.Header().Get("Strict-Transport-Security")
+	want := "max-age=31536000; includeSubDomains"
+	if got != want {
+		t.Errorf("HSTS header = %q, want %q", got, want)
+	}
+}
+
+func TestSecurityHeadersMiddleware_NoHSTS_WhenNotHTTPSOnly(t *testing.T) {
+	os.Unsetenv("HTTPS_ONLY")
+
+	innerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := SecurityHeadersMiddleware(innerHandler)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	got := rec.Header().Get("Strict-Transport-Security")
+	if got != "" {
+		t.Errorf("HSTS header should be absent when HTTPS_ONLY is not set, got %q", got)
+	}
+}
+
+func TestPermissionsPolicy_Directives(t *testing.T) {
+	// Verify microphone is allowed (required for voice input)
+	if !strings.Contains(PermissionsPolicy, "microphone=(self)") {
+		t.Error("PermissionsPolicy should allow microphone for self")
+	}
+
+	// Verify other features are denied
+	denied := []string{"camera=()", "geolocation=()", "payment=()", "usb=()"}
+	for _, d := range denied {
+		if !strings.Contains(PermissionsPolicy, d) {
+			t.Errorf("PermissionsPolicy missing denied feature: %q", d)
 		}
 	}
 }
