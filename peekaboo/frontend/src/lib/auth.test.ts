@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { validateEmail, validatePassword, login, register, verifyEmail, verifyMagicLink } from './auth';
+import { validateEmail, validatePassword, login, register, verifyEmail, verifyMagicLink, logout } from './auth';
+import { resetCSRFState } from './csrf';
 
 describe('auth', () => {
   describe('validateEmail', () => {
@@ -324,6 +325,85 @@ describe('auth', () => {
       } as Response);
 
       await expect(verifyMagicLink('token')).rejects.toThrow('Unexpected server response');
+    });
+  });
+
+  describe('logout', () => {
+    let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      fetchSpy = vi.spyOn(globalThis, 'fetch');
+      resetCSRFState();
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+    });
+
+    it('sends POST to /api/auth/logout and returns message on success', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ message: 'Logged out' }),
+      } as Response);
+
+      const result = await logout();
+
+      expect(fetchSpy).toHaveBeenCalledWith('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+      });
+      expect(result.message).toBe('Logged out');
+    });
+
+    it('includes X-CSRF-Token header when token is cached', async () => {
+      // First fetch the CSRF token
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ token: 'csrf-test-token' }),
+      } as Response);
+
+      const { fetchCSRFToken } = await import('./csrf');
+      await fetchCSRFToken();
+
+      // Now logout
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ message: 'Logged out' }),
+      } as Response);
+
+      await logout();
+
+      const callArgs = fetchSpy.mock.calls[1];
+      const headers = (callArgs[1] as RequestInit).headers as Record<string, string>;
+      expect(headers['X-CSRF-Token']).toBe('csrf-test-token');
+    });
+
+    it('throws on server error', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'not authenticated' }),
+      } as Response);
+
+      await expect(logout()).rejects.toThrow('not authenticated');
+    });
+
+    it('throws on non-JSON response', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.reject(new Error('not JSON')),
+      } as Response);
+
+      await expect(logout()).rejects.toThrow('Unexpected server response');
+    });
+
+    it('uses default error message when none provided', async () => {
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      } as Response);
+
+      await expect(logout()).rejects.toThrow('Logout failed');
     });
   });
 });

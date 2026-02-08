@@ -346,6 +346,56 @@ test.describe('Auth: Magic Link', () => {
   });
 });
 
+test.describe('Auth: Logout', () => {
+  test('logout button is visible when authenticated and logs out', async ({ page }) => {
+    await mockMeEndpoint(page, true);
+
+    await page.route('**/api/auth/csrf', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ token: 'csrf-token-123' }),
+      });
+    });
+
+    await page.route('**/api/auth/logout', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Logged out' }),
+      });
+    });
+
+    await page.goto('/');
+
+    const logoutBtn = page.locator('[data-testid="logout-button"]');
+    await expect(logoutBtn).toBeVisible({ timeout: 5000 });
+
+    // Click logout — should redirect to /login
+    const navigationPromise = page.waitForURL('**/login', { timeout: 5000 });
+    await logoutBtn.click();
+    await navigationPromise;
+  });
+
+  test('logout button is hidden when not authenticated', async ({ page }) => {
+    await mockMeEndpoint(page, false);
+
+    await page.route('**/api/auth/csrf', route => {
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not authenticated' }),
+      });
+    });
+
+    await page.goto('/');
+
+    // Button should exist in DOM but be hidden
+    const logoutBtn = page.locator('[data-testid="logout-button"]');
+    await expect(logoutBtn).toBeHidden();
+  });
+});
+
 test.describe('Auth: Navigation Links', () => {
   test('login page has link to register', async ({ page }) => {
     await page.goto('/login');

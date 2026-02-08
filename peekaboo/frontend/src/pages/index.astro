@@ -2,6 +2,7 @@
 import MicButton from '../components/MicButton.astro';
 import MediaDisplay from '../components/MediaDisplay.astro';
 import FeedbackButton from '../components/FeedbackButton.astro';
+import LogoutButton from '../components/LogoutButton.astro';
 import ThemeInit from '../components/ThemeInit.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
 import '../styles/theme.css';
@@ -20,6 +21,7 @@ import '../styles/global.css';
   </head>
   <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
+    <LogoutButton />
     <ThemeToggle />
     <main id="main-content" tabindex="-1">
       <h1 class="title">Peekaboo!</h1>

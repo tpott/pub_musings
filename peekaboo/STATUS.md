@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 202 tasks completed.
+Production-ready voice-controlled web app for children. 203 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 319 unit tests, 42 E2E tests
+- **Astro frontend** with TypeScript, 324 unit tests, 44 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,11 +32,12 @@ Production-ready voice-controlled web app for children. 202 tasks completed.
 
 ## Last Completed
 
-- Task 231 (2026-02-08): Frontend CSRF token integration
-  - Created src/lib/csrf.ts with fetchCSRFToken(), getCSRFToken(), getCSRFHeaders(), clearCSRFToken()
-  - Updated feedback.ts, intent.ts, audio-recorder.ts, text-to-speech.ts, logger.ts to send X-CSRF-Token
-  - index.astro fetches CSRF token on page load (fire-and-forget, no-op for anonymous users)
-  - 14 new unit tests for CSRF module
+- Task 232 (2026-02-08): Add logout UI button and functionality
+  - auth.ts: Added logout() function that POSTs to /api/auth/logout with CSRF token, clears cached token
+  - LogoutButton.astro: New component - checks /api/auth/me on load, shows button in top-left when authenticated
+  - index.astro: Added LogoutButton to main page
+  - 5 new unit tests for logout in auth.test.ts
+  - 2 new E2E tests: logout flow with redirect, button hidden when unauthenticated
 
 ## Milestone History
 
@@ -104,3 +105,4 @@ Production-ready voice-controlled web app for children. 202 tasks completed.
 - Task 226 (2026-02-08): Populate MediaSetID in interaction logs (2 new tests)
 - Tasks 227-230 (2026-02-08): Security/quality: io.LimitReader health drains, Permissions-Policy docs, innerHTML→replaceChildren, ebml error logging
 - Task 231 (2026-02-08): Frontend CSRF token integration (csrf.ts module, 14 tests, all POST callers updated)
+- Task 232 (2026-02-08): Logout UI button + auth.ts logout() (LogoutButton.astro, 5 unit + 2 E2E tests)

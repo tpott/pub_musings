@@ -2,6 +2,8 @@
  * Auth API client for login, register, and session management.
  */
 
+import { getCSRFHeaders, clearCSRFToken } from './csrf';
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -162,5 +164,36 @@ export async function verifyMagicLink(token: string): Promise<MagicLinkVerifyRes
     throw new Error(result.error || 'Magic link verification failed');
   }
 
+  return result;
+}
+
+export interface LogoutResponse {
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Logs out the current user by POSTing to /api/auth/logout with CSRF token.
+ * Clears cached CSRF token on success.
+ */
+export async function logout(): Promise<LogoutResponse> {
+  const response = await fetch('/api/auth/logout', {
+    method: 'POST',
+    headers: getCSRFHeaders({ 'Content-Type': 'application/json' }),
+    credentials: 'same-origin',
+  });
+
+  let result: LogoutResponse;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('Unexpected server response');
+  }
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Logout failed');
+  }
+
+  clearCSRFToken();
   return result;
 }
