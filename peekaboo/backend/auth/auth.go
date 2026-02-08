@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -93,4 +94,40 @@ func GenerateCSRF(sessionToken string, secret []byte) string {
 func ValidateCSRF(csrfToken, sessionToken string, secret []byte) bool {
 	expected := GenerateCSRF(sessionToken, secret)
 	return hmac.Equal([]byte(csrfToken), []byte(expected))
+}
+
+// NormalizeEmail trims whitespace and lowercases an email address.
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// ValidateEmail checks if an email address has a basic valid format.
+// It checks for presence of @ with non-empty local and domain parts.
+func ValidateEmail(email string) error {
+	if email == "" {
+		return fmt.Errorf("email is required")
+	}
+	if len(email) > MaxEmailLength {
+		return fmt.Errorf("email too long (max %d characters)", MaxEmailLength)
+	}
+	at := strings.LastIndex(email, "@")
+	if at < 1 {
+		return fmt.Errorf("invalid email format")
+	}
+	domain := email[at+1:]
+	if domain == "" || !strings.Contains(domain, ".") {
+		return fmt.Errorf("invalid email format")
+	}
+	return nil
+}
+
+// ValidatePassword checks if a password meets length requirements.
+func ValidatePassword(password string) error {
+	if len(password) < MinPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
+	}
+	if len(password) > MaxPasswordLength {
+		return fmt.Errorf("password must be at most %d characters", MaxPasswordLength)
+	}
+	return nil
 }

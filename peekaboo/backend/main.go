@@ -114,6 +114,13 @@ func main() {
 		slog.Info("CORS configured", "allowed_origin", allowedOrigin)
 	}
 
+	// Auth endpoints
+	authHandler := api.NewAuthHandler(database, nil) // nil = LogEmailSender for dev
+	resendVerificationLimiter := api.NewRateLimiter(3, 15*time.Minute)
+	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
+	mux.HandleFunc("GET /api/auth/verify", authHandler.HandleVerify)
+	mux.Handle("POST /api/auth/resend-verification", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleResendVerification), resendVerificationLimiter))
+
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
 	mux.Handle("POST /api/intent", api.RateLimitMiddleware(api.NewIntentHandlerWithProvider(llmProvider), rateLimiter))
