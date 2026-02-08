@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 196 tasks completed.
+Production-ready voice-controlled web app for children. 197 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,10 @@ Production-ready voice-controlled web app for children. 196 tasks completed.
 
 ## Last Completed
 
-- Task 226 (2026-02-08): Populate MediaSetID in interaction logs
-  - executeShowMedia returns (*ttsResult, *int64) — second value is media set ID
-  - processAudio sets llmLog.MediaSetID after executeShowMedia returns
-  - 2 new tests: found media returns ID, unknown subject returns nil
+- Task 225 (2026-02-08): Split 9 oversized test files into logical groupings
+  - 9 files over 500 lines split into 18 files, all under 500 lines
+  - Largest was websocket_tts_test.go (907→273+433+230)
+  - All tests pass, lint clean
 
 ## Milestone History
 
@@ -99,4 +99,5 @@ Production-ready voice-controlled web app for children. 196 tasks completed.
 - Task 222 (2026-02-08): Document auth API endpoints in API.md
 - Task 223 (2026-02-08): io.LimitReader for error body reads + health check body draining
 - Task 224 (2026-02-08): Document INTERACTION_LOG_AUDIO and INTERACTION_RETENTION_DAYS env vars
+- Task 225 (2026-02-08): Split 9 oversized test files (907→18 files, all under 500 lines)
 - Task 226 (2026-02-08): Populate MediaSetID in interaction logs (2 new tests)
