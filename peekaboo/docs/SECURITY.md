@@ -7,8 +7,8 @@ This document describes the threat model for Peekaboo and the implemented mitiga
 Peekaboo is a voice-controlled web app for children. The threat model assumes:
 
 - **Attacker profile**: Casual to moderate attacker targeting web applications
-- **Attack surface**: HTTP API endpoints, file serving, client-side JavaScript
-- **Protected assets**: Media files, server stability, user experience
+- **Attack surface**: HTTP API endpoints, file serving, WebSocket connections, client-side JavaScript
+- **Protected assets**: User accounts, media files, server stability, user experience
 - **Out of scope**: Physical access, insider threats, advanced persistent threats
 
 ## Implemented Mitigations
@@ -146,11 +146,39 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 | On-demand decrypt | `api/encrypted_media.go` `serveEncrypted()` | Decrypts when serving |
 | Key file permissions | `crypto/age.go` `LoadIdentityFromFile()` | 0600 on key file |
 
+### 10. Authentication and Sessions
+
+**Threat**: Unauthorized access, credential theft, session hijacking.
+
+**Mitigations**:
+| Control | Location | Implementation |
+|---------|----------|----------------|
+| Password hashing | `auth/auth.go` `HashPassword()` | bcrypt with default cost |
+| Session tokens | `auth/auth.go` `GenerateToken()` | 32-byte crypto/rand tokens |
+| Session cookie | `api/handlers_auth.go` `HandleLogin()` | HttpOnly, SameSite=Lax, optional Secure flag |
+| Session duration | `auth/auth.go` `SessionDuration` | 30 days |
+| CSRF protection | `api/csrf.go` `CSRFMiddleware()` | HMAC-SHA256 token validated on state-changing requests |
+| Account lockout | `api/handlers_auth.go` `HandleLogin()` | 5 failures in 15 min → locked 15 min |
+| Email verification | `api/handlers_auth.go` `HandleRegister()` | Required before login |
+| Generic errors | `api/handlers_auth.go` `HandleLogin()` | "invalid email or password" (prevents enumeration) |
+| WebSocket auth | `api/websocket.go` `ServeHTTP()` | Session cookie extracted before WS upgrade |
+| Per-user WS limits | `api/websocket_auth.go` `WSAuthTracker` | 3 concurrent WS per user, 1 per anon IP |
+| Anon rate limiting | `api/websocket_auth.go` `AllowAnonInteraction()` | 30 interactions/hour per IP |
+
+**CSRF-exempt paths**: `/api/auth/login`, `/api/auth/register`, `/api/auth/resend-verification`, `/api/auth/magic-link` (these accept credentials directly).
+
+**Security headers**:
+| Header | Value | Location |
+|--------|-------|----------|
+| Referrer-Policy | `strict-origin-when-cross-origin` | `api/security.go` `SecurityHeadersMiddleware()` |
+| Permissions-Policy | `camera=(), geolocation=(), payment=()` | `api/security.go` `SecurityHeadersMiddleware()` |
+| Strict-Transport-Security | `max-age=31536000; includeSubDomains` | `api/security.go` (when `HTTPS_ONLY=true`) |
+
 ## Remaining Risks
 
 ### Accepted Risks
 
-1. **No authentication**: By design, this is a public-facing app for children. No user accounts.
+1. **TOTP 2FA not yet validated**: The login handler checks for `totp_required` and prompts for a code, but the TOTP code is not cryptographically validated yet (tracked as task 220). Users with TOTP enabled can bypass 2FA by providing any non-empty code. Mitigation: TOTP is opt-in and not yet exposed in the UI.
 
 2. **LLM API keys in environment**: Keys stored in `.env` file. Mitigated by file permissions and sops encryption for deployment.
 
@@ -173,12 +201,21 @@ Security-related tests exist in:
 - `api/security_test.go` - Security headers verification
 - `api/ratelimit_test.go` - Rate limiting behavior
 - `api/media_test.go` - Input validation (path traversal prevention)
+- `api/handlers_auth_test.go` - Registration, verification, email enumeration prevention
+- `api/handlers_auth_login_test.go` - Login, lockout, TOTP flow
+- `api/handlers_auth_csrf_test.go` - CSRF middleware validation
+- `api/handlers_auth_magiclink_test.go` - Magic link auth
+- `api/websocket_auth_test.go` - WebSocket per-user/per-IP limits
+- `auth/auth_test.go` - Password hashing, token generation, CSRF primitives
 
 Run with:
 ```bash
 cd backend && go test ./api -v -run Security
 cd backend && go test ./api -v -run RateLimit
 cd backend && go test ./api -v -run InvalidConcept
+cd backend && go test ./api -v -run Auth
+cd backend && go test ./api -v -run CSRF
+cd backend && go test ./auth -v
 ```
 
 ### Manual Testing
@@ -193,6 +230,8 @@ cd backend && go test ./api -v -run InvalidConcept
 - [ ] Set `TRUST_PROXY_HEADERS=true` if behind a reverse proxy (default: false)
 - [ ] Set `ALLOWED_ORIGIN` to production domain (not `*`)
 - [ ] Use HTTPS (Caddy auto-HTTPS recommended)
+- [ ] Set `HTTPS_ONLY=true` (sets Secure flag on session cookies, enables HSTS)
+- [ ] Set `CSRF_SECRET` to a stable random value (default: random per restart)
 - [ ] Restrict age key file permissions (`chmod 600`)
 - [ ] Store API keys in encrypted secrets (sops)
 - [ ] Enable JSON logging for security audit trail (`LOG_FORMAT=json`)

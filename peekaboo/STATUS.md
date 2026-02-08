@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 190 tasks completed.
+Production-ready voice-controlled web app for children. 191 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,10 @@ Production-ready voice-controlled web app for children. 190 tasks completed.
 
 ## Last Completed
 
-- Task 217 (2026-02-08): Interaction logging E2E integration tests
-  - Authenticated user voice command → verify interactions row with user_id, stt_transcript, action_type, llm_model
-  - INTERACTION_LOG_AUDIO=true → verify .webm file exists at audio_blob_path
-  - Tests register + verify + login via real API, query SQLite directly
-  - 2 new real-services E2E tests (real-services-interaction.spec.ts)
+- Task 219 (2026-02-08): Update SECURITY.md for auth system
+  - Added section 10: Authentication and Sessions (passwords, sessions, CSRF, lockout, WS auth)
+  - Replaced "No authentication" accepted risk with TOTP 2FA stub notice
+  - Updated security test list and deployment checklist
 
 ## Milestone History
 
@@ -95,3 +94,4 @@ Production-ready voice-controlled web app for children. 190 tasks completed.
 - Task 218 (2026-02-08): Piper TTS feedback for unrecognized concepts (2 tests)
 - Task 210 (2026-02-08): Piper TTS welcome greeting on login (3 tests)
 - Task 217 (2026-02-08): Interaction logging E2E integration tests (2 real-services tests)
+- Task 219 (2026-02-08): Update SECURITY.md for auth system
