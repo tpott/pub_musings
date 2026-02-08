@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 182 tasks completed.
+Production-ready voice-controlled web app for children. 183 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,11 @@ Production-ready voice-controlled web app for children. 182 tasks completed.
 
 ## Last Completed
 
-- Task 211 (2026-02-08): Interaction logging database schema
-  - db_interactions.go: interactions table with all columns from spec
-  - InteractionLog, STTLog, LLMLog, TTSLog, BufferLog structs
-  - InsertInteraction and GetInteraction with full roundtrip
-  - user_id/session_id nullable for anonymous users
-  - 7 tests: table, indexes, full roundtrip, anonymous, wait_for_more, TTS, idempotent
+- Task 212 (2026-02-08): Capture STT data in processAudio
+  - websocket_interaction.go: buildSTTLog helper extracts STT data from WhisperResponse
+  - Captures: full JSON, transcript, word count, low-prob words (<0.80), latency, VAD, duration, chunks
+  - processAudio now times whisper call and builds STTLog
+  - 6 unit tests for buildSTTLog (basic, low-prob, no-low-prob, empty, multi-segment, JSON)
 
 ## Milestone History
 
@@ -88,3 +87,4 @@ Production-ready voice-controlled web app for children. 182 tasks completed.
 - Task 208 (2026-02-08): Email verification and magic link pages (verify-email.astro, magic-link.astro, 9 tests)
 - Task 209 (2026-02-08): Auth E2E integration tests (17 Playwright tests for auth flows)
 - Task 211 (2026-02-08): Interaction logging DB schema (InteractionLog structs, InsertInteraction, 7 tests)
+- Task 212 (2026-02-08): STT data capture in processAudio (buildSTTLog, 6 tests)

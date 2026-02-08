@@ -506,13 +506,24 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 	}
 
+	// Get chunk count from state (before it's reset)
+	state.mu.Lock()
+	chunkCount := len(state.chunkMetas)
+	state.mu.Unlock()
+
 	// 1. Send to whisper for transcription
+	sttRequestAt := time.Now()
 	whisperResp, err := h.transcribeAudio(audioData)
+	sttLatency := time.Since(sttRequestAt)
 	if err != nil {
 		logger.Error("transcription failed", "error", err)
 		h.sendError(ctx, conn, "transcription failed", logger)
 		return
 	}
+
+	// Build STT log data
+	sttLog := buildSTTLog(whisperResp, sttLatency, chunkCount, sttRequestAt)
+	_ = sttLog // will be used by saveInteraction in task 215
 
 	transcript := whisperResp.Text
 	logger.Info("transcription complete", "text", transcript)
