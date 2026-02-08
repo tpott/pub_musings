@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 194 tasks completed.
+Production-ready voice-controlled web app for children. 195 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -98,3 +98,4 @@ Production-ready voice-controlled web app for children. 194 tasks completed.
 - Task 220 (2026-02-08): Implement TOTP 2FA validation (stdlib, RFC 6238, 21 handler tests)
 - Task 222 (2026-02-08): Document auth API endpoints in API.md
 - Task 223 (2026-02-08): io.LimitReader for error body reads + health check body draining
+- Task 224 (2026-02-08): Document INTERACTION_LOG_AUDIO and INTERACTION_RETENTION_DAYS env vars
