@@ -1046,6 +1046,79 @@ Include this token in the `X-CSRF-Token` header for POST/PUT/DELETE requests (ex
 {"error": "not authenticated"}
 ```
 
+### TOTP Setup
+
+`POST /api/auth/totp/setup`
+
+Generates a new TOTP secret for the authenticated user. The secret is stored but TOTP is not yet enabled. Call `/api/auth/totp/enable` with a valid code to activate.
+
+**Requires**: Authentication, CSRF token
+
+**Response (200 OK)**:
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP...",
+  "uri": "otpauth://totp/Peekaboo:user@example.com?secret=...&issuer=Peekaboo&algorithm=SHA1&digits=6&period=30"
+}
+```
+
+The `uri` can be rendered as a QR code for scanning with an authenticator app (Google Authenticator, Authy, etc.).
+
+**Errors**:
+- 401: Not authenticated
+- 409: TOTP is already enabled
+
+### TOTP Enable
+
+`POST /api/auth/totp/enable`
+
+Enables TOTP 2FA after verifying a valid code from the authenticator app and the user's password.
+
+**Requires**: Authentication, CSRF token
+
+**Request**:
+```json
+{
+  "code": "123456",
+  "password": "userpassword"
+}
+```
+
+**Response (200 OK)**:
+```json
+{"message": "TOTP enabled successfully"}
+```
+
+**Errors**:
+- 400: Missing code or password, or TOTP not set up yet
+- 401: Invalid password or invalid TOTP code
+- 409: TOTP is already enabled
+
+### TOTP Disable
+
+`POST /api/auth/totp/disable`
+
+Disables TOTP 2FA and clears the stored secret. Requires password confirmation.
+
+**Requires**: Authentication, CSRF token
+
+**Request**:
+```json
+{
+  "password": "userpassword"
+}
+```
+
+**Response (200 OK)**:
+```json
+{"message": "TOTP disabled successfully"}
+```
+
+**Errors**:
+- 400: Missing password
+- 401: Invalid password
+- 409: TOTP is not enabled
+
 ---
 
 ## CORS

@@ -390,3 +390,17 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 ```
 
 **Lesson:** The `.env` paths assume the backend runs from the project root, but Go requires running from `backend/` (where `go.mod` is). When starting the backend manually, override `MEDIA_DIR` and `DB_PATH` to be relative to `backend/`. The `seedMediaFromDisk` skip is logged at DEBUG level — use `LOG_LEVEL=debug` to catch seeding failures.
+
+---
+
+### 2026-02-08: TOTP 2FA with stdlib instead of external dependency
+
+**Context:** Task 220 required implementing TOTP (Time-based One-Time Password) validation for the login flow. The existing login handler had a TODO stub accepting any TOTP code.
+
+**Options considered:**
+- pquerna/otp: Popular Go TOTP library, adds external dependency, full OTP support
+- stdlib only: TOTP is just HMAC-SHA1 + dynamic truncation per RFC 6238/4226, ~50 lines of code
+
+**Decision:** Implement with stdlib (`crypto/hmac`, `crypto/sha1`, `encoding/base32`, `encoding/binary`). The algorithm is simple enough that an external dependency adds more risk (supply chain) than value.
+
+**Outcome:** 127 lines in `auth/totp.go`. Validated against RFC 6238 Appendix B test vectors. Supports ±1 period clock skew, 6-digit codes, 30-second periods, base32-encoded 20-byte secrets, and `otpauth://` URI generation for authenticator apps.

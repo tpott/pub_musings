@@ -454,7 +454,25 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// TODO: TOTP validation will be added in a future task
+		if user.TOTPSecret == nil {
+			slog.Error("login: TOTP enabled but no secret stored",
+				"user_id", user.ID,
+				"request_id", logging.GetRequestID(r.Context()))
+			writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+			return
+		}
+		valid, err := auth.ValidateTOTP(*user.TOTPSecret, req.TOTPCode)
+		if err != nil {
+			slog.Error("login: TOTP validation error",
+				"error", err,
+				"request_id", logging.GetRequestID(r.Context()))
+			writeJSON(w, http.StatusInternalServerError, loginResponse{Error: "internal error"})
+			return
+		}
+		if !valid {
+			writeJSON(w, http.StatusUnauthorized, loginResponse{Error: "invalid 2FA code"})
+			return
+		}
 	}
 
 	// Clear failed attempts on successful login

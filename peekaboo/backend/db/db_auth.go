@@ -387,3 +387,57 @@ func (db *DB) DeleteSessionsByUserID(userID string) error {
 	}
 	return nil
 }
+
+// SetTOTPSecret sets the TOTP secret for a user (setup phase, not yet enabled).
+func (db *DB) SetTOTPSecret(userID, secret string) error {
+	result, err := db.conn.Exec(`
+		UPDATE users SET totp_secret = ? WHERE id = ?
+	`, secret, userID)
+	if err != nil {
+		return fmt.Errorf("set totp secret: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}
+
+// EnableTOTP sets totp_enabled=1 for a user. The secret must already be set.
+func (db *DB) EnableTOTP(userID string) error {
+	result, err := db.conn.Exec(`
+		UPDATE users SET totp_enabled = 1 WHERE id = ? AND totp_secret IS NOT NULL
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("enable totp: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found or TOTP secret not set: %s", userID)
+	}
+	return nil
+}
+
+// DisableTOTP clears the TOTP secret and sets totp_enabled=0.
+func (db *DB) DisableTOTP(userID string) error {
+	result, err := db.conn.Exec(`
+		UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("disable totp: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+	return nil
+}

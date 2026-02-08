@@ -136,6 +136,9 @@ func main() {
 	mux.Handle("POST /api/auth/magic-link", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleMagicLink), magicLinkLimiter))
 	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.HandleMagicLinkVerify)
 	mux.HandleFunc("GET /api/auth/csrf", authHandler.HandleCSRF)
+	mux.HandleFunc("POST /api/auth/totp/setup", authHandler.HandleTOTPSetup)
+	mux.HandleFunc("POST /api/auth/totp/enable", authHandler.HandleTOTPEnable)
+	mux.HandleFunc("POST /api/auth/totp/disable", authHandler.HandleTOTPDisable)
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))

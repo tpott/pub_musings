@@ -164,6 +164,7 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 | WebSocket auth | `api/websocket.go` `ServeHTTP()` | Session cookie extracted before WS upgrade |
 | Per-user WS limits | `api/websocket_auth.go` `WSAuthTracker` | 3 concurrent WS per user, 1 per anon IP |
 | Anon rate limiting | `api/websocket_auth.go` `AllowAnonInteraction()` | 30 interactions/hour per IP |
+| TOTP 2FA | `auth/totp.go` `ValidateTOTP()` | HMAC-SHA1 per RFC 6238, ±1 period skew, password required to enable/disable |
 
 **CSRF-exempt paths**: `/api/auth/login`, `/api/auth/register`, `/api/auth/resend-verification`, `/api/auth/magic-link` (these accept credentials directly).
 
@@ -178,13 +179,11 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 
 ### Accepted Risks
 
-1. **TOTP 2FA not yet validated**: The login handler checks for `totp_required` and prompts for a code, but the TOTP code is not cryptographically validated yet (tracked as task 220). Users with TOTP enabled can bypass 2FA by providing any non-empty code. Mitigation: TOTP is opt-in and not yet exposed in the UI.
+1. **LLM API keys in environment**: Keys stored in `.env` file. Mitigated by file permissions and sops encryption for deployment.
 
-2. **LLM API keys in environment**: Keys stored in `.env` file. Mitigated by file permissions and sops encryption for deployment.
+2. **Whisper server trust**: Backend trusts whisper-server responses. Mitigated by running whisper-server locally.
 
-3. **Whisper server trust**: Backend trusts whisper-server responses. Mitigated by running whisper-server locally.
-
-4. **unsafe-inline styles**: Required for Astro framework. Limited risk as no user-generated styles.
+3. **unsafe-inline styles**: Required for Astro framework. Limited risk as no user-generated styles.
 
 ### Out of Scope
 
@@ -205,8 +204,10 @@ Security-related tests exist in:
 - `api/handlers_auth_login_test.go` - Login, lockout, TOTP flow
 - `api/handlers_auth_csrf_test.go` - CSRF middleware validation
 - `api/handlers_auth_magiclink_test.go` - Magic link auth
+- `api/handlers_auth_totp_test.go` - TOTP setup, enable, disable, login validation
 - `api/websocket_auth_test.go` - WebSocket per-user/per-IP limits
 - `auth/auth_test.go` - Password hashing, token generation, CSRF primitives
+- `auth/totp_test.go` - TOTP code generation, validation, RFC 6238 vectors
 
 Run with:
 ```bash
