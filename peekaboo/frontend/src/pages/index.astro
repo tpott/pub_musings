@@ -39,7 +39,7 @@ import '../styles/global.css';
    * Show a visible error message when the browser doesn't support voice recording
    */
   function showBrowserSupportError(container: HTMLElement): void {
-    container.innerHTML = '';
+    container.replaceChildren();
     const errorDiv = document.createElement('div');
     errorDiv.className = 'browser-error';
     errorDiv.setAttribute('role', 'alert');

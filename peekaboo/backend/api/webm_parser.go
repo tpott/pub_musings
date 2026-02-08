@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"log/slog"
 
 	ebml "github.com/at-wat/ebml-go"
 	"github.com/at-wat/ebml-go/webm"
@@ -211,11 +212,13 @@ func ParseClusters(data []byte) []ClusterRef {
 	}
 
 	r := bytes.NewReader(data)
-	_ = ebml.Unmarshal(r, &ws, ebml.WithElementReadHooks(func(elem *ebml.Element) {
+	if err := ebml.Unmarshal(r, &ws, ebml.WithElementReadHooks(func(elem *ebml.Element) {
 		if elem.Name == "Cluster" {
 			positions = append(positions, elem.Position)
 		}
-	}))
+	})); err != nil {
+		slog.Debug("webm unmarshal error", "error", err, "data_len", len(data))
+	}
 
 	// Pair hook positions with parsed cluster timecodes.
 	// If counts don't match (shouldn't happen), use whichever is shorter.

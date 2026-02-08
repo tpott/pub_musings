@@ -172,7 +172,7 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 | Header | Value | Location |
 |--------|-------|----------|
 | Referrer-Policy | `strict-origin-when-cross-origin` | `api/security.go` `SecurityHeadersMiddleware()` |
-| Permissions-Policy | `camera=(), geolocation=(), payment=()` | `api/security.go` `SecurityHeadersMiddleware()` |
+| Permissions-Policy | `microphone=(self), camera=(), geolocation=(), payment=(), usb=(), interest-cohort=()` | `api/security.go` `SecurityHeadersMiddleware()` |
 | Strict-Transport-Security | `max-age=31536000; includeSubDomains` | `api/security.go` (when `HTTPS_ONLY=true`) |
 
 ## Remaining Risks

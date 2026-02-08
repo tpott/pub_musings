@@ -63,7 +63,7 @@ export class MediaDisplay {
     this.stopAudio();
 
     // Clear container
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
 
     // Show video if available, otherwise show photo
     if (media.videoUrl) {
@@ -208,7 +208,7 @@ export class MediaDisplay {
    */
   reset(placeholderText: string = 'Say something like "show me a cat"'): void {
     this.stopAudio();
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
     const placeholder = document.createElement('div');
     placeholder.className = 'placeholder';
     const p = document.createElement('p');
