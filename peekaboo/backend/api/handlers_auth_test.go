@@ -16,7 +16,8 @@ import (
 
 // mockEmailSender records sent emails for test assertions.
 type mockEmailSender struct {
-	sent []sentEmail
+	sent          []sentEmail
+	magicLinkSent []sentEmail
 }
 
 type sentEmail struct {
@@ -26,6 +27,11 @@ type sentEmail struct {
 
 func (m *mockEmailSender) SendVerificationEmail(to, token string) error {
 	m.sent = append(m.sent, sentEmail{To: to, Token: token})
+	return nil
+}
+
+func (m *mockEmailSender) SendMagicLinkEmail(to, token string) error {
+	m.magicLinkSent = append(m.magicLinkSent, sentEmail{To: to, Token: token})
 	return nil
 }
 

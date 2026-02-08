@@ -117,12 +117,15 @@ func main() {
 	// Auth endpoints
 	authHandler := api.NewAuthHandler(database, nil) // nil = LogEmailSender for dev
 	resendVerificationLimiter := api.NewRateLimiter(3, 15*time.Minute)
+	magicLinkLimiter := api.NewRateLimiter(5, time.Minute)
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
 	mux.HandleFunc("GET /api/auth/verify", authHandler.HandleVerify)
 	mux.Handle("POST /api/auth/resend-verification", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleResendVerification), resendVerificationLimiter))
 	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/logout", authHandler.HandleLogout)
 	mux.HandleFunc("GET /api/auth/me", authHandler.HandleMe)
+	mux.Handle("POST /api/auth/magic-link", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleMagicLink), magicLinkLimiter))
+	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.HandleMagicLinkVerify)
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))

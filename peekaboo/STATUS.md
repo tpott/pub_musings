@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 174 tasks completed.
+Production-ready voice-controlled web app for children. 175 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,14 +32,12 @@ Production-ready voice-controlled web app for children. 174 tasks completed.
 
 ## Last Completed
 
-- Task 202 (2026-02-07): Auth login, logout, /me, and account lockout
-  - HandleLogin: bcrypt verify, email_verified check, TOTP placeholder, session cookie, lockout
-  - HandleLogout: session deletion, cookie clearing, Bearer + cookie auth
-  - HandleMe: session validation, expiry cleanup, user info response
-  - extractSessionToken: Authorization Bearer header, then session cookie
-  - isHTTPSOnly: HTTPS_ONLY env var for Secure cookie flag
-  - Account lockout: 5 failed attempts in 15 min → 429 with retry_after_min
-  - 21 new tests in handlers_auth_login_test.go including full register→verify→login→me→logout flow
+- Task 203 (2026-02-08): Auth magic link endpoints
+  - POST /api/auth/magic-link: generate 15-min single-use token, send email, anti-enumeration (always 200)
+  - GET /api/auth/magic-link/verify: validate token, create session, set cookie, bypasses TOTP
+  - EmailSender interface extended with SendMagicLinkEmail
+  - Rate limited: 5/min per IP via RateLimitMiddleware
+  - 15 new tests in handlers_auth_magiclink_test.go (happy path, expiry, reuse, enumeration, TOTP bypass, full flow)
 
 ## Milestone History
 
@@ -82,3 +80,4 @@ Production-ready voice-controlled web app for children. 174 tasks completed.
 - Task 200 (2026-02-07): Auth database schema and auth module (bcrypt, sessions, tokens, CSRF)
 - Task 201 (2026-02-07): Auth registration and email verification endpoints (register, verify, resend)
 - Task 202 (2026-02-07): Auth login, logout, /me, account lockout (21 tests)
+- Task 203 (2026-02-08): Auth magic link endpoints (15 tests)
