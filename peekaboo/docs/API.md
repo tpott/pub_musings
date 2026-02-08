@@ -715,6 +715,339 @@ For detailed architecture, see [specs/audio-timing.md](../specs/audio-timing.md)
 
 ---
 
+## Authentication
+
+All auth endpoints use JSON request/response bodies. Session tokens are set as HttpOnly cookies.
+
+### Register
+
+Create a new user account. Sends a verification email (logged in dev mode).
+
+```
+POST /api/auth/register
+```
+
+**CSRF-exempt.** No rate limit on this endpoint.
+
+#### Request
+
+- **Content-Type**: `application/json`
+- **Max Body Size**: 4KB
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User's email address |
+| `password` | string | Yes | Password (minimum 8 characters) |
+
+#### Response
+
+**Success (201 Created)**:
+```json
+{
+  "message": "Account created. Please check your email to verify your account.",
+  "email_verification": true,
+  "user": {
+    "id": "abc123...",
+    "email": "user@example.com",
+    "created_at": "2026-02-08T00:00:00Z",
+    "email_verified": false
+  }
+}
+```
+
+**Error (400 Bad Request)**:
+```json
+{"error": "invalid email address"}
+```
+```json
+{"error": "password must be at least 8 characters"}
+```
+
+**Error (409 Conflict)**:
+```json
+{"error": "email already registered"}
+```
+
+---
+
+### Login
+
+Authenticate with email and password. Sets a session cookie on success.
+
+```
+POST /api/auth/login
+```
+
+**CSRF-exempt.**
+
+#### Request
+
+- **Content-Type**: `application/json`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | User's email address |
+| `password` | string | Yes | User's password |
+| `totp_code` | string | No | TOTP 2FA code (required if user has 2FA enabled) |
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{
+  "user": {
+    "id": "abc123...",
+    "email": "user@example.com",
+    "totp_enabled": false
+  },
+  "token": "session-token-value"
+}
+```
+
+Sets `session` cookie (HttpOnly, SameSite=Lax, 30-day expiry).
+
+**Error (401 Unauthorized)**:
+```json
+{"error": "invalid email or password"}
+```
+```json
+{"totp_required": true}
+```
+
+**Error (403 Forbidden)** (email not verified):
+```json
+{
+  "error": "Please verify your email address before logging in",
+  "email_not_verified": true,
+  "can_resend_verification": true
+}
+```
+
+**Error (429 Too Many Requests)** (account lockout: 5 failures in 15 min):
+```json
+{
+  "error": "too many failed login attempts, please try again later",
+  "retry_after_min": 15
+}
+```
+
+---
+
+### Logout
+
+Invalidate the current session. Requires authentication.
+
+```
+POST /api/auth/logout
+```
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{"message": "Logged out"}
+```
+
+Clears the `session` cookie.
+
+**Error (401 Unauthorized)**:
+```json
+{"error": "not authenticated"}
+```
+
+---
+
+### Get Current User
+
+Return the authenticated user's profile. Requires authentication.
+
+```
+GET /api/auth/me
+```
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{
+  "user": {
+    "id": "abc123...",
+    "email": "user@example.com",
+    "totp_enabled": false,
+    "email_verified": true,
+    "created_at": "2026-02-08T00:00:00Z"
+  }
+}
+```
+
+**Error (401 Unauthorized)**:
+```json
+{"error": "not authenticated"}
+```
+
+---
+
+### Verify Email
+
+Verify a user's email address using the token from the verification email.
+
+```
+GET /api/auth/verify?token={token}
+```
+
+#### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Verification token from email (valid 24 hours) |
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{"message": "Email verified successfully. You can now log in."}
+```
+
+**Error (400 Bad Request)**:
+```json
+{"error": "missing token parameter"}
+```
+```json
+{"error": "invalid or expired token"}
+```
+```json
+{"error": "token already used"}
+```
+```json
+{"error": "token expired"}
+```
+
+---
+
+### Resend Verification Email
+
+Resend the email verification link. Rate limited.
+
+```
+POST /api/auth/resend-verification
+```
+
+**CSRF-exempt.** Rate limit: 3 requests per 15 minutes per IP.
+
+#### Request
+
+- **Content-Type**: `application/json`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Email address to resend verification to |
+
+#### Response
+
+**Success (200 OK)** (always returns 200 to prevent email enumeration):
+```json
+{"message": "If an account exists with that email, a verification link has been sent."}
+```
+
+---
+
+### Request Magic Link
+
+Request a passwordless login link sent via email. Rate limited.
+
+```
+POST /api/auth/magic-link
+```
+
+**CSRF-exempt.** Rate limit: 5 requests per minute per IP.
+
+#### Request
+
+- **Content-Type**: `application/json`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Email address to send magic link to |
+
+#### Response
+
+**Success (200 OK)** (always returns 200 to prevent email enumeration):
+```json
+{"message": "If an account exists with that email, a login link has been sent."}
+```
+
+---
+
+### Verify Magic Link
+
+Authenticate using a magic link token. Sets a session cookie on success.
+
+```
+GET /api/auth/magic-link/verify?token={token}
+```
+
+#### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Magic link token from email (valid 15 minutes) |
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "id": "abc123...",
+    "email": "user@example.com",
+    "totp_enabled": false
+  }
+}
+```
+
+Sets `session` cookie (HttpOnly, SameSite=Lax, 30-day expiry).
+
+**Error (400 Bad Request)**:
+```json
+{"error": "missing token parameter"}
+```
+```json
+{"error": "invalid or expired token"}
+```
+```json
+{"error": "token already used"}
+```
+```json
+{"error": "token expired"}
+```
+
+---
+
+### Get CSRF Token
+
+Get a CSRF token for state-changing requests. Requires authentication.
+
+```
+GET /api/auth/csrf
+```
+
+#### Response
+
+**Success (200 OK)**:
+```json
+{"token": "csrf-token-value"}
+```
+
+Include this token in the `X-CSRF-Token` header for POST/PUT/DELETE requests (except CSRF-exempt paths).
+
+**Error (401 Unauthorized)**:
+```json
+{"error": "not authenticated"}
+```
+
+---
+
 ## CORS
 
 The API supports CORS with the following configuration:
@@ -736,7 +1069,10 @@ Expensive endpoints are rate limited to prevent abuse.
 - **Applies to**: `GET /api/media/{concept}`
 
 - **Limit**: 5 requests per minute per IP address
-- **Applies to**: `POST /api/feedback`
+- **Applies to**: `POST /api/feedback`, `POST /api/auth/magic-link`
+
+- **Limit**: 3 requests per 15 minutes per IP address
+- **Applies to**: `POST /api/auth/resend-verification`
 
 - **Response when limited**: HTTP 429 Too Many Requests
 

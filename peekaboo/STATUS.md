@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 191 tasks completed.
+Production-ready voice-controlled web app for children. 192 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,10 @@ Production-ready voice-controlled web app for children. 191 tasks completed.
 
 ## Last Completed
 
-- Task 219 (2026-02-08): Update SECURITY.md for auth system
-  - Added section 10: Authentication and Sessions (passwords, sessions, CSRF, lockout, WS auth)
-  - Replaced "No authentication" accepted risk with TOTP 2FA stub notice
-  - Updated security test list and deployment checklist
+- Task 222 (2026-02-08): Document auth API endpoints in API.md
+  - Added 9 auth endpoints: register, login, logout, me, verify, resend-verification, magic-link, magic-link/verify, csrf
+  - Each with method, request/response bodies, status codes, rate limits
+  - Updated rate limiting section with auth endpoint limits
 
 ## Milestone History
 
@@ -95,3 +95,4 @@ Production-ready voice-controlled web app for children. 191 tasks completed.
 - Task 210 (2026-02-08): Piper TTS welcome greeting on login (3 tests)
 - Task 217 (2026-02-08): Interaction logging E2E integration tests (2 real-services tests)
 - Task 219 (2026-02-08): Update SECURITY.md for auth system
+- Task 222 (2026-02-08): Document auth API endpoints in API.md
