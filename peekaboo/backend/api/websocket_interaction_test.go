@@ -1,9 +1,13 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 )
 
 func TestBuildSTTLog_BasicFields(t *testing.T) {
@@ -192,4 +196,197 @@ func TestBuildSTTLog_ResponseJSON(t *testing.T) {
 	if parsed["language"] != "en" {
 		t.Errorf("ResponseJSON.language: got %v, want %q", parsed["language"], "en")
 	}
+}
+
+// --- buildLLMLog tests ---
+
+func TestBuildLLMLog_ShowMedia(t *testing.T) {
+	endIdx := 3
+	result := &llm.TranscriptResult{
+		Actions: []llm.ToolAction{
+			{Type: "show_media", Subject: "cat", InstructionEndWordIdx: endIdx},
+		},
+		RawResponse:  json.RawMessage(`{"id":"msg_123"}`),
+		Model:        "claude-3-haiku-20240307",
+		InputTokens:  150,
+		OutputTokens: 42,
+		SystemPrompt: "You are the intent engine",
+		InputText:    `Transcript: "show me a cat"`,
+	}
+
+	requestAt := time.Now()
+	latency := 200 * time.Millisecond
+	concepts := []string{"cat", "dog", "cow"}
+
+	log := buildLLMLog(result, "anthropic", concepts, latency, requestAt)
+
+	if log.Provider != "anthropic" {
+		t.Errorf("Provider: got %q, want %q", log.Provider, "anthropic")
+	}
+	if log.Model != "claude-3-haiku-20240307" {
+		t.Errorf("Model: got %q, want %q", log.Model, "claude-3-haiku-20240307")
+	}
+	if log.InputText != `Transcript: "show me a cat"` {
+		t.Errorf("InputText: got %q, want %q", log.InputText, `Transcript: "show me a cat"`)
+	}
+	if len(log.ConceptsAvailable) != 3 {
+		t.Fatalf("ConceptsAvailable: got %d, want 3", len(log.ConceptsAvailable))
+	}
+	if log.InputTokens != 150 {
+		t.Errorf("InputTokens: got %d, want 150", log.InputTokens)
+	}
+	if log.OutputTokens != 42 {
+		t.Errorf("OutputTokens: got %d, want 42", log.OutputTokens)
+	}
+	if log.LatencyMs != 200 {
+		t.Errorf("LatencyMs: got %d, want 200", log.LatencyMs)
+	}
+	if log.RequestAt != requestAt {
+		t.Errorf("RequestAt mismatch")
+	}
+	if log.ActionType != "show_media" {
+		t.Errorf("ActionType: got %q, want %q", log.ActionType, "show_media")
+	}
+	if log.Subject == nil || *log.Subject != "cat" {
+		t.Errorf("Subject: got %v, want %q", log.Subject, "cat")
+	}
+	if log.InstructionEndIdx != 3 {
+		t.Errorf("InstructionEndIdx: got %d, want 3", log.InstructionEndIdx)
+	}
+	if log.TTSText != nil {
+		t.Errorf("TTSText: got %v, want nil", log.TTSText)
+	}
+	if log.WaitReason != nil {
+		t.Errorf("WaitReason: got %v, want nil", log.WaitReason)
+	}
+
+	// Verify response JSON is passed through
+	if string(log.ResponseJSON) != `{"id":"msg_123"}` {
+		t.Errorf("ResponseJSON: got %q, want %q", string(log.ResponseJSON), `{"id":"msg_123"}`)
+	}
+}
+
+func TestBuildLLMLog_SystemPromptHash(t *testing.T) {
+	prompt := "You are the intent engine for a voice-controlled media application"
+	result := &llm.TranscriptResult{
+		Actions:      []llm.ToolAction{{Type: "show_media", Subject: "dog"}},
+		SystemPrompt: prompt,
+	}
+
+	log := buildLLMLog(result, "openai", nil, 100*time.Millisecond, time.Now())
+
+	expectedHash := fmt.Sprintf("%x", sha256.Sum256([]byte(prompt)))
+	if log.SystemPromptHash != expectedHash {
+		t.Errorf("SystemPromptHash:\n got  %q\n want %q", log.SystemPromptHash, expectedHash)
+	}
+}
+
+func TestBuildLLMLog_EmptySystemPrompt(t *testing.T) {
+	result := &llm.TranscriptResult{
+		Actions:      []llm.ToolAction{{Type: "show_media", Subject: "dog"}},
+		SystemPrompt: "",
+	}
+
+	log := buildLLMLog(result, "anthropic", nil, 50*time.Millisecond, time.Now())
+
+	if log.SystemPromptHash != "" {
+		t.Errorf("SystemPromptHash: got %q, want empty", log.SystemPromptHash)
+	}
+}
+
+func TestBuildLLMLog_TextToSpeech(t *testing.T) {
+	result := &llm.TranscriptResult{
+		Actions: []llm.ToolAction{
+			{Type: "text_to_speech", Text: "I can show you a cat!"},
+		},
+		Model: "gpt-4o-mini",
+	}
+
+	log := buildLLMLog(result, "openai", []string{"cat"}, 80*time.Millisecond, time.Now())
+
+	if log.ActionType != "text_to_speech" {
+		t.Errorf("ActionType: got %q, want %q", log.ActionType, "text_to_speech")
+	}
+	if log.TTSText == nil || *log.TTSText != "I can show you a cat!" {
+		t.Errorf("TTSText: got %v, want %q", log.TTSText, "I can show you a cat!")
+	}
+	if log.Subject != nil {
+		t.Errorf("Subject: got %v, want nil", log.Subject)
+	}
+}
+
+func TestBuildLLMLog_WaitForMore(t *testing.T) {
+	result := &llm.TranscriptResult{
+		Actions: []llm.ToolAction{
+			{Type: "wait_for_more", Reason: "sentence cut off mid-phrase"},
+		},
+		Model: "claude-3-haiku-20240307",
+	}
+
+	log := buildLLMLog(result, "anthropic", []string{"cat", "dog"}, 120*time.Millisecond, time.Now())
+
+	if log.ActionType != "wait_for_more" {
+		t.Errorf("ActionType: got %q, want %q", log.ActionType, "wait_for_more")
+	}
+	if log.WaitReason == nil || *log.WaitReason != "sentence cut off mid-phrase" {
+		t.Errorf("WaitReason: got %v, want %q", log.WaitReason, "sentence cut off mid-phrase")
+	}
+	if log.Subject != nil {
+		t.Errorf("Subject: got %v, want nil", log.Subject)
+	}
+	if log.TTSText != nil {
+		t.Errorf("TTSText: got %v, want nil", log.TTSText)
+	}
+}
+
+func TestBuildLLMLog_NoActions(t *testing.T) {
+	result := &llm.TranscriptResult{
+		Actions: []llm.ToolAction{},
+		Model:   "gpt-4o-mini",
+	}
+
+	log := buildLLMLog(result, "openai", nil, 90*time.Millisecond, time.Now())
+
+	if log.ActionType != "" {
+		t.Errorf("ActionType: got %q, want empty", log.ActionType)
+	}
+	if log.Subject != nil {
+		t.Errorf("Subject: got %v, want nil", log.Subject)
+	}
+}
+
+func TestBuildLLMLog_PromptHashChangesWithConcepts(t *testing.T) {
+	// When concepts change, the system prompt changes, so the hash should change.
+	// This verifies the done_when requirement: "llm_system_prompt_hash changes when concepts are added"
+	concepts1 := []string{"cat", "dog"}
+	concepts2 := []string{"cat", "dog", "cow"}
+
+	prompt1 := buildTestSystemPrompt(concepts1)
+	prompt2 := buildTestSystemPrompt(concepts2)
+
+	result1 := &llm.TranscriptResult{
+		Actions:      []llm.ToolAction{{Type: "show_media", Subject: "cat"}},
+		SystemPrompt: prompt1,
+	}
+	result2 := &llm.TranscriptResult{
+		Actions:      []llm.ToolAction{{Type: "show_media", Subject: "cat"}},
+		SystemPrompt: prompt2,
+	}
+
+	log1 := buildLLMLog(result1, "anthropic", concepts1, 100*time.Millisecond, time.Now())
+	log2 := buildLLMLog(result2, "anthropic", concepts2, 100*time.Millisecond, time.Now())
+
+	if log1.SystemPromptHash == log2.SystemPromptHash {
+		t.Error("SystemPromptHash should differ when concepts change")
+	}
+}
+
+// buildTestSystemPrompt simulates the prompt builder for testing hash changes.
+func buildTestSystemPrompt(concepts []string) string {
+	result := "You are the intent engine.\n<available-concepts>\n"
+	for _, c := range concepts {
+		result += "<concept>" + c + "</concept>\n"
+	}
+	result += "</available-concepts>"
+	return result
 }

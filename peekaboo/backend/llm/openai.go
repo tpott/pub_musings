@@ -280,8 +280,14 @@ func (p *openaiProvider) ProcessTranscript(ctx context.Context, req TranscriptRe
 		return nil, fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(body))
 	}
 
+	// Read full response body for raw logging and decoding
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB max
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
 	var apiResp openaiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
@@ -289,7 +295,19 @@ func (p *openaiProvider) ProcessTranscript(ctx context.Context, req TranscriptRe
 		return nil, fmt.Errorf("no choices in response")
 	}
 
-	return parseOpenAIToolActions(apiResp.Choices[0].ToolCalls)
+	result, err := parseOpenAIToolActions(apiResp.Choices[0].ToolCalls)
+	if err != nil {
+		return nil, err
+	}
+
+	result.RawResponse = json.RawMessage(respBody)
+	result.Model = apiResp.Model
+	result.InputTokens = apiResp.Usage.PromptTokens
+	result.OutputTokens = apiResp.Usage.CompletionTokens
+	result.SystemPrompt = systemPrompt
+	result.InputText = userMessage
+
+	return result, nil
 }
 
 // parseOpenAIToolActions extracts ToolActions from OpenAI tool calls.

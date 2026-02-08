@@ -3,6 +3,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -44,7 +45,13 @@ type ToolAction struct {
 
 // TranscriptResult is the output of the rich transcript processing method.
 type TranscriptResult struct {
-	Actions []ToolAction // Ordered list of actions to execute
+	Actions      []ToolAction    // Ordered list of actions to execute
+	RawResponse  json.RawMessage // Full API response body for audit logging
+	Model        string          // Model ID used (e.g. "claude-haiku-4-5-20251001")
+	InputTokens  int             // Input token count from API response
+	OutputTokens int             // Output token count from API response
+	SystemPrompt string          // System prompt text (for hashing)
+	InputText    string          // Formatted user message sent to LLM
 }
 
 // Provider is the interface for LLM providers.

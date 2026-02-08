@@ -127,15 +127,16 @@ type PongMessage struct {
 
 // AudioWebSocketHandler handles WebSocket connections for audio streaming.
 type AudioWebSocketHandler struct {
-	WhisperURL    string
-	LLMProvider   llm.Provider
-	TTSProvider   tts.Provider // Optional - nil means TTS disabled
-	Database      *db.DB
-	Client        *http.Client
-	RateLimiter   *RateLimiter       // Optional - nil means no rate limiting
-	AllowedOrigin string             // Optional - "*" or empty means allow all
-	ConnTracker   *ConnectionTracker // Optional - nil means no connection limit
-	AuthTracker   *WSAuthTracker     // Optional - nil means no per-user/IP auth limits
+	WhisperURL      string
+	LLMProvider     llm.Provider
+	LLMProviderName string       // "anthropic" or "openai" — for interaction logging
+	TTSProvider     tts.Provider // Optional - nil means TTS disabled
+	Database        *db.DB
+	Client          *http.Client
+	RateLimiter     *RateLimiter       // Optional - nil means no rate limiting
+	AllowedOrigin   string             // Optional - "*" or empty means allow all
+	ConnTracker     *ConnectionTracker // Optional - nil means no connection limit
+	AuthTracker     *WSAuthTracker     // Optional - nil means no per-user/IP auth limits
 
 	// Configuration
 	BufferThreshold time.Duration // How long to buffer before processing
@@ -578,12 +579,18 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	}
 
 	// 6. Process transcript through LLM with tool_choice:any
+	llmRequestAt := time.Now()
 	result, err := h.processTranscript(ctx, transcript, words, concepts)
+	llmLatency := time.Since(llmRequestAt)
 	if err != nil {
 		logger.Error("transcript processing failed", "error", err)
 		h.sendError(ctx, conn, "intent extraction failed", logger)
 		return
 	}
+
+	// Build LLM log data
+	llmLog := buildLLMLog(result, h.LLMProviderName, concepts, llmLatency, llmRequestAt)
+	_ = llmLog // will be used by saveInteraction in task 215
 
 	// 7. Execute actions from LLM response
 	for _, action := range result.Actions {

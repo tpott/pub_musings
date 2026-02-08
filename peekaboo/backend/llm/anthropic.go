@@ -72,6 +72,12 @@ type anthropicResponse struct {
 	Role    string                  `json:"role"`
 	Content []anthropicContentBlock `json:"content"`
 	Model   string                  `json:"model"`
+	Usage   anthropicUsage          `json:"usage"`
+}
+
+type anthropicUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
 }
 
 type anthropicContentBlock struct {
@@ -301,12 +307,30 @@ func (p *anthropicProvider) ProcessTranscript(ctx context.Context, req Transcrip
 		return nil, fmt.Errorf("anthropic API error: %d: %s", resp.StatusCode, string(body))
 	}
 
+	// Read full response body for raw logging and decoding
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB max
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
 	var apiResp anthropicResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return parseToolActions(apiResp.Content)
+	result, err := parseToolActions(apiResp.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	result.RawResponse = json.RawMessage(respBody)
+	result.Model = apiResp.Model
+	result.InputTokens = apiResp.Usage.InputTokens
+	result.OutputTokens = apiResp.Usage.OutputTokens
+	result.SystemPrompt = systemPrompt
+	result.InputText = userMessage
+
+	return result, nil
 }
 
 // parseToolActions extracts ToolActions from Anthropic content blocks.

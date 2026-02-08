@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 183 tasks completed.
+Production-ready voice-controlled web app for children. 184 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,11 +32,12 @@ Production-ready voice-controlled web app for children. 183 tasks completed.
 
 ## Last Completed
 
-- Task 212 (2026-02-08): Capture STT data in processAudio
-  - websocket_interaction.go: buildSTTLog helper extracts STT data from WhisperResponse
-  - Captures: full JSON, transcript, word count, low-prob words (<0.80), latency, VAD, duration, chunks
-  - processAudio now times whisper call and builds STTLog
-  - 6 unit tests for buildSTTLog (basic, low-prob, no-low-prob, empty, multi-segment, JSON)
+- Task 213 (2026-02-08): Capture LLM data in processAudio
+  - TranscriptResult extended with RawResponse, Model, InputTokens, OutputTokens, SystemPrompt, InputText
+  - Both Anthropic and OpenAI providers populate token usage and raw response
+  - buildLLMLog helper: provider, model, prompt hash, input text, concepts, tokens, latency, action details
+  - processAudio now times LLM call and builds LLMLog
+  - 7 unit tests for buildLLMLog (show_media, hash, empty prompt, TTS, wait, no actions, hash changes)
 
 ## Milestone History
 
@@ -88,3 +89,4 @@ Production-ready voice-controlled web app for children. 183 tasks completed.
 - Task 209 (2026-02-08): Auth E2E integration tests (17 Playwright tests for auth flows)
 - Task 211 (2026-02-08): Interaction logging DB schema (InteractionLog structs, InsertInteraction, 7 tests)
 - Task 212 (2026-02-08): STT data capture in processAudio (buildSTTLog, 6 tests)
+- Task 213 (2026-02-08): LLM data capture in processAudio (buildLLMLog, 7 tests)
