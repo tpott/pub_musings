@@ -670,12 +670,16 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 		}
 		switch action.Type {
 		case "show_media":
-			if tr := h.executeShowMedia(ctx, conn, action.Subject, logger); tr != nil {
+			tr, mediaSetID := h.executeShowMedia(ctx, conn, action.Subject, logger)
+			if tr != nil {
 				ttsLog = &db.TTSLog{
 					LatencyMs:      tr.latency.Milliseconds(),
 					AudioSizeBytes: tr.audioSize,
 					RequestAt:      tr.requestAt,
 				}
+			}
+			if mediaSetID != nil && llmLog != nil {
+				llmLog.MediaSetID = mediaSetID
 			}
 
 			// Trim audio buffer at instruction boundary
