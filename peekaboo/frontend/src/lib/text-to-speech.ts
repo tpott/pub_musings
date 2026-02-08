@@ -9,6 +9,7 @@
 import { fetchWithRetry } from './fetch-with-retry';
 import { ApiError } from './errors';
 import { logger } from './logger';
+import { getCSRFHeaders } from './csrf';
 
 /**
  * Check if TTS is available by testing the /api/speak endpoint.
@@ -25,7 +26,7 @@ export async function checkTTSAvailability(): Promise<boolean> {
     // Send a minimal request to check if endpoint exists
     const response = await fetch('/api/speak', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getCSRFHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ text: 'test' }),
     });
 
@@ -71,7 +72,7 @@ export async function synthesizeSpeech(text: string): Promise<HTMLAudioElement |
   try {
     const response = await fetchWithRetry('/api/speak', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getCSRFHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ text }),
     });
 

@@ -4,6 +4,7 @@
 
 import { fetchWithRetry } from './fetch-with-retry';
 import { createApiErrorFromResponse, createNetworkError, ApiError } from './errors';
+import { getCSRFHeaders } from './csrf';
 
 export interface RecordingResult {
   blob: Blob;
@@ -121,6 +122,7 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
   try {
     response = await fetchWithRetry('/api/transcribe', {
       method: 'POST',
+      headers: getCSRFHeaders(),
       body: formData,
     });
   } catch (error) {

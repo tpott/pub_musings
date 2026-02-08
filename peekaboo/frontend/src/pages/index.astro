@@ -34,6 +34,7 @@ import '../styles/global.css';
   import { PeekabooFlow } from '../lib/peekaboo-flow';
   import { AudioRecorder } from '../lib/audio-recorder';
   import { logger } from '../lib/logger';
+  import { fetchCSRFToken } from '../lib/csrf';
 
   /**
    * Show a visible error message when the browser doesn't support voice recording
@@ -67,6 +68,11 @@ import '../styles/global.css';
     container.appendChild(errorDiv);
     container.setAttribute('aria-label', 'Browser not supported error');
   }
+
+  // Fetch CSRF token for authenticated users (fire-and-forget).
+  // If not authenticated, this silently returns null and POST requests
+  // proceed without a CSRF header (which the backend allows for anon users).
+  fetchCSRFToken();
 
   // Initialize the flow when DOM is ready
   document.addEventListener('DOMContentLoaded', () => {

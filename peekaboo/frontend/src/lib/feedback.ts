@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import { getCSRFHeaders } from './csrf';
 
 const SESSION_ID_KEY = 'peekaboo_session_id';
 
@@ -98,9 +99,7 @@ export async function submitFeedback(data: FeedbackData): Promise<FeedbackRespon
 
   const response = await fetch('/api/feedback', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: getCSRFHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   });
 

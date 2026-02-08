@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 201 tasks completed.
+Production-ready voice-controlled web app for children. 202 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 305 unit tests, 42 E2E tests
+- **Astro frontend** with TypeScript, 319 unit tests, 42 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,11 +32,11 @@ Production-ready voice-controlled web app for children. 201 tasks completed.
 
 ## Last Completed
 
-- Tasks 227-230 (2026-02-08): Security and code quality fixes
-  - Task 227: Wrap health check body drains with io.LimitReader (1MB limit)
-  - Task 228: Update SECURITY.md Permissions-Policy docs to match implementation
-  - Task 229: Replace innerHTML='' with replaceChildren() in frontend (XSS defense-in-depth)
-  - Task 230: Log ebml.Unmarshal errors in webm_parser.go instead of discarding
+- Task 231 (2026-02-08): Frontend CSRF token integration
+  - Created src/lib/csrf.ts with fetchCSRFToken(), getCSRFToken(), getCSRFHeaders(), clearCSRFToken()
+  - Updated feedback.ts, intent.ts, audio-recorder.ts, text-to-speech.ts, logger.ts to send X-CSRF-Token
+  - index.astro fetches CSRF token on page load (fire-and-forget, no-op for anonymous users)
+  - 14 new unit tests for CSRF module
 
 ## Milestone History
 
@@ -103,3 +103,4 @@ Production-ready voice-controlled web app for children. 201 tasks completed.
 - Task 225 (2026-02-08): Split 9 oversized test files (907→18 files, all under 500 lines)
 - Task 226 (2026-02-08): Populate MediaSetID in interaction logs (2 new tests)
 - Tasks 227-230 (2026-02-08): Security/quality: io.LimitReader health drains, Permissions-Policy docs, innerHTML→replaceChildren, ebml error logging
+- Task 231 (2026-02-08): Frontend CSRF token integration (csrf.ts module, 14 tests, all POST callers updated)

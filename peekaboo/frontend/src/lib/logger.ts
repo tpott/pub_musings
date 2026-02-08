@@ -15,6 +15,8 @@
  * The backend must have FORWARD_FRONTEND_LOGS=true to accept them.
  */
 
+import { getCSRFHeaders } from './csrf';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -55,7 +57,7 @@ function forwardToBackend(level: string, message: string): void {
   try {
     fetch('/api/log', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getCSRFHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ level, message }),
     }).catch(() => {
       // Silently ignore - we can't log a forwarding failure without recursion

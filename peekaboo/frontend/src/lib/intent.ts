@@ -4,6 +4,7 @@
 
 import { fetchWithRetry } from './fetch-with-retry';
 import { createApiErrorFromResponse, createNetworkError, ApiError } from './errors';
+import { getCSRFHeaders } from './csrf';
 
 export interface IntentResult {
   subject: string;
@@ -19,9 +20,7 @@ export async function extractIntent(text: string): Promise<IntentResult> {
   try {
     response = await fetchWithRetry('/api/intent', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getCSRFHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ text }),
     });
   } catch (error) {
