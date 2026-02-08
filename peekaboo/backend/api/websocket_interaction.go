@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 )
@@ -88,4 +91,45 @@ func buildLLMLog(result *llm.TranscriptResult, provider string, concepts []strin
 	}
 
 	return llmLog
+}
+
+// ttsResult holds timing and size data from a TTS synthesis call.
+type ttsResult struct {
+	latency   time.Duration
+	audioSize int
+	requestAt time.Time
+}
+
+// executeTTS synthesizes speech from text via the TTS provider and sends
+// the resulting WAV audio to the client as a base64-encoded tts_audio message.
+// Returns timing/size data for interaction logging, or nil if TTS was skipped or failed.
+func (h *AudioWebSocketHandler) executeTTS(ctx context.Context, conn *websocket.Conn, text string, logger *slog.Logger) *ttsResult {
+	if h.TTSProvider == nil {
+		logger.Debug("text_to_speech skipped: TTS provider not configured")
+		return nil
+	}
+	if text == "" {
+		logger.Debug("text_to_speech skipped: empty text")
+		return nil
+	}
+
+	logger.Info("text_to_speech action", "text", text)
+
+	ttsCtx, ttsCancel := context.WithTimeout(ctx, intentTimeout)
+	defer ttsCancel()
+
+	requestAt := time.Now()
+	audioData, err := h.TTSProvider.Synthesize(ttsCtx, text)
+	latency := time.Since(requestAt)
+	if err != nil {
+		logger.Warn("TTS synthesis failed", "error", err, "text", text)
+		return nil
+	}
+
+	h.sendTTSAudio(ctx, conn, audioData, text, logger)
+	return &ttsResult{
+		latency:   latency,
+		audioSize: len(audioData),
+		requestAt: requestAt,
+	}
 }

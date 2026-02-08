@@ -593,6 +593,8 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	_ = llmLog // will be used by saveInteraction in task 215
 
 	// 7. Execute actions from LLM response
+	var ttsLog *db.TTSLog
+	var bufferLog *db.BufferLog
 	for _, action := range result.Actions {
 		if ctx.Err() != nil {
 			logger.Debug("context canceled, stopping action execution")
@@ -604,10 +606,12 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 
 			// Trim audio buffer at instruction boundary
 			state.mu.Lock()
+			bytesBeforeTrim := state.webmParser.BufferLen()
+			var trimTimeMs uint64
 			if action.InstructionEndWordIdx >= 0 && action.InstructionEndWordIdx < len(words) {
 				endWord := words[action.InstructionEndWordIdx]
 				// Convert word end time (seconds) to cluster timecode (milliseconds)
-				trimTimeMs := uint64(endWord.End * 1000)
+				trimTimeMs = uint64(endWord.End * 1000)
 				trimmed := state.webmParser.TrimBefore(trimTimeMs)
 				if trimmed == 0 {
 					// TrimBefore couldn't find cluster boundaries — clear buffer
@@ -622,13 +626,26 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 				// No valid word index — clear the entire buffer
 				state.webmParser.Clear()
 			}
+			bytesAfterTrim := state.webmParser.BufferLen()
 			state.accumulatedWords = nil
 			state.trailingSilenceDetected = false
 			state.bufferStart = time.Now()
 			state.mu.Unlock()
 
+			bufferLog = &db.BufferLog{
+				TrimTimeMs:      int64(trimTimeMs),
+				BytesBeforeTrim: bytesBeforeTrim,
+				BytesAfterTrim:  bytesAfterTrim,
+			}
+
 		case "text_to_speech":
-			h.executeTTS(ctx, conn, action.Text, logger)
+			if tr := h.executeTTS(ctx, conn, action.Text, logger); tr != nil {
+				ttsLog = &db.TTSLog{
+					LatencyMs:      tr.latency.Milliseconds(),
+					AudioSizeBytes: tr.audioSize,
+					RequestAt:      tr.requestAt,
+				}
+			}
 
 		case "wait_for_more":
 			logger.Debug("wait_for_more action received", "reason", action.Reason)
@@ -638,8 +655,17 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 			state.mu.Lock()
 			state.bufferStart = time.Now()
 			state.mu.Unlock()
+
+			bufferLog = &db.BufferLog{
+				AccumulatedTranscript: transcript,
+			}
 		}
 	}
+
+	// Compute total latency (threshold fire to end of all actions)
+	totalLatency := time.Since(sttRequestAt)
+
+	_, _, _ = ttsLog, bufferLog, totalLatency // will be used by saveInteraction in task 215
 }
 
 // processTranscript uses LLM to process transcript with word-level data.
@@ -707,34 +733,6 @@ func (h *AudioWebSocketHandler) executeShowMedia(ctx context.Context, conn *webs
 
 	// Send media to client
 	h.sendMedia(ctx, conn, subject, mediaSet, logger)
-}
-
-// executeTTS synthesizes speech from text via the TTS provider and sends
-// the resulting WAV audio to the client as a base64-encoded tts_audio message.
-// If the TTS provider is not configured or fails, a warning is logged and
-// execution continues (TTS is non-critical).
-func (h *AudioWebSocketHandler) executeTTS(ctx context.Context, conn *websocket.Conn, text string, logger *slog.Logger) {
-	if h.TTSProvider == nil {
-		logger.Debug("text_to_speech skipped: TTS provider not configured")
-		return
-	}
-	if text == "" {
-		logger.Debug("text_to_speech skipped: empty text")
-		return
-	}
-
-	logger.Info("text_to_speech action", "text", text)
-
-	ttsCtx, ttsCancel := context.WithTimeout(ctx, intentTimeout)
-	defer ttsCancel()
-
-	audioData, err := h.TTSProvider.Synthesize(ttsCtx, text)
-	if err != nil {
-		logger.Warn("TTS synthesis failed", "error", err, "text", text)
-		return
-	}
-
-	h.sendTTSAudio(ctx, conn, audioData, text, logger)
 }
 
 // transcribeAudio sends audio to whisper-server and returns the full response
