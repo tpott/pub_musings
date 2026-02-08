@@ -146,7 +146,7 @@ func (db *DB) Ping() error {
 }
 
 // Init initializes the database schema and seeds the concepts table.
-// Also creates auth tables (users, sessions, tokens, login_attempts).
+// Also creates auth tables and interaction logging tables.
 func (db *DB) Init() error {
 	// Create tables
 	if _, err := db.conn.Exec(schema); err != nil {
@@ -155,6 +155,11 @@ func (db *DB) Init() error {
 
 	// Create auth tables
 	if err := db.InitAuth(); err != nil {
+		return err
+	}
+
+	// Create interaction logging tables
+	if err := db.InitInteractions(); err != nil {
 		return err
 	}
 

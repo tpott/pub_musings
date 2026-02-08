@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 181 tasks completed.
+Production-ready voice-controlled web app for children. 182 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,13 +32,12 @@ Production-ready voice-controlled web app for children. 181 tasks completed.
 
 ## Last Completed
 
-- Task 209 (2026-02-08): Auth E2E integration tests
-  - peekaboo-auth.spec.ts: 17 Playwright tests covering full auth flows
-  - Registration: success, duplicate email, client-side validation
-  - Login: success redirect, wrong password, unverified email, lockout, TOTP flow, validation
-  - Email verification: valid/expired/missing token
-  - Magic link: valid token redirect, expired/missing token
-  - Navigation: cross-links between login and register pages
+- Task 211 (2026-02-08): Interaction logging database schema
+  - db_interactions.go: interactions table with all columns from spec
+  - InteractionLog, STTLog, LLMLog, TTSLog, BufferLog structs
+  - InsertInteraction and GetInteraction with full roundtrip
+  - user_id/session_id nullable for anonymous users
+  - 7 tests: table, indexes, full roundtrip, anonymous, wait_for_more, TTS, idempotent
 
 ## Milestone History
 
@@ -88,3 +87,4 @@ Production-ready voice-controlled web app for children. 181 tasks completed.
 - Task 207 (2026-02-08): Frontend login/register pages (auth.ts, login.astro, register.astro, 22 tests)
 - Task 208 (2026-02-08): Email verification and magic link pages (verify-email.astro, magic-link.astro, 9 tests)
 - Task 209 (2026-02-08): Auth E2E integration tests (17 Playwright tests for auth flows)
+- Task 211 (2026-02-08): Interaction logging DB schema (InteractionLog structs, InsertInteraction, 7 tests)
