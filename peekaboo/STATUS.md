@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 207 tasks completed.
+Production-ready voice-controlled web app for children. 208 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,13 @@ Production-ready voice-controlled web app for children. 207 tasks completed.
 
 ## Last Completed
 
-- Task 236 (2026-02-08): Add feedback fetch pipeline
-  - GET /api/admin/feedback endpoint with auth + TRUSTED_USERS authorization
-  - ListFeedback DB function with status/limit/after filters
-  - scripts/fetch-feedback.py (stdlib Python, .feedback-cursor, FEEDBACK.md output)
-  - 14 admin handler tests, 6 DB tests
-  - Updated .gitignore, .env.example, CLAUDE.md env var table
+- Task 235 (2026-02-08): Implement ResendEmailSender for production email delivery
+  - email/resend.go: ResendEmailSender wrapping resend-go/v3, implements api.EmailSender
+  - email/templates.go: HTML+text templates for verification and magic link emails
+  - email/mock.go: MockEmailSender for test use
+  - email/resend_test.go: 10 tests (mock, templates, construction)
+  - main.go: RESEND_API_KEY → ResendEmailSender, else LogEmailSender fallback
+  - Env vars: RESEND_API_KEY, EMAIL_FROM, APP_URL
 
 ## Milestone History
 
@@ -106,4 +107,5 @@ Production-ready voice-controlled web app for children. 207 tasks completed.
 - Tasks 227-230 (2026-02-08): Security/quality: io.LimitReader health drains, Permissions-Policy docs, innerHTML→replaceChildren, ebml error logging
 - Task 231 (2026-02-08): Frontend CSRF token integration (csrf.ts module, 14 tests, all POST callers updated)
 - Task 232 (2026-02-08): Logout UI button + auth.ts logout() (LogoutButton.astro, 5 unit + 2 E2E tests)
+- Task 235 (2026-02-08): ResendEmailSender for production email delivery (resend-go/v3, 10 tests)
 - Tasks 233-234 (2026-02-08): Rate limiter IP validation (net.ParseIP, strings.Cut, 8 new tests)

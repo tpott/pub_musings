@@ -29,6 +29,7 @@ cd backend && go test -v ./...
 cd backend && go test ./api
 cd backend && go test ./crypto
 cd backend && go test ./db
+cd backend && go test ./email
 cd backend && go test ./llm
 cd backend && go test ./tts
 
@@ -110,6 +111,9 @@ sops -d secrets.enc.yaml > .env
 | `HTTPS_ONLY` | Set Secure flag on cookies | `false` |
 | `INTERACTION_LOG_AUDIO` | Save audio blobs to disk for interaction logs | `false` |
 | `INTERACTION_RETENTION_DAYS` | Days to retain interaction audio blobs before cleanup | `30` |
+| `RESEND_API_KEY` | Resend API key for sending emails (omit for LogEmailSender) | - |
+| `EMAIL_FROM` | Sender email address for transactional emails | `noreply@peekaboo.pottingers.us` |
+| `APP_URL` | Base URL for email links (verification, magic link) | `http://localhost:4321` |
 | `TRUSTED_USERS` | Comma-separated user IDs for admin endpoints | - |
 | `PROD_HOST` | Production host URL (for scripts/fetch-feedback.py) | - |
 | `API_SESSION_ID` | Session token for admin scripts | - |

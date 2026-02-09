@@ -404,3 +404,22 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 **Decision:** Implement with stdlib (`crypto/hmac`, `crypto/sha1`, `encoding/base32`, `encoding/binary`). The algorithm is simple enough that an external dependency adds more risk (supply chain) than value.
 
 **Outcome:** 127 lines in `auth/totp.go`. Validated against RFC 6238 Appendix B test vectors. Supports ±1 period clock skew, 6-digit codes, 30-second periods, base32-encoded 20-byte secrets, and `otpauth://` URI generation for authenticator apps.
+
+---
+
+### 2026-02-08: resend-go/v3 for production email delivery
+
+**Context:** Task 235 required implementing production email sending. The existing `api.EmailSender` interface had a `LogEmailSender` dev stub.
+
+**Options considered:**
+- resend-go/v3: Official Resend Go SDK, actively maintained, already used in subtitler project (v2)
+- stdlib net/smtp: No dependency, but requires SMTP server setup (MX records, SPF, DKIM)
+- SendGrid/Mailgun: Heavier SDKs with more features than needed
+
+**Decision:** Use `github.com/resend/resend-go/v3`. Same vendor as subtitler (proven pattern), minimal API surface (just `Emails.Send`), v3 adds `SendWithContext` for cancellation support. The subtitler project uses v2 but v3 is backward-compatible.
+
+**Sources:**
+- https://pkg.go.dev/github.com/resend/resend-go/v3
+- subtitler/backend/email/ (reference implementation)
+
+**Outcome:** 4 files in `email/` package (resend.go, templates.go, mock.go, resend_test.go), 10 tests passing. Clean interface adaptation: peekaboo's `EmailSender` is simpler than subtitler's `EmailService` (no context, no generic `SendEmail`).

@@ -16,6 +16,7 @@ import (
 	"github.com/tpott/pub_musings/peekaboo/backend/api"
 	"github.com/tpott/pub_musings/peekaboo/backend/crypto"
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
+	"github.com/tpott/pub_musings/peekaboo/backend/email"
 	"github.com/tpott/pub_musings/peekaboo/backend/llm"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 	"github.com/tpott/pub_musings/peekaboo/backend/tts"
@@ -122,8 +123,23 @@ func main() {
 	// Initialize CSRF secret from env var or generate random one
 	csrfSecret := initCSRFSecret()
 
-	// Auth endpoints
-	authHandler := api.NewAuthHandler(database, nil) // nil = LogEmailSender for dev
+	// Auth endpoints — use Resend when API key is configured, otherwise log-only
+	var emailSender api.EmailSender
+	if resendKey := os.Getenv("RESEND_API_KEY"); resendKey != "" {
+		emailFrom := os.Getenv("EMAIL_FROM")
+		if emailFrom == "" {
+			emailFrom = "noreply@peekaboo.pottingers.us"
+		}
+		appURL := os.Getenv("APP_URL")
+		if appURL == "" {
+			appURL = "http://localhost:4321"
+		}
+		emailSender = email.NewResendEmailSender(resendKey, emailFrom, appURL)
+		slog.Info("email sending enabled via Resend", "from", emailFrom)
+	} else {
+		slog.Info("email sending disabled (RESEND_API_KEY not set, using LogEmailSender)")
+	}
+	authHandler := api.NewAuthHandler(database, emailSender) // nil falls back to LogEmailSender
 	authHandler.CSRFSecret = csrfSecret
 	resendVerificationLimiter := api.NewRateLimiter(3, 15*time.Minute)
 	magicLinkLimiter := api.NewRateLimiter(5, time.Minute)
