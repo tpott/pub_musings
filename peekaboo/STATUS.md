@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 211 tasks completed.
+Production-ready voice-controlled web app for children. 213 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,9 +32,10 @@ Production-ready voice-controlled web app for children. 211 tasks completed.
 
 ## Last Completed
 
-- Task 240 (2026-02-08): E2E tests for settings page and TOTP flows
-  - 11 Playwright tests: auth redirect, account info, TOTP setup/enable/disable, cancel, button visibility
-  - Fixed setup-success element placement (moved outside totp-setup-flow for visibility after hide)
+- Tasks 241-242 (2026-02-08): ProcessTranscript test coverage for LLM providers
+  - 13 Anthropic tests in anthropic_transcript_test.go (491 lines)
+  - 15 OpenAI tests in openai_transcript_test.go (494 lines)
+  - Covers: success paths, multi-action, show_media enforcement, API errors, malformed JSON, invalid tool inputs, context cancellation, network errors, request structure verification
 
 ## Milestone History
 
@@ -107,3 +108,4 @@ Production-ready voice-controlled web app for children. 211 tasks completed.
 - Task 239 (2026-02-08): Account settings page with TOTP management (SettingsButton, settings.astro)
 - Task 240 (2026-02-08): E2E tests for settings page (11 Playwright tests, setup-success fix)
 - Tasks 233-234 (2026-02-08): Rate limiter IP validation (net.ParseIP, strings.Cut, 8 new tests)
+- Tasks 241-242 (2026-02-08): LLM ProcessTranscript test coverage (28 new tests across 2 files)

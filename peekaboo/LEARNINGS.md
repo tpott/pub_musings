@@ -423,3 +423,13 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 - subtitler/backend/email/ (reference implementation)
 
 **Outcome:** 4 files in `email/` package (resend.go, templates.go, mock.go, resend_test.go), 10 tests passing. Clean interface adaptation: peekaboo's `EmailSender` is simpler than subtitler's `EmailService` (no context, no generic `SendEmail`).
+
+---
+
+### 2026-02-08: json.RawMessage in test mock responses must be valid JSON
+
+**Problem:** When writing tests for ProcessTranscript with invalid tool inputs, using `{not json}` as the Input field of a mock anthropicContentBlock caused the entire JSON response encoding to fail silently (the json.RawMessage is embedded in the response struct). The test hit `decode response` error instead of the intended `unmarshal show_media input` error.
+
+**Solution:** Use JSON that is structurally valid but type-incorrect for the target struct (e.g., `{"subject": 123}` instead of `{"subject": "cat"}`). This passes the outer JSON decode but fails on `json.Unmarshal` into the typed struct because `123` is not a string.
+
+**Lesson:** When testing JSON unmarshaling errors within nested structures using mock HTTP servers, invalid JSON in a `json.RawMessage` field will break the parent struct's encoding. Use type-mismatch JSON instead (wrong types, not broken syntax).
