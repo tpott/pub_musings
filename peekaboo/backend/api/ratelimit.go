@@ -3,7 +3,9 @@ package api
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -158,18 +160,20 @@ func getClientIP(r *http.Request) string {
 	if TrustProxyHeaders {
 		// Check X-Forwarded-For first (comma-separated list, first is client)
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// Take the first IP in the list
-			for i := 0; i < len(xff); i++ {
-				if xff[i] == ',' {
-					return xff[:i]
-				}
+			first, _, _ := strings.Cut(xff, ",")
+			first = strings.TrimSpace(first)
+			if net.ParseIP(first) != nil {
+				return first
 			}
-			return xff
+			slog.Debug("invalid IP in X-Forwarded-For, falling back to RemoteAddr", "value", first)
 		}
 
 		// Check X-Real-IP
 		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			return xri
+			if net.ParseIP(xri) != nil {
+				return xri
+			}
+			slog.Debug("invalid IP in X-Real-IP, falling back to RemoteAddr", "value", xri)
 		}
 	}
 

@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 203 tasks completed.
+Production-ready voice-controlled web app for children. 205 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,12 +32,10 @@ Production-ready voice-controlled web app for children. 203 tasks completed.
 
 ## Last Completed
 
-- Task 232 (2026-02-08): Add logout UI button and functionality
-  - auth.ts: Added logout() function that POSTs to /api/auth/logout with CSRF token, clears cached token
-  - LogoutButton.astro: New component - checks /api/auth/me on load, shows button in top-left when authenticated
-  - index.astro: Added LogoutButton to main page
-  - 5 new unit tests for logout in auth.test.ts
-  - 2 new E2E tests: logout flow with redirect, button hidden when unauthenticated
+- Tasks 233-234 (2026-02-08): Harden getClientIP() in rate limiter
+  - Validate X-Real-IP and X-Forwarded-For with net.ParseIP, fall back to RemoteAddr on invalid
+  - Replace byte-by-byte comma search with strings.Cut + strings.TrimSpace
+  - 8 new test cases (malformed IPs, IPv6, spaces, fallback chains)
 
 ## Milestone History
 
@@ -106,3 +104,4 @@ Production-ready voice-controlled web app for children. 203 tasks completed.
 - Tasks 227-230 (2026-02-08): Security/quality: io.LimitReader health drains, Permissions-Policy docs, innerHTML→replaceChildren, ebml error logging
 - Task 231 (2026-02-08): Frontend CSRF token integration (csrf.ts module, 14 tests, all POST callers updated)
 - Task 232 (2026-02-08): Logout UI button + auth.ts logout() (LogoutButton.astro, 5 unit + 2 E2E tests)
+- Tasks 233-234 (2026-02-08): Rate limiter IP validation (net.ParseIP, strings.Cut, 8 new tests)

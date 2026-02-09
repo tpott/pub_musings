@@ -369,6 +369,50 @@ func TestGetClientIP_TrustProxy(t *testing.T) {
 			xri:        "2.2.2.2",
 			expected:   "1.1.1.1",
 		},
+		{
+			name:       "X-Forwarded-For with spaces",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "  192.168.1.1 , 10.0.0.1",
+			expected:   "192.168.1.1",
+		},
+		{
+			name:       "invalid X-Real-IP falls back to RemoteAddr",
+			remoteAddr: "10.0.0.1:12345",
+			xri:        "not-an-ip",
+			expected:   "10.0.0.1",
+		},
+		{
+			name:       "invalid X-Forwarded-For falls back to RemoteAddr",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "garbage, 10.0.0.1",
+			expected:   "10.0.0.1",
+		},
+		{
+			name:       "invalid X-Forwarded-For falls through to valid X-Real-IP",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "not-valid",
+			xri:        "192.168.1.1",
+			expected:   "192.168.1.1",
+		},
+		{
+			name:       "both headers invalid falls back to RemoteAddr",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "abc",
+			xri:        "def",
+			expected:   "10.0.0.1",
+		},
+		{
+			name:       "X-Forwarded-For IPv6",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "::1",
+			expected:   "::1",
+		},
+		{
+			name:       "X-Real-IP IPv6",
+			remoteAddr: "10.0.0.1:12345",
+			xri:        "2001:db8::1",
+			expected:   "2001:db8::1",
+		},
 	}
 
 	for _, tt := range tests {
