@@ -203,6 +203,36 @@ cd frontend && npm run dev
 - **Don't use self-signed certificates** - browsers will show warnings and may block microphone access
 - **Verify certificate validity** - test with `curl -v https://peekaboo.example.com/health`
 
+## Email Configuration
+
+Peekaboo uses [Resend](https://resend.com) for transactional email (verification and magic link emails). Without configuration, emails are logged to stdout instead of being sent.
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `RESEND_API_KEY` | Resend API key (omit for dev mode) | - |
+| `EMAIL_FROM` | Sender address | `noreply@peekaboo.pottingers.us` |
+| `APP_URL` | Base URL for email links | `http://localhost:4321` |
+
+### Production Setup
+
+1. Create a [Resend account](https://resend.com) and verify your sending domain
+2. Add the API key and app URL to your secrets:
+
+```bash
+sops secrets.enc.yaml
+# Add:
+#   RESEND_API_KEY: re_xxxxxxxxxxxxx
+#   APP_URL: https://peekaboo.pottingers.us
+```
+
+3. Re-decrypt secrets to `.env` and restart the backend
+
+### Development Mode
+
+When `RESEND_API_KEY` is not set, the backend uses `LogEmailSender` which logs email details (recipient, token) to stdout. This is suitable for local development — check server logs for verification tokens and magic link tokens.
+
 ## Backup and Recovery
 
 ### Database Backup
