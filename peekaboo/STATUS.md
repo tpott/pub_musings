@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 205 tasks completed.
+Production-ready voice-controlled web app for children. 206 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,10 @@ Production-ready voice-controlled web app for children. 205 tasks completed.
 
 ## Last Completed
 
-- Tasks 233-234 (2026-02-08): Harden getClientIP() in rate limiter
-  - Validate X-Real-IP and X-Forwarded-For with net.ParseIP, fall back to RemoteAddr on invalid
-  - Replace byte-by-byte comma search with strings.Cut + strings.TrimSpace
-  - 8 new test cases (malformed IPs, IPv6, spaces, fallback chains)
+- Task 237 (2026-02-08): Compact oversized files for context-window efficiency
+  - TASKS.jsonl: 201→3 lines (removed 198 done entries, preserved in git history)
+  - docs/API.md: 1205→267 lines (endpoint summary tables, links to specs/auth.md for details)
+  - backend/api/websocket.go: 980→512 lines (split audio processing into websocket_audio.go at 482 lines)
 
 ## Milestone History
 
