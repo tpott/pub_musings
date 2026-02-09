@@ -65,12 +65,14 @@ import '../styles/global.css';
             </div>
           </section>
 
+          <!-- TOTP success message (outside flow so it stays visible after flow hides) -->
+          <div class="form-success hidden" id="setup-success" role="status"></div>
+
           <!-- TOTP setup flow -->
           <section id="totp-setup-flow" class="settings-section hidden">
             <h2>Set Up Two-Factor Authentication</h2>
 
             <div class="form-error hidden" id="setup-error" role="alert"></div>
-            <div class="form-success hidden" id="setup-success" role="status"></div>
 
             <div id="qr-step">
               <p class="setup-instructions">

@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 210 tasks completed.
+Production-ready voice-controlled web app for children. 211 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 324 unit tests, 44 E2E tests
+- **Astro frontend** with TypeScript, 324 unit tests, 55 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,9 +32,9 @@ Production-ready voice-controlled web app for children. 210 tasks completed.
 
 ## Last Completed
 
-- Task 239 (2026-02-08): Account settings page with TOTP management
-  - settings.astro: Auth-gated page with account info, TOTP setup/enable/disable flows
-  - SettingsButton.astro: Gear icon, visible when authenticated, positioned next to LogoutButton
+- Task 240 (2026-02-08): E2E tests for settings page and TOTP flows
+  - 11 Playwright tests: auth redirect, account info, TOTP setup/enable/disable, cancel, button visibility
+  - Fixed setup-success element placement (moved outside totp-setup-flow for visibility after hide)
 
 ## Milestone History
 
@@ -105,4 +105,5 @@ Production-ready voice-controlled web app for children. 210 tasks completed.
 - Task 232 (2026-02-08): Logout UI button + auth.ts logout() (LogoutButton.astro, 5 unit + 2 E2E tests)
 - Tasks 235, 238 (2026-02-08): Resend email delivery + docs (.env.example, DEPLOY.md)
 - Task 239 (2026-02-08): Account settings page with TOTP management (SettingsButton, settings.astro)
+- Task 240 (2026-02-08): E2E tests for settings page (11 Playwright tests, setup-success fix)
 - Tasks 233-234 (2026-02-08): Rate limiter IP validation (net.ParseIP, strings.Cut, 8 new tests)
