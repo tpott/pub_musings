@@ -151,6 +151,10 @@ func main() {
 	feedbackLimiter := api.NewRateLimiter(5, time.Minute)
 	mux.Handle("POST /api/feedback", api.RateLimitMiddleware(api.NewFeedbackHandler(database), feedbackLimiter))
 
+	// Admin endpoints (requires TRUSTED_USERS)
+	adminHandler := api.NewAdminHandler(database, os.Getenv("TRUSTED_USERS"))
+	mux.HandleFunc("GET /api/admin/feedback", adminHandler.HandleListFeedback)
+
 	// Frontend log forwarding (development only, gated by FORWARD_FRONTEND_LOGS=true)
 	if strings.EqualFold(os.Getenv("FORWARD_FRONTEND_LOGS"), "true") {
 		mux.Handle("POST /api/log", api.NewLogHandler())

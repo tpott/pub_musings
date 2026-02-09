@@ -110,6 +110,9 @@ sops -d secrets.enc.yaml > .env
 | `HTTPS_ONLY` | Set Secure flag on cookies | `false` |
 | `INTERACTION_LOG_AUDIO` | Save audio blobs to disk for interaction logs | `false` |
 | `INTERACTION_RETENTION_DAYS` | Days to retain interaction audio blobs before cleanup | `30` |
+| `TRUSTED_USERS` | Comma-separated user IDs for admin endpoints | - |
+| `PROD_HOST` | Production host URL (for scripts/fetch-feedback.py) | - |
+| `API_SESSION_ID` | Session token for admin scripts | - |
 
 > **Note on DB connections:** SQLite only supports one writer at a time, even with WAL mode. The default of 1 connection is recommended. Higher values may improve read performance but can cause "database is locked" errors on write-heavy workloads.
 

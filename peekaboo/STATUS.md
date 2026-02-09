@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 206 tasks completed.
+Production-ready voice-controlled web app for children. 207 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,10 +32,12 @@ Production-ready voice-controlled web app for children. 206 tasks completed.
 
 ## Last Completed
 
-- Task 237 (2026-02-08): Compact oversized files for context-window efficiency
-  - TASKS.jsonl: 201→3 lines (removed 198 done entries, preserved in git history)
-  - docs/API.md: 1205→267 lines (endpoint summary tables, links to specs/auth.md for details)
-  - backend/api/websocket.go: 980→512 lines (split audio processing into websocket_audio.go at 482 lines)
+- Task 236 (2026-02-08): Add feedback fetch pipeline
+  - GET /api/admin/feedback endpoint with auth + TRUSTED_USERS authorization
+  - ListFeedback DB function with status/limit/after filters
+  - scripts/fetch-feedback.py (stdlib Python, .feedback-cursor, FEEDBACK.md output)
+  - 14 admin handler tests, 6 DB tests
+  - Updated .gitignore, .env.example, CLAUDE.md env var table
 
 ## Milestone History
 

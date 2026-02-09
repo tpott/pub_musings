@@ -36,6 +36,8 @@ type Feedback struct {
 	PageURL      string
 	UserAgent    *string // nil if not provided
 	IPAddress    *string // nil if not provided
+	CreatedAt    string  // populated by ListFeedback
+	Status       string  // populated by ListFeedback
 }
 
 // schema defines the database tables and indexes.
@@ -263,6 +265,99 @@ func (db *DB) InsertFeedback(f *Feedback) error {
 		return fmt.Errorf("insert feedback: %w", err)
 	}
 	return nil
+}
+
+// ListFeedback retrieves feedback items with optional filters.
+// status: "new", "reviewed", or "" for all. limit: max items (capped at 100).
+// after: RFC3339 timestamp cursor — only items created after this time are returned.
+// Returns (items, total_matching_count, error).
+func (db *DB) ListFeedback(status string, limit int, after string) ([]*Feedback, int, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	// Build WHERE clause
+	var conditions []string
+	var args []interface{}
+
+	if status != "" && status != "all" {
+		conditions = append(conditions, "status = ?")
+		args = append(args, status)
+	}
+	if after != "" {
+		conditions = append(conditions, "created_at > datetime(?)")
+		args = append(args, after)
+	}
+
+	where := ""
+	if len(conditions) > 0 {
+		where = "WHERE " + conditions[0]
+		for _, c := range conditions[1:] {
+			where += " AND " + c
+		}
+	}
+
+	// Count total matching
+	var total int
+	countQuery := "SELECT COUNT(*) FROM feedback " + where
+	if err := db.conn.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count feedback: %w", err)
+	}
+
+	// Fetch items
+	query := fmt.Sprintf(`
+		SELECT id, feedback_type, rating, message, session_id, concept_id,
+		       transcript, page_url, user_agent, ip_address, created_at, status
+		FROM feedback %s
+		ORDER BY created_at DESC
+		LIMIT ?
+	`, where)
+	args = append(args, limit)
+
+	rows, err := db.conn.Query(query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query feedback: %w", err)
+	}
+	defer rows.Close()
+
+	var items []*Feedback
+	for rows.Next() {
+		f := &Feedback{}
+		var rating sql.NullInt64
+		var conceptID, transcript, userAgent, ipAddress sql.NullString
+
+		if err := rows.Scan(
+			&f.ID, &f.FeedbackType, &rating, &f.Message, &f.SessionID,
+			&conceptID, &transcript, &f.PageURL, &userAgent, &ipAddress,
+			&f.CreatedAt, &f.Status,
+		); err != nil {
+			return nil, 0, fmt.Errorf("scan feedback: %w", err)
+		}
+
+		if rating.Valid {
+			r := int(rating.Int64)
+			f.Rating = &r
+		}
+		if conceptID.Valid {
+			f.ConceptID = &conceptID.String
+		}
+		if transcript.Valid {
+			f.Transcript = &transcript.String
+		}
+		if userAgent.Valid {
+			f.UserAgent = &userAgent.String
+		}
+		if ipAddress.Valid {
+			f.IPAddress = &ipAddress.String
+		}
+
+		items = append(items, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate feedback: %w", err)
+	}
+
+	return items, total, nil
 }
 
 // getEnvInt reads an integer from an environment variable, returning defaultVal if not set or invalid.

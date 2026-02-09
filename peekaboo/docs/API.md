@@ -23,6 +23,7 @@ http://localhost:8080
 | GET | `/data/media/{concept}/{set}/{file}` | No | — | Serve media files (auto-decrypts if age key set) |
 | POST | `/api/speak` | No | 10/min | Text-to-speech via Piper (optional) |
 | POST | `/api/feedback` | No | 5/min | Submit user feedback |
+| GET | `/api/admin/feedback` | Yes+TRUSTED | — | List feedback (admin) |
 | GET | `/ws/audio` | No* | 10/min | WebSocket upgrade for audio streaming |
 | POST | `/api/auth/register` | No | — | Create account ([details](../specs/auth.md)) |
 | POST | `/api/auth/login` | No | Lockout 5/15min | Login ([details](../specs/auth.md)) |
@@ -148,6 +149,31 @@ Content-Type: application/json
 | `context.user_agent` | string | No | Browser user agent |
 
 Response: `{"id": "feedback_abc123...", "status": "ok"}`
+
+### List Feedback (Admin)
+
+```
+GET /api/admin/feedback
+Authorization: Bearer <session_token>
+```
+
+Requires authenticated user whose ID is in `TRUSTED_USERS` env var. Returns 403 if unauthorized or `TRUSTED_USERS` is not configured.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `status` | string | `new` | `new`, `reviewed`, or `all` |
+| `limit` | integer | `50` | Max items (1-100) |
+| `after` | string | — | RFC3339 cursor for pagination |
+
+```json
+{
+  "feedback": [
+    {"id": "feedback_abc...", "type": "bug", "rating": 4, "message": "...", "page_url": "/", "created_at": "2026-02-08T...", "status": "new"}
+  ],
+  "total": 42,
+  "limit": 50
+}
+```
 
 ## WebSocket Audio Streaming
 

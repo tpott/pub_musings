@@ -27,3 +27,7 @@ dist/
 
 # Test results (Playwright)
 test-results/
+
+# Feedback fetch
+.feedback-cursor
+FEEDBACK.md
