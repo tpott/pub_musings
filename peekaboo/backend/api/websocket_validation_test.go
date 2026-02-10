@@ -58,23 +58,12 @@ func TestAudioWebSocketHandler_EmptyTranscript(t *testing.T) {
 		t.Fatalf("failed to send stop_recording: %v", err)
 	}
 
-	// Should receive error about no speech detected
-	_, respData, err := conn.Read(ctx)
-	if err != nil {
-		t.Fatalf("failed to read response: %v", err)
-	}
-
-	var errMsg ErrorMessage
-	if err := json.Unmarshal(respData, &errMsg); err != nil {
-		t.Fatalf("failed to unmarshal error: %v", err)
-	}
-
-	if errMsg.Type != MsgTypeError {
-		t.Errorf("expected error type, got %s", errMsg.Type)
-	}
-
-	if errMsg.Message != "No speech detected. Please try again." {
-		t.Errorf("expected 'No speech detected' error, got %s", errMsg.Message)
+	// Empty transcripts are silently ignored — no error sent to client
+	readCtx, readCancel := context.WithTimeout(ctx, 1*time.Second)
+	defer readCancel()
+	_, _, err = conn.Read(readCtx)
+	if err == nil {
+		t.Error("expected no message for empty transcript, but received one")
 	}
 }
 
@@ -122,23 +111,12 @@ func TestAudioWebSocketHandler_WhitespaceOnlyTranscript(t *testing.T) {
 		t.Fatalf("failed to send stop_recording: %v", err)
 	}
 
-	// Should receive error about no speech detected
-	_, respData, err := conn.Read(ctx)
-	if err != nil {
-		t.Fatalf("failed to read response: %v", err)
-	}
-
-	var errMsg ErrorMessage
-	if err := json.Unmarshal(respData, &errMsg); err != nil {
-		t.Fatalf("failed to unmarshal error: %v", err)
-	}
-
-	if errMsg.Type != MsgTypeError {
-		t.Errorf("expected error type, got %s", errMsg.Type)
-	}
-
-	if errMsg.Message != "No speech detected. Please try again." {
-		t.Errorf("expected 'No speech detected' error, got %s", errMsg.Message)
+	// Whitespace-only transcripts are silently ignored — no error sent to client
+	readCtx, readCancel := context.WithTimeout(ctx, 1*time.Second)
+	defer readCancel()
+	_, _, err = conn.Read(readCtx)
+	if err == nil {
+		t.Error("expected no message for whitespace-only transcript, but received one")
 	}
 }
 

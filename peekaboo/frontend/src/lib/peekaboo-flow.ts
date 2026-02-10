@@ -291,9 +291,10 @@ export class PeekabooFlow {
     // Transcribe audio
     const transcript = await transcribeAudio(blob);
 
-    // Check for empty transcript (silence or no recognizable speech)
+    // Empty transcript means silence - silently reset to idle
     if (!transcript || transcript.trim() === '') {
-      throw new ApiError('No speech detected. Please try again.', 'client');
+      this.setState('idle');
+      return;
     }
 
     // Extract intent and fetch media

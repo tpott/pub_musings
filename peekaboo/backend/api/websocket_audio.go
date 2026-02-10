@@ -200,9 +200,9 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	logger.Info("transcription complete", "text", transcript)
 
 	// Check for empty transcript (silence or no recognizable speech)
+	// This is normal during continuous listening - don't send an error to the client
 	if strings.TrimSpace(transcript) == "" {
-		logger.Debug("empty transcript from whisper")
-		h.sendError(ctx, conn, "No speech detected. Please try again.", logger)
+		logger.Debug("empty transcript from whisper, ignoring")
 		return
 	}
 

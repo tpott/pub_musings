@@ -295,23 +295,22 @@ describe('PeekabooFlow', () => {
       expect(flow.getState()).toBe('error');
     });
 
-    it('transitions to error state on empty transcript', async () => {
+    it('silently resets to idle on empty transcript', async () => {
       (audioRecorder.transcribeAudio as Mock).mockResolvedValue('');
 
       await flow.startRecording();
       await flow.stopRecordingAndProcess();
 
-      expect(flow.getState()).toBe('error');
-      expect(mockReset).toHaveBeenCalledWith(expect.stringContaining('speech'));
+      expect(flow.getState()).toBe('idle');
     });
 
-    it('transitions to error state on whitespace-only transcript', async () => {
+    it('silently resets to idle on whitespace-only transcript', async () => {
       (audioRecorder.transcribeAudio as Mock).mockResolvedValue('   \n  ');
 
       await flow.startRecording();
       await flow.stopRecordingAndProcess();
 
-      expect(flow.getState()).toBe('error');
+      expect(flow.getState()).toBe('idle');
     });
 
     it('calls onError callback on failure', async () => {

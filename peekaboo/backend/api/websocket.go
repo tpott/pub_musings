@@ -139,10 +139,6 @@ type AudioWebSocketHandler struct {
 	IdleTimeout     time.Duration // Connection idle timeout
 	MaxMessageSize  int64         // Max binary message size
 
-	// Track sessions that have already received a TTS welcome greeting.
-	// Resets on server restart, which is acceptable.
-	greetedMu       sync.Mutex
-	greetedSessions map[string]bool
 }
 
 // NewAudioWebSocketHandler creates a new WebSocket handler.
@@ -362,23 +358,6 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	// Create context for this connection
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-
-	// Send TTS welcome greeting for authenticated user's first connection in this session
-	if wsUserID != "" && wsSessionID != "" && h.TTSProvider != nil {
-		h.greetedMu.Lock()
-		if h.greetedSessions == nil {
-			h.greetedSessions = make(map[string]bool)
-		}
-		alreadyGreeted := h.greetedSessions[wsSessionID]
-		if !alreadyGreeted {
-			h.greetedSessions[wsSessionID] = true
-		}
-		h.greetedMu.Unlock()
-
-		if !alreadyGreeted {
-			h.executeTTS(ctx, conn, "Welcome back!", logger)
-		}
-	}
 
 	// Start idle timeout goroutine
 	go h.idleTimeoutWatcher(ctx, cancel, conn, state, logger)

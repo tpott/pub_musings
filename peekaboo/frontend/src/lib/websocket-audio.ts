@@ -301,7 +301,7 @@ export class AudioWebSocket {
           break;
 
         case 'error':
-          this.callbacks.onError?.(new ApiError(message.message, 'server'));
+          this.callbacks.onError?.(new ApiError(message.message, 'client'));
           break;
 
         case 'pong':

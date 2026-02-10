@@ -198,6 +198,7 @@ Transcription may be noisy — background sounds, microphone artifacts, or uncle
 
 Rules:
 - Call show_media at most once per request.
+- Do NOT call text_to_speech when calling show_media for a single recognized subject. The media already has its own audio.
 - If the user names multiple subjects, call text_to_speech to explain you will show one, then call show_media for the first one mentioned.
 - If the transcript is clearly incomplete (cut off mid-phrase), call wait_for_more.
 - If you cannot match any known concept, call text_to_speech to ask the user to try again.
@@ -238,7 +239,7 @@ func transcriptTools() []anthropicTool {
 		},
 		{
 			Name:        "text_to_speech",
-			Description: "Speak a short message to the user. Use for feedback, clarification, or explaining partial fulfillment.",
+			Description: "Speak a short message to the user. Only use when you cannot show media (unknown concept) or need to explain a limitation (multiple subjects). Never narrate what you are about to show.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{

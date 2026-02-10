@@ -433,3 +433,13 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 **Solution:** Use JSON that is structurally valid but type-incorrect for the target struct (e.g., `{"subject": 123}` instead of `{"subject": "cat"}`). This passes the outer JSON decode but fails on `json.Unmarshal` into the typed struct because `123` is not a string.
 
 **Lesson:** When testing JSON unmarshaling errors within nested structures using mock HTTP servers, invalid JSON in a `json.RawMessage` field will break the parent struct's encoding. Use type-mismatch JSON instead (wrong types, not broken syntax).
+
+---
+
+### 2026-02-09: WebSocket error messages mapped to generic "Service temporarily unavailable"
+
+**Problem:** Users reported "Service temporarily unavailable - please try again" errors frequently. The backend sends specific error messages like "transcription failed" or "intent extraction failed", but the frontend WebSocket handler wrapped ALL error messages as `ApiError(message, 'server')`. The `getUserFriendlyMessage` function maps 'server' type to the generic string, discarding the backend's descriptive message.
+
+**Solution:** Changed WebSocket error type from 'server' to 'client' in `websocket-audio.ts`. The 'client' error type passes through the original message from `error.message`, so users now see the actual backend error ("transcription failed", etc.) instead of the generic message.
+
+**Lesson:** When proxying error messages from a backend through a classification layer, ensure the classification doesn't lose the original message. Use 'client' type for errors with meaningful backend messages; reserve 'server' type for truly opaque HTTP 5xx errors where no backend message is available.

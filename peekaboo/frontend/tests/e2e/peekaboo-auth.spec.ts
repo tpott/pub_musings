@@ -411,3 +411,40 @@ test.describe('Auth: Navigation Links', () => {
     await expect(loginLink).toContainText('Sign in');
   });
 });
+
+test.describe('Auth: Login Button', () => {
+  test('login button visible when not authenticated', async ({ page }) => {
+    await mockMeEndpoint(page, false);
+
+    await page.route('**/api/auth/csrf', route => {
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not authenticated' }),
+      });
+    });
+
+    await page.goto('/');
+
+    const loginBtn = page.locator('[data-testid="login-button"]');
+    await expect(loginBtn).toBeVisible({ timeout: 5000 });
+    await expect(loginBtn).toHaveAttribute('href', '/login');
+  });
+
+  test('login button hidden when authenticated', async ({ page }) => {
+    await mockMeEndpoint(page, true);
+
+    await page.route('**/api/auth/csrf', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ token: 'csrf-token-123' }),
+      });
+    });
+
+    await page.goto('/');
+
+    const loginBtn = page.locator('[data-testid="login-button"]');
+    await expect(loginBtn).toBeHidden();
+  });
+});

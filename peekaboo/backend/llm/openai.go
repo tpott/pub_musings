@@ -214,7 +214,7 @@ func (p *openaiProvider) ProcessTranscript(ctx context.Context, req TranscriptRe
 			Type: "function",
 			Function: openaiFunction{
 				Name:        "text_to_speech",
-				Description: "Speak a short message to the user.",
+				Description: "Speak a short message to the user. Only use when you cannot show media (unknown concept) or need to explain a limitation (multiple subjects). Never narrate what you are about to show.",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
