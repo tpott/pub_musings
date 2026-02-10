@@ -110,7 +110,9 @@ func TestOpenAIProcessTranscript_ShowMedia(t *testing.T) {
 	}
 }
 
-func TestOpenAIProcessTranscript_TTSThenShowMedia(t *testing.T) {
+func TestOpenAIProcessTranscript_TTSDroppedWithShowMedia(t *testing.T) {
+	// When LLM returns both TTS and show_media, TTS should be dropped
+	// because the media already has its own audio.
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := openaiTranscriptResponse([]toolCall{
 			{ID: "call_1", Type: "function", Function: functionCall{
@@ -133,17 +135,14 @@ func TestOpenAIProcessTranscript_TTSThenShowMedia(t *testing.T) {
 		t.Fatalf("ProcessTranscript failed: %v", err)
 	}
 
-	if len(result.Actions) != 2 {
-		t.Fatalf("Expected 2 actions, got %d", len(result.Actions))
+	if len(result.Actions) != 1 {
+		t.Fatalf("Expected 1 action (TTS dropped), got %d", len(result.Actions))
 	}
-	if result.Actions[0].Type != "text_to_speech" {
-		t.Errorf("Expected first action text_to_speech, got %s", result.Actions[0].Type)
+	if result.Actions[0].Type != "show_media" {
+		t.Errorf("Expected show_media action, got %s", result.Actions[0].Type)
 	}
-	if result.Actions[0].Text != "Here comes a cat!" {
-		t.Errorf("Unexpected TTS text: %s", result.Actions[0].Text)
-	}
-	if result.Actions[1].Type != "show_media" {
-		t.Errorf("Expected second action show_media, got %s", result.Actions[1].Type)
+	if result.Actions[0].Subject != "cat" {
+		t.Errorf("Expected subject cat, got %s", result.Actions[0].Subject)
 	}
 }
 

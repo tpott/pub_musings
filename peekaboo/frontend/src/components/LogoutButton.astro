@@ -30,6 +30,7 @@
     }
 
     btn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to log out?')) return;
       btn.disabled = true;
       try {
         await logout();

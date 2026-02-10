@@ -364,7 +364,7 @@ func parseOpenAIToolActions(calls []toolCall) (*TranscriptResult, error) {
 		}
 	}
 
-	return &TranscriptResult{Actions: actions}, nil
+	return &TranscriptResult{Actions: dropTTSWithShowMedia(actions)}, nil
 }
 
 // HealthCheck verifies the OpenAI API is reachable and API key is valid.

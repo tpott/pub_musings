@@ -476,6 +476,16 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 
 ---
 
+### 2026-02-10: Server-side TTS suppression as defense-in-depth
+
+**Problem:** User reported "app said 'here is a cat' after showing" — the LLM returned both `text_to_speech` and `show_media` tool calls, so the TTS narrated what was about to display. The system prompt said not to do this, but LLMs don't always follow instructions.
+
+**Solution:** Added `dropTTSWithShowMedia()` in `provider.go` that filters out `text_to_speech` actions when `show_media` is present. Called from both `parseToolActions()` (Anthropic) and `parseOpenAIToolActions()` (OpenAI) at the action-parsing layer, before actions reach the WebSocket handler.
+
+**Lesson:** Don't rely solely on LLM prompts to prevent unwanted behavior. Enforce constraints in code as defense-in-depth. The LLM prompt says "don't narrate when showing media" but the server-side filter guarantees it.
+
+---
+
 ### 2026-02-09: Audit agent false positives — always verify claims against code
 
 **Problem:** Deep inspection subagents reported 5 backend issues. Verification against actual code showed 2 were false: (1) "Missing context timeout in WebSocket LLM calls" — timeout was properly set in `processTranscript()` via `context.WithTimeout(ctx, intentTimeout)`. (2) "Readiness probe missing database ping" — `health.go` already included `h.DB.Ping()` in the readiness check.

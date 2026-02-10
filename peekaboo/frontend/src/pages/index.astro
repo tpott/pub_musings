@@ -22,12 +22,11 @@ import '../styles/global.css';
     <ThemeInit />
   </head>
   <body>
-    <a href="#main-content" class="skip-link">Skip to main content</a>
     <LoginButton />
     <LogoutButton />
     <SettingsButton />
     <ThemeToggle />
-    <main id="main-content" tabindex="-1">
+    <main>
       <h1 class="title">Peekaboo!</h1>
       <MediaDisplay />
       <MicButton />
@@ -131,31 +130,6 @@ import '../styles/global.css';
 </script>
 
 <style>
-  /* Skip to content link for keyboard navigation */
-  .skip-link {
-    position: absolute;
-    left: -9999px;
-    top: 0;
-    z-index: 9999;
-    padding: 0.75rem 1rem;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    text-decoration: none;
-    font-weight: 500;
-    border-radius: 0 0 0.5rem 0.5rem;
-  }
-
-  .skip-link:focus {
-    left: 0;
-    outline: 3px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-
-  /* Remove focus outline when main is focused via skip link */
-  #main-content:focus {
-    outline: none;
-  }
-
   .title {
     font-size: 2.5rem;
     font-weight: 700;

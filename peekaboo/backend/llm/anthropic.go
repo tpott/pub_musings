@@ -340,7 +340,7 @@ func (p *anthropicProvider) ProcessTranscript(ctx context.Context, req Transcrip
 }
 
 // parseToolActions extracts ToolActions from Anthropic content blocks.
-// Enforces at most one show_media action.
+// Enforces at most one show_media action and drops TTS when show_media is present.
 func parseToolActions(blocks []anthropicContentBlock) (*TranscriptResult, error) {
 	var actions []ToolAction
 	showMediaSeen := false
@@ -389,7 +389,7 @@ func parseToolActions(blocks []anthropicContentBlock) (*TranscriptResult, error)
 		}
 	}
 
-	return &TranscriptResult{Actions: actions}, nil
+	return &TranscriptResult{Actions: dropTTSWithShowMedia(actions)}, nil
 }
 
 // HealthCheck verifies the Anthropic API is reachable and API key is valid.

@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 236 tasks completed.
+Production-ready voice-controlled web app for children. 241 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -17,7 +17,7 @@ Production-ready voice-controlled web app for children. 236 tasks completed.
 - Day/night theme (light/dark/auto) with warm neutral palette
 - Feedback form with database persistence and rate limiting
 - Piper TTS integration (optional)
-- Accessibility: ARIA labels, skip-to-content, keyboard navigation, screen reader support
+- Accessibility: ARIA labels, keyboard navigation, screen reader support
 - Security: CSP headers, path traversal defense, URL validation, rate limiting, CORS
 - Structured logging, health probes, graceful shutdown
 
@@ -32,6 +32,12 @@ Production-ready voice-controlled web app for children. 236 tasks completed.
 
 ## Last Completed
 
+- Tasks 276-280 (2026-02-10): User feedback fixes
+  - Task 276: Remove skip-to-content links from all pages (user found them cluttering UI)
+  - Task 277: Add logout confirmation dialog (confirm() before logout)
+  - Task 278: Redirect authenticated users away from /login page
+  - Task 279: Investigate media 404 (could not reproduce, paths verified correct)
+  - Task 280: Server-side TTS suppression when show_media is present (dropTTSWithShowMedia)
 - Tasks 270-275 (2026-02-09): Deep inspection round 2 — bugs, hardening, docs
   - Task 270: Fix getClientIP IPv6 handling (use net.SplitHostPort, add IPv6 tests)
   - Task 271: Wrap localStorage in try-catch for private browsing compatibility

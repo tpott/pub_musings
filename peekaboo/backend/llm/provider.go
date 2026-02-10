@@ -58,6 +58,28 @@ type TranscriptResult struct {
 	InputText    string          // Formatted user message sent to LLM
 }
 
+// dropTTSWithShowMedia removes text_to_speech actions when show_media is present.
+// The media already has its own audio, so narrating what's about to show is unwanted.
+func dropTTSWithShowMedia(actions []ToolAction) []ToolAction {
+	hasShowMedia := false
+	for _, a := range actions {
+		if a.Type == "show_media" {
+			hasShowMedia = true
+			break
+		}
+	}
+	if !hasShowMedia {
+		return actions
+	}
+	filtered := make([]ToolAction, 0, len(actions))
+	for _, a := range actions {
+		if a.Type != "text_to_speech" {
+			filtered = append(filtered, a)
+		}
+	}
+	return filtered
+}
+
 // Provider is the interface for LLM providers.
 type Provider interface {
 	// ExtractIntent extracts a subject from text using function/tool calling.

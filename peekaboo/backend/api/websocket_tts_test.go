@@ -161,12 +161,11 @@ func TestTTSToolSendsAudio(t *testing.T) {
 	}
 }
 
-// TestTTSThenShowMediaMultiTool verifies that when the LLM returns both
-// text_to_speech and show_media tool calls, both are executed in order.
-// The client should receive tts_audio first, then media.
-func TestTTSThenShowMediaMultiTool(t *testing.T) {
+// TestShowMediaWithoutTTS verifies that when the LLM returns only show_media
+// (after the parser strips TTS), no TTS audio is played.
+func TestShowMediaWithoutTTS(t *testing.T) {
 	mockWhisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := WhisperResponse{Text: "show me a cat and a dog"}
+		resp := WhisperResponse{Text: "show me a cat"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -178,10 +177,6 @@ func TestTTSThenShowMediaMultiTool(t *testing.T) {
 	mockProvider := &capturingMockLLMProvider{
 		result: &llm.TranscriptResult{
 			Actions: []llm.ToolAction{
-				{
-					Type: "text_to_speech",
-					Text: "I can only show one at a time!",
-				},
 				{
 					Type:                  "show_media",
 					Subject:               "cat",
@@ -239,35 +234,15 @@ func TestTTSThenShowMediaMultiTool(t *testing.T) {
 		}
 	}
 
-	// Verify ordering: tts_audio should come before error (media lookup fails
-	// because no DB, which is fine — we're testing tool execution order).
-	ttsIdx := -1
-	errorIdx := -1
-	for i, msg := range messages {
-		switch msg["type"] {
-		case "tts_audio":
-			ttsIdx = i
-		case "error":
-			// show_media with nil DB produces "media lookup unavailable"
-			errMsg, _ := msg["message"].(string)
-			if strings.Contains(errMsg, "media") || strings.Contains(errMsg, "unavailable") {
-				errorIdx = i
-			}
+	// Verify no tts_audio message was sent
+	for _, msg := range messages {
+		if msg["type"] == "tts_audio" {
+			t.Error("unexpected tts_audio message — TTS should not play when showing media")
 		}
 	}
 
-	if ttsIdx == -1 {
-		t.Fatal("expected tts_audio message")
-	}
-	if errorIdx == -1 {
-		t.Fatal("expected error message from show_media (nil DB)")
-	}
-	if ttsIdx >= errorIdx {
-		t.Errorf("tts_audio (index %d) should come before show_media error (index %d)", ttsIdx, errorIdx)
-	}
-
-	// Verify TTS was called with the right text
-	if mockTTS.getLastText() != "I can only show one at a time!" {
-		t.Errorf("TTS text = %q, want %q", mockTTS.getLastText(), "I can only show one at a time!")
+	// Verify TTS provider was NOT called
+	if mockTTS.getCallCount() != 0 {
+		t.Errorf("TTS provider called %d times, want 0", mockTTS.getCallCount())
 	}
 }

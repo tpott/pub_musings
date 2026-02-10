@@ -22,7 +22,7 @@ import '../styles/global.css';
       </svg>
     </a>
     <ThemeToggle />
-    <main id="main-content" tabindex="-1">
+    <main>
       <div class="auth-card">
         <h1 class="auth-title">Sign In</h1>
 
@@ -84,7 +84,14 @@ import '../styles/global.css';
 </html>
 
 <script>
-  import { login, validateEmail, validatePassword } from '../lib/auth';
+  import { checkAuth, login, validateEmail, validatePassword } from '../lib/auth';
+
+  // Redirect authenticated users to home page
+  checkAuth().then(isAuthenticated => {
+    if (isAuthenticated) {
+      window.location.href = '/';
+    }
+  });
 
   const form = document.getElementById('login-form') as HTMLFormElement;
   const emailInput = document.getElementById('email') as HTMLInputElement;

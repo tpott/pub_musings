@@ -371,6 +371,9 @@ test.describe('Auth: Logout', () => {
     const logoutBtn = page.locator('[data-testid="logout-button"]');
     await expect(logoutBtn).toBeVisible({ timeout: 5000 });
 
+    // Accept the logout confirmation dialog
+    page.on('dialog', dialog => dialog.accept());
+
     // Click logout — should redirect to /login
     const navigationPromise = page.waitForURL('**/login', { timeout: 5000 });
     await logoutBtn.click();
