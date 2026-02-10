@@ -32,9 +32,10 @@ Production-ready voice-controlled web app for children. 213 tasks completed.
 
 ## Last Completed
 
-- Tasks 253-254 (2026-02-09): Security hardening
+- Tasks 253-255 (2026-02-09): Security hardening
   - Task 253: io.LimitReader for 4 success-path JSON decodes (whisper, LLM ExtractIntent)
   - Task 254: Rate limiting for auth login (10/min) and register (5/min) endpoints
+  - Task 255: Rate limiting for TOTP (10/min) and CSRF (30/min) endpoints
 
 ## Milestone History
 

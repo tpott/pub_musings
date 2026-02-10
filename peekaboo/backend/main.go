@@ -145,6 +145,8 @@ func main() {
 	magicLinkLimiter := api.NewRateLimiter(5, time.Minute)
 	loginLimiter := api.NewRateLimiter(10, time.Minute)
 	registerLimiter := api.NewRateLimiter(5, time.Minute)
+	totpLimiter := api.NewRateLimiter(10, time.Minute)
+	csrfLimiter := api.NewRateLimiter(30, time.Minute)
 	mux.Handle("POST /api/auth/register", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleRegister), registerLimiter))
 	mux.HandleFunc("GET /api/auth/verify", authHandler.HandleVerify)
 	mux.Handle("POST /api/auth/resend-verification", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleResendVerification), resendVerificationLimiter))
@@ -153,10 +155,10 @@ func main() {
 	mux.HandleFunc("GET /api/auth/me", authHandler.HandleMe)
 	mux.Handle("POST /api/auth/magic-link", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleMagicLink), magicLinkLimiter))
 	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.HandleMagicLinkVerify)
-	mux.HandleFunc("GET /api/auth/csrf", authHandler.HandleCSRF)
-	mux.HandleFunc("POST /api/auth/totp/setup", authHandler.HandleTOTPSetup)
-	mux.HandleFunc("POST /api/auth/totp/enable", authHandler.HandleTOTPEnable)
-	mux.HandleFunc("POST /api/auth/totp/disable", authHandler.HandleTOTPDisable)
+	mux.Handle("GET /api/auth/csrf", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleCSRF), csrfLimiter))
+	mux.Handle("POST /api/auth/totp/setup", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleTOTPSetup), totpLimiter))
+	mux.Handle("POST /api/auth/totp/enable", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleTOTPEnable), totpLimiter))
+	mux.Handle("POST /api/auth/totp/disable", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleTOTPDisable), totpLimiter))
 
 	// API endpoints
 	mux.Handle("POST /api/transcribe", api.RateLimitMiddleware(api.NewTranscribeHandler(""), rateLimiter))
