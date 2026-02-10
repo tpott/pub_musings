@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
@@ -131,6 +132,14 @@ func (h *FeedbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get client IP for abuse tracking
 	clientIP := getClientIP(r)
 
+	// Extract user_id from session cookie if authenticated
+	var userID *string
+	if token := extractSessionToken(r); token != "" && h.database != nil {
+		if session, err := h.database.GetSessionByToken(token); err == nil && session != nil && time.Now().UTC().Before(session.ExpiresAt) {
+			userID = &session.UserID
+		}
+	}
+
 	// Create feedback record
 	feedback := &db.Feedback{
 		ID:           feedbackID,
@@ -138,6 +147,7 @@ func (h *FeedbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Rating:       req.Rating,
 		Message:      msg,
 		SessionID:    req.Context.SessionID,
+		UserID:       userID,
 		ConceptID:    req.Context.ConceptID,
 		Transcript:   req.Context.Transcript,
 		PageURL:      req.Context.PageURL,

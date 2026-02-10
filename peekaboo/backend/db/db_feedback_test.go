@@ -256,6 +256,32 @@ func TestListFeedback_NullableFields(t *testing.T) {
 	if items[0].ConceptID != nil {
 		t.Error("Expected nil concept_id")
 	}
+	if items[0].UserID != nil {
+		t.Error("Expected nil user_id for anonymous feedback")
+	}
+}
+
+func TestListFeedback_UserID(t *testing.T) {
+	db := setupFeedbackDB(t)
+	uid := "user-abc123"
+	if err := db.InsertFeedback(&Feedback{
+		ID: "fb-with-user", FeedbackType: "bug",
+		Message: "Authenticated feedback", SessionID: "s1",
+		UserID: &uid, PageURL: "/",
+	}); err != nil {
+		t.Fatalf("InsertFeedback failed: %v", err)
+	}
+
+	items, _, err := db.ListFeedback("new", 50, "")
+	if err != nil {
+		t.Fatalf("ListFeedback failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(items))
+	}
+	if items[0].UserID == nil || *items[0].UserID != uid {
+		t.Errorf("Expected user_id=%q, got %v", uid, items[0].UserID)
+	}
 }
 
 func TestFeedbackIndexesExist(t *testing.T) {

@@ -31,6 +31,7 @@ type Feedback struct {
 	Rating       *int // nil if not provided
 	Message      string
 	SessionID    string
+	UserID       *string // nil for anonymous feedback
 	ConceptID    *string // nil if not provided
 	Transcript   *string // nil if not provided
 	PageURL      string
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS feedback (
 	rating INTEGER,
 	message TEXT NOT NULL,
 	session_id TEXT NOT NULL,
+	user_id TEXT,
 	concept_id TEXT,
 	transcript TEXT,
 	page_url TEXT NOT NULL,
@@ -154,6 +156,10 @@ func (db *DB) Init() error {
 	if _, err := db.conn.Exec(schema); err != nil {
 		return fmt.Errorf("create schema: %w", err)
 	}
+
+	// Migrate: add user_id column to feedback table if missing (for existing DBs).
+	// ALTER TABLE fails with "duplicate column name" if column already exists — that's expected.
+	_, _ = db.conn.Exec("ALTER TABLE feedback ADD COLUMN user_id TEXT")
 
 	// Create auth tables
 	if err := db.InitAuth(); err != nil {
@@ -258,9 +264,9 @@ func (db *DB) GetConcept(id string) (string, error) {
 // InsertFeedback stores a feedback submission in the database.
 func (db *DB) InsertFeedback(f *Feedback) error {
 	_, err := db.conn.Exec(`
-		INSERT INTO feedback (id, feedback_type, rating, message, session_id, concept_id, transcript, page_url, user_agent, ip_address)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, f.ID, f.FeedbackType, f.Rating, f.Message, f.SessionID, f.ConceptID, f.Transcript, f.PageURL, f.UserAgent, f.IPAddress)
+		INSERT INTO feedback (id, feedback_type, rating, message, session_id, user_id, concept_id, transcript, page_url, user_agent, ip_address)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, f.ID, f.FeedbackType, f.Rating, f.Message, f.SessionID, f.UserID, f.ConceptID, f.Transcript, f.PageURL, f.UserAgent, f.IPAddress)
 	if err != nil {
 		return fmt.Errorf("insert feedback: %w", err)
 	}
@@ -306,7 +312,7 @@ func (db *DB) ListFeedback(status string, limit int, after string) ([]*Feedback,
 
 	// Fetch items
 	query := fmt.Sprintf(`
-		SELECT id, feedback_type, rating, message, session_id, concept_id,
+		SELECT id, feedback_type, rating, message, session_id, user_id, concept_id,
 		       transcript, page_url, user_agent, ip_address, created_at, status
 		FROM feedback %s
 		ORDER BY created_at DESC
@@ -324,11 +330,11 @@ func (db *DB) ListFeedback(status string, limit int, after string) ([]*Feedback,
 	for rows.Next() {
 		f := &Feedback{}
 		var rating sql.NullInt64
-		var conceptID, transcript, userAgent, ipAddress sql.NullString
+		var userID, conceptID, transcript, userAgent, ipAddress sql.NullString
 
 		if err := rows.Scan(
 			&f.ID, &f.FeedbackType, &rating, &f.Message, &f.SessionID,
-			&conceptID, &transcript, &f.PageURL, &userAgent, &ipAddress,
+			&userID, &conceptID, &transcript, &f.PageURL, &userAgent, &ipAddress,
 			&f.CreatedAt, &f.Status,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan feedback: %w", err)
@@ -337,6 +343,9 @@ func (db *DB) ListFeedback(status string, limit int, after string) ([]*Feedback,
 		if rating.Valid {
 			r := int(rating.Int64)
 			f.Rating = &r
+		}
+		if userID.Valid {
+			f.UserID = &userID.String
 		}
 		if conceptID.Valid {
 			f.ConceptID = &conceptID.String

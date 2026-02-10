@@ -37,6 +37,7 @@ type adminFeedbackItem struct {
 	Rating     *int    `json:"rating,omitempty"`
 	Message    string  `json:"message"`
 	SessionID  string  `json:"session_id"`
+	UserID     *string `json:"user_id,omitempty"`
 	ConceptID  *string `json:"concept_id,omitempty"`
 	Transcript *string `json:"transcript,omitempty"`
 	PageURL    string  `json:"page_url"`
@@ -148,6 +149,7 @@ func (h *AdminHandler) HandleListFeedback(w http.ResponseWriter, r *http.Request
 			Rating:     f.Rating,
 			Message:    f.Message,
 			SessionID:  f.SessionID,
+			UserID:     f.UserID,
 			ConceptID:  f.ConceptID,
 			Transcript: f.Transcript,
 			PageURL:    f.PageURL,
