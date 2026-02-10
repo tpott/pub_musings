@@ -32,10 +32,9 @@ Production-ready voice-controlled web app for children. 213 tasks completed.
 
 ## Last Completed
 
-- Task 253 (2026-02-09): io.LimitReader for success-path JSON decodes
-  - 4 external API response decodes wrapped with maxSuccessBodyBytes (1MB) limit
-  - Fixes: transcribe.go (whisper HTTP), websocket_audio.go (whisper WS), openai.go, anthropic.go
-  - Error paths already had io.LimitReader; now success paths are also protected
+- Tasks 253-254 (2026-02-09): Security hardening
+  - Task 253: io.LimitReader for 4 success-path JSON decodes (whisper, LLM ExtractIntent)
+  - Task 254: Rate limiting for auth login (10/min) and register (5/min) endpoints
 
 ## Milestone History
 
