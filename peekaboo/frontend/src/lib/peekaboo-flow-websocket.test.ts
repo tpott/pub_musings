@@ -183,7 +183,7 @@ describe('PeekabooFlow WebSocket mode', () => {
     expect(mockWsStartRecording).toHaveBeenCalled();
   });
 
-  it('stops recording and closes WebSocket on stopRecordingAndProcess', async () => {
+  it('stops recording and waits for server response on stopRecordingAndProcess', async () => {
     mockWsGetState.mockReturnValue('connected');
 
     const flow = new PeekabooFlow({
@@ -199,8 +199,9 @@ describe('PeekabooFlow WebSocket mode', () => {
     await flow.stopRecordingAndProcess();
 
     expect(mockWsStopRecording).toHaveBeenCalled();
-    expect(mockWsDisconnect).toHaveBeenCalled();
-    expect(flow.getState()).toBe('idle');
+    // WebSocket stays open to receive server response (transcript/media)
+    expect(mockWsDisconnect).not.toHaveBeenCalled();
+    expect(flow.getState()).toBe('transcribing');
   });
 
   it('handles transcript from WebSocket during recording', async () => {
@@ -273,6 +274,8 @@ describe('PeekabooFlow WebSocket mode', () => {
       'cat'
     );
     expect(textToSpeech.speakSubject).toHaveBeenCalledWith('cat');
+    // WebSocket disconnects after displaying since recorder is not active
+    expect(mockWsDisconnect).toHaveBeenCalled();
   });
 
   it('handles WebSocket errors gracefully', async () => {
@@ -416,6 +419,8 @@ describe('PeekabooFlow WebSocket mode', () => {
 
     // Should transition to displaying since not recording
     expect(flow.getState()).toBe('displaying');
+    // WebSocket disconnects after displaying since recorder is not active
+    expect(mockWsDisconnect).toHaveBeenCalled();
   });
 
   it('keeps recording state when transcript arrives during recording', async () => {

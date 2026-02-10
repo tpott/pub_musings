@@ -443,3 +443,13 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 **Solution:** Changed WebSocket error type from 'server' to 'client' in `websocket-audio.ts`. The 'client' error type passes through the original message from `error.message`, so users now see the actual backend error ("transcription failed", etc.) instead of the generic message.
 
 **Lesson:** When proxying error messages from a backend through a classification layer, ensure the classification doesn't lose the original message. Use 'client' type for errors with meaningful backend messages; reserve 'server' type for truly opaque HTTP 5xx errors where no backend message is available.
+
+---
+
+### 2026-02-09: WebSocket E2E tests broke silently across two tasks
+
+**Problem:** 9 WebSocket E2E tests failed but weren't caught because they weren't run between tasks 249-255. Two independent changes combined to break them: (1) Task 249 added `wsClient.disconnect()` in `stopWebSocketRecording()`, which closed the WebSocket before the server could respond with transcript/media. (2) Task 250 changed audio transport from binary blobs to base64-encoded JSON (`audio_data` messages), but E2E mock WebSocket handlers still identified audio by checking for non-string (binary) messages in `typeof message !== 'string'` branches.
+
+**Solution:** (1) Removed `disconnect()` from `stopWebSocketRecording()`, changed state to `transcribing` instead of `idle` to wait for server response. Added `disconnect()` in `handleWsMedia()` when recorder is inactive (user already stopped). (2) Updated all 9 E2E mock WebSocket handlers to check `parsed.type === 'audio_data'` instead of relying on binary message detection.
+
+**Lesson:** When changing a message protocol (binary → JSON), update ALL consumers including test mocks. E2E tests that worked with binary detection silently stopped receiving audio data when it became JSON. Always run the full E2E suite after protocol changes. Also, `disconnect()` in a request-response WebSocket flow should happen AFTER receiving the response, not immediately after sending the request.

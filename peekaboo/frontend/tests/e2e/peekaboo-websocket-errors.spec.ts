@@ -16,7 +16,9 @@ test.describe('WebSocket error handling', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'stop_recording' && audioReceived) {
+            if (parsed.type === 'audio_data') {
+              audioReceived = true;
+            } else if (parsed.type === 'stop_recording' && audioReceived) {
               if (!invalidJsonSent) {
                 ws.send('this is { not valid json [[[');
                 ws.send('{incomplete json');
@@ -39,10 +41,8 @@ test.describe('WebSocket error handling', () => {
               ws.send(JSON.stringify({ type: 'pong' }));
             }
           } catch {
-            audioReceived = true;
+            // Ignore non-JSON messages
           }
-        } else {
-          audioReceived = true;
         }
       });
     });
@@ -78,17 +78,17 @@ test.describe('WebSocket error handling', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'ping') {
+            if (parsed.type === 'audio_data') {
+              audioChunkCount++;
+              if (closeConnectionOnFirstCommand && audioChunkCount >= 2) {
+                ws.close();
+                closeConnectionOnFirstCommand = false;
+              }
+            } else if (parsed.type === 'ping') {
               ws.send(JSON.stringify({ type: 'pong' }));
             }
           } catch {
-            // Not JSON
-          }
-        } else {
-          audioChunkCount++;
-          if (closeConnectionOnFirstCommand && audioChunkCount >= 2) {
-            ws.close();
-            closeConnectionOnFirstCommand = false;
+            // Ignore non-JSON messages
           }
         }
       });
@@ -120,7 +120,9 @@ test.describe('WebSocket error handling', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'stop_recording' && audioReceived) {
+            if (parsed.type === 'audio_data') {
+              audioReceived = true;
+            } else if (parsed.type === 'stop_recording' && audioReceived) {
               attemptCount++;
               if (attemptCount === 1) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Server temporarily unavailable' }));
@@ -143,10 +145,8 @@ test.describe('WebSocket error handling', () => {
               audioReceived = false;
             }
           } catch {
-            audioReceived = true;
+            // Ignore non-JSON messages
           }
-        } else {
-          audioReceived = true;
         }
       });
     });
@@ -199,7 +199,13 @@ test.describe('WebSocket error handling', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'ping') {
+            if (parsed.type === 'audio_data') {
+              audioChunkCount++;
+              audioReceived = true;
+              if (currentConnection === 1 && audioChunkCount >= 2) {
+                ws.close();
+              }
+            } else if (parsed.type === 'ping') {
               ws.send(JSON.stringify({ type: 'pong' }));
             } else if (parsed.type === 'stop_recording' && audioReceived && currentConnection > 1) {
               ws.send(JSON.stringify({ type: 'transcript', text: 'show me a cat' }));
@@ -216,13 +222,7 @@ test.describe('WebSocket error handling', () => {
               audioReceived = false;
             }
           } catch {
-            // Not valid JSON
-          }
-        } else {
-          audioChunkCount++;
-          audioReceived = true;
-          if (currentConnection === 1 && audioChunkCount >= 2) {
-            ws.close();
+            // Ignore non-JSON messages
           }
         }
       });

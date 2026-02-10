@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 213 tasks completed.
+Production-ready voice-controlled web app for children. 217 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,11 @@ Production-ready voice-controlled web app for children. 213 tasks completed.
 
 ## Last Completed
 
+- Task 256 (2026-02-09): Fix 9 WebSocket E2E test failures
+  - Root cause 1: Task 249 disconnected WebSocket immediately in stopWebSocketRecording(), before server could send response
+  - Root cause 2: Task 250 switched audio to base64 JSON but E2E mocks still expected binary messages
+  - Fix: stopWebSocketRecording() keeps WebSocket open, disconnects after handleWsMedia when recorder inactive
+  - Fix: E2E mock handlers recognize audio_data JSON messages instead of binary
 - Tasks 253-255 (2026-02-09): Security hardening
   - Task 253: io.LimitReader for 4 success-path JSON decodes (whisper, LLM ExtractIntent)
   - Task 254: Rate limiting for auth login (10/min) and register (5/min) endpoints

@@ -16,7 +16,9 @@ test.describe('WebSocket continuous listening', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'stop_recording' && audioReceived) {
+            if (parsed.type === 'audio_data') {
+              audioReceived = true;
+            } else if (parsed.type === 'stop_recording' && audioReceived) {
               const animal = animals[commandCount % animals.length];
               commandCount++;
 
@@ -36,10 +38,8 @@ test.describe('WebSocket continuous listening', () => {
               ws.send(JSON.stringify({ type: 'pong' }));
             }
           } catch {
-            audioReceived = true;
+            // Ignore non-JSON messages
           }
-        } else {
-          audioReceived = true;
         }
       });
     });
@@ -84,32 +84,32 @@ test.describe('WebSocket continuous listening', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'ping') {
+            if (parsed.type === 'audio_data') {
+              audioChunkCount++;
+              if (audioChunkCount >= audioThreshold) {
+                const animal = animals[commandCount % animals.length];
+                commandCount++;
+
+                ws.send(JSON.stringify({ type: 'transcript', text: `show me a ${animal}` }));
+
+                setTimeout(() => {
+                  ws.send(JSON.stringify({
+                    type: 'media',
+                    subject: animal,
+                    photo_url: `/fixtures/mock-${animal}-photo.jpg`,
+                    audio_url: `/fixtures/mock-${animal}-audio.mp3`,
+                  }));
+                }, 50);
+
+                audioChunkCount = 0;
+              }
+            } else if (parsed.type === 'ping') {
               ws.send(JSON.stringify({ type: 'pong' }));
             } else if (parsed.type === 'start_recording') {
               audioChunkCount = 0;
             }
           } catch {
-            // Not valid JSON
-          }
-        } else {
-          audioChunkCount++;
-          if (audioChunkCount >= audioThreshold) {
-            const animal = animals[commandCount % animals.length];
-            commandCount++;
-
-            ws.send(JSON.stringify({ type: 'transcript', text: `show me a ${animal}` }));
-
-            setTimeout(() => {
-              ws.send(JSON.stringify({
-                type: 'media',
-                subject: animal,
-                photo_url: `/fixtures/mock-${animal}-photo.jpg`,
-                audio_url: `/fixtures/mock-${animal}-audio.mp3`,
-              }));
-            }, 50);
-
-            audioChunkCount = 0;
+            // Ignore non-JSON messages
           }
         }
       });
@@ -156,7 +156,9 @@ test.describe('WebSocket continuous listening', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'stop_recording' && audioReceived) {
+            if (parsed.type === 'audio_data') {
+              audioReceived = true;
+            } else if (parsed.type === 'stop_recording' && audioReceived) {
               ws.send(JSON.stringify({ type: 'transcript', text: 'show me a cat' }));
 
               setTimeout(() => {
@@ -173,10 +175,8 @@ test.describe('WebSocket continuous listening', () => {
               ws.send(JSON.stringify({ type: 'pong' }));
             }
           } catch {
-            audioReceived = true;
+            // Ignore non-JSON messages
           }
-        } else {
-          audioReceived = true;
         }
       });
     });
@@ -216,7 +216,9 @@ test.describe('WebSocket continuous listening', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'stop_recording' && audioReceived) {
+            if (parsed.type === 'audio_data') {
+              audioReceived = true;
+            } else if (parsed.type === 'stop_recording' && audioReceived) {
               const transcript = transcripts[commandCount % transcripts.length];
               const animal = commandCount === 0 ? 'cat' : 'dog';
               commandCount++;
@@ -237,10 +239,8 @@ test.describe('WebSocket continuous listening', () => {
               ws.send(JSON.stringify({ type: 'pong' }));
             }
           } catch {
-            audioReceived = true;
+            // Ignore non-JSON messages
           }
-        } else {
-          audioReceived = true;
         }
       });
     });
@@ -294,40 +294,40 @@ test.describe('WebSocket continuous listening', () => {
         if (typeof message === 'string') {
           try {
             const parsed = JSON.parse(message);
-            if (parsed.type === 'ping') {
+            if (parsed.type === 'audio_data') {
+              audioChunkCount++;
+              if (audioChunkCount >= audioThreshold) {
+                if (processingRound % 2 === 0 && commandCount < commands.length) {
+                  // Real utterance
+                  const cmd = commands[commandCount];
+                  commandCount++;
+
+                  ws.send(JSON.stringify({ type: 'transcript', text: cmd.text }));
+
+                  setTimeout(() => {
+                    ws.send(JSON.stringify({
+                      type: 'media',
+                      subject: cmd.subject,
+                      photo_url: `/fixtures/mock-${cmd.subject}-photo.jpg`,
+                      audio_url: `/fixtures/mock-${cmd.subject}-audio.mp3`,
+                    }));
+                  }, 50);
+                } else {
+                  // Silence gap
+                  ws.send(JSON.stringify({ type: 'error', message: 'No speech detected. Please try again.' }));
+                }
+
+                processingRound++;
+                audioChunkCount = 0;
+              }
+            } else if (parsed.type === 'ping') {
               ws.send(JSON.stringify({ type: 'pong' }));
             } else if (parsed.type === 'start_recording') {
               audioChunkCount = 0;
               processingRound = 0;
             }
           } catch {
-            // Not valid JSON
-          }
-        } else {
-          audioChunkCount++;
-          if (audioChunkCount >= audioThreshold) {
-            if (processingRound % 2 === 0 && commandCount < commands.length) {
-              // Real utterance
-              const cmd = commands[commandCount];
-              commandCount++;
-
-              ws.send(JSON.stringify({ type: 'transcript', text: cmd.text }));
-
-              setTimeout(() => {
-                ws.send(JSON.stringify({
-                  type: 'media',
-                  subject: cmd.subject,
-                  photo_url: `/fixtures/mock-${cmd.subject}-photo.jpg`,
-                  audio_url: `/fixtures/mock-${cmd.subject}-audio.mp3`,
-                }));
-              }, 50);
-            } else {
-              // Silence gap
-              ws.send(JSON.stringify({ type: 'error', message: 'No speech detected. Please try again.' }));
-            }
-
-            processingRound++;
-            audioChunkCount = 0;
+            // Ignore non-JSON messages
           }
         }
       });

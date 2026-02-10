@@ -264,10 +264,9 @@ export class PeekabooFlow {
       this.mediaRecorder.stop();
     }
 
-    // Tell server we're done recording, then close the connection
+    // Tell server we're done recording — keep WebSocket open to receive response
     if (this.wsClient) {
       this.wsClient.stopRecording();
-      this.wsClient.disconnect();
     }
 
     // Clean up microphone stream
@@ -277,8 +276,8 @@ export class PeekabooFlow {
     }
     this.mediaRecorder = null;
 
-    // Return to idle since the connection is closed
-    this.setState('idle');
+    // Wait for server to send transcript/media back
+    this.setState('transcribing');
   }
 
   /**
@@ -415,8 +414,13 @@ export class PeekabooFlow {
         // The mic button stays in "recording" state
         this.updateRecordingWithMediaUI(media.subject);
       } else {
-        // Not recording (e.g., stop was already called or recorder failed)
+        // Not recording (e.g., user clicked stop and we waited for server response)
         this.setState('displaying');
+
+        // Disconnect WebSocket now that we've received and displayed the result
+        if (this.wsClient) {
+          this.wsClient.disconnect();
+        }
       }
 
       // In WebSocket mode, TTS is handled via tts_audio messages from the server.
@@ -452,8 +456,8 @@ export class PeekabooFlow {
    * Handle WebSocket connection state changes
    */
   private handleWsStateChange(wsState: ConnectionState): void {
-    // If connection is lost during recording, handle gracefully
-    if (wsState === 'disconnected' && this.state === 'recording') {
+    // If connection is lost during recording or while waiting for response, handle gracefully
+    if (wsState === 'disconnected' && (this.state === 'recording' || this.state === 'transcribing')) {
       this.cleanupWebSocketRecording();
       this.handleError(new ApiError('Connection lost while recording', 'network'));
     }
