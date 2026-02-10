@@ -6,6 +6,26 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-09: Adding exports to mocked modules breaks tests
+
+**Problem:** Adding `cleanupTTSBlobUrls` export to `text-to-speech.ts` caused 5 test failures with "No export defined on mock" errors. Tests that mock `./text-to-speech` using `vi.mock` only include explicitly declared exports.
+
+**Solution:** Added `cleanupTTSBlobUrls: vi.fn()` to all 3 test files that mock `./text-to-speech` (peekaboo-flow.test.ts, peekaboo-flow-websocket.test.ts, peekaboo-flow-websocket-tts.test.ts).
+
+**Lesson:** When adding new exports to a module that's mocked in tests, grep for `vi.mock('./module-name')` and add the new export to every mock declaration. Vitest's strict mock mode throws on undefined exports.
+
+---
+
+### 2026-02-09: IPv6 port stripping with manual string scanning
+
+**Problem:** `getClientIP()` used a backward scan for `:` to strip ports. For IPv6 `[::1]:8080` this returns `[::1]` (with brackets). While consistent as a rate limiter key, it differs from standard IP representation.
+
+**Solution:** Replaced with `net.SplitHostPort()` which correctly handles IPv4 (`host:port`), IPv6 (`[host]:port`), and bare IPs (returns error, use as-is).
+
+**Lesson:** Always use `net.SplitHostPort()` for `RemoteAddr` parsing. Manual port stripping is error-prone for IPv6.
+
+---
+
 ### 2026-02-03: CC0 media sourcing and archive.org transient failures
 
 **Context:** Needed CC0/public domain photos and audio for 6 MVP animals

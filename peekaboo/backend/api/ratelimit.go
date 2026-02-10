@@ -178,12 +178,11 @@ func getClientIP(r *http.Request) string {
 	}
 
 	// Fall back to RemoteAddr (may include port)
-	addr := r.RemoteAddr
-	// Strip port if present
-	for i := len(addr) - 1; i >= 0; i-- {
-		if addr[i] == ':' {
-			return addr[:i]
-		}
+	// Use net.SplitHostPort for correct handling of both IPv4 and IPv6 addresses
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// No port present (e.g. bare IP like "10.0.0.1" or "::1")
+		return r.RemoteAddr
 	}
-	return addr
+	return host
 }

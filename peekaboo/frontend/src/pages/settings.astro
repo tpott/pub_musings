@@ -170,6 +170,7 @@ import '../styles/global.css';
 
 <script>
   import { getCSRFHeaders, fetchCSRFToken } from '../lib/csrf';
+  import { validatePassword } from '../lib/auth';
 
   interface MeUser {
     id: string;
@@ -412,8 +413,9 @@ import '../styles/global.css';
       return;
     }
 
-    if (!password) {
-      showFieldError(setupPasswordError, 'Password is required');
+    const passwordErr = validatePassword(password);
+    if (passwordErr) {
+      showFieldError(setupPasswordError, passwordErr);
       setupPasswordInput.focus();
       return;
     }
@@ -479,8 +481,9 @@ import '../styles/global.css';
     clearFieldError(disablePasswordError);
 
     const password = disablePasswordInput.value;
-    if (!password) {
-      showFieldError(disablePasswordError, 'Password is required');
+    const disablePasswordErr = validatePassword(password);
+    if (disablePasswordErr) {
+      showFieldError(disablePasswordError, disablePasswordErr);
       disablePasswordInput.focus();
       return;
     }

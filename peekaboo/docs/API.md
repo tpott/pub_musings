@@ -37,6 +37,7 @@ http://localhost:8080
 | POST | `/api/auth/totp/setup` | Yes+CSRF | 10/min | Generate TOTP secret ([details](../specs/auth.md)) |
 | POST | `/api/auth/totp/enable` | Yes+CSRF | 10/min | Enable TOTP 2FA ([details](../specs/auth.md)) |
 | POST | `/api/auth/totp/disable` | Yes+CSRF | 10/min | Disable TOTP 2FA ([details](../specs/auth.md)) |
+| POST | `/api/log` | No | — | Forward frontend logs (dev only, requires `FORWARD_FRONTEND_LOGS=true`) |
 
 \* WebSocket optionally uses session cookie for authenticated sessions.
 
@@ -190,8 +191,12 @@ GET /ws/audio → WebSocket upgrade
 
 ### Client → Server
 
-**Audio frames (binary)** — 12-byte header + audio data:
+**Audio data (JSON, preferred)**:
+```json
+{"type": "audio_data", "data": "<base64-encoded WebM/Opus>", "seq": 0, "client_time": 1707234567890}
+```
 
+**Legacy audio frames (binary)** — 12-byte header + audio data (backward compatible):
 ```
 Byte 0-1:   Magic 0xAB01 (big-endian uint16)
 Byte 2-3:   Sequence number (big-endian uint16)
@@ -239,6 +244,38 @@ Key points:
 - Login lockout after 5 failed attempts in 15 minutes
 - Email verification required before login
 - Magic links valid for 15 minutes, verification tokens for 24 hours
+
+## Frontend Log Forwarding (Development)
+
+```
+POST /api/log
+Content-Type: application/json
+```
+
+Only available when `FORWARD_FRONTEND_LOGS=true`. Forwards frontend console logs to the backend logger.
+
+```json
+{"level": "info", "message": "Component initialized"}
+```
+
+- **Valid levels**: `debug`, `info`, `warn`, `error`
+- **Max body size**: 2 KB
+- **Returns**: 204 No Content
+
+## Interaction Logging
+
+WebSocket audio sessions automatically log interactions to the `interactions` table. Each voice command creates a row capturing STT, LLM, and TTS metrics.
+
+**Environment variables**:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INTERACTION_LOG_AUDIO` | `false` | Save audio blobs to `data/interactions/{date}/` |
+| `INTERACTION_RETENTION_DAYS` | `30` | Days to retain audio blobs before cleanup |
+
+Key fields per interaction: `stt_transcript`, `stt_latency_ms`, `llm_provider`, `llm_input_tokens`, `llm_output_tokens`, `llm_latency_ms`, `action_type` (`show_media`/`text_to_speech`/`wait_for_more`), `action_subject`, `total_latency_ms`, `user_id` (if authenticated).
+
+Audio blob cleanup runs automatically on a daily timer.
 
 ## CORS
 

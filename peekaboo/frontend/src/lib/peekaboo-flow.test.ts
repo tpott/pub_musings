@@ -23,6 +23,7 @@ vi.mock('./media-display', () => ({
 
 vi.mock('./text-to-speech', () => ({
   speakSubject: vi.fn(),
+  cleanupTTSBlobUrls: vi.fn(),
 }));
 
 vi.mock('./websocket-audio', () => ({

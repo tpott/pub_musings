@@ -33,8 +33,10 @@
   type ThemeMode = 'light' | 'dark' | 'auto';
 
   function getThemeMode(): ThemeMode {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === 'light' || saved === 'dark') return saved;
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch { /* private browsing */ }
     return 'auto';
   }
 
@@ -74,11 +76,13 @@
     };
     const newMode = next[current];
 
-    if (newMode === 'auto') {
-      localStorage.removeItem(THEME_KEY);
-    } else {
-      localStorage.setItem(THEME_KEY, newMode);
-    }
+    try {
+      if (newMode === 'auto') {
+        localStorage.removeItem(THEME_KEY);
+      } else {
+        localStorage.setItem(THEME_KEY, newMode);
+      }
+    } catch { /* private browsing */ }
 
     applyTheme(newMode);
   }

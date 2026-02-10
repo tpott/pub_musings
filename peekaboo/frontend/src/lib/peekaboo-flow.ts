@@ -10,7 +10,7 @@ import { AudioRecorder, transcribeAudio } from './audio-recorder';
 import { extractIntent } from './intent';
 import { MediaDisplay, fetchMedia } from './media-display';
 import { getUserFriendlyMessage, ApiError } from './errors';
-import { speakSubject } from './text-to-speech';
+import { speakSubject, cleanupTTSBlobUrls } from './text-to-speech';
 import { AudioWebSocket } from './websocket-audio';
 import { logger } from './logger';
 import type { MediaMessage, TTSAudioMessage, ConnectionState } from './websocket-audio';
@@ -534,6 +534,7 @@ export class PeekabooFlow {
   destroy(): void {
     this.clearErrorTimeout();
     this.stopTTSAudio();
+    cleanupTTSBlobUrls();
     this.cleanupWebSocketRecording();
     this.recorder.destroy();
     this.display.stopAudio();

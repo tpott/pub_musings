@@ -17,6 +17,9 @@ import { getCSRFHeaders } from './csrf';
  */
 let ttsAvailable: boolean | null = null;
 
+// Track active blob URLs so they can be revoked on cleanup
+const activeBlobUrls = new Set<string>();
+
 export async function checkTTSAvailability(): Promise<boolean> {
   if (ttsAvailable !== null) {
     return ttsAvailable;
@@ -101,9 +104,14 @@ export async function synthesizeSpeech(text: string): Promise<HTMLAudioElement |
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
 
-    // Clean up blob URL when audio is done or errors
-    audio.addEventListener('ended', () => URL.revokeObjectURL(audioUrl), { once: true });
-    audio.addEventListener('error', () => URL.revokeObjectURL(audioUrl), { once: true });
+    // Track and clean up blob URL when audio is done or errors
+    activeBlobUrls.add(audioUrl);
+    const revoke = () => {
+      URL.revokeObjectURL(audioUrl);
+      activeBlobUrls.delete(audioUrl);
+    };
+    audio.addEventListener('ended', revoke, { once: true });
+    audio.addEventListener('error', revoke, { once: true });
 
     ttsAvailable = true;
     return audio;
@@ -135,6 +143,17 @@ export async function speakSubject(subject: string): Promise<HTMLAudioElement | 
   }
 
   return audio;
+}
+
+/**
+ * Revoke all active TTS blob URLs to prevent memory leaks.
+ * Call this during component destroy/cleanup.
+ */
+export function cleanupTTSBlobUrls(): void {
+  for (const url of activeBlobUrls) {
+    URL.revokeObjectURL(url);
+  }
+  activeBlobUrls.clear();
 }
 
 /**

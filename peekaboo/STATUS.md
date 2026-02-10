@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 230 tasks completed.
+Production-ready voice-controlled web app for children. 236 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,13 @@ Production-ready voice-controlled web app for children. 230 tasks completed.
 
 ## Last Completed
 
+- Tasks 270-275 (2026-02-09): Deep inspection round 2 — bugs, hardening, docs
+  - Task 270: Fix getClientIP IPv6 handling (use net.SplitHostPort, add IPv6 tests)
+  - Task 271: Wrap localStorage in try-catch for private browsing compatibility
+  - Task 272: Add password length validation in settings TOTP flows
+  - Task 273: Optimize base64 audio encoding (chunked String.fromCharCode.apply)
+  - Task 274: Track and clean up TTS blob URLs on PeekabooFlow destroy
+  - Task 275: Document POST /api/log, interaction logging, and base64 audio protocol in API.md
 - Tasks 263-269 (2026-02-09): Deep inspection fixes + docs
   - Task 263: Fix ALTER TABLE migration to only ignore 'duplicate column' errors (db.go)
   - Task 264: Fix WebSocket idle timeout to skip check during active processing

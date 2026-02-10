@@ -48,15 +48,17 @@ export interface FeedbackResponse {
  * Stored in localStorage for persistence across page loads.
  */
 export function getOrCreateSessionId(): string {
-  // Check localStorage
-  const stored = localStorage.getItem(SESSION_ID_KEY);
-  if (stored) {
-    return stored;
-  }
+  try {
+    const stored = localStorage.getItem(SESSION_ID_KEY);
+    if (stored) {
+      return stored;
+    }
+  } catch { /* private browsing - fall through to generate */ }
 
-  // Generate new session ID
   const sessionId = generateSessionId();
-  localStorage.setItem(SESSION_ID_KEY, sessionId);
+  try {
+    localStorage.setItem(SESSION_ID_KEY, sessionId);
+  } catch { /* private browsing - session ID won't persist */ }
   return sessionId;
 }
 

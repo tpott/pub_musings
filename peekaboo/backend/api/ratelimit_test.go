@@ -477,6 +477,21 @@ func TestGetClientIP_NoTrustProxy(t *testing.T) {
 			remoteAddr: "10.0.0.1",
 			expected:   "10.0.0.1",
 		},
+		{
+			name:       "handles IPv6 with port",
+			remoteAddr: "[::1]:12345",
+			expected:   "::1",
+		},
+		{
+			name:       "handles IPv6 without port",
+			remoteAddr: "::1",
+			expected:   "::1",
+		},
+		{
+			name:       "handles full IPv6 with port",
+			remoteAddr: "[2001:db8::1]:8080",
+			expected:   "2001:db8::1",
+		},
 	}
 
 	for _, tt := range tests {
