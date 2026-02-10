@@ -183,7 +183,7 @@ describe('PeekabooFlow WebSocket mode', () => {
     expect(mockWsStartRecording).toHaveBeenCalled();
   });
 
-  it('stops recording and notifies WebSocket on stopRecordingAndProcess', async () => {
+  it('stops recording and closes WebSocket on stopRecordingAndProcess', async () => {
     mockWsGetState.mockReturnValue('connected');
 
     const flow = new PeekabooFlow({
@@ -199,11 +199,21 @@ describe('PeekabooFlow WebSocket mode', () => {
     await flow.stopRecordingAndProcess();
 
     expect(mockWsStopRecording).toHaveBeenCalled();
-    expect(flow.getState()).toBe('transcribing');
+    expect(mockWsDisconnect).toHaveBeenCalled();
+    expect(flow.getState()).toBe('idle');
   });
 
-  it('handles transcript from WebSocket and transitions to searching', async () => {
-    mockWsGetState.mockReturnValue('connected');
+  it('handles transcript from WebSocket during recording', async () => {
+    // Use a MediaRecorder that starts in inactive then becomes recording
+    let recorderState = 'inactive';
+    const MockMediaRecorder = vi.fn().mockImplementation(() => ({
+      start: vi.fn(() => { recorderState = 'recording'; }),
+      stop: vi.fn(() => { recorderState = 'inactive'; }),
+      get state() { return recorderState; },
+      ondataavailable: null,
+    }));
+    MockMediaRecorder.isTypeSupported = vi.fn().mockReturnValue(true);
+    (global as any).MediaRecorder = MockMediaRecorder;
 
     const flow = new PeekabooFlow({
       micButton,
@@ -213,18 +223,26 @@ describe('PeekabooFlow WebSocket mode', () => {
     });
 
     await flow.startRecording();
-    await flow.stopRecordingAndProcess();
     stateChanges.length = 0;
 
-    // Simulate WebSocket transcript callback
+    // Simulate WebSocket transcript callback during recording
     wsCallbacks.onTranscript('show me a cat');
 
-    expect(flow.getState()).toBe('searching');
-    expect(stateChanges).toContain('searching');
+    // During recording, transcript is noted but state stays recording
+    expect(flow.getState()).toBe('recording');
   });
 
-  it('handles media from WebSocket and displays it', async () => {
-    mockWsGetState.mockReturnValue('connected');
+  it('handles media from WebSocket during recording and displays it', async () => {
+    // Use a MediaRecorder that reports inactive (simulating after user stopped)
+    let recorderState = 'inactive';
+    const MockMediaRecorder = vi.fn().mockImplementation(() => ({
+      start: vi.fn(() => { recorderState = 'recording'; }),
+      stop: vi.fn(() => { recorderState = 'inactive'; }),
+      get state() { return recorderState; },
+      ondataavailable: null,
+    }));
+    MockMediaRecorder.isTypeSupported = vi.fn().mockReturnValue(true);
+    (global as any).MediaRecorder = MockMediaRecorder;
 
     const flow = new PeekabooFlow({
       micButton,
@@ -234,7 +252,7 @@ describe('PeekabooFlow WebSocket mode', () => {
     });
 
     await flow.startRecording();
-    await flow.stopRecordingAndProcess();
+    recorderState = 'inactive';
     stateChanges.length = 0;
 
     // Simulate WebSocket media callback

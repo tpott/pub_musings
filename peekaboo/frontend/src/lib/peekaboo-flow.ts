@@ -264,9 +264,10 @@ export class PeekabooFlow {
       this.mediaRecorder.stop();
     }
 
-    // Tell server we're done recording
+    // Tell server we're done recording, then close the connection
     if (this.wsClient) {
       this.wsClient.stopRecording();
+      this.wsClient.disconnect();
     }
 
     // Clean up microphone stream
@@ -276,8 +277,8 @@ export class PeekabooFlow {
     }
     this.mediaRecorder = null;
 
-    // Transition to transcribing - server will send back results via WebSocket
-    this.setState('transcribing');
+    // Return to idle since the connection is closed
+    this.setState('idle');
   }
 
   /**
