@@ -25,6 +25,12 @@ import '../styles/global.css';
         <!-- Loading state -->
         <div id="loading" class="loading">Loading...</div>
 
+        <!-- Load error (shown on network failure) -->
+        <div id="load-error" class="hidden load-error">
+          <p id="load-error-message">Failed to load account info.</p>
+          <button type="button" class="btn-secondary" id="retry-load-btn">Retry</button>
+        </div>
+
         <!-- Account info (shown after load) -->
         <div id="account-info" class="hidden">
           <section class="settings-section">
@@ -191,6 +197,9 @@ import '../styles/global.css';
 
   // DOM elements
   const loading = document.getElementById('loading') as HTMLDivElement;
+  const loadError = document.getElementById('load-error') as HTMLDivElement;
+  const loadErrorMessage = document.getElementById('load-error-message') as HTMLParagraphElement;
+  const retryLoadBtn = document.getElementById('retry-load-btn') as HTMLButtonElement;
   const accountInfo = document.getElementById('account-info') as HTMLDivElement;
   const userEmail = document.getElementById('user-email') as HTMLSpanElement;
   const emailVerified = document.getElementById('email-verified') as HTMLSpanElement;
@@ -263,45 +272,62 @@ import '../styles/global.css';
     setupSuccess.classList.add('hidden');
   }
 
+  function showLoadError(message: string): void {
+    loading.classList.add('hidden');
+    loadErrorMessage.textContent = message;
+    loadError.classList.remove('hidden');
+  }
+
   // Load user info
   async function loadUserInfo(): Promise<void> {
+    loading.classList.remove('hidden');
+    loadError.classList.add('hidden');
+    accountInfo.classList.add('hidden');
+
+    let response: Response;
     try {
-      const response = await fetch('/api/auth/me', {
+      response = await fetch('/api/auth/me', {
         credentials: 'same-origin',
       });
-
-      if (!response.ok) {
-        window.location.href = '/login';
-        return;
-      }
-
-      let data: MeResponse;
-      try {
-        data = await response.json();
-      } catch {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!data.user) {
-        window.location.href = '/login';
-        return;
-      }
-
-      const user = data.user;
-      userEmail.textContent = user.email;
-      emailVerified.textContent = user.email_verified ? 'Yes' : 'No';
-
-      const date = new Date(user.created_at);
-      createdAt.textContent = date.toLocaleDateString();
-
-      updateTOTPDisplay(user.totp_enabled);
-
-      loading.classList.add('hidden');
-      accountInfo.classList.remove('hidden');
     } catch {
-      window.location.href = '/login';
+      showLoadError('Network error. Please check your connection and try again.');
+      return;
     }
+
+    if (response.status === 401 || response.status === 403) {
+      window.location.href = '/login';
+      return;
+    }
+
+    if (!response.ok) {
+      showLoadError('Failed to load account info. Please try again.');
+      return;
+    }
+
+    let data: MeResponse;
+    try {
+      data = await response.json();
+    } catch {
+      showLoadError('Unexpected server response. Please try again.');
+      return;
+    }
+
+    if (!data.user) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const user = data.user;
+    userEmail.textContent = user.email;
+    emailVerified.textContent = user.email_verified ? 'Yes' : 'No';
+
+    const date = new Date(user.created_at);
+    createdAt.textContent = date.toLocaleDateString();
+
+    updateTOTPDisplay(user.totp_enabled);
+
+    loading.classList.add('hidden');
+    accountInfo.classList.remove('hidden');
   }
 
   // Generate QR code using the otpauth URI
@@ -509,6 +535,8 @@ import '../styles/global.css';
   setupPasswordInput.addEventListener('input', () => clearFieldError(setupPasswordError));
   disablePasswordInput.addEventListener('input', () => clearFieldError(disablePasswordError));
 
+  retryLoadBtn.addEventListener('click', () => loadUserInfo());
+
   // Initialize
   fetchCSRFToken();
   loadUserInfo();
@@ -529,11 +557,7 @@ import '../styles/global.css';
     padding: 2rem;
     width: 100%;
     max-width: 480px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  }
-
-  :global(.dark) .settings-card {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-card);
   }
 
   .settings-title {
@@ -583,6 +607,16 @@ import '../styles/global.css';
     text-align: center;
     color: var(--text-secondary);
     padding: 2rem 0;
+  }
+
+  .load-error {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--error-text, #dc2626);
+  }
+
+  .load-error .btn-secondary {
+    margin-top: 0.75rem;
   }
 
   .form-group {
@@ -637,19 +671,13 @@ import '../styles/global.css';
   }
 
   .form-success {
-    background: var(--success-bg, #f0fdf4);
-    border: 1px solid var(--success-border, #86efac);
-    color: var(--success-text, #166534);
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    color: var(--success-text);
     padding: 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.875rem;
     margin-bottom: 1rem;
-  }
-
-  :global(.dark) .form-success {
-    background: rgba(34, 197, 94, 0.1);
-    border-color: rgba(34, 197, 94, 0.3);
-    color: #86efac;
   }
 
   .btn-submit {

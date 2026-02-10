@@ -85,12 +85,8 @@ import '../styles/global.css';
     padding: 2rem;
     width: 100%;
     max-width: 400px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-card);
     text-align: center;
-  }
-
-  :global(.dark) .auth-card {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   }
 
   .auth-title {
@@ -108,8 +104,8 @@ import '../styles/global.css';
   }
 
   .status-message.success {
-    background: var(--success-bg, #f0fdf4);
-    border: 1px solid var(--success-border, #bbf7d0);
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
     color: var(--success-text);
   }
 

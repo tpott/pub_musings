@@ -453,3 +453,13 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 **Solution:** (1) Removed `disconnect()` from `stopWebSocketRecording()`, changed state to `transcribing` instead of `idle` to wait for server response. Added `disconnect()` in `handleWsMedia()` when recorder is inactive (user already stopped). (2) Updated all 9 E2E mock WebSocket handlers to check `parsed.type === 'audio_data'` instead of relying on binary message detection.
 
 **Lesson:** When changing a message protocol (binary → JSON), update ALL consumers including test mocks. E2E tests that worked with binary detection silently stopped receiving audio data when it became JSON. Always run the full E2E suite after protocol changes. Also, `disconnect()` in a request-response WebSocket flow should happen AFTER receiving the response, not immediately after sending the request.
+
+---
+
+### 2026-02-09: Audit agent false positives — always verify claims against code
+
+**Problem:** Deep inspection subagents reported 5 backend issues. Verification against actual code showed 2 were false: (1) "Missing context timeout in WebSocket LLM calls" — timeout was properly set in `processTranscript()` via `context.WithTimeout(ctx, intentTimeout)`. (2) "Readiness probe missing database ping" — `health.go` already included `h.DB.Ping()` in the readiness check.
+
+**Solution:** Added a verification step after initial audit: read the actual code for each claim before filing tasks. Only 3 of 5 claims were accurate.
+
+**Lesson:** Audit agent claims have a significant false positive rate. Always verify specific code references before acting on audit findings. The agents tend to miss code that's in a different file from where they expected it (e.g., timeout set in `websocket_interaction.go` rather than `websocket_audio.go`).

@@ -468,9 +468,10 @@ func (h *AudioWebSocketHandler) idleTimeoutWatcher(ctx context.Context, cancel c
 		case <-ticker.C:
 			state.mu.Lock()
 			idle := time.Since(state.lastActivity)
+			processing := state.isProcessing
 			state.mu.Unlock()
 
-			if idle > h.IdleTimeout {
+			if idle > h.IdleTimeout && !processing {
 				logger.Info("closing idle connection", "idle_duration", idle)
 				conn.Close(websocket.StatusGoingAway, "idle timeout")
 				cancel()

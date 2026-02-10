@@ -240,6 +240,35 @@ sops secrets.enc.yaml
 
 When `RESEND_API_KEY` is not set, the backend uses `LogEmailSender` which logs email details (recipient, token) to stdout. This is suitable for local development — check server logs for verification tokens and magic link tokens.
 
+## Two-Factor Authentication (TOTP)
+
+Peekaboo supports time-based one-time passwords (TOTP) for two-factor authentication. Users enable 2FA from the `/settings` page.
+
+### How It Works
+
+1. User clicks "Set up 2FA" on the settings page
+2. Backend generates a TOTP secret and returns an `otpauth://` URI
+3. User enters the secret into their authenticator app (Google Authenticator, Authy, etc.)
+4. User verifies by entering a 6-digit code from the app
+5. Subsequent logins require both password and TOTP code
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/totp/setup` | POST | Generate TOTP secret (requires password) |
+| `/api/auth/totp/enable` | POST | Verify code and enable 2FA |
+| `/api/auth/totp/disable` | POST | Disable 2FA (requires password) |
+
+All TOTP endpoints are rate-limited to 10 requests/minute.
+
+### Notes
+
+- **Magic links bypass TOTP** — a valid magic link token authenticates directly without requiring a TOTP code
+- TOTP uses standard HMAC-SHA1 with 6-digit codes and 30-second time steps
+- The implementation accepts codes within a ±1 period window to account for clock skew
+- No additional environment variables are required for TOTP
+
 ## Backup and Recovery
 
 ### Database Backup

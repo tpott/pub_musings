@@ -95,15 +95,15 @@ func (h *AdminHandler) HandleListFeedback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Check TRUSTED_USERS authorization
-	if len(h.TrustedUsers) > 0 && !h.TrustedUsers[user.ID] {
-		writeJSON(w, http.StatusForbidden, adminFeedbackResponse{Error: "admin access required"})
+	// Fail-closed: deny all if no TRUSTED_USERS configured
+	if len(h.TrustedUsers) == 0 {
+		writeJSON(w, http.StatusForbidden, adminFeedbackResponse{Error: "TRUSTED_USERS not configured"})
 		return
 	}
 
-	// If no TRUSTED_USERS configured, deny all (fail-closed)
-	if len(h.TrustedUsers) == 0 {
-		writeJSON(w, http.StatusForbidden, adminFeedbackResponse{Error: "TRUSTED_USERS not configured"})
+	// Check TRUSTED_USERS authorization
+	if !h.TrustedUsers[user.ID] {
+		writeJSON(w, http.StatusForbidden, adminFeedbackResponse{Error: "admin access required"})
 		return
 	}
 

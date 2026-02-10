@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -159,7 +160,11 @@ func (db *DB) Init() error {
 
 	// Migrate: add user_id column to feedback table if missing (for existing DBs).
 	// ALTER TABLE fails with "duplicate column name" if column already exists — that's expected.
-	_, _ = db.conn.Exec("ALTER TABLE feedback ADD COLUMN user_id TEXT")
+	if _, err := db.conn.Exec("ALTER TABLE feedback ADD COLUMN user_id TEXT"); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return fmt.Errorf("migrate feedback.user_id: %w", err)
+		}
+	}
 
 	// Create auth tables
 	if err := db.InitAuth(); err != nil {

@@ -57,9 +57,14 @@
   --error-bg: #fef2f2;
   --error-border: #fecaca;
   --error-text: #991b1b;
+  --success-bg: #f0fdf4;
+  --success-border: #bbf7d0;
   --success-text: #059669;
   --star-color: #f59e0b;
   --star-unselected: #d6d3d1;
+
+  /* Shadows */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.08);
 
   /* Overlay */
   --overlay: rgba(0, 0, 0, 0.4);
@@ -124,9 +129,14 @@
   --error-bg: #451a1a;
   --error-border: #7f1d1d;
   --error-text: #fca5a5;
+  --success-bg: rgba(34, 197, 94, 0.1);
+  --success-border: rgba(34, 197, 94, 0.3);
   --success-text: #34d399;
   --star-color: #f59e0b;
   --star-unselected: #52525b;
+
+  /* Shadows */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
 
   /* Overlay */
   --overlay: rgba(0, 0, 0, 0.6);

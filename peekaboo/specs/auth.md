@@ -504,11 +504,9 @@ w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains
 |----------|-------------|---------|
 | `HTTPS_ONLY` | Secure cookies + HSTS | `false` |
 | `CSRF_SECRET` | HMAC key for CSRF tokens | random per startup |
-| `EMAIL_FROM` | Sender address for auth emails | - |
-| `EMAIL_SMTP_HOST` | SMTP server hostname | - |
-| `EMAIL_SMTP_PORT` | SMTP server port | `587` |
-| `EMAIL_SMTP_USER` | SMTP username | - |
-| `EMAIL_SMTP_PASS` | SMTP password | - |
+| `EMAIL_FROM` | Sender address for auth emails | `noreply@peekaboo.pottingers.us` |
+| `RESEND_API_KEY` | Resend API key for sending emails (omit for LogEmailSender) | - |
+| `APP_URL` | Base URL for email links (verification, magic link) | `http://localhost:4321` |
 
 ## Related Specs
 
