@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,12 +62,57 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 			h.sendError(ctx, conn, "No audio recorded", logger)
 		}
 
+	case MsgTypeAudioData:
+		h.handleAudioDataMessage(ctx, conn, state, data, logger)
+
 	case MsgTypePing:
 		h.sendPong(ctx, conn, logger)
 	}
 }
 
-// handleAudioChunk buffers incoming audio data.
+// handleAudioDataMessage processes a base64-encoded audio chunk sent as a JSON text message.
+// This is the preferred transport (replaces raw binary frames).
+func (h *AudioWebSocketHandler) handleAudioDataMessage(_ context.Context, _ *websocket.Conn, state *connectionState, data []byte, logger *slog.Logger) {
+	var msg AudioDataMessage
+	if err := json.Unmarshal(data, &msg); err != nil {
+		logger.Warn("invalid audio_data message", "error", err)
+		return
+	}
+
+	// Decode base64 audio
+	audioData, err := base64.StdEncoding.DecodeString(msg.Data)
+	if err != nil {
+		logger.Warn("invalid base64 in audio_data", "error", err)
+		return
+	}
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if !state.isRecording {
+		return
+	}
+
+	chunkMeta := &AudioChunkMeta{
+		Seq:      msg.Seq,
+		ClientTS: msg.ClientTime,
+		ServerTS: time.Now(),
+		Offset:   state.webmParser.BufferLen(),
+	}
+
+	// Start buffer timer on first chunk
+	if state.webmParser.BufferLen() == 0 {
+		state.bufferStart = time.Now()
+		state.firstChunkClient = chunkMeta.ClientTS
+	}
+
+	state.webmParser.Append(audioData)
+	state.chunkMetas = append(state.chunkMetas, *chunkMeta)
+
+	logger.Debug("received audio_data chunk", "size", len(audioData), "seq", msg.Seq, "buffer_size", state.webmParser.BufferLen())
+}
+
+// handleAudioChunk buffers incoming audio data (binary WebSocket messages).
 // Supports both framed (12-byte header with magic 0xAB01) and legacy raw binary.
 func (h *AudioWebSocketHandler) handleAudioChunk(ctx context.Context, conn *websocket.Conn, state *connectionState, data []byte, logger *slog.Logger) {
 	state.mu.Lock()

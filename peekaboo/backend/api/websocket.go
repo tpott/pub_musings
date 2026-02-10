@@ -23,6 +23,7 @@ import (
 const (
 	MsgTypeStartRecording = "start_recording"
 	MsgTypeStopRecording  = "stop_recording"
+	MsgTypeAudioData      = "audio_data"
 	MsgTypePing           = "ping"
 )
 
@@ -75,6 +76,14 @@ const (
 type ClientMessage struct {
 	Type       string  `json:"type"`
 	ClientTime float64 `json:"client_time,omitempty"` // milliseconds since epoch, sent with start_recording
+}
+
+// AudioDataMessage represents a base64-encoded audio chunk from the client.
+type AudioDataMessage struct {
+	Type       string  `json:"type"`
+	Data       string  `json:"data"`                  // base64-encoded audio bytes
+	Seq        uint16  `json:"seq"`                   // sequence number (wraps at 65535)
+	ClientTime float64 `json:"client_time,omitempty"` // Date.now() in milliseconds
 }
 
 // AudioChunkMeta records metadata from a framed audio chunk's header.

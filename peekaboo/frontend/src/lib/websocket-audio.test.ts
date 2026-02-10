@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   AudioWebSocket,
-  AUDIO_FRAME_MAGIC,
-  AUDIO_FRAME_HEADER_SIZE,
 } from './websocket-audio';
 
 // Mock WebSocket for connection and recording tests.
@@ -247,7 +245,7 @@ describe('AudioWebSocket', () => {
   });
 
   describe('sendAudioChunk', () => {
-    it('sends framed ArrayBuffer with 12-byte header while recording', async () => {
+    it('sends base64-encoded JSON message while recording', async () => {
       const ws = new AudioWebSocket();
       await connectWebSocket(ws);
 
@@ -261,18 +259,17 @@ describe('AudioWebSocket', () => {
       const messages = mockWebSocketInstance?.sentMessages || [];
       expect(messages.length).toBe(2);
 
-      const frame = messages[1] as ArrayBuffer;
-      expect(frame.byteLength).toBe(AUDIO_FRAME_HEADER_SIZE + testData.byteLength);
+      // Message should be a JSON string, not an ArrayBuffer
+      expect(typeof messages[1]).toBe('string');
+      const msg = JSON.parse(messages[1] as string);
+      expect(msg.type).toBe('audio_data');
+      expect(msg.seq).toBe(0);
+      expect(msg.client_time).toBeGreaterThanOrEqual(beforeTime);
+      expect(msg.client_time).toBeLessThanOrEqual(afterTime);
 
-      const view = new DataView(frame);
-      expect(view.getUint16(0, false)).toBe(AUDIO_FRAME_MAGIC);
-      expect(view.getUint16(2, false)).toBe(0);
-      const ts = view.getFloat64(4, false);
-      expect(ts).toBeGreaterThanOrEqual(beforeTime);
-      expect(ts).toBeLessThanOrEqual(afterTime);
-
-      const audioPayload = new Uint8Array(frame, AUDIO_FRAME_HEADER_SIZE);
-      expect(Array.from(audioPayload)).toEqual(Array.from(testData));
+      // Verify base64 data decodes to the original audio bytes
+      const decoded = Uint8Array.from(atob(msg.data), c => c.charCodeAt(0));
+      expect(Array.from(decoded)).toEqual(Array.from(testData));
     });
 
     it('increments sequence number for each chunk', async () => {
@@ -292,9 +289,9 @@ describe('AudioWebSocket', () => {
       const messages = mockWebSocketInstance?.sentMessages || [];
       expect(messages.length).toBe(4);
 
-      expect(new DataView(messages[1] as ArrayBuffer).getUint16(2, false)).toBe(0);
-      expect(new DataView(messages[2] as ArrayBuffer).getUint16(2, false)).toBe(1);
-      expect(new DataView(messages[3] as ArrayBuffer).getUint16(2, false)).toBe(2);
+      expect(JSON.parse(messages[1] as string).seq).toBe(0);
+      expect(JSON.parse(messages[2] as string).seq).toBe(1);
+      expect(JSON.parse(messages[3] as string).seq).toBe(2);
     });
 
     it('resets sequence number on new recording session', async () => {
@@ -312,8 +309,8 @@ describe('AudioWebSocket', () => {
       const messages = mockWebSocketInstance?.sentMessages || [];
       expect(messages.length).toBe(6);
 
-      const lastFrame = messages[5] as ArrayBuffer;
-      expect(new DataView(lastFrame).getUint16(2, false)).toBe(0);
+      const lastMsg = JSON.parse(messages[5] as string);
+      expect(lastMsg.seq).toBe(0);
     });
 
     it('does not send if not recording', async () => {

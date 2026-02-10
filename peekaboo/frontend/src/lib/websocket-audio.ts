@@ -70,11 +70,14 @@ const DEFAULT_OPTIONS: Required<AudioWebSocketOptions> = {
 /**
  * AudioWebSocket manages WebSocket connection for streaming audio
  */
-/** Magic bytes identifying an audio frame (0xAB01). */
-export const AUDIO_FRAME_MAGIC = 0xAB01;
 
-/** Size of the audio frame header in bytes: 2 (magic) + 2 (seq) + 8 (timestamp). */
-export const AUDIO_FRAME_HEADER_SIZE = 12;
+// Client-to-server audio message sent as JSON text frame.
+interface AudioDataMessage {
+  type: 'audio_data';
+  data: string;        // base64-encoded audio bytes
+  seq: number;         // sequence number (wraps at 65535)
+  client_time: number; // Date.now() in milliseconds
+}
 
 export class AudioWebSocket {
   private ws: WebSocket | null = null;
@@ -219,13 +222,10 @@ export class AudioWebSocket {
   }
 
   /**
-   * Send an audio chunk to the server with a 12-byte frame header.
+   * Send an audio chunk to the server as a base64-encoded JSON message.
    *
-   * Frame format:
-   *   Byte 0-1: Magic 0xAB01 (big-endian uint16)
-   *   Byte 2-3: Sequence number (big-endian uint16, wraps at 65535)
-   *   Byte 4-11: Client timestamp (float64, milliseconds since epoch)
-   *   Byte 12+: Audio data (WebM/Opus bytes)
+   * Message format:
+   *   {"type": "audio_data", "data": "<base64>", "seq": N, "client_time": <ms>}
    *
    * @param chunk Audio data (Blob or ArrayBuffer)
    */
@@ -242,16 +242,23 @@ export class AudioWebSocket {
     }
 
     if (this.ws.readyState === WebSocket.OPEN) {
-      // Build framed message: 12-byte header + audio data
-      const frame = new ArrayBuffer(AUDIO_FRAME_HEADER_SIZE + audioData.byteLength);
-      const view = new DataView(frame);
-      view.setUint16(0, AUDIO_FRAME_MAGIC, false); // big-endian
-      view.setUint16(2, this.sequenceNumber & 0xFFFF, false); // big-endian, wrap at 65535
-      view.setFloat64(4, Date.now(), false); // big-endian
-      new Uint8Array(frame, AUDIO_FRAME_HEADER_SIZE).set(new Uint8Array(audioData));
+      // Convert audio bytes to base64 string
+      const bytes = new Uint8Array(audioData);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Data = btoa(binary);
+
+      const msg: AudioDataMessage = {
+        type: 'audio_data',
+        data: base64Data,
+        seq: this.sequenceNumber & 0xFFFF,
+        client_time: Date.now(),
+      };
 
       this.sequenceNumber = (this.sequenceNumber + 1) & 0xFFFF;
-      this.ws.send(frame);
+      this.ws.send(JSON.stringify(msg));
     }
   }
 
