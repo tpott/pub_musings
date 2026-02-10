@@ -209,6 +209,13 @@ def main(argv: list[str] | None = None) -> int:
         print("No new feedback found.")
         return 1
 
+    # Compute the newest timestamp from ALL returned items before filtering.
+    # This ensures the cursor advances past items even if they're filtered out.
+    all_newest_ts = max(
+        (item.get("created_at", "") for item in items),
+        default="",
+    )
+
     trusted_raw = secrets.get("TRUSTED_USERS", "")
     trusted = parse_trusted_users(trusted_raw)
     if len(trusted) > 0:
@@ -218,6 +225,9 @@ def main(argv: list[str] | None = None) -> int:
         if skipped:
             print(f"Filtered out {skipped} item(s) from non-trusted users.")
         if not items:
+            # Advance cursor past filtered items so they aren't re-fetched
+            if all_newest_ts:
+                write_cursor(all_newest_ts)
             print("No new feedback from trusted users.")
             return 1
 
@@ -231,9 +241,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         OUTPUT_FILE.write_text(content)
 
-    # Update cursor
-    if newest_ts:
-        write_cursor(newest_ts)
+    # Update cursor to the newest timestamp across all items (including filtered)
+    cursor_ts = max(newest_ts, all_newest_ts) if newest_ts else all_newest_ts
+    if cursor_ts:
+        write_cursor(cursor_ts)
 
     print(f"Wrote {len(items)} feedback item(s) to FEEDBACK.md")
     return 0
