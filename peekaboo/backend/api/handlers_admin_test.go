@@ -237,6 +237,14 @@ func TestAdminFeedback_NoTrustedUsers(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 when TRUSTED_USERS empty, got %d: %s", w.Code, w.Body.String())
 	}
+
+	var resp adminFeedbackResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+	if resp.Error != "TRUSTED_USERS not configured" {
+		t.Errorf("Expected error='TRUSTED_USERS not configured', got %q", resp.Error)
+	}
 }
 
 func TestAdminFeedback_WrongMethod(t *testing.T) {

@@ -45,6 +45,21 @@ export interface MagicLinkVerifyResponse {
 }
 
 /**
+ * Checks if the current user is authenticated by calling /api/auth/me.
+ * Returns true if authenticated, false otherwise.
+ */
+export async function checkAuth(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/auth/me', {
+      credentials: 'same-origin',
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validates an email address format.
  */
 export function validateEmail(email: string): string | null {

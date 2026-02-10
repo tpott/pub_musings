@@ -16,16 +16,7 @@
 </a>
 
 <script>
-  async function checkAuth(): Promise<boolean> {
-    try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'same-origin',
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
+  import { checkAuth } from '../lib/auth';
 
   document.addEventListener('DOMContentLoaded', async () => {
     const btn = document.querySelector('[data-testid="settings-button"]') as HTMLAnchorElement;

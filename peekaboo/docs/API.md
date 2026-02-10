@@ -25,18 +25,18 @@ http://localhost:8080
 | POST | `/api/feedback` | No | 5/min | Submit user feedback |
 | GET | `/api/admin/feedback` | Yes+TRUSTED | — | List feedback (admin) |
 | GET | `/ws/audio` | No* | 10/min | WebSocket upgrade for audio streaming |
-| POST | `/api/auth/register` | No | — | Create account ([details](../specs/auth.md)) |
-| POST | `/api/auth/login` | No | Lockout 5/15min | Login ([details](../specs/auth.md)) |
+| POST | `/api/auth/register` | No | 5/min | Create account ([details](../specs/auth.md)) |
+| POST | `/api/auth/login` | No | 10/min + Lockout 5/15min | Login ([details](../specs/auth.md)) |
 | POST | `/api/auth/logout` | Yes | — | Invalidate session ([details](../specs/auth.md)) |
 | GET | `/api/auth/me` | Yes | — | Get current user ([details](../specs/auth.md)) |
 | GET | `/api/auth/verify` | No | — | Verify email token ([details](../specs/auth.md)) |
 | POST | `/api/auth/resend-verification` | No | 3/15min | Resend verification email ([details](../specs/auth.md)) |
 | POST | `/api/auth/magic-link` | No | 5/min | Request magic link ([details](../specs/auth.md)) |
 | GET | `/api/auth/magic-link/verify` | No | — | Verify magic link token ([details](../specs/auth.md)) |
-| GET | `/api/auth/csrf` | Yes | — | Get CSRF token ([details](../specs/auth.md)) |
-| POST | `/api/auth/totp/setup` | Yes+CSRF | — | Generate TOTP secret ([details](../specs/auth.md)) |
-| POST | `/api/auth/totp/enable` | Yes+CSRF | — | Enable TOTP 2FA ([details](../specs/auth.md)) |
-| POST | `/api/auth/totp/disable` | Yes+CSRF | — | Disable TOTP 2FA ([details](../specs/auth.md)) |
+| GET | `/api/auth/csrf` | Yes | 30/min | Get CSRF token ([details](../specs/auth.md)) |
+| POST | `/api/auth/totp/setup` | Yes+CSRF | 10/min | Generate TOTP secret ([details](../specs/auth.md)) |
+| POST | `/api/auth/totp/enable` | Yes+CSRF | 10/min | Enable TOTP 2FA ([details](../specs/auth.md)) |
+| POST | `/api/auth/totp/disable` | Yes+CSRF | 10/min | Disable TOTP 2FA ([details](../specs/auth.md)) |
 
 \* WebSocket optionally uses session cookie for authenticated sessions.
 
@@ -244,17 +244,17 @@ Key points:
 
 - **Allowed Origin**: `ALLOWED_ORIGIN` env var (default: `*` for development)
 - **Allowed Methods**: `GET`, `POST`, `OPTIONS`
-- **Allowed Headers**: `Content-Type`
+- **Allowed Headers**: `Content-Type`, `X-CSRF-Token`
 
 ## Rate Limiting
 
 | Limit | Endpoints |
 |-------|-----------|
-| 10/min per IP | `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`, `GET /ws/audio` |
-| 30/min per IP | `GET /api/media/{concept}` |
-| 5/min per IP | `POST /api/feedback`, `POST /api/auth/magic-link` |
+| 10/min per IP | `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`, `GET /ws/audio`, `POST /api/auth/login`, `POST /api/auth/totp/*` |
+| 30/min per IP | `GET /api/media/{concept}`, `GET /api/auth/csrf` |
+| 5/min per IP | `POST /api/feedback`, `POST /api/auth/magic-link`, `POST /api/auth/register` |
 | 3/15min per IP | `POST /api/auth/resend-verification` |
-| 5 failures/15min | `POST /api/auth/login` (account lockout) |
+| 5 failures/15min | `POST /api/auth/login` (account lockout, in addition to rate limit) |
 
 Rate-limited responses return HTTP 429 with `Retry-After: 60` header.
 

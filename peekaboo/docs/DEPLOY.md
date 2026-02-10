@@ -43,11 +43,18 @@ This opens the decrypted file in your editor. When you save and exit, sops re-en
 
 ## Environment Variables
 
+See `.env.example` for a complete list with descriptions. Key production variables:
+
 | Variable | Description |
 |----------|-------------|
 | `PORT` | Backend server port (default: 8080, production: 8070) |
 | `WHISPER_SERVER_URL` | URL to whisper-server (e.g., `http://10.0.2.2:8765`) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for LLM intent recognition |
+| `LLM_PROVIDER` | `anthropic` or `openai` (default: `anthropic`) |
+| `ALLOWED_ORIGIN` | CORS origin (e.g., `https://peekaboo.example.com`) |
+| `CSRF_SECRET` | HMAC key for CSRF tokens (random if unset; set for token persistence across restarts) |
+| `HTTPS_ONLY` | Set `true` behind HTTPS proxy for secure cookies |
+| `TRUSTED_USERS` | Comma-separated user IDs for admin endpoints |
 
 ## Systemd Service Setup
 

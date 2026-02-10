@@ -381,11 +381,11 @@ test('voice command shows cat media', async ({ page }) => {
 - **WebSocket audio streaming** (process while mic active, no stop-then-send)
 - Deployment via webhook-deployer
 
-**Phase 2 - Enhanced:** *(Piper TTS and OpenAI provider done)*
+**Phase 2 - Enhanced:** *(Piper TTS, OpenAI provider, and auth system done)*
 - More concepts (colors, shapes, numbers)
 - Multiple media sets per concept
 
-**Phase 3 - Advanced:**
+**Phase 3 - Advanced:** *(VAD done)*
 - Phoneme/partial word output for unclear speech
-- Voice activity detection (VAD) for auto-segmentation
+- ~~Voice activity detection (VAD) for auto-segmentation~~ *(done — whisper VAD integration, task 143)*
 - Real-time streaming whisper (sub-chunk latency)

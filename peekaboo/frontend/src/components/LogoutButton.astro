@@ -17,19 +17,8 @@
 </button>
 
 <script>
-  import { logout } from '../lib/auth';
+  import { checkAuth, logout } from '../lib/auth';
   import { logger } from '../lib/logger';
-
-  async function checkAuth(): Promise<boolean> {
-    try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'same-origin',
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
 
   document.addEventListener('DOMContentLoaded', async () => {
     const btn = document.querySelector('[data-testid="logout-button"]') as HTMLButtonElement;

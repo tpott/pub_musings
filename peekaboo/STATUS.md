@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 217 tasks completed.
+Production-ready voice-controlled web app for children. 223 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,15 +32,18 @@ Production-ready voice-controlled web app for children. 217 tasks completed.
 
 ## Last Completed
 
+- Tasks 257-262 (2026-02-09): Codebase inspection fixes
+  - Task 257: Add X-CSRF-Token to CORS allowed headers (cors.go, API.md)
+  - Task 258: Extract duplicated checkAuth() into shared auth.ts utility
+  - Task 259: Update API.md with auth endpoint rate limits (login, register, TOTP, CSRF)
+  - Task 260: Update DEPLOY.md env vars section (reference .env.example, 8 key production vars)
+  - Task 261: Update architecture.md phase status (VAD is implemented)
+  - Task 262: Enhance admin handler fail-closed test with error message assertion
 - Task 256 (2026-02-09): Fix 9 WebSocket E2E test failures
   - Root cause 1: Task 249 disconnected WebSocket immediately in stopWebSocketRecording(), before server could send response
   - Root cause 2: Task 250 switched audio to base64 JSON but E2E mocks still expected binary messages
   - Fix: stopWebSocketRecording() keeps WebSocket open, disconnects after handleWsMedia when recorder inactive
   - Fix: E2E mock handlers recognize audio_data JSON messages instead of binary
-- Tasks 253-255 (2026-02-09): Security hardening
-  - Task 253: io.LimitReader for 4 success-path JSON decodes (whisper, LLM ExtractIntent)
-  - Task 254: Rate limiting for auth login (10/min) and register (5/min) endpoints
-  - Task 255: Rate limiting for TOTP (10/min) and CSRF (30/min) endpoints
 
 ## Milestone History
 
