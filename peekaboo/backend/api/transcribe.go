@@ -70,6 +70,10 @@ const minAudioSize = 1024
 // from external services to prevent memory exhaustion.
 const maxErrorBodyBytes = 10 * 1024 // 10 KB
 
+// maxSuccessBodyBytes limits how much of a success response body we read
+// from external services to prevent memory exhaustion from a rogue server.
+const maxSuccessBodyBytes = 1 << 20 // 1 MB
+
 // TranscribeHandler handles POST /api/transcribe requests.
 // It accepts audio as multipart/form-data and forwards to whisper-server.
 type TranscribeHandler struct {
@@ -220,9 +224,14 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse,
 		return nil, fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
+	// Parse response (limit read size to prevent memory exhaustion)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxSuccessBodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
 	var whisperResp WhisperResponse
-	if err := json.NewDecoder(resp.Body).Decode(&whisperResp); err != nil {
+	if err := json.Unmarshal(respBody, &whisperResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 

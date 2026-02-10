@@ -154,8 +154,13 @@ func (p *anthropicProvider) ExtractIntent(ctx context.Context, text string) (*In
 		return nil, fmt.Errorf("anthropic API error: %d: %s", resp.StatusCode, string(body))
 	}
 
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxSuccessBodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
 	var apiResp anthropicResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 

@@ -442,9 +442,14 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperRespo
 		return nil, fmt.Errorf("whisper-server error: %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
+	// Parse response (limit read size to prevent memory exhaustion)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxSuccessBodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
 	var whisperResp WhisperResponse
-	if err := json.NewDecoder(resp.Body).Decode(&whisperResp); err != nil {
+	if err := json.Unmarshal(respBody, &whisperResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 

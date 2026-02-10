@@ -158,8 +158,13 @@ func (p *openaiProvider) ExtractIntent(ctx context.Context, text string) (*Inten
 		return nil, fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(body))
 	}
 
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxSuccessBodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
 	var apiResp openaiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 

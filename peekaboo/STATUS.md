@@ -32,10 +32,10 @@ Production-ready voice-controlled web app for children. 213 tasks completed.
 
 ## Last Completed
 
-- Tasks 241-242 (2026-02-08): ProcessTranscript test coverage for LLM providers
-  - 13 Anthropic tests in anthropic_transcript_test.go (491 lines)
-  - 15 OpenAI tests in openai_transcript_test.go (494 lines)
-  - Covers: success paths, multi-action, show_media enforcement, API errors, malformed JSON, invalid tool inputs, context cancellation, network errors, request structure verification
+- Task 253 (2026-02-09): io.LimitReader for success-path JSON decodes
+  - 4 external API response decodes wrapped with maxSuccessBodyBytes (1MB) limit
+  - Fixes: transcribe.go (whisper HTTP), websocket_audio.go (whisper WS), openai.go, anthropic.go
+  - Error paths already had io.LimitReader; now success paths are also protected
 
 ## Milestone History
 

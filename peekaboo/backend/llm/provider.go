@@ -14,6 +14,10 @@ import (
 // external APIs, preventing memory exhaustion from a malicious server.
 const maxErrorBodyBytes = 10 * 1024 // 10 KB
 
+// maxSuccessBodyBytes limits how much of a success response body we read from
+// external APIs, preventing memory exhaustion from a rogue server.
+const maxSuccessBodyBytes = 1 << 20 // 1 MB
+
 // IntentResult contains the result of intent extraction.
 type IntentResult struct {
 	Subject string
