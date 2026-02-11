@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 269 tasks completed.
+Production-ready voice-controlled web app for children. 270 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 269 tasks completed.
 
 ## Last Completed
 
+- Task 309 (2026-02-10): Deep inspection round 14 — split 3 oversized test files (websocket_validation_test.go, websocket_framing_test.go, ratelimit_test.go) into 6 files, all under 500 lines
 - Tasks 307-308 (2026-02-10): Deep inspection rounds 12-13 — add missing token_hash indexes (email_verification_tokens, magic_link_tokens), wire LLMProviderName into WebSocket handler for interaction logging
 - Tasks 305-306 (2026-02-10): Deep inspection round 11 — fix sops command YAML-to-shell conversion in AGENTS.md, add error logging to encrypted_media.go serveEncrypted
 - Tasks 303-304 (2026-02-10): Deep inspection round 10 — settings TOTP error visibility fix (move error divs outside hidden flow containers), CSRF middleware fail-closed on DB errors
