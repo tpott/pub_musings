@@ -210,6 +210,7 @@ func main() {
 	}
 	wsHandler := api.NewAudioWebSocketHandlerWithOptions(whisperURL, llmProvider, database, rateLimiter, allowedOrigin)
 	wsHandler.TTSProvider = ttsProvider // nil if Piper not configured
+	wsHandler.AuthTracker = api.NewWSAuthTracker(api.DefaultWSAuthLimits())
 	mux.Handle("GET /ws/audio", wsHandler)
 
 	// Static file server for media files

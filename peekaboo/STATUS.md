@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 261 tasks completed.
+Production-ready voice-controlled web app for children. 263 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 261 tasks completed.
 
 ## Last Completed
 
+- Tasks 301-302 (2026-02-10): Deep inspection round 9 — TOTP double-click verified safe (no change needed), wire WSAuthTracker into production main.go
 - Tasks 299-300 (2026-02-10): Deep inspection round 8 — CORS credentials header for cookie auth, LLM HealthCheck response body drain
 - Tasks 296-298 (2026-02-10): Deep inspection round 7 — WSAuthTracker stale IP cleanup, batched audio blob cleanup (LIMIT 500), WebMParser 50MB buffer limit
 - Task 295 (2026-02-10): Expired token cleanup — added DeleteExpiredEmailVerificationTokens/DeleteExpiredMagicLinkTokens to DB, CleanupExpiredAuth now cleans up all 4 auth tables

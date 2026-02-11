@@ -533,3 +533,23 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 **Solution:** Added a `keydown` handler that intercepts Tab within the modal: queries all focusable elements in `.modal-content`, wraps focus from last→first on Tab and first→last on Shift+Tab. The selector `'button:not([disabled]), select, textarea, input, [tabindex]:not([tabindex="-1"])'` covers all interactive elements.
 
 **Lesson:** Modals with `aria-modal="true"` need focus trapping in JavaScript — the `aria-modal` attribute is a hint to assistive technology but doesn't actually prevent keyboard focus from escaping. The focus trap must be in a `keydown` handler, not `keyup`, to prevent the default Tab behavior.
+
+---
+
+### 2026-02-10: CORS credentials required for cross-origin cookie auth
+
+**Problem:** The CORS middleware set `Access-Control-Allow-Origin` but omitted `Access-Control-Allow-Credentials: true`. Browsers refuse to send cookies with cross-origin requests unless this header is present. Cookie-based session auth silently failed in cross-origin deployments.
+
+**Solution:** Added `Access-Control-Allow-Credentials: true` to `CORSMiddleware()` when `allowedOrigin` is not `*` (wildcard is incompatible with credentials per CORS spec).
+
+**Lesson:** Cookie-based authentication + CORS requires `Access-Control-Allow-Credentials: true`. This is easy to miss because same-origin deployments work fine without it. Test cross-origin auth explicitly.
+
+---
+
+### 2026-02-10: Unbounded accumulation buffers need max size limits
+
+**Problem:** The WebMParser's `rawBuffer` could grow without limit during continuous recording. If audio kept flowing without being processed (e.g., LLM returning `wait_for_more` repeatedly), the buffer could exhaust server memory.
+
+**Solution:** Added `defaultMaxBufferSize = 50MB` and made `Append()` return false when the limit would be exceeded. Callers log a warning and drop the chunk.
+
+**Lesson:** Any buffer that accumulates data from an external source needs a hard size cap. The cap should be generous enough for normal operation but prevent pathological memory exhaustion. Return an error/bool rather than silently dropping — callers need to know.
