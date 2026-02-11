@@ -153,7 +153,7 @@ Production should set `ALLOWED_ORIGIN` to the actual frontend domain (e.g., `htt
 **Mitigations**:
 | Control | Location | Implementation |
 |---------|----------|----------------|
-| Password hashing | `auth/auth.go` `HashPassword()` | bcrypt with default cost |
+| Password hashing | `auth/auth.go` `HashPassword()` | bcrypt with cost 12 |
 | Session tokens | `auth/auth.go` `GenerateToken()` | 32-byte crypto/rand tokens |
 | Session cookie | `api/handlers_auth.go` `HandleLogin()` | HttpOnly, SameSite=Lax, optional Secure flag |
 | Session duration | `auth/auth.go` `SessionDuration` | 30 days |

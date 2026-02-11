@@ -98,7 +98,7 @@ sops -d secrets.enc.yaml > .env
 | `LLM_PROVIDER` | LLM provider (`anthropic` or `openai`) | `anthropic` |
 | `ANTHROPIC_API_KEY` | Anthropic API key | - |
 | `OPENAI_API_KEY` | OpenAI API key | - |
-| `WHISPER_SERVER_URL` | Whisper server URL | - |
+| `WHISPER_SERVER_URL` | Whisper server URL | `http://127.0.0.1:8765` |
 | `PIPER_SERVER_URL` | Piper TTS server URL (optional) | - |
 | `TRUST_PROXY_HEADERS` | Trust X-Forwarded-For/X-Real-IP for IP extraction | `false` |
 | `ALLOWED_ORIGIN` | CORS allowed origin (e.g., `https://peekaboo.example.com`) | `*` (dev only) |

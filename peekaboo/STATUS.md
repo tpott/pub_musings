@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 248 tasks completed.
+Production-ready voice-controlled web app for children. 249 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,10 @@ Production-ready voice-controlled web app for children. 248 tasks completed.
 
 ## Last Completed
 
+- Task 288 (2026-02-10): Deep inspection round 5 — context propagation, docs accuracy
+  - Fix health.go checkWhisperServer/checkPiperServer to use http.NewRequestWithContext with request context
+  - Fix SECURITY.md bcrypt cost: "default cost" → "cost 12" (matches actual BcryptCost=12)
+  - Fix AGENTS.md WHISPER_SERVER_URL default: "-" → "http://127.0.0.1:8765" (matches code)
 - Tasks 284-287 (2026-02-10): Deep inspection round 4 — validation, accessibility, stability
   - Task 284: Add transcript length validation to WebSocket processTranscript (max 500 chars, consistent with HTTP)
   - Task 285: Add focus trap to FeedbackButton modal (Tab/Shift+Tab wraps within modal, E2E test)

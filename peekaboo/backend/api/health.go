@@ -145,7 +145,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	details["database"] = "ok"
 
 	// Check whisper-server connectivity
-	if err := h.checkWhisperServer(); err != nil {
+	if err := h.checkWhisperServer(r.Context()); err != nil {
 		details["whisper"] = "unavailable"
 		writeJSON(w, http.StatusServiceUnavailable, HealthResponse{
 			Status:  "unavailable",
@@ -158,7 +158,7 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Check Piper TTS server connectivity (optional - only if URL is configured)
 	if h.PiperURL != "" {
-		if err := h.checkPiperServer(); err != nil {
+		if err := h.checkPiperServer(r.Context()); err != nil {
 			details["piper"] = "unavailable"
 			writeJSON(w, http.StatusServiceUnavailable, HealthResponse{
 				Status:  "unavailable",
@@ -191,8 +191,8 @@ func (h *ReadinessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // checkWhisperServer verifies the whisper-server is reachable.
 // Uses a GET request to the root endpoint for minimal overhead.
-func (h *ReadinessHandler) checkWhisperServer() error {
-	req, err := http.NewRequest(http.MethodGet, h.WhisperURL, nil)
+func (h *ReadinessHandler) checkWhisperServer(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.WhisperURL, nil)
 	if err != nil {
 		return err
 	}
@@ -211,8 +211,8 @@ func (h *ReadinessHandler) checkWhisperServer() error {
 
 // checkPiperServer verifies the Piper TTS server is reachable.
 // Uses a GET request to the root endpoint for minimal overhead.
-func (h *ReadinessHandler) checkPiperServer() error {
-	req, err := http.NewRequest(http.MethodGet, h.PiperURL, nil)
+func (h *ReadinessHandler) checkPiperServer(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.PiperURL, nil)
 	if err != nil {
 		return err
 	}
