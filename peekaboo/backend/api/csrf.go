@@ -31,7 +31,7 @@ func (h *AuthHandler) HandleCSRF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := h.DB.GetSessionByToken(sessionToken)
+	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
 		slog.Error("csrf: failed to look up session",
 			"error", err,
@@ -86,7 +86,7 @@ func CSRFMiddleware(next http.Handler, csrfSecret []byte, database *db.DB) http.
 		}
 
 		// Verify session exists and is not expired — fail closed on DB errors
-		session, err := database.GetSessionByToken(sessionToken)
+		session, err := database.GetSessionByTokenHash(auth.HashToken(sessionToken))
 		if err != nil {
 			slog.Error("csrf: failed to look up session",
 				"error", err,

@@ -248,7 +248,7 @@ func (h *AuthHandler) authenticateRequest(r *http.Request) (*db.User, error) {
 		return nil, nil
 	}
 
-	session, err := h.DB.GetSessionByToken(sessionToken)
+	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
 		return nil, err
 	}

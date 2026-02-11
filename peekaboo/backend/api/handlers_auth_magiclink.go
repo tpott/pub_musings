@@ -212,7 +212,7 @@ func (h *AuthHandler) HandleMagicLinkVerify(w http.ResponseWriter, r *http.Reque
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: now.Add(auth.SessionDuration),
 		CreatedAt: now,
 	}

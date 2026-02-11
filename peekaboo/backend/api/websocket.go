@@ -300,7 +300,7 @@ func (h *AudioWebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	var wsUserID, wsSessionID string
 	if h.Database != nil {
 		if token := extractSessionToken(r); token != "" {
-			session, err := h.Database.GetSessionByToken(token)
+			session, err := h.Database.GetSessionByTokenHash(auth.HashToken(token))
 			if err != nil {
 				logger.Error("websocket auth: failed to look up session", "error", err)
 			} else if session != nil && time.Now().UTC().Before(session.ExpiresAt) {

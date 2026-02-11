@@ -94,7 +94,7 @@ func TestCSRFMiddleware_RejectsMissingToken(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -138,7 +138,7 @@ func TestCSRFMiddleware_RejectsInvalidToken(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -183,7 +183,7 @@ func TestCSRFMiddleware_AcceptsValidToken(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -224,7 +224,7 @@ func TestCSRFMiddleware_AllStateMethods(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -259,7 +259,7 @@ func TestCSRFMiddleware_BearerAuth(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -303,7 +303,7 @@ func TestCSRFFlow(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -347,7 +347,7 @@ func TestCSRFFlow(t *testing.T) {
 	session2 := &db.Session{
 		ID:        sessionID2,
 		UserID:    user.ID,
-		Token:     sessionToken2,
+		TokenHash: auth.HashToken(sessionToken2),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -412,7 +412,7 @@ func TestCSRFMiddleware_FeedbackEndpoint(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}

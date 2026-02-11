@@ -510,7 +510,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: now.Add(auth.SessionDuration),
 		CreatedAt: now,
 	}
@@ -557,7 +557,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := h.DB.GetSessionByToken(sessionToken)
+	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
 		slog.Error("logout: failed to look up session",
 			"error", err,
@@ -607,7 +607,7 @@ func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := h.DB.GetSessionByToken(sessionToken)
+	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
 		slog.Error("me: failed to look up session",
 			"error", err,

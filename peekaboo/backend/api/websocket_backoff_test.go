@@ -9,11 +9,11 @@ import (
 func TestEmptyTranscriptBackoff(t *testing.T) {
 	t.Run("backoff threshold computation", func(t *testing.T) {
 		tests := []struct {
-			name                string
-			consecutiveEmpty    int
-			trailingSilence     bool
-			baseThreshold       time.Duration
-			wantEffective       time.Duration
+			name             string
+			consecutiveEmpty int
+			trailingSilence  bool
+			baseThreshold    time.Duration
+			wantEffective    time.Duration
 		}{
 			{
 				name:             "no backoff below threshold",

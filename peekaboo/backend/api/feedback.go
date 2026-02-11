@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tpott/pub_musings/peekaboo/backend/auth"
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
@@ -135,7 +136,7 @@ func (h *FeedbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Extract user_id from session cookie if authenticated
 	var userID *string
 	if token := extractSessionToken(r); token != "" && h.database != nil {
-		if session, err := h.database.GetSessionByToken(token); err == nil && session != nil && time.Now().UTC().Before(session.ExpiresAt) {
+		if session, err := h.database.GetSessionByTokenHash(auth.HashToken(token)); err == nil && session != nil && time.Now().UTC().Before(session.ExpiresAt) {
 			userID = &session.UserID
 		}
 	}

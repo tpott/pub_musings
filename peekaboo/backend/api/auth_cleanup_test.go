@@ -20,7 +20,7 @@ func TestCleanupExpiredAuth_Sessions(t *testing.T) {
 	if err := database.CreateSession(&db.Session{
 		ID:        "expired-sess",
 		UserID:    user.ID,
-		Token:     "tok-expired",
+		TokenHash:     "tok-expired",
 		ExpiresAt: time.Now().UTC().Add(-1 * time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
@@ -31,7 +31,7 @@ func TestCleanupExpiredAuth_Sessions(t *testing.T) {
 	if err := database.CreateSession(&db.Session{
 		ID:        "valid-sess",
 		UserID:    user.ID,
-		Token:     "tok-valid",
+		TokenHash:     "tok-valid",
 		ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
@@ -45,18 +45,18 @@ func TestCleanupExpiredAuth_Sessions(t *testing.T) {
 	}
 
 	// Verify valid session still exists
-	session, err := database.GetSessionByToken("tok-valid")
+	session, err := database.GetSessionByTokenHash("tok-valid")
 	if err != nil {
-		t.Fatalf("GetSessionByToken failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
 	}
 	if session == nil {
 		t.Error("Valid session should still exist after cleanup")
 	}
 
 	// Verify expired session is gone
-	expiredSession, err := database.GetSessionByToken("tok-expired")
+	expiredSession, err := database.GetSessionByTokenHash("tok-expired")
 	if err != nil {
-		t.Fatalf("GetSessionByToken failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
 	}
 	if expiredSession != nil {
 		t.Error("Expired session should be deleted after cleanup")

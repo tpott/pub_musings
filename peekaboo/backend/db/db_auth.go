@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -47,11 +48,11 @@ CREATE INDEX IF NOT EXISTS idx_magic_link_token_hash ON magic_link_tokens(token_
 CREATE TABLE IF NOT EXISTS sessions (
 	id TEXT PRIMARY KEY,
 	user_id TEXT NOT NULL REFERENCES users(id),
-	token TEXT UNIQUE NOT NULL,
+	token_hash TEXT UNIQUE NOT NULL,
 	expires_at DATETIME NOT NULL,
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
@@ -81,7 +82,7 @@ type User struct {
 type Session struct {
 	ID        string
 	UserID    string
-	Token     string
+	TokenHash string
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }
@@ -101,6 +102,15 @@ func (db *DB) InitAuth() error {
 	if _, err := db.conn.Exec(authSchema); err != nil {
 		return fmt.Errorf("create auth schema: %w", err)
 	}
+
+	// Migrate: rename sessions.token → sessions.token_hash (for existing DBs).
+	// New DBs already have token_hash from the CREATE TABLE above.
+	if _, err := db.conn.Exec("ALTER TABLE sessions RENAME COLUMN token TO token_hash"); err != nil {
+		if !strings.Contains(err.Error(), "no such column") {
+			return fmt.Errorf("migrate sessions.token_hash: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -194,29 +204,31 @@ func (db *DB) SetEmailVerified(userID string) error {
 }
 
 // CreateSession inserts a new session into the database.
+// The caller must pass a pre-hashed token in session.TokenHash.
 func (db *DB) CreateSession(session *Session) error {
 	_, err := db.conn.Exec(`
-		INSERT INTO sessions (id, user_id, token, expires_at, created_at)
+		INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, session.ID, session.UserID, session.Token, session.ExpiresAt, session.CreatedAt)
+	`, session.ID, session.UserID, session.TokenHash, session.ExpiresAt, session.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert session: %w", err)
 	}
 	return nil
 }
 
-// GetSessionByToken retrieves a session by its token. Returns nil if not found.
-func (db *DB) GetSessionByToken(token string) (*Session, error) {
+// GetSessionByTokenHash retrieves a session by its token hash. Returns nil if not found.
+// Callers should pass auth.HashToken(plaintextToken).
+func (db *DB) GetSessionByTokenHash(tokenHash string) (*Session, error) {
 	var s Session
 	err := db.conn.QueryRow(`
-		SELECT id, user_id, token, expires_at, created_at
-		FROM sessions WHERE token = ?
-	`, token).Scan(&s.ID, &s.UserID, &s.Token, &s.ExpiresAt, &s.CreatedAt)
+		SELECT id, user_id, token_hash, expires_at, created_at
+		FROM sessions WHERE token_hash = ?
+	`, tokenHash).Scan(&s.ID, &s.UserID, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query session by token: %w", err)
+		return nil, fmt.Errorf("query session by token hash: %w", err)
 	}
 	return &s, nil
 }

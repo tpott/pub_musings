@@ -20,7 +20,7 @@ func createAdminSession(t *testing.T, database *db.DB, email string) (*db.User, 
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}

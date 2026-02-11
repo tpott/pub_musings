@@ -6,6 +6,20 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-10: Hash session tokens before DB storage
+
+**Context:** Session tokens were stored in plaintext in the sessions table, while email verification and magic link tokens were already hashed with SHA-256. If the database were compromised, plaintext session tokens could be used directly for session hijacking.
+
+**Options considered:**
+- Option A: Hash in DB layer (GetSessionByTokenHash hashes internally) — keeps callers simple but adds auth dependency to db package
+- Option B: Hash at call sites (callers pass auth.HashToken before DB call) — keeps db package pure, matches existing verification/magic-link pattern
+
+**Decision:** Option B — hash at call sites. Renamed Session.Token→TokenHash, GetSessionByToken→GetSessionByTokenHash, callers pass auth.HashToken(plaintext). Consistent with existing token hashing pattern. ALTER TABLE migration renames column for existing DBs.
+
+**Outcome:** 10+ callers updated, all tests pass. DB package stays dependency-free from auth.
+
+---
+
 ### 2026-02-11: Encrypted media 404 when age key file is missing
 
 **Problem:** Production media files return 404 (`/data/media/cat/set1/photo.jpg`), but the `.age` version returns 200 (`/data/media/cat/set1/photo.jpg.age`). The response "404 page not found" comes from Go's `http.NotFound`, confirming the Go backend receives the request. User reports photos don't render.

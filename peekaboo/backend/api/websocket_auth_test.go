@@ -245,7 +245,7 @@ func createWSTestUser(t *testing.T, database *db.DB) (*db.User, string) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: now.Add(24 * time.Hour),
 		CreatedAt: now,
 	}

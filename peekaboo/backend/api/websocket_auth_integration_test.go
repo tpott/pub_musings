@@ -196,7 +196,7 @@ func TestWSAuth_ExpiredSessionTreatedAsAnonymous(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: now.Add(-1 * time.Hour), // Expired
 		CreatedAt: now,
 	}

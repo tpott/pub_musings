@@ -46,7 +46,7 @@ func TestInitAuthCreatesIndexes(t *testing.T) {
 		"idx_email_verification_expires",
 		"idx_magic_link_user_id",
 		"idx_magic_link_expires",
-		"idx_sessions_token",
+		"idx_sessions_token_hash",
 		"idx_sessions_user_id",
 		"idx_sessions_expires_at",
 		"idx_login_attempts_email",
@@ -225,7 +225,7 @@ func TestCreateAndGetSession(t *testing.T) {
 	session := &Session{
 		ID:        "session-id-1",
 		UserID:    user.ID,
-		Token:     "session-token-abc123",
+		TokenHash:     "session-token-abc123",
 		ExpiresAt: now.Add(30 * 24 * time.Hour),
 		CreatedAt: now,
 	}
@@ -233,12 +233,12 @@ func TestCreateAndGetSession(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	got, err := db.GetSessionByToken(session.Token)
+	got, err := db.GetSessionByTokenHash(session.TokenHash)
 	if err != nil {
-		t.Fatalf("GetSessionByToken failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
 	}
 	if got == nil {
-		t.Fatal("GetSessionByToken returned nil")
+		t.Fatal("GetSessionByTokenHash returned nil")
 	}
 	if got.ID != session.ID {
 		t.Errorf("Session ID = %q, want %q", got.ID, session.ID)
@@ -248,12 +248,12 @@ func TestCreateAndGetSession(t *testing.T) {
 	}
 }
 
-func TestGetSessionByTokenNotFound(t *testing.T) {
+func TestGetSessionByTokenHashNotFound(t *testing.T) {
 	db := openTestDB(t)
 
-	got, err := db.GetSessionByToken("nonexistent-token")
+	got, err := db.GetSessionByTokenHash("nonexistent-token")
 	if err != nil {
-		t.Fatalf("GetSessionByToken failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
 	}
 	if got != nil {
 		t.Errorf("expected nil, got %+v", got)
@@ -276,7 +276,7 @@ func TestDeleteSession(t *testing.T) {
 	session := &Session{
 		ID:        "del-session-1",
 		UserID:    user.ID,
-		Token:     "del-token-1",
+		TokenHash:     "del-token-1",
 		ExpiresAt: time.Now().UTC().Add(time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -288,9 +288,9 @@ func TestDeleteSession(t *testing.T) {
 		t.Fatalf("DeleteSession failed: %v", err)
 	}
 
-	got, err := db.GetSessionByToken(session.Token)
+	got, err := db.GetSessionByTokenHash(session.TokenHash)
 	if err != nil {
-		t.Fatalf("GetSessionByToken after delete failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash after delete failed: %v", err)
 	}
 	if got != nil {
 		t.Error("session should be deleted")
@@ -313,7 +313,7 @@ func TestDeleteExpiredSessions(t *testing.T) {
 	expired := &Session{
 		ID:        "expired-session-1",
 		UserID:    user.ID,
-		Token:     "expired-token-1",
+		TokenHash:     "expired-token-1",
 		ExpiresAt: time.Now().UTC().Add(-time.Hour),
 		CreatedAt: time.Now().UTC().Add(-2 * time.Hour),
 	}
@@ -324,7 +324,7 @@ func TestDeleteExpiredSessions(t *testing.T) {
 	valid := &Session{
 		ID:        "valid-session-1",
 		UserID:    user.ID,
-		Token:     "valid-token-1",
+		TokenHash:     "valid-token-1",
 		ExpiresAt: time.Now().UTC().Add(time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -340,12 +340,12 @@ func TestDeleteExpiredSessions(t *testing.T) {
 		t.Errorf("deleted = %d, want 1", deleted)
 	}
 
-	got, _ := db.GetSessionByToken("expired-token-1")
+	got, _ := db.GetSessionByTokenHash("expired-token-1")
 	if got != nil {
 		t.Error("expired session should be deleted")
 	}
 
-	got2, _ := db.GetSessionByToken("valid-token-1")
+	got2, _ := db.GetSessionByTokenHash("valid-token-1")
 	if got2 == nil {
 		t.Error("valid session should still exist")
 	}
@@ -368,7 +368,7 @@ func TestDeleteSessionsByUserID(t *testing.T) {
 		s := &Session{
 			ID:        fmt.Sprintf("ms-%d", i),
 			UserID:    user.ID,
-			Token:     fmt.Sprintf("ms-token-%d", i),
+			TokenHash:     fmt.Sprintf("ms-token-%d", i),
 			ExpiresAt: time.Now().UTC().Add(time.Hour),
 			CreatedAt: time.Now().UTC(),
 		}
@@ -382,7 +382,7 @@ func TestDeleteSessionsByUserID(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		got, _ := db.GetSessionByToken(fmt.Sprintf("ms-token-%d", i))
+		got, _ := db.GetSessionByTokenHash(fmt.Sprintf("ms-token-%d", i))
 		if got != nil {
 			t.Errorf("session %d should be deleted", i)
 		}

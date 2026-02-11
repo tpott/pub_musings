@@ -300,7 +300,7 @@ func createSessionForUser(t *testing.T, database *db.DB, userID string) string {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    userID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}

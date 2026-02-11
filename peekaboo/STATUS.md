@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 280 tasks completed.
+Production-ready voice-controlled web app for children. 281 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,7 @@ Production-ready voice-controlled web app for children. 280 tasks completed.
 
 ## Last Completed
 
+- Task 315 (2026-02-10): Hash session tokens before DB storage — sessions now use SHA-256 hashed tokens (matching email verification and magic link tokens). Schema migrated token→token_hash, all 10+ callers updated. Defense-in-depth against DB compromise.
 - Task 320 (2026-02-10): TrimBefore debug logging — when TrimBefore returns 0 bytes (no cluster boundary found), logs buffer_size and trim_time_ms before fallback Clear(). Aids production troubleshooting.
 - Task 319 (2026-02-10): Separate JSON parse from handler errors in WebSocket handleMessage — split single try-catch into two: JSON.parse errors logged at debug level, handler dispatch errors logged at error level. Prevents misattribution.
 - Task 318 (2026-02-10): WebSocket connection timeout — 10s timeout on connect(), rejects with "connection timeout" if server never responds. Prevents indefinite hangs. 3 tests (328 total frontend).

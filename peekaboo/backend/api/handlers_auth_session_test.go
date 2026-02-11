@@ -26,7 +26,7 @@ func TestLogout_Success(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -50,9 +50,9 @@ func TestLogout_Success(t *testing.T) {
 	}
 
 	// Verify session was deleted from DB
-	s, err := database.GetSessionByToken(sessionToken)
+	s, err := database.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
-		t.Fatalf("GetSessionByToken failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
 	}
 	if s != nil {
 		t.Error("Session should be deleted after logout")
@@ -79,7 +79,7 @@ func TestLogout_BearerToken(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -150,7 +150,7 @@ func TestMe_Success(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -213,7 +213,7 @@ func TestMe_ExpiredSession(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(-1 * time.Hour), // expired
 		CreatedAt: time.Now().UTC().Add(-31 * 24 * time.Hour),
 	}
@@ -231,9 +231,9 @@ func TestMe_ExpiredSession(t *testing.T) {
 	}
 
 	// Verify expired session was cleaned up
-	s, err := database.GetSessionByToken(sessionToken)
+	s, err := database.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
-		t.Fatalf("GetSessionByToken failed: %v", err)
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
 	}
 	if s != nil {
 		t.Error("Expired session should be deleted")
@@ -251,7 +251,7 @@ func TestMe_BearerToken(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}

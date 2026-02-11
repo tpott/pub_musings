@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tpott/pub_musings/peekaboo/backend/auth"
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
@@ -67,7 +68,7 @@ func (h *AdminHandler) HandleListFeedback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	session, err := h.DB.GetSessionByToken(sessionToken)
+	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
 	if err != nil {
 		slog.Error("admin feedback: failed to look up session",
 			"error", err,

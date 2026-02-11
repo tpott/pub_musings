@@ -28,7 +28,7 @@ func TestCSRF_Success(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -72,7 +72,7 @@ func TestCSRF_ConsistentToken(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(auth.SessionDuration),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -126,7 +126,7 @@ func TestCSRF_ExpiredSession(t *testing.T) {
 	session := &db.Session{
 		ID:        sessionID,
 		UserID:    user.ID,
-		Token:     sessionToken,
+		TokenHash: auth.HashToken(sessionToken),
 		ExpiresAt: time.Now().UTC().Add(-1 * time.Hour), // expired
 		CreatedAt: time.Now().UTC().Add(-31 * 24 * time.Hour),
 	}
