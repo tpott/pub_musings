@@ -23,7 +23,7 @@ http://localhost:8080
 | GET | `/data/media/{concept}/{set}/{file}` | No | — | Serve media files (auto-decrypts if age key set) |
 | POST | `/api/speak` | No | 10/min | Text-to-speech via Piper (optional) |
 | POST | `/api/feedback` | No | 5/min | Submit user feedback |
-| GET | `/api/admin/feedback` | Yes+TRUSTED | — | List feedback (admin) |
+| GET | `/api/admin/feedback` | Yes+TRUSTED | 20/min | List feedback (admin) |
 | GET | `/ws/audio` | No* | 10/min | WebSocket upgrade for audio streaming |
 | POST | `/api/auth/register` | No | 5/min | Create account ([details](../specs/auth.md)) |
 | POST | `/api/auth/login` | No | 10/min + Lockout 5/15min | Login ([details](../specs/auth.md)) |
