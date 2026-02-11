@@ -89,12 +89,17 @@ export async function synthesizeSpeech(text: string): Promise<HTMLAudioElement |
       // Parse error response
       const contentType = response.headers.get('content-type');
       if (contentType?.includes('application/json')) {
-        const data = await response.json();
-        throw new ApiError(
-          data.error || 'Speech synthesis failed',
-          'server',
-          response.status
-        );
+        try {
+          const data = await response.json();
+          throw new ApiError(
+            data.error || 'Speech synthesis failed',
+            'server',
+            response.status
+          );
+        } catch (e) {
+          if (e instanceof ApiError) throw e;
+          logger.debug('Failed to parse TTS error response as JSON');
+        }
       }
       throw new ApiError('Speech synthesis failed', 'server', response.status);
     }
