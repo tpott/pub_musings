@@ -170,6 +170,66 @@ func TestMagicLinkText(t *testing.T) {
 	}
 }
 
+// --- Template rendering with special characters ---
+
+func TestVerificationHTML_SpecialChars(t *testing.T) {
+	// URL with & is common in multi-param query strings
+	url := "https://example.com/verify-email?token=abc&lang=en"
+	html := VerificationHTML(url)
+
+	// URL should appear in href attribute
+	if !strings.Contains(html, `href="`+url+`"`) {
+		t.Error("HTML href should contain the full URL")
+	}
+
+	// URL should appear twice (href + fallback text)
+	if count := strings.Count(html, url); count != 2 {
+		t.Errorf("URL should appear exactly 2 times in HTML, got %d", count)
+	}
+}
+
+func TestVerificationText_SpecialChars(t *testing.T) {
+	url := "https://example.com/verify-email?token=abc&lang=en"
+	text := VerificationText(url)
+
+	if !strings.Contains(text, url) {
+		t.Error("text should contain the full URL")
+	}
+
+	// URL should appear exactly once in plain text
+	if count := strings.Count(text, url); count != 1 {
+		t.Errorf("URL should appear exactly 1 time in text, got %d", count)
+	}
+}
+
+func TestMagicLinkHTML_SpecialChars(t *testing.T) {
+	url := "https://example.com/magic-link?token=xyz&redirect=%2Fhome"
+	html := MagicLinkHTML(url)
+
+	// URL should appear in href attribute
+	if !strings.Contains(html, `href="`+url+`"`) {
+		t.Error("HTML href should contain the full URL")
+	}
+
+	// URL should appear twice (href + fallback text)
+	if count := strings.Count(html, url); count != 2 {
+		t.Errorf("URL should appear exactly 2 times in HTML, got %d", count)
+	}
+}
+
+func TestMagicLinkText_SpecialChars(t *testing.T) {
+	url := "https://example.com/magic-link?token=xyz&redirect=%2Fhome"
+	text := MagicLinkText(url)
+
+	if !strings.Contains(text, url) {
+		t.Error("text should contain the full URL")
+	}
+
+	if count := strings.Count(text, url); count != 1 {
+		t.Errorf("URL should appear exactly 1 time in text, got %d", count)
+	}
+}
+
 // --- ResendEmailSender construction test ---
 
 func TestNewResendEmailSender(t *testing.T) {

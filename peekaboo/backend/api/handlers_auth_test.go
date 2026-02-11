@@ -18,6 +18,7 @@ import (
 type mockEmailSender struct {
 	sent          []sentEmail
 	magicLinkSent []sentEmail
+	err           error // if non-nil, Send methods return this error
 }
 
 type sentEmail struct {
@@ -26,11 +27,17 @@ type sentEmail struct {
 }
 
 func (m *mockEmailSender) SendVerificationEmail(to, token string) error {
+	if m.err != nil {
+		return m.err
+	}
 	m.sent = append(m.sent, sentEmail{To: to, Token: token})
 	return nil
 }
 
 func (m *mockEmailSender) SendMagicLinkEmail(to, token string) error {
+	if m.err != nil {
+		return m.err
+	}
 	m.magicLinkSent = append(m.magicLinkSent, sentEmail{To: to, Token: token})
 	return nil
 }

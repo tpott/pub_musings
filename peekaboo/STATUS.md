@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 249 tasks completed.
+Production-ready voice-controlled web app for children. 251 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 249 tasks completed.
 
 ## Last Completed
 
+- Tasks 289-290 (2026-02-10): Test coverage — resend verification (rate limit, email failure), email template rendering (special chars)
 - Task 288 (2026-02-10): Deep inspection round 5 — context propagation, docs accuracy
   - Fix health.go checkWhisperServer/checkPiperServer to use http.NewRequestWithContext with request context
   - Fix SECURITY.md bcrypt cost: "default cost" → "cost 12" (matches actual BcryptCost=12)

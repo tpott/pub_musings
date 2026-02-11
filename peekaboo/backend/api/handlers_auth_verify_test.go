@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -346,5 +347,89 @@ func TestResendVerification_InvalidJSON(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400, got %d", w.Code)
+	}
+}
+
+func TestResendVerification_RateLimited(t *testing.T) {
+	database := setupAuthTestDB(t)
+	emailSender := &mockEmailSender{}
+	handler := NewAuthHandler(database, emailSender)
+
+	createTestUser(t, database, "ratelimit@example.com", "password123", false)
+
+	// Wrap handler with rate limiter (3 per 15min, matching main.go config)
+	limiter := NewRateLimiter(3, 15*time.Minute)
+	limited := RateLimitMiddleware(http.HandlerFunc(handler.HandleResendVerification), limiter)
+
+	body, _ := json.Marshal(resendVerificationRequest{
+		Email: "ratelimit@example.com",
+	})
+
+	// First 3 requests should succeed
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/resend-verification", bytes.NewReader(body))
+		req.RemoteAddr = "192.168.1.1:12345"
+		w := httptest.NewRecorder()
+		limited.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("Request %d: expected 200, got %d: %s", i+1, w.Code, w.Body.String())
+		}
+	}
+
+	// 4th request should be rate limited
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/resend-verification", bytes.NewReader(body))
+	req.RemoteAddr = "192.168.1.1:12345"
+	w := httptest.NewRecorder()
+	limited.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected 429, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Error string `json:"error"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error != "rate limit exceeded, try again later" {
+		t.Errorf("Unexpected error: %q", resp.Error)
+	}
+
+	if w.Header().Get("Retry-After") != "60" {
+		t.Errorf("Expected Retry-After: 60, got %q", w.Header().Get("Retry-After"))
+	}
+}
+
+func TestResendVerification_EmailSendFailure(t *testing.T) {
+	database := setupAuthTestDB(t)
+	emailSender := &mockEmailSender{err: fmt.Errorf("SMTP connection refused")}
+	handler := NewAuthHandler(database, emailSender)
+
+	createTestUser(t, database, "fail@example.com", "password123", false)
+
+	body, _ := json.Marshal(resendVerificationRequest{
+		Email: "fail@example.com",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/resend-verification", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.HandleResendVerification(w, req)
+
+	// Should still return 200 (error is logged, not exposed)
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200 even on email failure, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify the success message is still returned
+	var resp resendVerificationResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	expectedMsg := "If an unverified account exists with that email, a verification link has been sent."
+	if resp.Message != expectedMsg {
+		t.Errorf("Expected message %q, got %q", expectedMsg, resp.Message)
+	}
+
+	// Verify no email was recorded (error prevented it)
+	if len(emailSender.sent) != 0 {
+		t.Errorf("Expected 0 emails sent on failure, got %d", len(emailSender.sent))
 	}
 }
