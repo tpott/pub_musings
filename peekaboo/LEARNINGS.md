@@ -6,6 +6,16 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-11: ARIA radiogroup requires radio semantics or arrow key navigation
+
+**Problem:** Star rating used `role="radiogroup"` on the container but individual star `<button>` elements lacked `role="radio"`, `aria-checked`, and arrow key navigation. Screen readers announced the group as a radiogroup but users couldn't interact with it using the expected arrow key pattern.
+
+**Solution:** Removed `role="radiogroup"` since individual toggle buttons are the simpler correct pattern. Added `aria-pressed` to each star button (toggled by `updateStars()`). Buttons are already keyboard accessible via Tab+Enter/Space.
+
+**Lesson:** Don't use `role="radiogroup"` unless you implement the full ARIA radio pattern (role="radio", aria-checked, arrow keys). For simple toggle button groups, `aria-pressed` on individual buttons is simpler and correctly accessible.
+
+---
+
 ### 2026-02-11: Unhandled async promise in synchronous event handler
 
 **Problem:** `MediaRecorder.ondataavailable` called `sendAudioChunk()` (an async function) without awaiting or catching the returned promise. If `sendAudioChunk` threw (e.g., WebSocket disconnected during base64 encoding), the rejection was unhandled.

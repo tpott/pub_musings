@@ -27,7 +27,7 @@ serves the parent, not the child:
 | `backend/auth/auth_test.go` | Unit tests for auth module |
 | `backend/db/db_auth.go` | User, session, token DB operations |
 | `backend/db/db_auth_test.go` | Unit tests for auth DB operations |
-| `backend/handlers_auth.go` | HTTP handlers for auth endpoints |
+| `backend/api/handlers_auth.go` | HTTP handlers for auth endpoints |
 | `frontend/src/pages/login.astro` | Login page |
 | `frontend/src/pages/register.astro` | Registration page |
 | `frontend/src/pages/verify-email.astro` | Email verification page |
@@ -87,11 +87,11 @@ CREATE INDEX idx_magic_link_expires ON magic_link_tokens(expires_at);
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,                      -- 32-char hex
     user_id TEXT NOT NULL REFERENCES users(id),
-    token TEXT UNIQUE NOT NULL,               -- 64-char hex (32 random bytes)
+    token_hash TEXT UNIQUE NOT NULL,           -- SHA-256 hash of 64-char hex token
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX idx_sessions_token ON sessions(token);
+CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 ```

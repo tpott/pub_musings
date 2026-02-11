@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 291 tasks completed.
+Production-ready voice-controlled web app for children. 293 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,73 +36,19 @@ Production-ready voice-controlled web app for children. 291 tasks completed.
 
 ## Last Completed
 
+- Tasks 331-332 (2026-02-11): Deep inspection round 23 — two fixes:
+  - Task 331: Update specs/auth.md to match current code (fix handler file path to backend/api/handlers_auth.go, update sessions schema token→token_hash)
+  - Task 332: Fix star rating accessibility — remove incorrect role=radiogroup, add aria-pressed to toggle buttons
 - Tasks 328-330 (2026-02-11): Deep inspection round 22 — three fixes:
   - Task 328: Fix unhandled promise rejection in peekaboo-flow.ts ondataavailable (add .catch to sendAudioChunk)
   - Task 329: Add aria-hidden="true" to all decorative SVG icons (8 components/pages, 10 SVGs total)
   - Task 330: Add early hex format validation in CSRF middleware before DB lookup (skip SHA-256 hash + DB query for malformed tokens)
-- Tasks 326-327 (2026-02-11): Deep inspection round 21 — fix go.mod direct/indirect dependency classification (6 deps moved from indirect to direct), harden systemd service file (NoNewPrivileges, ProtectSystem=strict, ReadWritePaths, PrivateTmp, TimeoutStopSec=30)
-- Tasks 321-325 (2026-02-10): Deep inspection round 19 fixes — WSAuthTracker periodic cleanup goroutine, extractSessionToken length validation (128 char limit), checkAuth() promise caching (prevents triple /api/auth/me on page load), clear TOTP password inputs on success, startRecording double-tap guard (setState before await)
-- Task 315 (2026-02-10): Hash session tokens before DB storage — sessions now use SHA-256 hashed tokens (matching email verification and magic link tokens). Schema migrated token→token_hash, all 10+ callers updated. Defense-in-depth against DB compromise.
-- Task 320 (2026-02-10): TrimBefore debug logging — when TrimBefore returns 0 bytes (no cluster boundary found), logs buffer_size and trim_time_ms before fallback Clear(). Aids production troubleshooting.
-- Task 319 (2026-02-10): Separate JSON parse from handler errors in WebSocket handleMessage — split single try-catch into two: JSON.parse errors logged at debug level, handler dispatch errors logged at error level. Prevents misattribution.
-- Task 318 (2026-02-10): WebSocket connection timeout — 10s timeout on connect(), rejects with "connection timeout" if server never responds. Prevents indefinite hangs. 3 tests (328 total frontend).
-- Task 317 (2026-02-10): Exponential backoff on empty transcripts — after 3 consecutive empties, buffer threshold doubles (3s→6s→10s cap). Resets on non-empty. Prevents hammering whisper. 12 tests.
-- Task 316 (2026-02-10): Startup warning for encrypted media without age key — hasAgeFiles() scans mediaDir for .age files; logs slog.Error when encrypted files present but no key available, preventing silent 404 on all media
-- Task 314 (2026-02-10): Deep inspection round 18 — add rate limiting to admin feedback endpoint (20/min), all endpoints now rate-limited
-- Tasks 312-313 (2026-02-10): Deep inspection rounds 16-17 — fix isProcessing race in stop_recording, add no-referrer meta to verify-email and magic-link pages
-- Tasks 310-311 (2026-02-10): Deep inspection round 15 — add rate limiting to POST /api/auth/logout (10/min) and POST /api/log (30/min), warn on unrecognized LOG_LEVEL
-- Task 309 (2026-02-10): Deep inspection round 14 — split 3 oversized test files (websocket_validation_test.go, websocket_framing_test.go, ratelimit_test.go) into 6 files, all under 500 lines
-- Tasks 307-308 (2026-02-10): Deep inspection rounds 12-13 — add missing token_hash indexes (email_verification_tokens, magic_link_tokens), wire LLMProviderName into WebSocket handler for interaction logging
-- Tasks 305-306 (2026-02-10): Deep inspection round 11 — fix sops command YAML-to-shell conversion in AGENTS.md, add error logging to encrypted_media.go serveEncrypted
-- Tasks 303-304 (2026-02-10): Deep inspection round 10 — settings TOTP error visibility fix (move error divs outside hidden flow containers), CSRF middleware fail-closed on DB errors
-- Tasks 301-302 (2026-02-10): Deep inspection round 9 — TOTP double-click verified safe (no change needed), wire WSAuthTracker into production main.go
-- Tasks 299-300 (2026-02-10): Deep inspection round 8 — CORS credentials header for cookie auth, LLM HealthCheck response body drain
-- Tasks 296-298 (2026-02-10): Deep inspection round 7 — WSAuthTracker stale IP cleanup, batched audio blob cleanup (LIMIT 500), WebMParser 50MB buffer limit
-- Task 295 (2026-02-10): Expired token cleanup — added DeleteExpiredEmailVerificationTokens/DeleteExpiredMagicLinkTokens to DB, CleanupExpiredAuth now cleans up all 4 auth tables
-- Tasks 292-294 (2026-02-10): Deep inspection round 6 — oversized body tests (413), TTS response.json() try-catch, TOTP 413 handling
-- Task 291 (2026-02-10): Periodic auth cleanup — hourly goroutine for expired sessions and old login attempts (7-day retention)
-- Tasks 289-290 (2026-02-10): Test coverage — resend verification (rate limit, email failure), email template rendering (special chars)
-- Task 288 (2026-02-10): Deep inspection round 5 — context propagation, docs accuracy
-  - Fix health.go checkWhisperServer/checkPiperServer to use http.NewRequestWithContext with request context
-  - Fix SECURITY.md bcrypt cost: "default cost" → "cost 12" (matches actual BcryptCost=12)
-  - Fix AGENTS.md WHISPER_SERVER_URL default: "-" → "http://127.0.0.1:8765" (matches code)
-- Tasks 284-287 (2026-02-10): Deep inspection round 4 — validation, accessibility, stability
-  - Task 284: Add transcript length validation to WebSocket processTranscript (max 500 chars, consistent with HTTP)
-  - Task 285: Add focus trap to FeedbackButton modal (Tab/Shift+Tab wraps within modal, E2E test)
-  - Task 286: Restore focus to setup/disable button when TOTP cancel is clicked on settings page
-  - Task 287: Clear reconnect timer at start of WebSocket connect() to prevent double-connect
-- Tasks 281-283 (2026-02-10): Deep inspection round 3 — context propagation, hardening
-  - Task 281: Propagate context to transcribeAudio/forwardToWhisper (http.NewRequestWithContext)
-  - Task 282: Add logger.debug to silent catch blocks, replace Math.random UUID with crypto.getRandomValues
-  - Task 283: Add max-length validation for auth token query params (verify, magic-link)
-- Tasks 276-280 (2026-02-10): User feedback fixes
-  - Task 276: Remove skip-to-content links from all pages (user found them cluttering UI)
-  - Task 277: Add logout confirmation dialog (confirm() before logout)
-  - Task 278: Redirect authenticated users away from /login page
-  - Task 279: Investigate media 404 (could not reproduce, paths verified correct)
-  - Task 280: Server-side TTS suppression when show_media is present (dropTTSWithShowMedia)
-- Tasks 270-275 (2026-02-09): Deep inspection round 2 — bugs, hardening, docs
-  - Task 270: Fix getClientIP IPv6 handling (use net.SplitHostPort, add IPv6 tests)
-  - Task 271: Wrap localStorage in try-catch for private browsing compatibility
-  - Task 272: Add password length validation in settings TOTP flows
-  - Task 273: Optimize base64 audio encoding (chunked String.fromCharCode.apply)
-  - Task 274: Track and clean up TTS blob URLs on PeekabooFlow destroy
-  - Task 275: Document POST /api/log, interaction logging, and base64 audio protocol in API.md
-- Tasks 263-269 (2026-02-09): Deep inspection fixes + docs
-  - Task 263: Fix ALTER TABLE migration to only ignore 'duplicate column' errors (db.go)
-  - Task 264: Fix WebSocket idle timeout to skip check during active processing
-  - Task 265: Clarify admin authorization logic ordering (fail-closed check first)
-  - Task 266: Fix settings page to distinguish auth vs network errors (retry button)
-  - Task 267: Add theme vars for box-shadow and success colors (6 pages updated)
-  - Task 268: Update specs/auth.md to remove obsolete SMTP env vars → Resend
-  - Task 269: Add TOTP/2FA section to DEPLOY.md
-- Tasks 257-262 (2026-02-09): Codebase inspection fixes
-  - Task 257: Add X-CSRF-Token to CORS allowed headers (cors.go, API.md)
-  - Task 258: Extract duplicated checkAuth() into shared auth.ts utility
-  - Task 259: Update API.md with auth endpoint rate limits (login, register, TOTP, CSRF)
-  - Task 260: Update DEPLOY.md env vars section (reference .env.example, 8 key production vars)
-  - Task 261: Update architecture.md phase status (VAD is implemented)
-  - Task 262: Enhance admin handler fail-closed test with error message assertion
+- Tasks 326-327 (2026-02-11): Deep inspection round 21 — fix go.mod direct/indirect dependency classification (6 deps), harden systemd service file
+- Tasks 321-325 (2026-02-10): Deep inspection round 19 — WSAuthTracker cleanup, token validation, promise caching, TOTP input cleanup, recording double-tap guard
+- Task 315 (2026-02-10): Hash session tokens before DB storage with SHA-256
+- Tasks 291-314, 316-320 (2026-02-10): Deep inspection rounds 5-18 + auth cleanup + test coverage
+- Tasks 276-290 (2026-02-10): User feedback fixes + deep inspection rounds 3-4
+- Tasks 257-275 (2026-02-09): Deep inspection rounds 1-2 + codebase inspection fixes
 
 ## Milestone History
 

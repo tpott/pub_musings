@@ -51,28 +51,28 @@
 
         <div class="form-group">
           <label id="rating-label">Rating (optional)</label>
-          <div class="rating-container" role="radiogroup" aria-labelledby="rating-label" data-testid="rating-container">
-            <button type="button" class="star-btn" data-rating="1" aria-label="Rate 1 star">
+          <div class="rating-container" aria-labelledby="rating-label" data-testid="rating-container">
+            <button type="button" class="star-btn" data-rating="1" aria-label="Rate 1 star" aria-pressed="false">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
             </button>
-            <button type="button" class="star-btn" data-rating="2" aria-label="Rate 2 stars">
+            <button type="button" class="star-btn" data-rating="2" aria-label="Rate 2 stars" aria-pressed="false">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
             </button>
-            <button type="button" class="star-btn" data-rating="3" aria-label="Rate 3 stars">
+            <button type="button" class="star-btn" data-rating="3" aria-label="Rate 3 stars" aria-pressed="false">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
             </button>
-            <button type="button" class="star-btn" data-rating="4" aria-label="Rate 4 stars">
+            <button type="button" class="star-btn" data-rating="4" aria-label="Rate 4 stars" aria-pressed="false">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
             </button>
-            <button type="button" class="star-btn" data-rating="5" aria-label="Rate 5 stars">
+            <button type="button" class="star-btn" data-rating="5" aria-label="Rate 5 stars" aria-pressed="false">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
               </svg>
@@ -185,11 +185,9 @@
     // Update star display
     function updateStars(rating: number): void {
       starBtns.forEach((btn, index) => {
-        if (index < rating) {
-          btn.classList.add('selected');
-        } else {
-          btn.classList.remove('selected');
-        }
+        const selected = index < rating;
+        btn.classList.toggle('selected', selected);
+        btn.setAttribute('aria-pressed', String(selected));
       });
     }
 
