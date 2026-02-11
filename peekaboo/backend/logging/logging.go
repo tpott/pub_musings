@@ -31,6 +31,8 @@ func Setup() {
 // parseLevel converts a string log level to slog.Level.
 func parseLevel(level string) slog.Level {
 	switch strings.ToLower(level) {
+	case "", "info":
+		return slog.LevelInfo
 	case "debug":
 		return slog.LevelDebug
 	case "warn", "warning":
@@ -38,6 +40,8 @@ func parseLevel(level string) slog.Level {
 	case "error":
 		return slog.LevelError
 	default:
+		// Use stderr directly since slog isn't configured yet
+		os.Stderr.WriteString("WARNING: unrecognized LOG_LEVEL \"" + level + "\", falling back to info\n")
 		return slog.LevelInfo
 	}
 }
