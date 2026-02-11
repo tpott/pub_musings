@@ -30,6 +30,10 @@ Production-ready voice-controlled web app for children. 275 tasks completed.
 - Pre-commit hook runs lint + tests for changed projects
 - Test organization: files split to stay under 500 lines
 
+## Blocked
+
+- **HELP.md filed (2026-02-11):** Production media 404 (encrypted files, missing age key), local whisper-server broken. Needs human intervention — see HELP.md for details.
+
 ## Last Completed
 
 - Task 314 (2026-02-10): Deep inspection round 18 — add rate limiting to admin feedback endpoint (20/min), all endpoints now rate-limited

@@ -6,6 +6,26 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-11: Encrypted media 404 when age key file is missing
+
+**Problem:** Production media files return 404 (`/data/media/cat/set1/photo.jpg`), but the `.age` version returns 200 (`/data/media/cat/set1/photo.jpg.age`). The response "404 page not found" comes from Go's `http.NotFound`, confirming the Go backend receives the request. User reports photos don't render.
+
+**Solution:** When `os.Stat(ageKeyFile)` fails (file missing or wrong permissions), the backend falls through to `http.FileServer` (plain files). If media was encrypted with `--remove-originals`, only `.age` files exist — the plain file server can't find the unencrypted originals. Fix: ensure `age.key` exists with correct permissions (0600) at the configured `AGE_KEY_FILE` path, or decrypt media back to plain files.
+
+**Lesson:** The encrypted-vs-plain media server selection depends on `os.Stat(ageKeyFile)` succeeding. If the age key is missing, deleted, or has wrong permissions, ALL encrypted media silently becomes unreachable — no error logged at startup, just a WARN about "serving media files unencrypted." Consider adding a startup check: if `MEDIA_DIR` contains `.age` files but no age key is loadable, log an ERROR instead of silently falling through to plain file serving.
+
+---
+
+### 2026-02-11: Buffer threshold watcher hammers whisper when transcripts are empty
+
+**Problem:** During real-services testing, the buffer threshold watcher fired every 500ms after the initial 3-second threshold. Each attempt sent the SAME buffer to whisper (because empty transcripts don't trigger buffer clearing), and whisper returned `text=""` every time. After ~20 empty transcriptions, the anonymous interaction rate limiter kicked in, blocking all further processing for the connection.
+
+**Solution:** This is by design for normal operation (short silence periods between speech). But when whisper consistently returns empty transcripts (broken whisper, wrong model, incompatible audio), it creates a tight loop: threshold fires → transcribe → empty → threshold fires again 500ms later → repeat indefinitely. No code change made yet.
+
+**Lesson:** The buffer threshold watcher should consider backing off after repeated empty transcripts. Currently it fires every 500ms regardless, creating many wasted whisper calls and quickly exhausting the anonymous rate limit (which counts each processAudio call as an "interaction").
+
+---
+
 ### 2026-02-10: http.NewRequest without context ignores cancellation
 
 **Problem:** `transcribeAudio()` and `forwardToWhisper()` created HTTP requests with `http.NewRequest()` instead of `http.NewRequestWithContext()`. When a WebSocket disconnected or HTTP request was canceled, the outbound whisper-server request continued running until it naturally timed out.
