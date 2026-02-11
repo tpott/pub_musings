@@ -32,6 +32,9 @@ func TestCORSMiddleware_SetsHeaders(t *testing.T) {
 	if got := rr.Header().Get("Access-Control-Allow-Headers"); got != "Content-Type, X-CSRF-Token" {
 		t.Errorf("Access-Control-Allow-Headers = %q, want %q", got, "Content-Type, X-CSRF-Token")
 	}
+	if got := rr.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Errorf("Access-Control-Allow-Credentials = %q, want %q for specific origin", got, "true")
+	}
 }
 
 func TestCORSMiddleware_WildcardOrigin(t *testing.T) {
@@ -48,6 +51,9 @@ func TestCORSMiddleware_WildcardOrigin(t *testing.T) {
 
 	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, "*")
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Errorf("Access-Control-Allow-Credentials should not be set for wildcard origin, got %q", got)
 	}
 }
 

@@ -404,5 +404,7 @@ func (p *openaiProvider) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("openai API error: %d: %s", resp.StatusCode, string(respBody))
 	}
 
+	// Drain success body to enable HTTP connection reuse
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxErrorBodyBytes))
 	return nil
 }

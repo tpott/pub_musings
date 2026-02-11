@@ -11,6 +11,13 @@ func CORSMiddleware(next http.Handler, allowedOrigin string) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
 
+		// Allow credentials (cookies) for cross-origin requests when a
+		// specific origin is configured. Wildcard "*" is incompatible
+		// with credentials per the CORS specification.
+		if allowedOrigin != "*" {
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
 		// Handle preflight requests
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
