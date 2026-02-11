@@ -357,6 +357,9 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 				trimmed := state.webmParser.TrimBefore(trimTimeMs)
 				if trimmed == 0 {
 					// TrimBefore couldn't find cluster boundaries — clear buffer
+					logger.Debug("TrimBefore returned 0 bytes, falling back to Clear",
+						"buffer_size", bytesBeforeTrim,
+						"trim_time_ms", trimTimeMs)
 					state.webmParser.Clear()
 				}
 				logger.Debug("trimmed audio buffer at instruction boundary",
