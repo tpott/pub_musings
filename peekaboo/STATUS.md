@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 252 tasks completed.
+Production-ready voice-controlled web app for children. 253 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 252 tasks completed.
 
 ## Last Completed
 
+- Task 292 (2026-02-10): Oversized body tests for register, login, magic-link, resend-verification (413 response)
 - Task 291 (2026-02-10): Periodic auth cleanup — hourly goroutine for expired sessions and old login attempts (7-day retention)
 - Tasks 289-290 (2026-02-10): Test coverage — resend verification (rate limit, email failure), email template rendering (special chars)
 - Task 288 (2026-02-10): Deep inspection round 5 — context propagation, docs accuracy

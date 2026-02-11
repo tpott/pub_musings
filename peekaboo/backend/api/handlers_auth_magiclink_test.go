@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -189,5 +190,23 @@ func TestMagicLink_WrongMethod(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("Expected 405, got %d", w.Code)
+	}
+}
+
+func TestMagicLink_BodyTooLarge(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	largeEmail := strings.Repeat("x", 5*1024) + "@example.com"
+	body, _ := json.Marshal(magicLinkRequest{
+		Email: largeEmail,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/magic-link", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.HandleMagicLink(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413, got %d: %s", w.Code, w.Body.String())
 	}
 }

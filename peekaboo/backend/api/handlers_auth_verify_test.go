@@ -433,3 +433,22 @@ func TestResendVerification_EmailSendFailure(t *testing.T) {
 		t.Errorf("Expected 0 emails sent on failure, got %d", len(emailSender.sent))
 	}
 }
+
+func TestResendVerification_BodyTooLarge(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	// 5KB body exceeds 4KB maxAuthBodySize
+	largeEmail := strings.Repeat("x", 5*1024) + "@example.com"
+	body, _ := json.Marshal(resendVerificationRequest{
+		Email: largeEmail,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/resend-verification", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.HandleResendVerification(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413, got %d: %s", w.Code, w.Body.String())
+	}
+}

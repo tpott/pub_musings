@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -341,5 +342,25 @@ func TestRegisterThenVerify(t *testing.T) {
 	}
 	if !user.EmailVerified {
 		t.Error("User should be verified after full flow")
+	}
+}
+
+func TestRegister_BodyTooLarge(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	// 5KB body exceeds 4KB maxAuthBodySize
+	largePassword := strings.Repeat("x", 5*1024)
+	body, _ := json.Marshal(registerRequest{
+		Email:    "big@example.com",
+		Password: largePassword,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.HandleRegister(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413, got %d: %s", w.Code, w.Body.String())
 	}
 }

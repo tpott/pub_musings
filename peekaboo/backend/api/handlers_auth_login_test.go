@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -319,5 +320,24 @@ func TestLogin_TOTPRequired(t *testing.T) {
 	}
 	if resp.Error != "2FA code required" {
 		t.Errorf("Expected '2FA code required', got %q", resp.Error)
+	}
+}
+
+func TestLogin_BodyTooLarge(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	largePassword := strings.Repeat("x", 5*1024)
+	body, _ := json.Marshal(loginRequest{
+		Email:    "big@example.com",
+		Password: largePassword,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.HandleLogin(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413, got %d: %s", w.Code, w.Body.String())
 	}
 }
