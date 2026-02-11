@@ -154,7 +154,8 @@ func main() {
 	mux.HandleFunc("GET /api/auth/verify", authHandler.HandleVerify)
 	mux.Handle("POST /api/auth/resend-verification", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleResendVerification), resendVerificationLimiter))
 	mux.Handle("POST /api/auth/login", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleLogin), loginLimiter))
-	mux.HandleFunc("POST /api/auth/logout", authHandler.HandleLogout)
+	logoutLimiter := api.NewRateLimiter(10, time.Minute)
+	mux.Handle("POST /api/auth/logout", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleLogout), logoutLimiter))
 	mux.HandleFunc("GET /api/auth/me", authHandler.HandleMe)
 	mux.Handle("POST /api/auth/magic-link", api.RateLimitMiddleware(http.HandlerFunc(authHandler.HandleMagicLink), magicLinkLimiter))
 	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.HandleMagicLinkVerify)
@@ -180,7 +181,8 @@ func main() {
 
 	// Frontend log forwarding (development only, gated by FORWARD_FRONTEND_LOGS=true)
 	if strings.EqualFold(os.Getenv("FORWARD_FRONTEND_LOGS"), "true") {
-		mux.Handle("POST /api/log", api.NewLogHandler())
+		logForwardLimiter := api.NewRateLimiter(30, time.Minute)
+		mux.Handle("POST /api/log", api.RateLimitMiddleware(api.NewLogHandler(), logForwardLimiter))
 		slog.Info("frontend log forwarding enabled (POST /api/log)")
 	}
 

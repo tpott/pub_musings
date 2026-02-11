@@ -27,7 +27,7 @@ http://localhost:8080
 | GET | `/ws/audio` | No* | 10/min | WebSocket upgrade for audio streaming |
 | POST | `/api/auth/register` | No | 5/min | Create account ([details](../specs/auth.md)) |
 | POST | `/api/auth/login` | No | 10/min + Lockout 5/15min | Login ([details](../specs/auth.md)) |
-| POST | `/api/auth/logout` | Yes | — | Invalidate session ([details](../specs/auth.md)) |
+| POST | `/api/auth/logout` | Yes | 10/min | Invalidate session ([details](../specs/auth.md)) |
 | GET | `/api/auth/me` | Yes | — | Get current user ([details](../specs/auth.md)) |
 | GET | `/api/auth/verify` | No | — | Verify email token ([details](../specs/auth.md)) |
 | POST | `/api/auth/resend-verification` | No | 3/15min | Resend verification email ([details](../specs/auth.md)) |
@@ -37,7 +37,7 @@ http://localhost:8080
 | POST | `/api/auth/totp/setup` | Yes+CSRF | 10/min | Generate TOTP secret ([details](../specs/auth.md)) |
 | POST | `/api/auth/totp/enable` | Yes+CSRF | 10/min | Enable TOTP 2FA ([details](../specs/auth.md)) |
 | POST | `/api/auth/totp/disable` | Yes+CSRF | 10/min | Disable TOTP 2FA ([details](../specs/auth.md)) |
-| POST | `/api/log` | No | — | Forward frontend logs (dev only, requires `FORWARD_FRONTEND_LOGS=true`) |
+| POST | `/api/log` | No | 30/min | Forward frontend logs (dev only, requires `FORWARD_FRONTEND_LOGS=true`) |
 
 \* WebSocket optionally uses session cookie for authenticated sessions.
 
