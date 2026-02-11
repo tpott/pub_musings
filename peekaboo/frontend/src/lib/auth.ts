@@ -44,19 +44,31 @@ export interface MagicLinkVerifyResponse {
   error?: string;
 }
 
+// Cache the in-flight checkAuth promise so multiple concurrent callers
+// (LoginButton, LogoutButton, SettingsButton) share one /api/auth/me request.
+let authPromise: Promise<boolean> | null = null;
+
 /**
  * Checks if the current user is authenticated by calling /api/auth/me.
  * Returns true if authenticated, false otherwise.
+ * Caches the result for the lifetime of the page to avoid redundant requests.
  */
-export async function checkAuth(): Promise<boolean> {
-  try {
-    const response = await fetch('/api/auth/me', {
+export function checkAuth(): Promise<boolean> {
+  if (!authPromise) {
+    authPromise = fetch('/api/auth/me', {
       credentials: 'same-origin',
-    });
-    return response.ok;
-  } catch {
-    return false;
+    })
+      .then(r => r.ok)
+      .catch(() => false);
   }
+  return authPromise;
+}
+
+/**
+ * Reset the auth cache. Call after logout so the next checkAuth() re-fetches.
+ */
+export function resetAuthCache(): void {
+  authPromise = null;
 }
 
 /**
@@ -210,5 +222,6 @@ export async function logout(): Promise<LogoutResponse> {
   }
 
   clearCSRFToken();
+  resetAuthCache();
   return result;
 }

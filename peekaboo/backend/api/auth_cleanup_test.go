@@ -20,7 +20,7 @@ func TestCleanupExpiredAuth_Sessions(t *testing.T) {
 	if err := database.CreateSession(&db.Session{
 		ID:        "expired-sess",
 		UserID:    user.ID,
-		TokenHash:     "tok-expired",
+		TokenHash: "tok-expired",
 		ExpiresAt: time.Now().UTC().Add(-1 * time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
@@ -31,7 +31,7 @@ func TestCleanupExpiredAuth_Sessions(t *testing.T) {
 	if err := database.CreateSession(&db.Session{
 		ID:        "valid-sess",
 		UserID:    user.ID,
-		TokenHash:     "tok-valid",
+		TokenHash: "tok-valid",
 		ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {

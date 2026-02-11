@@ -185,13 +185,15 @@ export class PeekabooFlow {
       return;
     }
 
+    // Set state before awaiting to prevent double-tap creating duplicate streams
+    this.setState('recording');
+
     try {
       if (this.useWebSocket && this.wsClient) {
         await this.startWebSocketRecording();
       } else {
         await this.recorder.startRecording();
       }
-      this.setState('recording');
     } catch (error) {
       this.handleError(error as Error);
     }

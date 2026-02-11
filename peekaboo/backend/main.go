@@ -214,6 +214,19 @@ func main() {
 	wsHandler := api.NewAudioWebSocketHandlerWithOptions(whisperURL, llmProvider, database, rateLimiter, allowedOrigin)
 	wsHandler.TTSProvider = ttsProvider // nil if Piper not configured
 	wsHandler.AuthTracker = api.NewWSAuthTracker(api.DefaultWSAuthLimits())
+	// Periodic cleanup of stale WSAuthTracker entries (anonymous IPs that never reconnect)
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				wsHandler.AuthTracker.CleanupStaleEntries()
+			case <-cleanupCtx.Done():
+				return
+			}
+		}
+	}()
 	llmProviderName := os.Getenv("LLM_PROVIDER")
 	if llmProviderName == "" {
 		llmProviderName = "anthropic"

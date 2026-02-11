@@ -657,18 +657,27 @@ func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 // extractSessionToken extracts the session token from the request.
 // It checks the Authorization header first, then the session cookie.
 func extractSessionToken(r *http.Request) string {
+	var token string
+
 	// Check Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if strings.HasPrefix(authHeader, "Bearer ") {
-		return strings.TrimPrefix(authHeader, "Bearer ")
+		token = strings.TrimPrefix(authHeader, "Bearer ")
+	} else {
+		// Check session cookie
+		cookie, err := r.Cookie("session")
+		if err != nil {
+			return ""
+		}
+		token = cookie.Value
 	}
 
-	// Check session cookie
-	cookie, err := r.Cookie("session")
-	if err != nil {
+	// Reject oversized tokens to avoid hashing arbitrarily large inputs.
+	// Valid session tokens are 64 hex chars (32 bytes).
+	if len(token) > maxTokenLength {
 		return ""
 	}
-	return cookie.Value
+	return token
 }
 
 // isHTTPSOnly returns true if the HTTPS_ONLY env var is set to "true".

@@ -449,6 +449,8 @@ import '../styles/global.css';
 
       // Success
       hideAllFlows();
+      totpCodeInput.value = '';
+      setupPasswordInput.value = '';
       updateTOTPDisplay(true);
       setupSuccess.textContent = 'Two-factor authentication enabled successfully.';
       setupSuccess.classList.remove('hidden');

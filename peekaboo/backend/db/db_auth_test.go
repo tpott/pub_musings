@@ -225,7 +225,7 @@ func TestCreateAndGetSession(t *testing.T) {
 	session := &Session{
 		ID:        "session-id-1",
 		UserID:    user.ID,
-		TokenHash:     "session-token-abc123",
+		TokenHash: "session-token-abc123",
 		ExpiresAt: now.Add(30 * 24 * time.Hour),
 		CreatedAt: now,
 	}
@@ -276,7 +276,7 @@ func TestDeleteSession(t *testing.T) {
 	session := &Session{
 		ID:        "del-session-1",
 		UserID:    user.ID,
-		TokenHash:     "del-token-1",
+		TokenHash: "del-token-1",
 		ExpiresAt: time.Now().UTC().Add(time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -313,7 +313,7 @@ func TestDeleteExpiredSessions(t *testing.T) {
 	expired := &Session{
 		ID:        "expired-session-1",
 		UserID:    user.ID,
-		TokenHash:     "expired-token-1",
+		TokenHash: "expired-token-1",
 		ExpiresAt: time.Now().UTC().Add(-time.Hour),
 		CreatedAt: time.Now().UTC().Add(-2 * time.Hour),
 	}
@@ -324,7 +324,7 @@ func TestDeleteExpiredSessions(t *testing.T) {
 	valid := &Session{
 		ID:        "valid-session-1",
 		UserID:    user.ID,
-		TokenHash:     "valid-token-1",
+		TokenHash: "valid-token-1",
 		ExpiresAt: time.Now().UTC().Add(time.Hour),
 		CreatedAt: time.Now().UTC(),
 	}
@@ -368,7 +368,7 @@ func TestDeleteSessionsByUserID(t *testing.T) {
 		s := &Session{
 			ID:        fmt.Sprintf("ms-%d", i),
 			UserID:    user.ID,
-			TokenHash:     fmt.Sprintf("ms-token-%d", i),
+			TokenHash: fmt.Sprintf("ms-token-%d", i),
 			ExpiresAt: time.Now().UTC().Add(time.Hour),
 			CreatedAt: time.Now().UTC(),
 		}
