@@ -366,8 +366,8 @@ export class PeekabooFlow {
     this.ttsPlaybackPromise = new Promise<void>((resolve) => {
       audio.addEventListener('ended', () => resolve(), { once: true });
       audio.addEventListener('error', () => resolve(), { once: true });
-      audio.play().catch(() => {
-        // Autoplay blocked — resolve immediately so media can still display
+      audio.play().catch((err) => {
+        logger.debug('TTS autoplay blocked', err);
         resolve();
       });
     });

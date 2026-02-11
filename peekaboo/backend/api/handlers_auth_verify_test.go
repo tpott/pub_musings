@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +63,27 @@ func TestVerify_MissingToken(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400, got %d", w.Code)
+	}
+}
+
+func TestVerify_OversizedToken(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	oversizedToken := strings.Repeat("a", maxTokenLength+1)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/verify?token="+oversizedToken, nil)
+	w := httptest.NewRecorder()
+	handler.HandleVerify(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d", w.Code)
+	}
+
+	var resp verifyResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error != "invalid token" {
+		t.Errorf("Expected 'invalid token', got %q", resp.Error)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 
 // maxAuthBodySize is the maximum allowed request body size for auth endpoints.
 const maxAuthBodySize = 4 << 10 // 4KB
+const maxTokenLength = 128      // hex-encoded 64-byte token = 128 chars
 
 // EmailSender is an interface for sending emails. Implementations can use
 // SMTP, a third-party service, or a no-op logger for development.
@@ -249,6 +250,10 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		writeJSON(w, http.StatusBadRequest, verifyResponse{Error: "missing token parameter"})
+		return
+	}
+	if len(token) > maxTokenLength {
+		writeJSON(w, http.StatusBadRequest, verifyResponse{Error: "invalid token"})
 		return
 	}
 

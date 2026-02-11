@@ -231,7 +231,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 
 	// 1. Send to whisper for transcription
 	sttRequestAt := time.Now()
-	whisperResp, err := h.transcribeAudio(audioData)
+	whisperResp, err := h.transcribeAudio(ctx, audioData)
 	sttLatency := time.Since(sttRequestAt)
 	if err != nil {
 		logger.Error("transcription failed", "error", err)
@@ -389,7 +389,7 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 
 // transcribeAudio sends audio to whisper-server and returns the full response
 // including word-level timing and probabilities.
-func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperResponse, error) {
+func (h *AudioWebSocketHandler) transcribeAudio(ctx context.Context, audioData []byte) (*WhisperResponse, error) {
 	// Create multipart form
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -425,7 +425,7 @@ func (h *AudioWebSocketHandler) transcribeAudio(audioData []byte) (*WhisperRespo
 	}
 
 	// Send request to whisper-server
-	req, err := http.NewRequest(http.MethodPost, h.WhisperURL+"/inference", &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.WhisperURL+"/inference", &buf)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}

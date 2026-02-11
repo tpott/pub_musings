@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -155,6 +156,27 @@ func TestMagicLinkVerify_MissingToken(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.Error != "missing token parameter" {
 		t.Errorf("Expected 'missing token parameter', got %q", resp.Error)
+	}
+}
+
+func TestMagicLinkVerify_OversizedToken(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	oversizedToken := strings.Repeat("a", maxTokenLength+1)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/magic-link/verify?token="+oversizedToken, nil)
+	w := httptest.NewRecorder()
+	handler.HandleMagicLinkVerify(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400, got %d", w.Code)
+	}
+
+	var resp magicLinkVerifyResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Error != "invalid token" {
+		t.Errorf("Expected 'invalid token', got %q", resp.Error)
 	}
 }
 

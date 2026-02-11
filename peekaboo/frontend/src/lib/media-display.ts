@@ -175,8 +175,8 @@ export class MediaDisplay {
       if (this.audioElement) {
         this.audioElement.play().then(() => {
           indicator.remove();
-        }).catch(() => {
-          // Still blocked, keep indicator
+        }).catch((err) => {
+          logger.debug('Audio play blocked, keeping indicator', err);
         });
       }
     };

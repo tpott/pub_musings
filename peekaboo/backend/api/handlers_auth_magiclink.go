@@ -134,6 +134,10 @@ func (h *AuthHandler) HandleMagicLinkVerify(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusBadRequest, magicLinkVerifyResponse{Error: "missing token parameter"})
 		return
 	}
+	if len(token) > maxTokenLength {
+		writeJSON(w, http.StatusBadRequest, magicLinkVerifyResponse{Error: "invalid token"})
+		return
+	}
 
 	tokenHash := auth.HashToken(token)
 

@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 241 tasks completed.
+Production-ready voice-controlled web app for children. 244 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,10 @@ Production-ready voice-controlled web app for children. 241 tasks completed.
 
 ## Last Completed
 
+- Tasks 281-283 (2026-02-10): Deep inspection round 3 — context propagation, hardening
+  - Task 281: Propagate context to transcribeAudio/forwardToWhisper (http.NewRequestWithContext)
+  - Task 282: Add logger.debug to silent catch blocks, replace Math.random UUID with crypto.getRandomValues
+  - Task 283: Add max-length validation for auth token query params (verify, magic-link)
 - Tasks 276-280 (2026-02-10): User feedback fixes
   - Task 276: Remove skip-to-content links from all pages (user found them cluttering UI)
   - Task 277: Add logout confirmation dialog (confirm() before logout)

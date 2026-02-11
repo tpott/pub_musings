@@ -6,6 +6,26 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-10: http.NewRequest without context ignores cancellation
+
+**Problem:** `transcribeAudio()` and `forwardToWhisper()` created HTTP requests with `http.NewRequest()` instead of `http.NewRequestWithContext()`. When a WebSocket disconnected or HTTP request was canceled, the outbound whisper-server request continued running until it naturally timed out.
+
+**Solution:** Changed both functions to accept `context.Context` and use `http.NewRequestWithContext()`. Call sites pass `ctx` (from processAudio) and `r.Context()` (from ServeHTTP).
+
+**Lesson:** Always use `http.NewRequestWithContext` for outbound HTTP calls. Plain `http.NewRequest` creates requests that ignore parent cancellation, wasting resources on abandoned work.
+
+---
+
+### 2026-02-10: Unbounded query parameter length enables CPU exhaustion
+
+**Problem:** `HandleVerify` and `HandleMagicLinkVerify` accepted arbitrary-length token query parameters. A malicious client could send a multi-MB token string that gets SHA-256 hashed and database-queried, wasting CPU.
+
+**Solution:** Added `maxTokenLength = 128` constant and length check before hashing. Tokens are 32 random bytes hex-encoded = 64 chars, so 128 is generous.
+
+**Lesson:** Always validate input length at system boundaries before processing. Even "just a hash" becomes expensive at large input sizes.
+
+---
+
 ### 2026-02-09: Adding exports to mocked modules breaks tests
 
 **Problem:** Adding `cleanupTTSBlobUrls` export to `text-to-speech.ts` caused 5 test failures with "No export defined on mock" errors. Tests that mock `./text-to-speech` using `vi.mock` only include explicitly declared exports.

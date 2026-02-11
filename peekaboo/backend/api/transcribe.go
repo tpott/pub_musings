@@ -3,6 +3,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -134,7 +135,7 @@ func (h *TranscribeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Forward to whisper-server with stream size limit enforcement
-	whisperResp, err := h.forwardToWhisper(file)
+	whisperResp, err := h.forwardToWhisper(r.Context(), file)
 	if err != nil {
 		// Check if stream exceeded size limit (attacker lied about Content-Length)
 		if err == errStreamTooLarge {
@@ -161,7 +162,7 @@ var errStreamTooLarge = fmt.Errorf("audio stream exceeds maximum size of %d byte
 // including word-level timing and probabilities.
 // It enforces a maximum stream size of maxAudioSize bytes to prevent attacks
 // that lie about Content-Length.
-func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse, error) {
+func (h *TranscribeHandler) forwardToWhisper(ctx context.Context, audio io.Reader) (*WhisperResponse, error) {
 	// Create multipart form
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -207,7 +208,7 @@ func (h *TranscribeHandler) forwardToWhisper(audio io.Reader) (*WhisperResponse,
 	}
 
 	// Send request to whisper-server
-	req, err := http.NewRequest(http.MethodPost, h.WhisperURL+"/inference", &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.WhisperURL+"/inference", &buf)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
