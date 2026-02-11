@@ -29,13 +29,19 @@ var clusterElementID = []byte{0x1F, 0x43, 0xB6, 0x75}
 // correct WebM every time. Future phases will optimize with selective
 // cluster extraction.
 //
+// defaultMaxBufferSize is the maximum audio buffer size (50 MB).
+// Prevents memory exhaustion from stuck sessions that keep sending audio
+// without the buffer being processed/cleared.
+const defaultMaxBufferSize = 50 * 1024 * 1024
+
 // Thread safety: WebMParser is NOT goroutine-safe. The caller must hold
 // a lock (e.g. connectionState.mu) when calling any method.
 type WebMParser struct {
-	rawBuffer   []byte // all bytes received (never cleared while recording)
-	initSegment []byte // cached: bytes before first Cluster element
-	clusterPos  int    // byte offset where cluster data begins
-	parsed      bool   // true once init segment has been extracted
+	rawBuffer     []byte // all bytes received (never cleared while recording)
+	initSegment   []byte // cached: bytes before first Cluster element
+	clusterPos    int    // byte offset where cluster data begins
+	parsed        bool   // true once init segment has been extracted
+	maxBufferSize int    // max allowed rawBuffer size (0 = defaultMaxBufferSize)
 }
 
 // ClusterRef records the byte position and timecode of a Cluster element
@@ -51,14 +57,27 @@ func NewWebMParser() *WebMParser {
 	return &WebMParser{}
 }
 
+// maxBufSize returns the effective max buffer size.
+func (p *WebMParser) maxBufSize() int {
+	if p.maxBufferSize > 0 {
+		return p.maxBufferSize
+	}
+	return defaultMaxBufferSize
+}
+
 // Append adds raw bytes to the internal buffer and attempts to extract
-// the init segment if not yet found.
-func (p *WebMParser) Append(data []byte) {
+// the init segment if not yet found. Returns false if the append would
+// exceed the maximum buffer size.
+func (p *WebMParser) Append(data []byte) bool {
+	if len(p.rawBuffer)+len(data) > p.maxBufSize() {
+		return false
+	}
 	p.rawBuffer = append(p.rawBuffer, data...)
 
 	if !p.parsed {
 		p.tryExtractInitSegment()
 	}
+	return true
 }
 
 // tryExtractInitSegment searches for the first Cluster element ID in the

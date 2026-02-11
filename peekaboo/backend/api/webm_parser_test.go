@@ -322,6 +322,39 @@ func TestWebMParserTrimBeforeUnparsed(t *testing.T) {
 	}
 }
 
+func TestWebMParserAppendMaxBufferSize(t *testing.T) {
+	p := &WebMParser{maxBufferSize: 100}
+
+	// Append within limit should succeed
+	ok := p.Append(make([]byte, 50))
+	if !ok {
+		t.Fatal("Append within limit should succeed")
+	}
+
+	// Append that would exceed limit should fail
+	ok = p.Append(make([]byte, 60))
+	if ok {
+		t.Fatal("Append exceeding limit should fail")
+	}
+
+	// Buffer should remain at original size
+	if p.BufferLen() != 50 {
+		t.Errorf("Buffer should remain at 50 after rejected append, got %d", p.BufferLen())
+	}
+
+	// Append up to exact limit should succeed
+	ok = p.Append(make([]byte, 50))
+	if !ok {
+		t.Fatal("Append to exact limit should succeed")
+	}
+
+	// Any further append should fail
+	ok = p.Append(make([]byte, 1))
+	if ok {
+		t.Fatal("Append beyond limit should fail")
+	}
+}
+
 func TestWebMParserClusterDataLen(t *testing.T) {
 	data := buildMultiClusterWebM(t, []uint64{0, 500})
 

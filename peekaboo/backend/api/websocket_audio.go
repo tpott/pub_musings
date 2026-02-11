@@ -106,7 +106,10 @@ func (h *AudioWebSocketHandler) handleAudioDataMessage(_ context.Context, _ *web
 		state.firstChunkClient = chunkMeta.ClientTS
 	}
 
-	state.webmParser.Append(audioData)
+	if !state.webmParser.Append(audioData) {
+		logger.Warn("audio buffer overflow, dropping chunk", "buffer_size", state.webmParser.BufferLen(), "chunk_size", len(audioData))
+		return
+	}
 	state.chunkMetas = append(state.chunkMetas, *chunkMeta)
 
 	logger.Debug("received audio_data chunk", "size", len(audioData), "seq", msg.Seq, "buffer_size", state.webmParser.BufferLen())
@@ -156,7 +159,10 @@ func (h *AudioWebSocketHandler) handleAudioChunk(ctx context.Context, conn *webs
 	}
 
 	// Append audio (without header) to WebM-aware buffer
-	state.webmParser.Append(audioData)
+	if !state.webmParser.Append(audioData) {
+		logger.Warn("audio buffer overflow, dropping chunk", "buffer_size", state.webmParser.BufferLen(), "chunk_size", len(audioData))
+		return
+	}
 
 	// Record chunk metadata
 	if chunkMeta != nil {

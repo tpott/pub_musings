@@ -530,12 +530,16 @@ type AudioBlobEntry struct {
 	AudioBlobPath string
 }
 
-// ListExpiredAudioBlobs returns interactions with audio_blob_path set that are
-// older than the given cutoff time.
+// audioBlobBatchSize is the max entries returned per ListExpiredAudioBlobs call.
+const audioBlobBatchSize = 500
+
+// ListExpiredAudioBlobs returns up to audioBlobBatchSize interactions with
+// audio_blob_path set that are older than the given cutoff time.
+// Call repeatedly until an empty slice is returned to process all entries.
 func (db *DB) ListExpiredAudioBlobs(cutoff time.Time) ([]AudioBlobEntry, error) {
 	rows, err := db.conn.Query(
-		"SELECT id, audio_blob_path FROM interactions WHERE audio_blob_path IS NOT NULL AND created_at < ?",
-		cutoff,
+		"SELECT id, audio_blob_path FROM interactions WHERE audio_blob_path IS NOT NULL AND created_at < ? LIMIT ?",
+		cutoff, audioBlobBatchSize,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list expired audio blobs: %w", err)

@@ -201,6 +201,31 @@ func (t *WSAuthTracker) AllowAnonInteraction(ip string) bool {
 	return true
 }
 
+// CleanupStaleEntries removes anonInteractions entries where all timestamps
+// have expired (older than the interaction window). This prevents the map
+// from growing indefinitely as new IPs connect and disconnect.
+func (t *WSAuthTracker) CleanupStaleEntries() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	cutoff := time.Now().Add(-t.limits.InteractionWindow)
+	removed := 0
+	for ip, timestamps := range t.anonInteractions {
+		hasRecent := false
+		for _, ts := range timestamps {
+			if ts.After(cutoff) {
+				hasRecent = true
+				break
+			}
+		}
+		if !hasRecent {
+			delete(t.anonInteractions, ip)
+			removed++
+		}
+	}
+	return removed
+}
+
 // AnonConnCount returns the current concurrent connection count for an IP.
 func (t *WSAuthTracker) AnonConnCount(ip string) int {
 	t.mu.Lock()

@@ -148,6 +148,51 @@ func TestWSAuthTracker_ConnCountTracking(t *testing.T) {
 	}
 }
 
+func TestWSAuthTracker_CleanupStaleEntries(t *testing.T) {
+	limits := WSAuthLimits{
+		AnonMaxConcurrent:       1,
+		AnonMaxInteractionsHr:   10,
+		RegisteredMaxConcurrent: 3,
+		InteractionWindow:       100 * time.Millisecond,
+	}
+	tracker := NewWSAuthTracker(limits)
+
+	// Add interactions for two IPs
+	tracker.AllowAnonInteraction("10.0.0.1")
+	tracker.AllowAnonInteraction("10.0.0.2")
+
+	// Immediately cleanup — entries are recent, nothing should be removed
+	removed := tracker.CleanupStaleEntries()
+	if removed != 0 {
+		t.Errorf("Expected 0 removed (entries are recent), got %d", removed)
+	}
+
+	// Wait for window to expire
+	time.Sleep(150 * time.Millisecond)
+
+	// Add a fresh interaction for one IP
+	tracker.AllowAnonInteraction("10.0.0.1")
+
+	// Cleanup should remove only the stale IP
+	removed = tracker.CleanupStaleEntries()
+	if removed != 1 {
+		t.Errorf("Expected 1 stale entry removed, got %d", removed)
+	}
+
+	// Verify 10.0.0.1 still has an entry (fresh interaction)
+	tracker.mu.Lock()
+	_, has1 := tracker.anonInteractions["10.0.0.1"]
+	_, has2 := tracker.anonInteractions["10.0.0.2"]
+	tracker.mu.Unlock()
+
+	if !has1 {
+		t.Error("10.0.0.1 should still have an entry (had recent interaction)")
+	}
+	if has2 {
+		t.Error("10.0.0.2 should have been removed (all interactions expired)")
+	}
+}
+
 // --- Helper functions for WebSocket auth integration tests ---
 
 func setupWSAuthTestDB(t *testing.T) *db.DB {

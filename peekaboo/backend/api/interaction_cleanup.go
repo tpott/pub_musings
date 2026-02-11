@@ -23,39 +23,44 @@ func getRetentionDays() int {
 
 // CleanupExpiredAudioBlobs deletes audio blob files older than the retention
 // period and sets their audio_blob_path to NULL in the database.
+// Processes in batches to avoid loading all entries into memory at once.
 // Returns the number of files cleaned.
 func CleanupExpiredAudioBlobs(database *db.DB, logger *slog.Logger) int {
 	retentionDays := getRetentionDays()
 	cutoff := time.Now().UTC().Add(-time.Duration(retentionDays) * 24 * time.Hour)
 
-	entries, err := database.ListExpiredAudioBlobs(cutoff)
-	if err != nil {
-		logger.Error("failed to list expired audio blobs", "error", err)
-		return 0
-	}
-
-	if len(entries) == 0 {
-		return 0
-	}
-
 	cleaned := 0
-	for _, e := range entries {
-		// Delete the file from disk
-		if err := os.Remove(e.AudioBlobPath); err != nil && !os.IsNotExist(err) {
-			logger.Warn("failed to delete audio blob", "path", e.AudioBlobPath, "error", err)
-			continue
+	for {
+		entries, err := database.ListExpiredAudioBlobs(cutoff)
+		if err != nil {
+			logger.Error("failed to list expired audio blobs", "error", err)
+			break
 		}
 
-		// Clear the path in DB
-		if err := database.ClearAudioBlobPath(e.ID); err != nil {
-			logger.Warn("failed to clear audio blob path", "id", e.ID, "error", err)
-			continue
+		if len(entries) == 0 {
+			break
 		}
 
-		cleaned++
+		for _, e := range entries {
+			// Delete the file from disk
+			if err := os.Remove(e.AudioBlobPath); err != nil && !os.IsNotExist(err) {
+				logger.Warn("failed to delete audio blob", "path", e.AudioBlobPath, "error", err)
+				continue
+			}
+
+			// Clear the path in DB
+			if err := database.ClearAudioBlobPath(e.ID); err != nil {
+				logger.Warn("failed to clear audio blob path", "id", e.ID, "error", err)
+				continue
+			}
+
+			cleaned++
+		}
 	}
 
-	logger.Info("audio blob cleanup completed", "cleaned", cleaned, "retention_days", retentionDays)
+	if cleaned > 0 {
+		logger.Info("audio blob cleanup completed", "cleaned", cleaned, "retention_days", retentionDays)
+	}
 	return cleaned
 }
 
