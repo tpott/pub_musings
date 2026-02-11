@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 272 tasks completed.
+Production-ready voice-controlled web app for children. 273 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 272 tasks completed.
 
 ## Last Completed
 
+- Task 312 (2026-02-10): Deep inspection round 16 — fix isProcessing race in stop_recording (set flag before spawning processAudio, prevents concurrent processing and idle timeout)
 - Tasks 310-311 (2026-02-10): Deep inspection round 15 — add rate limiting to POST /api/auth/logout (10/min) and POST /api/log (30/min), warn on unrecognized LOG_LEVEL
 - Task 309 (2026-02-10): Deep inspection round 14 — split 3 oversized test files (websocket_validation_test.go, websocket_framing_test.go, ratelimit_test.go) into 6 files, all under 500 lines
 - Tasks 307-308 (2026-02-10): Deep inspection rounds 12-13 — add missing token_hash indexes (email_verification_tokens, magic_link_tokens), wire LLMProviderName into WebSocket handler for interaction logging

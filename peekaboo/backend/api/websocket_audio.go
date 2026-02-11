@@ -48,12 +48,15 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		state.webmParser.Clear()
 		firstChunkTS := state.firstChunkClient
 		state.accumulatedWords = nil // clear accumulation on stop
+		willProcess := len(audioData) >= minAudioSize
+		if willProcess {
+			state.isProcessing = true // prevent idle timeout and buffer watcher races
+		}
 		state.mu.Unlock()
 
 		logger.Debug("recording stopped", "buffer_size", len(audioData))
 
-		// Process the buffered audio (no state needed — stop is final)
-		if len(audioData) >= minAudioSize {
+		if willProcess {
 			go h.processAudio(ctx, conn, state, audioData, firstChunkTS, logger)
 		} else if len(audioData) > 0 {
 			h.sendError(ctx, conn, "audio too short", logger)
