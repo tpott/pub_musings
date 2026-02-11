@@ -318,9 +318,15 @@ export class AudioWebSocket {
       return;
     }
 
+    let message: ServerMessage;
     try {
-      const message = JSON.parse(event.data) as ServerMessage;
+      message = JSON.parse(event.data) as ServerMessage;
+    } catch (error) {
+      logger.debug('WebSocket received invalid JSON:', error);
+      return;
+    }
 
+    try {
       switch (message.type) {
         case 'transcript':
           this.callbacks.onTranscript?.(message.text);
@@ -347,7 +353,7 @@ export class AudioWebSocket {
           break;
       }
     } catch (error) {
-      logger.debug('WebSocket received invalid JSON:', error);
+      logger.error('Error handling WebSocket message:', error);
     }
   }
 

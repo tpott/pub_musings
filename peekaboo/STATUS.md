@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 278 tasks completed.
+Production-ready voice-controlled web app for children. 279 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,7 @@ Production-ready voice-controlled web app for children. 278 tasks completed.
 
 ## Last Completed
 
+- Task 319 (2026-02-10): Separate JSON parse from handler errors in WebSocket handleMessage — split single try-catch into two: JSON.parse errors logged at debug level, handler dispatch errors logged at error level. Prevents misattribution.
 - Task 318 (2026-02-10): WebSocket connection timeout — 10s timeout on connect(), rejects with "connection timeout" if server never responds. Prevents indefinite hangs. 3 tests (328 total frontend).
 - Task 317 (2026-02-10): Exponential backoff on empty transcripts — after 3 consecutive empties, buffer threshold doubles (3s→6s→10s cap). Resets on non-empty. Prevents hammering whisper. 12 tests.
 - Task 316 (2026-02-10): Startup warning for encrypted media without age key — hasAgeFiles() scans mediaDir for .age files; logs slog.Error when encrypted files present but no key available, preventing silent 404 on all media
