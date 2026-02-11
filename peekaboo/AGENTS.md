@@ -82,7 +82,8 @@ cd frontend && npx playwright test --ui
 
 ```bash
 # Decrypt secrets to .env (requires age key)
-sops -d secrets.enc.yaml > .env
+# Converts YAML format (KEY: value) to shell format (KEY=value)
+sops -d secrets.enc.yaml | grep -E '^[A-Z_]+:' | sed 's/: /=/' > .env
 ```
 
 ## Environment Variables

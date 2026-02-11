@@ -72,6 +72,7 @@ func (s *EncryptedFileServer) serveEncrypted(w http.ResponseWriter, r *http.Requ
 	// Open encrypted file
 	f, err := os.Open(encryptedPath)
 	if err != nil {
+		slog.Error("failed to open encrypted file", "path", encryptedPath, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -80,6 +81,7 @@ func (s *EncryptedFileServer) serveEncrypted(w http.ResponseWriter, r *http.Requ
 	// Create decrypted reader
 	decrypted, err := crypto.DecryptReader(f, s.Identity)
 	if err != nil {
+		slog.Error("failed to decrypt file", "path", encryptedPath, "error", err)
 		http.Error(w, "decryption failed", http.StatusInternalServerError)
 		return
 	}
