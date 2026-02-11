@@ -246,6 +246,12 @@ func main() {
 		// No age key - use plain file server
 		slog.Warn("serving media files unencrypted", "key_file", ageKeyFile)
 		mux.Handle("/data/media/", http.StripPrefix("/data/media/", http.FileServer(http.Dir(mediaDir))))
+
+		// Check if .age files exist without a usable key — media will be inaccessible
+		if hasAgeFiles(mediaDir) {
+			slog.Error("encrypted media files found but age key not available — media will be inaccessible",
+				"media_dir", mediaDir, "key_file", ageKeyFile)
+		}
 	}
 
 	// Static file server for test fixtures (for e2e tests)
@@ -397,4 +403,21 @@ func seedMediaFromDisk(database *db.DB) error {
 	}
 
 	return nil
+}
+
+// hasAgeFiles checks if any .age files exist under the given directory.
+// Used to detect encrypted media that won't be servable without the age key.
+func hasAgeFiles(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip unreadable entries
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".age") {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }
