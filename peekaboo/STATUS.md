@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 277 tasks completed.
+Production-ready voice-controlled web app for children. 278 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 325 unit tests, 56 E2E tests
+- **Astro frontend** with TypeScript, 328 unit tests, 56 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -36,6 +36,7 @@ Production-ready voice-controlled web app for children. 277 tasks completed.
 
 ## Last Completed
 
+- Task 318 (2026-02-10): WebSocket connection timeout — 10s timeout on connect(), rejects with "connection timeout" if server never responds. Prevents indefinite hangs. 3 tests (328 total frontend).
 - Task 317 (2026-02-10): Exponential backoff on empty transcripts — after 3 consecutive empties, buffer threshold doubles (3s→6s→10s cap). Resets on non-empty. Prevents hammering whisper. 12 tests.
 - Task 316 (2026-02-10): Startup warning for encrypted media without age key — hasAgeFiles() scans mediaDir for .age files; logs slog.Error when encrypted files present but no key available, preventing silent 404 on all media
 - Task 314 (2026-02-10): Deep inspection round 18 — add rate limiting to admin feedback endpoint (20/min), all endpoints now rate-limited

@@ -177,6 +177,63 @@ describe('AudioWebSocket', () => {
       await expect(connectPromise).rejects.toThrow('WebSocket connection failed');
       expect(ws.getState()).toBe('disconnected');
     });
+
+    it('rejects with timeout if server never responds', async () => {
+      vi.useFakeTimers();
+      try {
+        const onStateChange = vi.fn();
+        const ws = new AudioWebSocket({ onStateChange }, { connectTimeout: 5000 });
+        const connectPromise = ws.connect();
+
+        expect(ws.getState()).toBe('connecting');
+
+        // Advance past the timeout
+        vi.advanceTimersByTime(5000);
+
+        await expect(connectPromise).rejects.toThrow('WebSocket connection timeout');
+        expect(ws.getState()).toBe('disconnected');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('clears timeout on successful connection', async () => {
+      vi.useFakeTimers();
+      try {
+        const ws = new AudioWebSocket({}, { connectTimeout: 5000 });
+        const connectPromise = ws.connect();
+
+        // Connect before timeout
+        mockWebSocketInstance?.simulateOpen();
+        await connectPromise;
+
+        expect(ws.getState()).toBe('connected');
+
+        // Advance past what would have been the timeout
+        vi.advanceTimersByTime(10000);
+
+        // Should still be connected (timeout didn't fire)
+        expect(ws.getState()).toBe('connected');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('clears timeout on connection failure', async () => {
+      vi.useFakeTimers();
+      try {
+        const ws = new AudioWebSocket({}, { connectTimeout: 5000 });
+        const connectPromise = ws.connect();
+
+        // Connection fails before timeout
+        mockWebSocketInstance?.simulateConnectionFailure();
+        await expect(connectPromise).rejects.toThrow('WebSocket connection failed');
+
+        expect(ws.getState()).toBe('disconnected');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('disconnect', () => {

@@ -58,6 +58,8 @@ export interface AudioWebSocketOptions {
   reconnectDelay?: number;
   /** Ping interval in ms to keep connection alive (default: 30000) */
   pingInterval?: number;
+  /** Connection timeout in ms (default: 10000) */
+  connectTimeout?: number;
 }
 
 const DEFAULT_OPTIONS: Required<AudioWebSocketOptions> = {
@@ -65,6 +67,7 @@ const DEFAULT_OPTIONS: Required<AudioWebSocketOptions> = {
   maxReconnectAttempts: 3,
   reconnectDelay: 1000,
   pingInterval: 30000,
+  connectTimeout: 10000,
 };
 
 /**
@@ -148,7 +151,23 @@ export class AudioWebSocket {
 
       this.ws.binaryType = 'arraybuffer';
 
+      // Connection timeout — reject if neither onopen nor onclose fires
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          logger.debug('WebSocket connection timeout');
+          this.ws?.close();
+          this.ws = null;
+          this.setState('disconnected');
+          reject(new ApiError('WebSocket connection timeout', 'network'));
+        }
+      }, this.options.connectTimeout);
+
       this.ws.onopen = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
         this.setState('connected');
         this.reconnectAttempts = 0;
         this.startPingTimer();
@@ -156,12 +175,14 @@ export class AudioWebSocket {
       };
 
       this.ws.onclose = (event) => {
+        clearTimeout(timeoutId);
         this.stopPingTimer();
         const wasRecording = this.isRecording;
         this.isRecording = false;
 
-        if (this.state === 'connecting') {
+        if (!settled && this.state === 'connecting') {
           // Connection failed during initial connect
+          settled = true;
           this.setState('disconnected');
           reject(new ApiError('WebSocket connection failed', 'network'));
         } else if (!event.wasClean && this.state !== 'disconnected') {
