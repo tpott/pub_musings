@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 255 tasks completed.
+Production-ready voice-controlled web app for children. 256 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 255 tasks completed.
 
 ## Last Completed
 
+- Task 295 (2026-02-10): Expired token cleanup — added DeleteExpiredEmailVerificationTokens/DeleteExpiredMagicLinkTokens to DB, CleanupExpiredAuth now cleans up all 4 auth tables
 - Tasks 292-294 (2026-02-10): Deep inspection round 6 — oversized body tests (413), TTS response.json() try-catch, TOTP 413 handling
 - Task 291 (2026-02-10): Periodic auth cleanup — hourly goroutine for expired sessions and old login attempts (7-day retention)
 - Tasks 289-290 (2026-02-10): Test coverage — resend verification (rate limit, email failure), email template rendering (special chars)
