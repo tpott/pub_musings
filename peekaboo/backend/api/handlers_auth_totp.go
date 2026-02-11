@@ -120,6 +120,10 @@ func (h *AuthHandler) HandleTOTPEnable(w http.ResponseWriter, r *http.Request) {
 
 	var req totpEnableRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err.Error() == "http: request body too large" {
+			writeJSON(w, http.StatusRequestEntityTooLarge, totpEnableResponse{Error: "request body too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, totpEnableResponse{Error: "invalid JSON body"})
 		return
 	}
@@ -201,6 +205,10 @@ func (h *AuthHandler) HandleTOTPDisable(w http.ResponseWriter, r *http.Request) 
 
 	var req totpDisableRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err.Error() == "http: request body too large" {
+			writeJSON(w, http.StatusRequestEntityTooLarge, totpDisableResponse{Error: "request body too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, totpDisableResponse{Error: "invalid JSON body"})
 		return
 	}

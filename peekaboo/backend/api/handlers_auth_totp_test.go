@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -267,6 +268,26 @@ func TestTOTPEnable_NotAuthenticated(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Expected 401, got %d", w.Code)
+	}
+}
+
+func TestTOTPEnable_BodyTooLarge(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	user := createTestUser(t, database, "totp-big@example.com", "password123", true)
+	sessionToken := createSessionForUser(t, database, user.ID)
+
+	largeCode := strings.Repeat("x", 5*1024)
+	body, _ := json.Marshal(totpEnableRequest{Code: largeCode, Password: "password123"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/totp/enable", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "session", Value: sessionToken})
+	w := httptest.NewRecorder()
+	handler.HandleTOTPEnable(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

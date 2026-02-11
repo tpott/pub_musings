@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -269,5 +270,25 @@ func TestTOTPFullFlow(t *testing.T) {
 	handler.HandleLogin(loginW3, loginReq3)
 	if loginW3.Code != http.StatusOK {
 		t.Fatalf("Login after disable: expected 200, got %d: %s", loginW3.Code, loginW3.Body.String())
+	}
+}
+
+func TestTOTPDisable_BodyTooLarge(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	user := createTOTPUser(t, database, "totp-disable-big@example.com", "password123")
+	sessionToken := createSessionForUser(t, database, user.ID)
+
+	largePassword := strings.Repeat("x", 5*1024)
+	body, _ := json.Marshal(totpDisableRequest{Password: largePassword})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/totp/disable", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "session", Value: sessionToken})
+	w := httptest.NewRecorder()
+	handler.HandleTOTPDisable(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413, got %d: %s", w.Code, w.Body.String())
 	}
 }
