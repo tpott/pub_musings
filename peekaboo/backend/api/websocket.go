@@ -60,6 +60,14 @@ const (
 	// silence was detected in the previous transcription cycle. This enables
 	// faster re-processing when the user has paused speaking.
 	silenceBufferThreshold = 1 * time.Second
+
+	// emptyTranscriptsBeforeBackoff is how many consecutive empty transcripts
+	// before the buffer threshold watcher starts backing off.
+	emptyTranscriptsBeforeBackoff = 3
+
+	// maxBackoffThreshold is the maximum buffer threshold during backoff.
+	// The threshold doubles each cycle: 3s → 6s → 10s (capped).
+	maxBackoffThreshold = 10 * time.Second
 )
 
 // Audio frame header constants.
@@ -245,6 +253,11 @@ type connectionState struct {
 	// after speech in the most recent transcription. Used by the buffer
 	// threshold watcher to apply a shorter threshold for faster re-triggering.
 	trailingSilenceDetected bool
+
+	// consecutiveEmptyTranscripts tracks how many times in a row whisper
+	// returned an empty transcript. Used to back off the buffer threshold
+	// and avoid hammering whisper with the same unrecognizable audio.
+	consecutiveEmptyTranscripts int
 }
 
 // ServeHTTP upgrades the connection to WebSocket and handles audio streaming.

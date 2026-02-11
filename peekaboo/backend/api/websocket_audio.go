@@ -38,6 +38,7 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 		state.chunkMetas = nil
 		state.firstChunkClient = 0
 		state.accumulatedWords = nil
+		state.consecutiveEmptyTranscripts = 0
 		state.mu.Unlock()
 		logger.Debug("recording started")
 
@@ -257,9 +258,18 @@ func (h *AudioWebSocketHandler) processAudio(ctx context.Context, conn *websocke
 	// Check for empty transcript (silence or no recognizable speech)
 	// This is normal during continuous listening - don't send an error to the client
 	if strings.TrimSpace(transcript) == "" {
-		logger.Debug("empty transcript from whisper, ignoring")
+		state.mu.Lock()
+		state.consecutiveEmptyTranscripts++
+		n := state.consecutiveEmptyTranscripts
+		state.mu.Unlock()
+		logger.Debug("empty transcript from whisper, ignoring", "consecutive_empty", n)
 		return
 	}
+
+	// Non-empty transcript — reset backoff counter
+	state.mu.Lock()
+	state.consecutiveEmptyTranscripts = 0
+	state.mu.Unlock()
 
 	// Send rich transcript to client (includes word-level timing if available)
 	h.sendRichTranscript(ctx, conn, whisperResp, firstChunkClientTS, logger)
@@ -512,6 +522,17 @@ func (h *AudioWebSocketHandler) bufferThresholdWatcher(ctx context.Context, conn
 			threshold := h.BufferThreshold
 			if state.trailingSilenceDetected {
 				threshold = silenceBufferThreshold
+			}
+			// Back off when whisper keeps returning empty transcripts
+			// (e.g., broken whisper, wrong model, background noise only).
+			// Doubles the threshold for each cycle past the backoff trigger.
+			if n := state.consecutiveEmptyTranscripts; n >= emptyTranscriptsBeforeBackoff {
+				shifts := n - emptyTranscriptsBeforeBackoff + 1
+				backoff := threshold << uint(shifts) // threshold * 2^shifts
+				if backoff > maxBackoffThreshold {
+					backoff = maxBackoffThreshold
+				}
+				threshold = backoff
 			}
 			if elapsed >= threshold {
 				// Threshold reached — grab valid WebM audio.
