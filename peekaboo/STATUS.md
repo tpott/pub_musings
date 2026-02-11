@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 267 tasks completed.
+Production-ready voice-controlled web app for children. 268 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -32,6 +32,7 @@ Production-ready voice-controlled web app for children. 267 tasks completed.
 
 ## Last Completed
 
+- Task 307 (2026-02-10): Deep inspection round 12 — add missing database indexes on token_hash for email_verification_tokens and magic_link_tokens (full-table scan on user-facing auth paths)
 - Tasks 305-306 (2026-02-10): Deep inspection round 11 — fix sops command YAML-to-shell conversion in AGENTS.md, add error logging to encrypted_media.go serveEncrypted
 - Tasks 303-304 (2026-02-10): Deep inspection round 10 — settings TOTP error visibility fix (move error divs outside hidden flow containers), CSRF middleware fail-closed on DB errors
 - Tasks 301-302 (2026-02-10): Deep inspection round 9 — TOTP double-click verified safe (no change needed), wire WSAuthTracker into production main.go

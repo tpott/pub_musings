@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_email_verification_user_id ON email_verification_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_verification_token_hash ON email_verification_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS magic_link_tokens (
 	id TEXT PRIMARY KEY,
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS magic_link_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_magic_link_user_id ON magic_link_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_magic_link_expires ON magic_link_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_magic_link_token_hash ON magic_link_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS sessions (
 	id TEXT PRIMARY KEY,
