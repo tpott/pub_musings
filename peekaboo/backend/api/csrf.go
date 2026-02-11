@@ -85,13 +85,13 @@ func CSRFMiddleware(next http.Handler, csrfSecret []byte, database *db.DB) http.
 			return
 		}
 
-		// Verify session exists and is not expired
+		// Verify session exists and is not expired — fail closed on DB errors
 		session, err := database.GetSessionByToken(sessionToken)
 		if err != nil {
 			slog.Error("csrf: failed to look up session",
 				"error", err,
 				"request_id", logging.GetRequestID(r.Context()))
-			next.ServeHTTP(w, r)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 			return
 		}
 		if session == nil || time.Now().UTC().After(session.ExpiresAt) {

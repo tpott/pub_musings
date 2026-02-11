@@ -366,6 +366,43 @@ func TestCSRFFlow(t *testing.T) {
 	}
 }
 
+func TestCSRFMiddleware_DBError_Returns500(t *testing.T) {
+	database := setupAuthTestDB(t)
+
+	// Create a session token so the middleware tries to look it up
+	sessionToken := "some-token-that-exists"
+
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := CSRFMiddleware(next, testCSRFSecret, database)
+
+	// Close the database to simulate a DB error
+	database.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sessionToken})
+	req.Header.Set("X-CSRF-Token", "any-token")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if called {
+		t.Error("Handler should NOT be called when DB lookup fails")
+	}
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected 500 on DB error, got %d", w.Code)
+	}
+
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["error"] != "internal error" {
+		t.Errorf("Expected 'internal error', got %q", resp["error"])
+	}
+}
+
 func TestCSRFMiddleware_FeedbackEndpoint(t *testing.T) {
 	database := setupAuthTestDB(t)
 	user := createTestUser(t, database, "csrf-feedback@example.com", "password123", true)

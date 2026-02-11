@@ -70,14 +70,13 @@ import '../styles/global.css';
             </div>
           </section>
 
-          <!-- TOTP success message (outside flow so it stays visible after flow hides) -->
+          <!-- TOTP success/error messages (outside flow so they stay visible after flow hides) -->
           <div class="form-success hidden" id="setup-success" role="status"></div>
+          <div class="form-error hidden" id="setup-error" role="alert"></div>
 
           <!-- TOTP setup flow -->
           <section id="totp-setup-flow" class="settings-section hidden">
             <h2>Set Up Two-Factor Authentication</h2>
-
-            <div class="form-error hidden" id="setup-error" role="alert"></div>
 
             <div id="qr-step">
               <p class="setup-instructions">
@@ -130,11 +129,12 @@ import '../styles/global.css';
             </div>
           </section>
 
+          <!-- TOTP disable error (outside flow so it stays visible if flow hasn't opened) -->
+          <div class="form-error hidden" id="disable-error" role="alert"></div>
+
           <!-- TOTP disable flow -->
           <section id="totp-disable-flow" class="settings-section hidden">
             <h2>Disable Two-Factor Authentication</h2>
-
-            <div class="form-error hidden" id="disable-error" role="alert"></div>
 
             <form id="totp-disable-form" novalidate>
               <div class="form-group">
