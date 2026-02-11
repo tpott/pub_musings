@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 288 tasks completed.
+Production-ready voice-controlled web app for children. 291 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,10 @@ Production-ready voice-controlled web app for children. 288 tasks completed.
 
 ## Last Completed
 
+- Tasks 328-330 (2026-02-11): Deep inspection round 22 — three fixes:
+  - Task 328: Fix unhandled promise rejection in peekaboo-flow.ts ondataavailable (add .catch to sendAudioChunk)
+  - Task 329: Add aria-hidden="true" to all decorative SVG icons (8 components/pages, 10 SVGs total)
+  - Task 330: Add early hex format validation in CSRF middleware before DB lookup (skip SHA-256 hash + DB query for malformed tokens)
 - Tasks 326-327 (2026-02-11): Deep inspection round 21 — fix go.mod direct/indirect dependency classification (6 deps moved from indirect to direct), harden systemd service file (NoNewPrivileges, ProtectSystem=strict, ReadWritePaths, PrivateTmp, TimeoutStopSec=30)
 - Tasks 321-325 (2026-02-10): Deep inspection round 19 fixes — WSAuthTracker periodic cleanup goroutine, extractSessionToken length validation (128 char limit), checkAuth() promise caching (prevents triple /api/auth/me on page load), clear TOTP password inputs on success, startRecording double-tap guard (setState before await)
 - Task 315 (2026-02-10): Hash session tokens before DB storage — sessions now use SHA-256 hashed tokens (matching email verification and magic link tokens). Schema migrated token→token_hash, all 10+ callers updated. Defense-in-depth against DB compromise.

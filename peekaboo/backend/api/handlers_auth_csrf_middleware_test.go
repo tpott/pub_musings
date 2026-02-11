@@ -366,11 +366,45 @@ func TestCSRFFlow(t *testing.T) {
 	}
 }
 
+func TestCSRFMiddleware_MalformedTokenSkipsCSRF(t *testing.T) {
+	database := setupAuthTestDB(t)
+
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := CSRFMiddleware(next, testCSRFSecret, database)
+
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{"non-hex characters", "not-a-valid-hex-token-at-all!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"},
+		{"too short", "abcdef0123456789"},
+		{"too long", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789ff"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called = false
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+			req.AddCookie(&http.Cookie{Name: "session", Value: tt.token})
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+
+			if !called {
+				t.Error("Malformed session token should skip CSRF and pass to handler")
+			}
+		})
+	}
+}
+
 func TestCSRFMiddleware_DBError_Returns500(t *testing.T) {
 	database := setupAuthTestDB(t)
 
-	// Create a session token so the middleware tries to look it up
-	sessionToken := "some-token-that-exists"
+	// Use a valid 64-char hex token so the middleware attempts a DB lookup
+	sessionToken, _ := auth.GenerateToken(32)
 
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

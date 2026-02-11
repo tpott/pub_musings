@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"time"
@@ -9,6 +10,9 @@ import (
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
+
+// expectedSessionTokenLen is the hex-encoded length of a 32-byte session token.
+const expectedSessionTokenLen = 64
 
 // csrfResponse is the response from GET /api/auth/csrf.
 type csrfResponse struct {
@@ -85,6 +89,14 @@ func CSRFMiddleware(next http.Handler, csrfSecret []byte, database *db.DB) http.
 			return
 		}
 
+		// Validate token format before DB lookup to avoid unnecessary
+		// hashing and database queries on malformed tokens.
+		if len(sessionToken) != expectedSessionTokenLen || !isHex(sessionToken) {
+			// Invalid format — let the handler deal with auth rejection
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Verify session exists and is not expired — fail closed on DB errors
 		session, err := database.GetSessionByTokenHash(auth.HashToken(sessionToken))
 		if err != nil {
@@ -114,4 +126,10 @@ func CSRFMiddleware(next http.Handler, csrfSecret []byte, database *db.DB) http.
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isHex reports whether s contains only hexadecimal characters.
+func isHex(s string) bool {
+	_, err := hex.DecodeString(s)
+	return err == nil
 }

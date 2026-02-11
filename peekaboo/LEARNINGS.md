@@ -6,6 +6,26 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-11: Unhandled async promise in synchronous event handler
+
+**Problem:** `MediaRecorder.ondataavailable` called `sendAudioChunk()` (an async function) without awaiting or catching the returned promise. If `sendAudioChunk` threw (e.g., WebSocket disconnected during base64 encoding), the rejection was unhandled.
+
+**Solution:** Added `.catch()` to the `sendAudioChunk()` call in the `ondataavailable` handler, logging the error at debug level.
+
+**Lesson:** When calling async functions from synchronous event handlers (DOM events, WebSocket callbacks), always add `.catch()` — you can't `await` in a sync callback, so unhandled rejections are silent.
+
+---
+
+### 2026-02-11: CSRF middleware DB lookup on every request with session token
+
+**Problem:** Any request with a session cookie (valid or not) triggered SHA-256 hashing + database lookup in the CSRF middleware. Malformed tokens (non-hex, wrong length) still paid the full cost.
+
+**Solution:** Added early format validation — check that the session token is exactly 64 hex characters before hashing and querying the database. Malformed tokens skip the CSRF check and pass through to the handler for normal auth rejection.
+
+**Lesson:** Validate input format before expensive operations (hashing, DB queries). Even bounded-size inputs can be pre-filtered to skip unnecessary work.
+
+---
+
 ### 2026-02-10: Hash session tokens before DB storage
 
 **Context:** Session tokens were stored in plaintext in the sessions table, while email verification and magic link tokens were already hashed with SHA-256. If the database were compromised, plaintext session tokens could be used directly for session hijacking.

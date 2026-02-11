@@ -227,7 +227,9 @@ export class PeekabooFlow {
     // Send audio chunks every 500ms
     this.mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0 && this.wsClient) {
-        this.wsClient.sendAudioChunk(event.data);
+        this.wsClient.sendAudioChunk(event.data).catch((err) => {
+          logger.debug('Failed to send audio chunk:', err);
+        });
       }
     };
 
