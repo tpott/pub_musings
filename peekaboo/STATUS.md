@@ -4,11 +4,11 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 244 tasks completed.
+Production-ready voice-controlled web app for children. 248 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 324 unit tests, 55 E2E tests
+- **Astro frontend** with TypeScript, 325 unit tests, 56 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -32,6 +32,11 @@ Production-ready voice-controlled web app for children. 244 tasks completed.
 
 ## Last Completed
 
+- Tasks 284-287 (2026-02-10): Deep inspection round 4 — validation, accessibility, stability
+  - Task 284: Add transcript length validation to WebSocket processTranscript (max 500 chars, consistent with HTTP)
+  - Task 285: Add focus trap to FeedbackButton modal (Tab/Shift+Tab wraps within modal, E2E test)
+  - Task 286: Restore focus to setup/disable button when TOTP cancel is clicked on settings page
+  - Task 287: Clear reconnect timer at start of WebSocket connect() to prevent double-connect
 - Tasks 281-283 (2026-02-10): Deep inspection round 3 — context propagation, hardening
   - Task 281: Propagate context to transcribeAudio/forwardToWhisper (http.NewRequestWithContext)
   - Task 282: Add logger.debug to silent catch blocks, replace Math.random UUID with crypto.getRandomValues

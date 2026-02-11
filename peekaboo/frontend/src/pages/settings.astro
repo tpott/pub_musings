@@ -464,6 +464,7 @@ import '../styles/global.css';
     hideAllFlows();
     totpCodeInput.value = '';
     setupPasswordInput.value = '';
+    setupTotpBtn.focus();
   });
 
   // Disable TOTP button click
@@ -530,6 +531,7 @@ import '../styles/global.css';
   cancelDisableBtn.addEventListener('click', () => {
     hideAllFlows();
     disablePasswordInput.value = '';
+    disableTotpBtn.focus();
   });
 
   // Clear field errors on input

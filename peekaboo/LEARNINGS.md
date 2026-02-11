@@ -513,3 +513,23 @@ cd frontend && PEEKABOO_REAL_SERVICES=1 npx playwright test tests/e2e/real-servi
 **Solution:** Added a verification step after initial audit: read the actual code for each claim before filing tasks. Only 3 of 5 claims were accurate.
 
 **Lesson:** Audit agent claims have a significant false positive rate. Always verify specific code references before acting on audit findings. The agents tend to miss code that's in a different file from where they expected it (e.g., timeout set in `websocket_interaction.go` rather than `websocket_audio.go`).
+
+---
+
+### 2026-02-10: Consistent input validation across HTTP and WebSocket paths
+
+**Problem:** The HTTP `/api/intent` endpoint validated transcript length (max 500 chars) but the WebSocket `processTranscript` path had no such limit. While whisper naturally bounds transcripts by audio duration, this inconsistency means the WebSocket path lacks defense-in-depth against abnormally long transcripts.
+
+**Solution:** Added `maxTranscriptLength = 500` const in `websocket_interaction.go` and a length check at the start of `processTranscript()`, rejecting transcripts exceeding 500 chars with a descriptive error.
+
+**Lesson:** When the same operation (e.g., sending text to LLM) is available via multiple transports (HTTP, WebSocket), ensure validation is consistent across all paths. The WebSocket path often gets less validation attention because it's "internal" to the audio flow.
+
+---
+
+### 2026-02-10: Focus trap pattern for modal dialogs (WCAG compliance)
+
+**Problem:** The feedback modal lacked a focus trap — users could Tab past the modal to elements behind the overlay, violating WCAG 2.1 modal dialog guidelines.
+
+**Solution:** Added a `keydown` handler that intercepts Tab within the modal: queries all focusable elements in `.modal-content`, wraps focus from last→first on Tab and first→last on Shift+Tab. The selector `'button:not([disabled]), select, textarea, input, [tabindex]:not([tabindex="-1"])'` covers all interactive elements.
+
+**Lesson:** Modals with `aria-modal="true"` need focus trapping in JavaScript — the `aria-modal` attribute is a hint to assistive technology but doesn't actually prevent keyboard focus from escaping. The focus trap must be in a `keydown` handler, not `keyup`, to prevent the default Tab behavior.

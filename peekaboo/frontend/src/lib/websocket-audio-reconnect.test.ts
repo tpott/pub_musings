@@ -261,6 +261,31 @@ describe('AudioWebSocket reconnection', () => {
     expect(onStateChange).not.toHaveBeenCalledWith('reconnecting');
   });
 
+  it('cancels pending reconnect on manual connect', async () => {
+    const ws = new AudioWebSocket({}, {
+      url: 'wss://test/ws',
+      maxReconnectAttempts: 3,
+      reconnectDelay: 5000,
+    });
+    await connectWebSocket(ws);
+
+    // Unclean close — starts reconnect timer
+    mockWebSocketInstance?.onclose?.({ wasClean: false, code: 1006 });
+    expect(ws.getState()).toBe('reconnecting');
+
+    // User manually calls connect() before timer fires
+    const connectPromise = ws.connect();
+    // The reconnect timer should be cleared by connect()
+    mockWebSocketInstance?.simulateOpen();
+    await connectPromise;
+
+    expect(ws.getState()).toBe('connected');
+
+    // Advance past the old reconnect delay — no double-connect
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(ws.getState()).toBe('connected');
+  });
+
   it('cancels pending reconnect on disconnect', async () => {
     const ws = new AudioWebSocket({}, {
       url: 'wss://test/ws',

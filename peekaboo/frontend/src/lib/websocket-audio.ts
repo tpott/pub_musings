@@ -132,6 +132,9 @@ export class AudioWebSocket {
         return;
       }
 
+      // Clear any pending reconnect timer to prevent double-connect
+      this.clearReconnectTimer();
+
       this.setState('connecting');
       const url = this.getWebSocketUrl();
 

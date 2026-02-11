@@ -95,11 +95,19 @@ func buildLLMLog(result *llm.TranscriptResult, provider string, concepts []strin
 	return llmLog
 }
 
+// maxTranscriptLength is the maximum character length for transcripts sent to the LLM.
+// Consistent with the HTTP /api/intent endpoint (500 chars ≈ 100 tokens).
+const maxTranscriptLength = 500
+
 // processTranscript uses LLM to process transcript with word-level data.
 // Uses a 30-second timeout consistent with the HTTP endpoint.
 func (h *AudioWebSocketHandler) processTranscript(ctx context.Context, text string, words []llm.WordData, concepts []string) (*llm.TranscriptResult, error) {
 	if h.LLMProvider == nil {
 		return nil, fmt.Errorf("LLM provider not configured")
+	}
+
+	if len(text) > maxTranscriptLength {
+		return nil, fmt.Errorf("transcript too long (%d chars, max %d)", len(text), maxTranscriptLength)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, intentTimeout)

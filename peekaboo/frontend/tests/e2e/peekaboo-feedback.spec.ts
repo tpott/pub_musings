@@ -66,6 +66,34 @@ test.describe('Feedback submission', () => {
     await expect(modal).toHaveClass(/hidden/);
   });
 
+  test('focus stays trapped within modal on Tab', async ({ page }) => {
+    await page.goto('/');
+
+    await page.click('[data-testid="feedback-btn"]');
+    const modal = page.locator('[data-testid="feedback-modal"]');
+    await expect(modal).not.toHaveClass(/hidden/);
+
+    // Focus should start on the message textarea (set by openModal)
+    await expect(page.locator('[data-testid="feedback-message"]')).toBeFocused();
+
+    // Tab to the end of the modal — the last focusable element is the Submit button
+    // Keep tabbing until we reach the submit button
+    const submitBtn = page.locator('[data-testid="btn-submit"]');
+    for (let i = 0; i < 15; i++) {
+      await page.keyboard.press('Tab');
+      if (await submitBtn.evaluate(el => el === document.activeElement)) break;
+    }
+    await expect(submitBtn).toBeFocused();
+
+    // One more Tab should wrap back to the first focusable element (close button)
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-testid="modal-close"]')).toBeFocused();
+
+    // Shift+Tab from first should wrap to last (submit button)
+    await page.keyboard.press('Shift+Tab');
+    await expect(submitBtn).toBeFocused();
+  });
+
   test('feedback button hides during recording and reappears after', async ({ page }) => {
     // Use HTTP mode so we can control the flow simply
     await page.addInitScript(() => {
