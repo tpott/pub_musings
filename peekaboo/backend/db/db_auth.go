@@ -99,16 +99,23 @@ type LoginAttempt struct {
 // InitAuth creates the authentication tables and indexes.
 // Should be called after Init().
 func (db *DB) InitAuth() error {
-	if _, err := db.conn.Exec(authSchema); err != nil {
-		return fmt.Errorf("create auth schema: %w", err)
-	}
-
-	// Migrate: rename sessions.token → sessions.token_hash (for existing DBs).
-	// New DBs already have token_hash from the CREATE TABLE above.
+	// Migrate: rename sessions.token → sessions.token_hash (for existing DBs)
+	// BEFORE running authSchema, because authSchema creates an index on
+	// sessions(token_hash) which fails if the column is still named "token".
 	if _, err := db.conn.Exec("ALTER TABLE sessions RENAME COLUMN token TO token_hash"); err != nil {
-		if !strings.Contains(err.Error(), "no such column") {
+		if !strings.Contains(err.Error(), "no such column") &&
+			!strings.Contains(err.Error(), "no such table") {
 			return fmt.Errorf("migrate sessions.token_hash: %w", err)
 		}
+	}
+
+	// Also drop the old index name so the new one can be created.
+	if _, err := db.conn.Exec("DROP INDEX IF EXISTS idx_sessions_token"); err != nil {
+		return fmt.Errorf("drop old sessions token index: %w", err)
+	}
+
+	if _, err := db.conn.Exec(authSchema); err != nil {
+		return fmt.Errorf("create auth schema: %w", err)
 	}
 
 	return nil

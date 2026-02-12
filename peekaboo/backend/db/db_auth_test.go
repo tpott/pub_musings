@@ -69,6 +69,88 @@ func TestInitAuthIdempotent(t *testing.T) {
 	}
 }
 
+func TestInitAuthMigratesOldTokenColumn(t *testing.T) {
+	// Simulate a production DB that has the old "token" column name.
+	// We open the DB without calling Init() so we can set up old-style tables first.
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	// Create old-style tables with "token" instead of "token_hash".
+	oldSchema := `
+CREATE TABLE IF NOT EXISTS users (
+	id TEXT PRIMARY KEY,
+	email TEXT UNIQUE NOT NULL,
+	password_hash TEXT NOT NULL,
+	totp_secret TEXT,
+	totp_enabled INTEGER NOT NULL DEFAULT 0,
+	email_verified INTEGER NOT NULL DEFAULT 0,
+	verified_at DATETIME,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS sessions (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL REFERENCES users(id),
+	token TEXT UNIQUE NOT NULL,
+	expires_at DATETIME NOT NULL,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+`
+	if _, err := db.conn.Exec(oldSchema); err != nil {
+		t.Fatalf("create old schema: %v", err)
+	}
+
+	// InitAuth should migrate token → token_hash and succeed.
+	if err := db.InitAuth(); err != nil {
+		t.Fatalf("InitAuth with old token column failed: %v", err)
+	}
+
+	// Verify the column was renamed.
+	rows, err := db.conn.Query("PRAGMA table_info(sessions)")
+	if err != nil {
+		t.Fatalf("PRAGMA table_info: %v", err)
+	}
+	defer rows.Close()
+	foundNew := false
+	foundOld := false
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull int
+		var dflt *string
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if name == "token_hash" {
+			foundNew = true
+		}
+		if name == "token" {
+			foundOld = true
+		}
+	}
+	if !foundNew {
+		t.Error("token_hash column not found after migration")
+	}
+	if foundOld {
+		t.Error("old token column still exists after migration")
+	}
+
+	// Verify the new index exists.
+	var idxName string
+	err = db.conn.QueryRow(
+		"SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sessions_token_hash'",
+	).Scan(&idxName)
+	if err != nil {
+		t.Error("idx_sessions_token_hash index not found after migration")
+	}
+}
+
 func TestCreateAndGetUser(t *testing.T) {
 	db := openTestDB(t)
 
