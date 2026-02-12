@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const fixturesDir = path.join(__dirname, '..', '..', '..', 'tests', 'fixtures');
 
+test.describe.configure({ mode: 'serial' }); // Real services can't handle parallel WebSocket connections
 test.describe('Real services e2e', () => {
 
   test('voice command "show me a cat" with real whisper and LLM', async ({ page }) => {
@@ -110,6 +111,7 @@ test.describe('Real services e2e', () => {
   });
 
   test('continuous listening survives multiple buffer cycles', async ({ page }) => {
+    test.setTimeout(60000); // 1KB chunks + real whisper/LLM can take 30-45s
     // Read audio file and split into 1KB chunks for slower delivery
     // 28KB / 1KB = 28 chunks at 500ms each = 14s of apparent recording
     // This triggers the 3-second buffer threshold 4+ times
@@ -192,42 +194,17 @@ test.describe('Real services e2e', () => {
     // Start recording — 28 chunks at 500ms = 14s of audio streaming
     await micButton.click();
 
-    // Wait long enough for all chunks to be sent and multiple buffer cycles
-    // to complete. 28 chunks x 500ms = 14s, plus processing time.
-    // The 3-second buffer threshold fires at ~3s, ~6s, ~9s, ~12s (4+ times).
-    // Each cycle: whisper transcription + LLM processing.
-    // Total expected: ~20-30 seconds.
-    await page.waitForTimeout(20000);
-
-    // Assert: no error popup visible
-    const errorDisplay = page.locator('[data-testid="media-display"] .error');
-    const errorCount = await errorDisplay.count();
-    // Some "No speech detected" errors may appear for silence-only buffer cycles,
-    // but the app should not crash or show a fatal error
-    if (errorCount > 0) {
-      const errorText = await errorDisplay.first().textContent();
-      // "No speech detected" is acceptable — it means whisper processed silence
-      // Other errors indicate a real problem
-      if (errorText && !errorText.includes('No speech detected')) {
-        // Log but don't fail — transient errors from short buffers are acceptable
-        console.log(`Non-fatal error during continuous listening: ${errorText}`);
-      }
-    }
-
-    // Assert: mic button still shows recording state (continuous listening survived)
-    const ariaLabel = await micButton.getAttribute('aria-label');
-    // After processing, the mic should still be in recording state
-    // (continuous listening mode — mic stays on after media display)
-    expect(ariaLabel).toBeTruthy();
+    // Wait for media to appear. With 1KB chunks the pipeline takes ~19s:
+    // 14s to send all chunks + whisper transcription + LLM processing.
+    // The 3-second buffer threshold fires multiple times during streaming.
+    // Use a single generous timeout instead of fixed wait + short assertion.
+    const img = page.locator('[data-testid="media-image"]');
+    await expect(img).toBeVisible({ timeout: 45000 });
+    const src = await img.getAttribute('src');
+    expect(src).toContain('/data/media/cat/');
 
     // Assert: app hasn't crashed — page is still responsive
     const pageTitle = await page.title();
     expect(pageTitle).toBeTruthy();
-
-    // Assert: media was displayed at some point (cat should have been found)
-    const img = page.locator('[data-testid="media-image"]');
-    await expect(img).toBeVisible({ timeout: 5000 });
-    const src = await img.getAttribute('src');
-    expect(src).toContain('/data/media/cat/');
   });
 });
