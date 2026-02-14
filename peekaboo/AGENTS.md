@@ -66,6 +66,19 @@ cd frontend && npx playwright test
 cd frontend && npx playwright test --ui
 ```
 
+### PBT Tests (Property-Based Voice Tests)
+
+```bash
+# Run all PBT tests (needs backend + frontend + whisper + piper)
+cd frontend && npm run test:pbt
+
+# Run fixture-only tests (no Piper needed, still needs backend + frontend + whisper)
+cd frontend && npx playwright test --config tests/pbt/pbt.config.ts fixture-cat
+
+# Run a specific PBT test
+cd frontend && npx playwright test --config tests/pbt/pbt.config.ts --grep "show.*cat"
+```
+
 ### Media Scripts
 
 ```bash

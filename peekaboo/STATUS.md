@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 293 tasks completed.
+Production-ready voice-controlled web app for children. 299 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,7 +36,7 @@ Production-ready voice-controlled web app for children. 293 tasks completed.
 
 ## Last Completed
 
-- Tasks 333-336 (2026-02-13): PBT RED+GREEN — full test framework:
+- Tasks 333-336, 340-341 (2026-02-13): PBT framework complete:
   - pbt.config.ts (workers:1, timeout:120s, no webServer)
   - show-cat.spec.ts, show-unknown.spec.ts, two-commands.spec.ts, fixture-cat.spec.ts
   - test:pbt script in package.json
@@ -44,6 +44,8 @@ Production-ready voice-controlled web app for children. 293 tasks completed.
   - Task 334: types.ts, piper-client.ts (Piper HTTP), audio-pipeline.ts (ffmpeg WAV→WebM, chunking)
   - Task 335: scripted-recorder.ts (multi-session MediaRecorder mock), ws-observer.ts (WS message capture)
   - Task 336: runner.ts (createPBT factory, PBTRunner with say/sayFixture/assert methods)
+  - Task 340: Refactored all helpers under 150 lines
+  - Task 341: Updated specs/pbt.md and AGENTS.md with PBT commands
 - Tasks 331-332 (2026-02-11): Deep inspection round 23 — two fixes:
   - Task 331: Update specs/auth.md to match current code (fix handler file path to backend/api/handlers_auth.go, update sessions schema token→token_hash)
   - Task 332: Fix star rating accessibility — remove incorrect role=radiogroup, add aria-pressed to toggle buttons

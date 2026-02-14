@@ -1,4 +1,6 @@
-# PBT (Peekaboo Tester) - Implementation Plan
+# PBT (Peekaboo Tester)
+
+**Status:** Implemented (tasks 333-336, 340). Awaiting real-service validation (tasks 337-339).
 
 ## Context
 
@@ -27,7 +29,7 @@ pipeline (Whisper STT -> LLM intent -> media lookup), and asserts on the results
 
 ```typescript
 // Create runner. Reads PIPER_SERVER_URL from env.
-// Skips test if Piper is unavailable.
+// say() throws if PIPER_SERVER_URL not set; sayFixture() works without it.
 createPBT(page: Page, opts?: { timeout?: number }) => Promise<PBTRunner>
 
 // --- Input ---
@@ -159,58 +161,51 @@ Injected via `addInitScript()`. Wraps `WebSocket` constructor to intercept
 incoming messages. Stores parsed JSON messages in `window.__PBT_WS_MESSAGES__`.
 Exposes `window.__PBT_CLEAR_MESSAGES__()` for the `clear()` method.
 
-## Files to Create
+## Files (Implemented)
 
 ### Helpers (`frontend/tests/helpers/pbt/`)
 
-**`types.ts`** (~40 lines)
+**`types.ts`** (15 lines)
 - `PBTConfig`: `{ piperUrl: string, timeout: number }`
 - `SynthesizedAudio`: `{ text: string, chunks: string[] }`
 
-**`piper-client.ts`** (~40 lines)
+**`piper-client.ts`** (26 lines)
 - `synthesizeWAV(text: string, piperUrl: string): Promise<Buffer>`
 - POST `{ text, length_scale: 1.0 }` to Piper server, returns WAV bytes
 - Same protocol as `backend/tts/piper.go` Synthesize method
 
-**`audio-pipeline.ts`** (~60 lines)
+**`audio-pipeline.ts`** (62 lines)
 - `wavToWebmOpus(wav: Buffer): Buffer` — ffmpeg via `execFileSync`
 - `splitIntoChunks(webm: Buffer, chunkSize?: number): string[]` — 4KB base64 chunks
 - `synthesizeAndChunk(text: string, piperUrl: string): Promise<SynthesizedAudio>`
 - `fixtureToChunks(fixturePath: string): string[]`
 
-**`scripted-recorder.ts`** (~80 lines)
+**`scripted-recorder.ts`** (96 lines)
 - `getScriptedRecorderScript(): () => void` for `page.addInitScript()`
 - Defines ScriptedMediaRecorder class that reads from `window.__PBT_SESSIONS__`
 - Defines mock `getUserMedia` returning a mock stream
 
-**`ws-observer.ts`** (~40 lines)
+**`ws-observer.ts`** (44 lines)
 - `getWSObserverScript(): () => void` for `page.addInitScript()`
 - Wraps WebSocket to capture incoming JSON messages
 - `window.__PBT_WS_MESSAGES__` and `window.__PBT_CLEAR_MESSAGES__()`
 
-**`runner.ts`** (~150 lines)
+**`runner.ts`** (145 lines)
 - `createPBT(page, opts?)` factory function
 - `PBTRunner` class with all methods described in Test API
 - Handles first-say vs subsequent-say injection logic
 - All assertion methods use Playwright `expect()` with configurable timeout
+- `pollWSMessage()` deduplicates assertTTS/assertError polling
 
 ### Tests (`frontend/tests/pbt/`)
 
-**`pbt.config.ts`** (~25 lines)
-- Separate Playwright config: `workers: 1`, `timeout: 120_000`
-- No `webServer` — assumes backend + frontend already running
-
-**`show-cat.spec.ts`** (~15 lines)
-**`show-unknown.spec.ts`** (~15 lines)
-**`two-commands.spec.ts`** (~20 lines)
-**`fixture-cat.spec.ts`** (~15 lines)
+**`pbt.config.ts`** (20 lines) — `workers: 1`, `timeout: 120_000`, no `webServer`
+**`show-cat.spec.ts`** (10 lines), **`show-unknown.spec.ts`** (10 lines),
+**`two-commands.spec.ts`** (14 lines), **`fixture-cat.spec.ts`** (9 lines)
 
 ### Package script
 
-`frontend/package.json` — add:
-```json
-"test:pbt": "playwright test --config tests/pbt/pbt.config.ts"
-```
+`frontend/package.json`: `"test:pbt": "playwright test --config tests/pbt/pbt.config.ts"`
 
 ## Patterns Reused
 
@@ -221,32 +216,17 @@ Exposes `window.__PBT_CLEAR_MESSAGES__()` for the `clear()` method.
 | Piper HTTP protocol | `backend/tts/piper.go` Synthesize method | Same JSON request format |
 | WebM chunk splitting | `real-services.spec.ts` | Same 4KB chunk size |
 
-## Implementation Tasks (test-first order)
+## Implementation Tasks
 
-1. **Write the test files** — `show-cat.spec.ts`, `fixture-cat.spec.ts`, etc.
-   These define the API contract. They won't compile yet.
-
-2. **Write `types.ts`** — type definitions referenced by tests and helpers.
-
-3. **Write `pbt.config.ts`** — so Playwright can discover the test files.
-
-4. **Write `piper-client.ts`** — HTTP client for Piper TTS.
-   Verify: call Piper directly from a Node script, confirm WAV bytes returned.
-
-5. **Write `audio-pipeline.ts`** — ffmpeg WAV->WebM + chunking.
-   Verify: convert a WAV to WebM, compare chunk count to existing fixture.
-
-6. **Write `ws-observer.ts`** — WebSocket message capture script.
-
-7. **Write `scripted-recorder.ts`** — multi-session MediaRecorder mock.
-
-8. **Write `runner.ts`** — PBTRunner class tying everything together.
-   Verify: `fixture-cat.spec.ts` passes (needs backend + frontend + whisper).
-
-9. **Verify Piper-based tests** — `show-cat.spec.ts` passes
-   (needs backend + frontend + whisper + piper).
-
-10. **Add `test:pbt` script** to `frontend/package.json`.
+1. ~~**Task 333:** Write test files + pbt.config.ts + package script~~ Done
+2. ~~**Task 334:** Write types.ts, piper-client.ts, audio-pipeline.ts~~ Done
+3. ~~**Task 335:** Write scripted-recorder.ts, ws-observer.ts~~ Done
+4. ~~**Task 336:** Write runner.ts~~ Done
+5. ~~**Task 340:** Refactor helpers under 150 lines~~ Done
+6. **Task 337:** Validate fixture-cat.spec.ts with real services (needs backend + whisper)
+7. **Task 338:** Validate show-cat.spec.ts with real services (needs Piper too)
+8. **Task 339:** Validate remaining specs (show-unknown, two-commands)
+9. ~~**Task 341:** Update specs/pbt.md and AGENTS.md~~ Done
 
 ## Prerequisites
 
