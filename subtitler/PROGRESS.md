@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**509 tasks completed** as of 2026-02-14.
+**510 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 885 tests across 33 files
+- **Frontend:** Astro/TypeScript, 900 tests across 34 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,558 tests, 35 specification documents
+- **Total:** 1,573 tests, 35 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 511: Edit UI timing adjustment buttons (2026-02-14)
+- Added `adjustSegmentTime` function to `segment-editor.ts` — nudges start/end by 0.1s (0.5s with Shift)
+- Arrow buttons (◀ ▶) rendered in edit mode around start/end time inputs
+- Constraints: start ≥ 0, start < end - 0.1, end > start + 0.1
+- Floating-point drift prevented with `roundTime()` (3 decimal places)
+- Event delegation wired in `setupEditHandlers`, CSS in `upload-segment-editor.css`
+- 15 TDD tests in new `segment-editor-timing.test.ts`. 900 frontend tests across 34 files pass
 
 ### Tasks 505-510: User feedback — bugs, specs, and features (2026-02-14)
 - **Task 506:** Fixed feedback send button stuck on "Sending..." — `resetForm()` didn't reset `submitBtn.textContent`. Extracted feedback form state to `feedback-form.ts` utility. 10 tests added
