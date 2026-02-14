@@ -499,7 +499,7 @@
 					type: formData.get('type'),
 					rating: formState.selectedRating,
 					page_url: window.location.href,
-					video_id: (window as any).currentVideoId || null,
+					video_id: window.currentVideoId || null,
 					session_id: sessionId,
 					browser_info: `${navigator.userAgent}; viewport: ${window.innerWidth}x${window.innerHeight}`
 				})
