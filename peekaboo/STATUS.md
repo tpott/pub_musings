@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 305 tasks completed.
+Production-ready voice-controlled web app for children. 306 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,7 @@ Production-ready voice-controlled web app for children. 305 tasks completed.
 
 ## Last Completed
 
+- Task 350 (2026-02-13): Deep inspection round 26 — fix GetInteraction missing sql.ErrNoRows check
 - Tasks 348-349 (2026-02-13): Deep inspection round 25 — two auth security fixes:
   - Task 348: Fix TOCTOU race in magic link and email verification token consumption (atomic WHERE used=0 + RowsAffected)
   - Task 349: Fix ClearLoginAttempts deleting success records (only delete failed attempts)

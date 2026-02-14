@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -403,6 +404,9 @@ func (db *DB) GetInteraction(id string) (*InteractionLog, error) {
 		&accTranscript,
 		&log.TotalLatencyMs, &log.CreatedAt,
 	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get interaction %s: %w", id, err)
 	}
