@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -165,8 +166,12 @@ func (h *AuthHandler) HandleMagicLinkVerify(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Mark token as used
+	// Atomically mark token as used (prevents TOCTOU race with concurrent requests)
 	if err := h.DB.MarkMagicLinkTokenUsed(id); err != nil {
+		if errors.Is(err, db.ErrTokenAlreadyUsed) {
+			writeJSON(w, http.StatusBadRequest, magicLinkVerifyResponse{Error: "token already used"})
+			return
+		}
 		slog.Error("magic-link-verify: failed to mark token used",
 			"error", err,
 			"request_id", logging.GetRequestID(r.Context()))

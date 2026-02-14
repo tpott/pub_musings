@@ -2,10 +2,15 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
+
+// ErrTokenAlreadyUsed is returned when a token has already been consumed,
+// typically by a concurrent request (TOCTOU prevention).
+var ErrTokenAlreadyUsed = errors.New("token already used")
 
 // authSchema defines the authentication-related database tables and indexes.
 const authSchema = `
@@ -288,11 +293,19 @@ func (db *DB) GetEmailVerificationToken(tokenHash string) (id, userID string, ex
 	return id, userID, expiresAt, used, nil
 }
 
-// MarkEmailVerificationTokenUsed marks a verification token as used.
+// MarkEmailVerificationTokenUsed atomically marks a verification token as used.
+// Returns ErrTokenAlreadyUsed if the token was already consumed by a concurrent request.
 func (db *DB) MarkEmailVerificationTokenUsed(id string) error {
-	_, err := db.conn.Exec("UPDATE email_verification_tokens SET used = 1 WHERE id = ?", id)
+	result, err := db.conn.Exec("UPDATE email_verification_tokens SET used = 1 WHERE id = ? AND used = 0", id)
 	if err != nil {
 		return fmt.Errorf("mark verification token used: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("mark verification token used: rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrTokenAlreadyUsed
 	}
 	return nil
 }
@@ -335,11 +348,19 @@ func (db *DB) GetMagicLinkToken(tokenHash string) (id, userID string, expiresAt 
 	return id, userID, expiresAt, used, nil
 }
 
-// MarkMagicLinkTokenUsed marks a magic link token as used.
+// MarkMagicLinkTokenUsed atomically marks a magic link token as used.
+// Returns ErrTokenAlreadyUsed if the token was already consumed by a concurrent request.
 func (db *DB) MarkMagicLinkTokenUsed(id string) error {
-	_, err := db.conn.Exec("UPDATE magic_link_tokens SET used = 1 WHERE id = ?", id)
+	result, err := db.conn.Exec("UPDATE magic_link_tokens SET used = 1 WHERE id = ? AND used = 0", id)
 	if err != nil {
 		return fmt.Errorf("mark magic link token used: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("mark magic link token used: rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrTokenAlreadyUsed
 	}
 	return nil
 }
@@ -382,9 +403,10 @@ func (db *DB) CountRecentFailedAttempts(email string, since time.Time) (int, err
 	return count, nil
 }
 
-// ClearLoginAttempts removes all login attempts for an email.
+// ClearLoginAttempts removes failed login attempts for an email.
+// Called after successful login to reset the lockout counter.
 func (db *DB) ClearLoginAttempts(email string) error {
-	_, err := db.conn.Exec("DELETE FROM login_attempts WHERE email = ?", email)
+	_, err := db.conn.Exec("DELETE FROM login_attempts WHERE email = ? AND success = 0", email)
 	if err != nil {
 		return fmt.Errorf("clear login attempts: %w", err)
 	}

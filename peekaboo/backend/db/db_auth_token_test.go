@@ -84,6 +84,12 @@ func TestMarkEmailVerificationTokenUsed(t *testing.T) {
 	if !used {
 		t.Error("token should be marked as used")
 	}
+
+	// Second call should return ErrTokenAlreadyUsed (TOCTOU prevention)
+	err = db.MarkEmailVerificationTokenUsed("mark-1")
+	if err != ErrTokenAlreadyUsed {
+		t.Errorf("second MarkEmailVerificationTokenUsed: expected ErrTokenAlreadyUsed, got %v", err)
+	}
 }
 
 func TestDeleteUnusedEmailVerificationTokens(t *testing.T) {
@@ -199,6 +205,12 @@ func TestMarkMagicLinkTokenUsed(t *testing.T) {
 	if !used {
 		t.Error("token should be marked as used")
 	}
+
+	// Second call should return ErrTokenAlreadyUsed (TOCTOU prevention)
+	err = db.MarkMagicLinkTokenUsed("ml-mark-1")
+	if err != ErrTokenAlreadyUsed {
+		t.Errorf("second MarkMagicLinkTokenUsed: expected ErrTokenAlreadyUsed, got %v", err)
+	}
 }
 
 func TestDeleteUnusedMagicLinkTokens(t *testing.T) {
@@ -283,6 +295,10 @@ func TestClearLoginAttempts(t *testing.T) {
 			t.Fatalf("RecordLoginAttempt failed: %v", err)
 		}
 	}
+	// Also record a success — ClearLoginAttempts should preserve it
+	if err := db.RecordLoginAttempt(email, "1.2.3.4", true); err != nil {
+		t.Fatalf("RecordLoginAttempt (success) failed: %v", err)
+	}
 
 	if err := db.ClearLoginAttempts(email); err != nil {
 		t.Fatalf("ClearLoginAttempts failed: %v", err)
@@ -295,6 +311,18 @@ func TestClearLoginAttempts(t *testing.T) {
 	}
 	if count != 0 {
 		t.Errorf("count after clear = %d, want 0", count)
+	}
+
+	// Success records should still exist (verify via raw query)
+	var successCount int
+	err = db.conn.QueryRow(
+		"SELECT COUNT(*) FROM login_attempts WHERE email = ? AND success = 1", email,
+	).Scan(&successCount)
+	if err != nil {
+		t.Fatalf("count success records: %v", err)
+	}
+	if successCount != 1 {
+		t.Errorf("expected 1 success record preserved, got %d", successCount)
 	}
 }
 

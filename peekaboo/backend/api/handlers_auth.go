@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -283,8 +284,12 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark token as used
+	// Atomically mark token as used (prevents TOCTOU race with concurrent requests)
 	if err := h.DB.MarkEmailVerificationTokenUsed(id); err != nil {
+		if errors.Is(err, db.ErrTokenAlreadyUsed) {
+			writeJSON(w, http.StatusBadRequest, verifyResponse{Error: "token already used"})
+			return
+		}
 		slog.Error("verify: failed to mark token used",
 			"error", err,
 			"request_id", logging.GetRequestID(r.Context()))
