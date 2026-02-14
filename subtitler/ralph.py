@@ -20,7 +20,13 @@ DEFAULT_MAX_ITERATIONS = 10
 CLAUDE_MODEL = "opus"
 PROMPT_FILE = "RALPH.md"
 STOP_FILE = "STOP_RALPH"
+FEEDBACK_FILE = "FEEDBACK.md"
 FETCH_FEEDBACK_SCRIPT = "scripts/fetch-feedback.py"
+
+# Exponential backoff configuration for API errors (500, 529, overloaded)
+INITIAL_BACKOFF_SECONDS = 15
+MAX_BACKOFF_SECONDS = 240  # 4 minutes
+MAX_RETRY_DURATION_SECONDS = 8 * 3600  # 8 hours
 
 
 def generate_ralph_id() -> str:
@@ -88,6 +94,93 @@ def calculate_sleep_seconds(
     return int(delta.total_seconds()) + 60
 
 
+def is_api_server_error(result: str) -> bool:
+    """
+    Check if the result indicates an API server error (500, 529, overloaded).
+
+    These errors are transient and should be retried with exponential backoff.
+    """
+    error_patterns = [
+        r"status[_\s]?code[:\s]+5\d{2}",  # status_code: 500, status code: 529
+        r"\b5\d{2}\b.*error",  # 500 error, 529 error
+        r"error.*\b5\d{2}\b",  # error...500
+        r"overloaded",  # API overloaded
+        r"internal[_\s]?server[_\s]?error",  # internal server error
+        r"service[_\s]?unavailable",  # service unavailable
+        r"APIStatusError.*5\d{2}",  # APIStatusError with 5xx
+    ]
+    result_lower = result.lower()
+    for pattern in error_patterns:
+        if re.search(pattern, result_lower, re.IGNORECASE):
+            return True
+    return False
+
+
+def calculate_backoff(attempt: int) -> int:
+    """
+    Calculate backoff time using exponential backoff.
+
+    Args:
+        attempt: The retry attempt number (0-indexed)
+
+    Returns:
+        Backoff time in seconds, capped at MAX_BACKOFF_SECONDS
+    """
+    backoff = INITIAL_BACKOFF_SECONDS * (2**attempt)
+    return int(min(backoff, MAX_BACKOFF_SECONDS))
+
+
+def get_git_head() -> str | None:
+    """Get current git HEAD commit hash (short form)."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def log_feedback_before(feedback_log: Path, feedback_file: Path) -> str | None:
+    """
+    Log feedback content and git state before processing.
+
+    Returns git commit hash if feedback was logged, None otherwise.
+    """
+    if not feedback_file.exists():
+        return None
+
+    git_before = get_git_head()
+    content = feedback_file.read_text()
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with open(feedback_log, "a") as f:
+        f.write(f"=== {timestamp} ===\n")
+        f.write(f"git_commit_before: {git_before or 'unknown'}\n")
+        f.write("--- FEEDBACK.md content ---\n")
+        f.write(content)
+        if not content.endswith("\n"):
+            f.write("\n")
+        f.write("---\n")
+
+    return git_before
+
+
+def log_feedback_after(feedback_log: Path, git_before: str | None) -> None:
+    """Log git state after processing feedback."""
+    if git_before is None:
+        return
+
+    git_after = get_git_head()
+    with open(feedback_log, "a") as f:
+        f.write(f"git_commit_after: {git_after or 'unknown'}\n\n")
+
+
 def log(msg: str, log_file: Path | None, newline_before: bool = False) -> None:
     """Print message and optionally append to log file."""
     print(msg)
@@ -131,7 +224,10 @@ def fetch_feedback(log_file: Path | None, script_path: Path | None = None) -> No
             log("Feedback: No new feedback", log_file)
         else:
             stderr_msg = result.stderr.strip()
-            log(f"Feedback: fetch failed (exit {result.returncode}): {stderr_msg}", log_file)
+            log(
+                f"Feedback: fetch failed (exit {result.returncode}): {stderr_msg}",
+                log_file,
+            )
     except subprocess.TimeoutExpired:
         log("Feedback: fetch timed out after 30s", log_file)
     except Exception as e:
@@ -263,12 +359,16 @@ def main() -> None:
     max_iterations = args.max_iterations
     prompt_file = Path(PROMPT_FILE)
     stop_marker = Path(STOP_FILE)
+    feedback_file = Path(FEEDBACK_FILE)
 
     # Set up logging if requested
     log_file = None
+    feedback_log = None
     if args.log_dir:
         args.log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = args.log_dir / f"ralph-{generate_ralph_id()}.log"
+        ralph_id = generate_ralph_id()
+        log_file = args.log_dir / f"ralph-{ralph_id}.log"
+        feedback_log = args.log_dir / f"feedback-{ralph_id}.log"
         print(f"Logging to: {log_file}")
 
     for i in range(max_iterations):
@@ -293,6 +393,11 @@ def main() -> None:
 
         prompt_content = prompt_file.read_text()
 
+        # Log feedback before Claude processes it (will be deleted by Claude)
+        git_before = None
+        if feedback_log is not None:
+            git_before = log_feedback_before(feedback_log, feedback_file)
+
         last_log = {}
         try:
             last_line = run_claude(prompt_content, args.verbose, log_file)
@@ -308,6 +413,10 @@ def main() -> None:
             print("\nInterrupted by user")
             sys.exit(130)
 
+        # Log git state after feedback was processed
+        if feedback_log is not None:
+            log_feedback_after(feedback_log, git_before)
+
         if "result" not in last_log:
             log(f'Last line missing "result": {last_line}', log_file)
             continue
@@ -316,10 +425,13 @@ def main() -> None:
         # easier to parse with `jq`. Grep for `"type":"result","subtype":"success"`
         if not args.verbose:
             result_text = last_log["result"]
-            log(f"Result: {result_text}", log_file)
+            # print because we don't want this in logs
+            print(f"Result: {result_text}")
 
         if "is_error" in last_log and last_log["is_error"]:
             result_text = last_log.get("result", "")
+
+            # Check for rate limit first
             parsed = parse_rate_limit_reset(result_text)
             if parsed:
                 hour, ampm, reset_tz = parsed
@@ -330,6 +442,46 @@ def main() -> None:
                     log_file,
                 )
                 time.sleep(sleep_secs)
+                continue
+
+            # Check for API server errors (500, 529, overloaded)
+            if is_api_server_error(result_text):
+                retry_start = time.time()
+                attempt = 0
+                while True:
+                    backoff = calculate_backoff(attempt)
+                    elapsed = time.time() - retry_start
+                    if elapsed + backoff > MAX_RETRY_DURATION_SECONDS:
+                        log(
+                            f"API error retry exceeded {MAX_RETRY_DURATION_SECONDS // 3600} hours, giving up",
+                            log_file,
+                        )
+                        break
+
+                    log(
+                        f"API server error (attempt {attempt + 1}). Retrying in {backoff}s...",
+                        log_file,
+                    )
+                    time.sleep(backoff)
+
+                    # Retry the claude call
+                    retry_last_line = run_claude(prompt_content, args.verbose, log_file)
+                    if retry_last_line is not None:
+                        try:
+                            retry_log = json.loads(retry_last_line)
+                            if not retry_log.get("is_error", False):
+                                # Success! Continue to next iteration
+                                log("API error resolved, continuing", log_file)
+                                break
+                            retry_result = retry_log.get("result", "")
+                            if not is_api_server_error(retry_result):
+                                # Different error, stop retrying
+                                log(f"Different error: {retry_result}", log_file)
+                                break
+                        except json.JSONDecodeError:
+                            pass
+
+                    attempt += 1
 
     else:
         log(f"Completed {max_iterations} iterations", log_file)
