@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**504 tasks completed** as of 2026-02-14.
+**509 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
 - **Frontend:** Astro/TypeScript, 885 tests across 33 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,558 tests, 32 specification documents
+- **Total:** 1,558 tests, 35 specification documents
 
 ## Feature Summary
 
@@ -63,10 +63,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 
 ## Recent Work
 
-### Task 506: Bug fix — feedback send button stuck on "Sending..." (2026-02-14)
-- `resetForm()` in FeedbackButton.astro did not reset `submitBtn.textContent` back to "Send Feedback" after successful submission. After closing and reopening the modal, the button still showed "Sending..."
-- Extracted feedback form state management to `feedback-form.ts` utility (resetForm, setSubmitSending, setSubmitReady) for testability
-- Added 10 tests in `feedback-form.test.ts`. 885 frontend tests across 33 files pass
+### Tasks 505-510: User feedback — bugs, specs, and features (2026-02-14)
+- **Task 506:** Fixed feedback send button stuck on "Sending..." — `resetForm()` didn't reset `submitBtn.textContent`. Extracted feedback form state to `feedback-form.ts` utility. 10 tests added
+- **Task 505:** Wrote i18n spec (`specs/i18n.md`) — zero-dependency approach with TypeScript translation modules, 5 languages (English, Spanish, Hindi, French, American Cowboy), data-i18n attributes for client-side translation
+- **Task 509:** Split "misaligned" feedback button into "early" (subtitle before voice) and "late" (subtitle after voice). `FeedbackType` updated from `'misaligned'` to `'early' | 'late'`
+- **Task 507:** Wrote multi-layer speech spec (`specs/multi-layer-speech.md`) — Whisper already returns word-level timestamps in verbose_json but backend discards them. Spec covers sentence/word layers, karaoke display, cross-layer edit propagation
+- **Task 510:** Wrote edit UI v2 spec (`specs/edit-ui-v2.md`) — timing adjustment arrows (0.1s/0.5s steps), gap detection with "+" buttons for async transcription, progressive disclosure for feedback buttons. TDD test plan included
 - Filed 8 new tasks from user feedback (505-512): i18n spec, multi-layer speech spec/impl, misaligned button split, edit UI spec/impl
 
 ### Tasks 497-500: Deep inspection fixes (2026-01-30)
