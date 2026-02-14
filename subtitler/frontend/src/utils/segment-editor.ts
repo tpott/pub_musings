@@ -13,7 +13,7 @@ import { MAX_HISTORY_SIZE } from './upload-constants';
 import type { TranscriptionSegment } from '../types/transcription';
 
 /** Feedback type for segment alignment quality */
-export type FeedbackType = 'good' | 'misaligned' | 'missing' | null;
+export type FeedbackType = 'good' | 'early' | 'late' | 'missing' | null;
 
 /** Mutable state for segment editing */
 export interface SegmentEditorState {

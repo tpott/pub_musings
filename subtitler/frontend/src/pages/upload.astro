@@ -111,8 +111,11 @@ import '../styles/upload.css';
 					<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
 						<span class="emoji">👍</span>
 					</button>
-					<button class="feedback-btn misaligned" data-feedback="misaligned" aria-label="Mark current segment as misaligned" title="Timing is off">
-						<span class="emoji">⏱️</span> Misaligned
+					<button class="feedback-btn early" data-feedback="early" aria-label="Mark current segment as appearing too early" title="Subtitle appears before the voice starts">
+						<span class="emoji">⏪</span> Early
+					</button>
+					<button class="feedback-btn late" data-feedback="late" aria-label="Mark current segment as appearing too late" title="Subtitle persists after the voice ends">
+						<span class="emoji">⏩</span> Late
 					</button>
 					<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
 						<span class="emoji">❓</span> Missing

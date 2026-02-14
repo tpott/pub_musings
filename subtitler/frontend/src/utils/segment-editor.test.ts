@@ -174,9 +174,11 @@ describe('getSegmentFeedback / setSegmentFeedback', () => {
 
 	it('should store feedback for different segments independently', () => {
 		setSegmentFeedback('upload-1', 0, 'good');
-		setSegmentFeedback('upload-1', 1, 'misaligned');
+		setSegmentFeedback('upload-1', 1, 'early');
+		setSegmentFeedback('upload-1', 2, 'late');
 		expect(getSegmentFeedback('upload-1', 0)).toBe('good');
-		expect(getSegmentFeedback('upload-1', 1)).toBe('misaligned');
+		expect(getSegmentFeedback('upload-1', 1)).toBe('early');
+		expect(getSegmentFeedback('upload-1', 2)).toBe('late');
 	});
 
 	it('should remove feedback when set to null', () => {
@@ -239,25 +241,30 @@ describe('updateFeedbackButtons', () => {
 	it('should toggle active class on matching feedback button', () => {
 		const state = createSegmentEditorState();
 		state.currentUploadId = 'upload-1';
-		setSegmentFeedback('upload-1', 0, 'misaligned');
+		setSegmentFeedback('upload-1', 0, 'early');
 
 		const btnGood = {
 			getAttribute: vi.fn(() => 'good'),
 			classList: { toggle: vi.fn() },
 		};
-		const btnMisaligned = {
-			getAttribute: vi.fn(() => 'misaligned'),
+		const btnEarly = {
+			getAttribute: vi.fn(() => 'early'),
+			classList: { toggle: vi.fn() },
+		};
+		const btnLate = {
+			getAttribute: vi.fn(() => 'late'),
 			classList: { toggle: vi.fn() },
 		};
 		const feedbackEl = {
 			style: { display: '' },
-			querySelectorAll: vi.fn(() => [btnGood, btnMisaligned]),
+			querySelectorAll: vi.fn(() => [btnGood, btnEarly, btnLate]),
 		} as unknown as HTMLElement;
 
 		updateFeedbackButtons(state, feedbackEl, 0);
 
 		expect(btnGood.classList.toggle).toHaveBeenCalledWith('active', false);
-		expect(btnMisaligned.classList.toggle).toHaveBeenCalledWith('active', true);
+		expect(btnEarly.classList.toggle).toHaveBeenCalledWith('active', true);
+		expect(btnLate.classList.toggle).toHaveBeenCalledWith('active', false);
 	});
 });
 
