@@ -337,7 +337,7 @@ import '../styles/upload.css';
 				type RetranscribeProgressElements,
 			} from '../utils/retranscribe-progress';
 			import { fetchWithTimeout } from '../utils/fetch-timeout';
-			import type { TranscriptionResult, LanguageHints } from '../types/transcription';
+			import type { TranscriptionResult, TranscriptionSegment, LanguageHints } from '../types/transcription';
 
 			import {
 				LANGUAGE_DISPLAY_NAMES,
@@ -859,7 +859,7 @@ import '../styles/upload.css';
 			redoBtn.addEventListener('click', () => performRedo(editorState, editorEls));
 
 			// --- Subtitle download buttons ---
-			function handleSubtitleOpen(e: Event, openFn: (segs: any[]) => void) {
+			function handleSubtitleOpen(e: Event, openFn: (segs: TranscriptionSegment[]) => void) {
 				e.preventDefault();
 				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
 				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
