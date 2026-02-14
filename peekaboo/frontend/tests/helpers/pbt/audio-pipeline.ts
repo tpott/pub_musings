@@ -4,8 +4,12 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { synthesizeWAV } from './piper-client';
 import type { SynthesizedAudio } from './types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DEFAULT_CHUNK_SIZE = 4096; // 4KB, same as real-services.spec.ts
 
