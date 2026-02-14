@@ -4,6 +4,7 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -179,6 +180,9 @@ func main() {
 	adminHandler := api.NewAdminHandler(database, os.Getenv("TRUSTED_USERS"))
 	adminLimiter := api.NewRateLimiter(20, time.Minute)
 	mux.Handle("GET /api/admin/feedback", api.RateLimitMiddleware(http.HandlerFunc(adminHandler.HandleListFeedback), adminLimiter))
+	mux.Handle("POST /api/admin/concepts", api.RateLimitMiddleware(http.HandlerFunc(adminHandler.HandleCreateConcept), adminLimiter))
+	mux.Handle("GET /api/admin/concepts", api.RateLimitMiddleware(http.HandlerFunc(adminHandler.HandleListConcepts), adminLimiter))
+	mux.Handle("POST /api/admin/media", api.RateLimitMiddleware(http.HandlerFunc(adminHandler.HandleUploadMedia), adminLimiter))
 
 	// Frontend log forwarding (development only, gated by FORWARD_FRONTEND_LOGS=true)
 	if strings.EqualFold(os.Getenv("FORWARD_FRONTEND_LOGS"), "true") {
@@ -348,7 +352,9 @@ func initCSRFSecret() []byte {
 	return secret
 }
 
-// seedMediaFromDisk scans data/media/{concept}/set* directories and seeds the database.
+// seedMediaFromDisk scans data/media/ for concept directories and seeds the database.
+// Any subdirectory of MEDIA_DIR that matches a concept in the database will be scanned
+// for set* subdirectories containing media files.
 // Supports both plain files (photo.jpg) and encrypted files (photo.jpg.age).
 func seedMediaFromDisk(database *db.DB) error {
 	mediaDir := os.Getenv("MEDIA_DIR")
@@ -362,13 +368,31 @@ func seedMediaFromDisk(database *db.DB) error {
 		return nil
 	}
 
-	// Iterate over concept directories
-	concepts := []string{"cat", "dog", "duck", "pig", "chicken", "cow"}
-	for _, concept := range concepts {
-		conceptDir := filepath.Join(mediaDir, concept)
-		if _, err := os.Stat(conceptDir); os.IsNotExist(err) {
+	// Scan all subdirectories of MEDIA_DIR
+	topEntries, err := os.ReadDir(mediaDir)
+	if err != nil {
+		return fmt.Errorf("read media directory: %w", err)
+	}
+
+	for _, topEntry := range topEntries {
+		if !topEntry.IsDir() {
 			continue
 		}
+
+		concept := topEntry.Name()
+
+		// Verify this directory corresponds to a concept in the database
+		name, err := database.GetConcept(concept)
+		if err != nil {
+			slog.Warn("failed to check concept", "concept", concept, "error", err)
+			continue
+		}
+		if name == "" {
+			// Directory exists but no matching concept in DB — skip
+			continue
+		}
+
+		conceptDir := filepath.Join(mediaDir, concept)
 
 		// Find set directories
 		entries, err := os.ReadDir(conceptDir)
@@ -384,38 +408,54 @@ func seedMediaFromDisk(database *db.DB) error {
 
 			setDir := filepath.Join(conceptDir, entry.Name())
 
-			// Check for required photo file (plain or encrypted)
-			photoPath := filepath.Join(setDir, "photo.jpg")
-			photoExists := false
-			if _, err := os.Stat(photoPath); err == nil {
-				photoExists = true
-			} else if _, err := os.Stat(photoPath + ".age"); err == nil {
-				photoExists = true
-			}
-			if !photoExists {
+			// Check for photo file (plain or encrypted) — try common extensions
+			photoFileName := findMediaFile(setDir, "photo", []string{".jpg", ".png", ".webp", ".gif"})
+			if photoFileName == "" {
 				continue
 			}
 
 			// Check for optional audio file (plain or encrypted)
+			audioFileName := findMediaFile(setDir, "audio", []string{".mp3", ".wav", ".ogg"})
 			audioPath := ""
-			audioFile := filepath.Join(setDir, "audio.mp3")
-			if _, err := os.Stat(audioFile); err == nil {
-				audioPath = filepath.Join("data/media", concept, entry.Name(), "audio.mp3")
-			} else if _, err := os.Stat(audioFile + ".age"); err == nil {
-				audioPath = filepath.Join("data/media", concept, entry.Name(), "audio.mp3")
+			if audioFileName != "" {
+				audioPath = filepath.Join("data/media", concept, entry.Name(), audioFileName)
+			}
+
+			// Check for optional video file (plain or encrypted)
+			videoFileName := findMediaFile(setDir, "video", []string{".mp4", ".webm"})
+			videoPath := ""
+			if videoFileName != "" {
+				videoPath = filepath.Join("data/media", concept, entry.Name(), videoFileName)
 			}
 
 			// Relative path for database (without .age extension - handler adds it)
-			relPhotoPath := filepath.Join("data/media", concept, entry.Name(), "photo.jpg")
+			relPhotoPath := filepath.Join("data/media", concept, entry.Name(), photoFileName)
 
 			// Seed the media set (database SeedMediaSet handles duplicates)
-			if err := database.SeedMediaSet(concept, relPhotoPath, audioPath, ""); err != nil {
+			if err := database.SeedMediaSet(concept, relPhotoPath, audioPath, videoPath); err != nil {
 				slog.Warn("failed to seed media set", "concept", concept, "set", entry.Name(), "error", err)
 			}
 		}
 	}
 
 	return nil
+}
+
+// findMediaFile checks for a media file with the given base name and any of the
+// given extensions, supporting both plain and encrypted (.age) files.
+// Returns the filename (without .age) if found, or "" if not found.
+func findMediaFile(dir, baseName string, extensions []string) string {
+	for _, ext := range extensions {
+		fileName := baseName + ext
+		filePath := filepath.Join(dir, fileName)
+		if _, err := os.Stat(filePath); err == nil {
+			return fileName
+		}
+		if _, err := os.Stat(filePath + ".age"); err == nil {
+			return fileName
+		}
+	}
+	return ""
 }
 
 // hasAgeFiles checks if any .age files exist under the given directory.

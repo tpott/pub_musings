@@ -89,6 +89,13 @@ cd frontend && npx playwright test --config tests/pbt/pbt.config.ts --grep "show
 ./scripts/encrypt-media.sh --generate-key  # First time
 ./scripts/encrypt-media.sh                 # Subsequent runs
 ./scripts/encrypt-media.sh --remove-originals  # Production
+
+# Add a new concept (requires PROD_HOST, API_SESSION_ID in .env)
+python3 scripts/add-concept.py horse "Horse"
+
+# Upload media for a concept
+python3 scripts/upload-media.py cat photo.jpg --audio meow.mp3
+python3 scripts/upload-media.py horse photo.jpg --audio neigh.mp3 --video gallop.mp4 --yes
 ```
 
 ### Secrets Management (sops)

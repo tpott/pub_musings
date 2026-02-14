@@ -266,6 +266,84 @@ func (db *DB) GetConcept(id string) (string, error) {
 	return name, nil
 }
 
+// ConceptWithCount represents a concept with its media set count.
+type ConceptWithCount struct {
+	ID            string
+	Name          string
+	MediaSetCount int
+}
+
+// InsertConcept inserts a new concept into the database.
+// Returns an error if the concept ID already exists.
+func (db *DB) InsertConcept(id, name string) error {
+	result, err := db.conn.Exec(
+		"INSERT OR IGNORE INTO concepts (id, name) VALUES (?, ?)",
+		id, name,
+	)
+	if err != nil {
+		return fmt.Errorf("insert concept %s: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check rows affected for concept %s: %w", id, err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("concept %s already exists", id)
+	}
+	return nil
+}
+
+// ListConceptsWithCounts returns all concepts with their media set counts.
+func (db *DB) ListConceptsWithCounts() ([]ConceptWithCount, error) {
+	rows, err := db.conn.Query(`
+		SELECT c.id, c.name, COUNT(m.id) as media_set_count
+		FROM concepts c
+		LEFT JOIN media_sets m ON c.id = m.concept_id
+		GROUP BY c.id, c.name
+		ORDER BY c.id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query concepts with counts: %w", err)
+	}
+	defer rows.Close()
+
+	var concepts []ConceptWithCount
+	for rows.Next() {
+		var c ConceptWithCount
+		if err := rows.Scan(&c.ID, &c.Name, &c.MediaSetCount); err != nil {
+			return nil, fmt.Errorf("scan concept with count: %w", err)
+		}
+		concepts = append(concepts, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate concepts with counts: %w", err)
+	}
+	return concepts, nil
+}
+
+// NextMediaSetNumber returns the next available set number for a concept.
+// For example, if set1 and set2 exist, it returns 3.
+// If no sets exist, it returns 1.
+func (db *DB) NextMediaSetNumber(conceptID string) (int, error) {
+	var maxNum sql.NullInt64
+	err := db.conn.QueryRow(`
+		SELECT MAX(CAST(SUBSTR(
+			SUBSTR(photo_path, INSTR(photo_path, '/set') + 4),
+			1,
+			INSTR(SUBSTR(photo_path, INSTR(photo_path, '/set') + 4), '/') - 1
+		) AS INTEGER))
+		FROM media_sets
+		WHERE concept_id = ?
+	`, conceptID).Scan(&maxNum)
+	if err != nil {
+		return 0, fmt.Errorf("query max set number for %s: %w", conceptID, err)
+	}
+	if !maxNum.Valid {
+		return 1, nil
+	}
+	return int(maxNum.Int64) + 1, nil
+}
+
 // InsertFeedback stores a feedback submission in the database.
 func (db *DB) InsertFeedback(f *Feedback) error {
 	_, err := db.conn.Exec(`

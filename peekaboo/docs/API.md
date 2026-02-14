@@ -24,6 +24,9 @@ http://localhost:8080
 | POST | `/api/speak` | No | 10/min | Text-to-speech via Piper (optional) |
 | POST | `/api/feedback` | No | 5/min | Submit user feedback |
 | GET | `/api/admin/feedback` | Yes+TRUSTED | 20/min | List feedback (admin) |
+| POST | `/api/admin/concepts` | Yes+TRUSTED | 20/min | Create concept (admin) |
+| GET | `/api/admin/concepts` | Yes+TRUSTED | 20/min | List concepts with media counts (admin) |
+| POST | `/api/admin/media` | Yes+TRUSTED | 20/min | Upload media set (admin) |
 | GET | `/ws/audio` | No* | 10/min | WebSocket upgrade for audio streaming |
 | POST | `/api/auth/register` | No | 5/min | Create account ([details](../specs/auth.md)) |
 | POST | `/api/auth/login` | No | 10/min + Lockout 5/15min | Login ([details](../specs/auth.md)) |
@@ -176,6 +179,75 @@ Requires authenticated user whose ID is in `TRUSTED_USERS` env var. Returns 403 
 }
 ```
 
+### Create Concept (Admin)
+
+```
+POST /api/admin/concepts
+Authorization: Bearer <session_token>
+Content-Type: application/json
+```
+
+```json
+{"id": "horse", "name": "Horse"}
+```
+
+**Validation**:
+- `id`: required, `^[a-z0-9_]+$`, max 50 chars
+- `name`: required, 1-100 chars
+
+**Response (201)**:
+```json
+{"id": "horse", "name": "Horse"}
+```
+
+**Errors**: 400 (validation), 401 (unauthenticated), 403 (not admin), 409 (concept exists), 413 (body too large)
+
+### List Concepts (Admin)
+
+```
+GET /api/admin/concepts
+Authorization: Bearer <session_token>
+```
+
+**Response (200)**:
+```json
+{
+  "concepts": [
+    {"id": "cat", "name": "Cat", "media_set_count": 1},
+    {"id": "horse", "name": "Horse", "media_set_count": 0}
+  ]
+}
+```
+
+### Upload Media Set (Admin)
+
+```
+POST /api/admin/media
+Authorization: Bearer <session_token>
+Content-Type: multipart/form-data
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `concept_id` | string | Yes | Existing concept ID |
+| `photo` | file | Yes | Image (JPEG, PNG, WebP, GIF). Max 10MB |
+| `audio` | file | No | Audio (MP3, WAV, OGG). Max 5MB, recommended < 5s |
+| `video` | file | No | Video (MP4, WebM). Max 50MB, recommended < 10s |
+
+**Response (201)**:
+```json
+{
+  "concept_id": "horse",
+  "set": "set2",
+  "photo_path": "data/media/horse/set2/photo.jpg",
+  "audio_path": "data/media/horse/set2/audio.mp3"
+}
+```
+
+**Errors**: 400 (validation/concept not found), 401 (unauthenticated), 403 (not admin), 413 (upload too large)
+
+Files are saved to `data/media/{concept_id}/set{N}/` and registered in the database. Set numbers auto-increment.
+
 ## WebSocket Audio Streaming
 
 Real-time audio streaming for continuous voice interaction.
@@ -288,6 +360,7 @@ Audio blob cleanup runs automatically on a daily timer.
 | Limit | Endpoints |
 |-------|-----------|
 | 10/min per IP | `POST /api/transcribe`, `POST /api/intent`, `POST /api/speak`, `GET /ws/audio`, `POST /api/auth/login`, `POST /api/auth/totp/*` |
+| 20/min per IP | `GET /api/admin/feedback`, `POST /api/admin/concepts`, `GET /api/admin/concepts`, `POST /api/admin/media` |
 | 30/min per IP | `GET /api/media/{concept}`, `GET /api/auth/csrf` |
 | 5/min per IP | `POST /api/feedback`, `POST /api/auth/magic-link`, `POST /api/auth/register` |
 | 3/15min per IP | `POST /api/auth/resend-verification` |

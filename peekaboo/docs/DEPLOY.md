@@ -56,6 +56,55 @@ See `.env.example` for a complete list with descriptions. Key production variabl
 | `HTTPS_ONLY` | Set `true` behind HTTPS proxy for secure cookies |
 | `TRUSTED_USERS` | Comma-separated user IDs for admin endpoints |
 
+## Admin Users
+
+Admin users can access the admin API endpoints (feedback, concepts, media upload). Admin status is controlled by the `TRUSTED_USERS` environment variable.
+
+### Finding a User ID
+
+```bash
+ssh peekaboo-server
+sqlite3 /home/trevor/pub_musings/peekaboo/data/peekaboo.db "SELECT id, email FROM users;"
+```
+
+### Setting TRUSTED_USERS
+
+Add the user ID(s) to `.env` (comma-separated for multiple):
+
+```bash
+TRUSTED_USERS=abc123def456
+# or multiple:
+TRUSTED_USERS=abc123def456,xyz789ghi012
+```
+
+If using sops-encrypted secrets:
+
+```bash
+sops secrets.enc.yaml
+# Add: TRUSTED_USERS: abc123def456
+```
+
+Then restart the service:
+
+```bash
+systemctl --user restart peekaboo
+```
+
+### Admin Scripts
+
+With `PROD_HOST` and `API_SESSION_ID` configured in `.env`:
+
+```bash
+# Add a new concept
+python3 scripts/add-concept.py horse "Horse"
+
+# Upload media for a concept
+python3 scripts/upload-media.py horse photo.jpg --audio neigh.mp3
+
+# Fetch feedback
+python3 scripts/fetch-feedback.py
+```
+
 ## Systemd Service Setup
 
 Install the user service for automatic restarts:
