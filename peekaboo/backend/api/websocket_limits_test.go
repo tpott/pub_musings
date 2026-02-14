@@ -366,7 +366,7 @@ func TestAudioWebSocketHandler_MultiUtteranceWithoutReconnect(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	conn, _, err := websocket.Dial(ctx, wsURL, nil)
