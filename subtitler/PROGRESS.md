@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**513 tasks completed** as of 2026-02-14.
+**514 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 610 tests across 46 files
-- **Frontend:** Astro/TypeScript, 900 tests across 34 files
+- **Frontend:** Astro/TypeScript, 923 tests across 37 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,581 tests, 35 specification documents
+- **Total:** 1,604 tests, 35 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,13 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 512: Edit UI gap detection with async transcription (2026-02-14)
+- **Gap detection:** `detectGaps()` in `gap-detection.ts` finds time gaps > 0.5s between segments (before first, between, after last). 14 TDD tests
+- **Backend endpoint:** `POST /api/transcribe/{id}/gap` extracts audio segment via FFmpeg, transcribes with Whisper, adjusts timestamps to absolute. Validates time range (start >= 0, end > start, max 5 min). 4 test functions (8 subtests) in `api_gap_test.go`
+- **Frontend gap fill:** "+" buttons rendered between segments in edit mode. Clicking creates empty segment, triggers async transcription, shows "Transcribing..." indicator. `gap-fill.ts` utility with 9 tests
+- **Progressive disclosure:** Feedback buttons collapsed behind toggle dot. Dot color shows current feedback type. Options collapse on segment change
+- **Refactoring:** Extracted `upload-embedded.ts` from `upload.astro` (1003→954 lines). Split `segment-editor.test.ts` into `segment-editor.test.ts` + `segment-editor-ui.test.ts`. 923 frontend tests across 37 files
 
 ### Tasks 501-503, 511: Code quality and scheduler tests (2026-02-14)
 - **Task 501:** Replaced `(window as any)` casts with proper `Window` interface declarations in `global.d.ts`. Covers `currentVideoId` and `cookieConsent`. 4 files cleaned

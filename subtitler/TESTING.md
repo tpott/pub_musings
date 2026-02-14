@@ -7,9 +7,9 @@ This document describes how to run tests for the Subtitler project.
 The project has comprehensive test coverage across both backend and frontend:
 
 - **Backend (Go)**: 610 tests across 46 test files
-- **Frontend (TypeScript)**: 900 tests across 34 test files
+- **Frontend (TypeScript)**: 923 tests across 37 test files
 - **E2E (Playwright)**: 71 scenarios across 7 spec files (66 active, 5 permanently skipped)
-- **Total**: 1,581 tests
+- **Total**: 1,604 tests
 
 ## Backend Tests
 
@@ -154,7 +154,8 @@ npm run test:watch
 | `src/utils/nav-auth.test.ts` | Navigation auth check utilities |
 | `src/utils/playback-speed.test.ts` | Playback speed constants and persistence |
 | `src/utils/processing-speed.test.ts` | Transcription time estimation |
-| `src/utils/segment-editor.test.ts` | Segment editing, undo/redo, feedback, navigation |
+| `src/utils/segment-editor.test.ts` | Segment editing, undo/redo, save, history |
+| `src/utils/segment-editor-ui.test.ts` | Feedback buttons, render segments, navigation |
 | `src/utils/session.test.ts` | Session and upload session management |
 | `src/utils/settings-preferences.test.ts` | Bionic reading preferences setup |
 | `src/utils/settings-sessions.test.ts` | Session management, parseUserAgent, revoke flow |
@@ -172,6 +173,8 @@ npm run test:watch
 | `src/utils/upload-collapsible.test.ts` | Collapsible section toggle with localStorage persistence |
 | `src/utils/feedback-form.test.ts` | Feedback form state management, button reset, rating clear |
 | `src/utils/segment-editor-timing.test.ts` | Timing adjustment buttons (nudge start/end, shift for 0.5s, constraints) |
+| `src/utils/gap-detection.test.ts` | Gap detection between subtitle segments |
+| `src/utils/gap-fill.test.ts` | Gap segment creation, insertion, async transcription |
 
 ### Test Categories
 

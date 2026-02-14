@@ -3397,6 +3397,97 @@ func (ts *testServer) registerHandlers() {
 		w.WriteHeader(http.StatusOK)
 		httputil.WriteContent(w, []byte(content), "embedded subtitles download")
 	}))
+
+	// Gap transcription endpoint
+	ts.mux.HandleFunc("POST /api/transcribe/{id}/gap", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		uploadID := r.PathValue("id")
+		if uploadID == "" || len(uploadID) != 32 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid upload ID format"})
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Start    float64 `json:"start"`
+			End      float64 `json:"end"`
+			Language string  `json:"language"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate time range
+		if req.Start < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Start time must be >= 0"})
+			return
+		}
+		if req.End <= req.Start {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "End time must be greater than start time"})
+			return
+		}
+		if req.End-req.Start > 300 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Gap duration cannot exceed 5 minutes"})
+			return
+		}
+
+		lang := req.Language
+		if lang == "" {
+			lang = "auto"
+		}
+		if err := validation.ValidateLanguageCode(lang); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Check ownership
+		video, err := ts.db.GetVideo(uploadID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get video"})
+			return
+		}
+		if video == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Video not found"})
+			return
+		}
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(ts.db, token)
+		sessionID := r.URL.Query().Get("session_id")
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to access this video"})
+			return
+		}
+
+		// In tests, return mock gap transcription result
+		// Adjust mock times to be absolute (add start offset)
+		mockSegments := []WhisperSegment{
+			{ID: 0, Start: req.Start + 0.1, End: req.End - 0.1, Text: "Transcribed gap text"},
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"text":     "Transcribed gap text",
+			"segments": mockSegments,
+		})
+	})
 }
 
 // request helpers

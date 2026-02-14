@@ -18,6 +18,10 @@ type Extractor interface {
 	// videoPath: path to the input video file
 	// audioPath: path where the output WAV file will be saved
 	ExtractAudio(videoPath, audioPath string) error
+
+	// ExtractAudioSegment extracts a time range of audio from a video file as WAV.
+	// startSec and endSec define the time range in seconds.
+	ExtractAudioSegment(videoPath, audioPath string, startSec, endSec float64) error
 }
 
 // FFmpegExtractor implements Extractor using ffmpeg.
@@ -38,6 +42,28 @@ func (f *FFmpegExtractor) ExtractAudio(videoPath, audioPath string) error {
 		"-ar", "16000", // 16kHz sample rate (whisper expects this)
 		"-ac", "1", // mono
 		"-y", // overwrite output
+		audioPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg error: %v, output: %s", err, string(output))
+	}
+	return nil
+}
+
+// ExtractAudioSegment uses ffmpeg to extract a time range of audio from video as WAV.
+// The output is 16kHz mono PCM, which is the format expected by whisper.
+func (f *FFmpegExtractor) ExtractAudioSegment(videoPath, audioPath string, startSec, endSec float64) error {
+	duration := endSec - startSec
+	cmd := exec.Command("ffmpeg",
+		"-ss", fmt.Sprintf("%.3f", startSec),
+		"-t", fmt.Sprintf("%.3f", duration),
+		"-i", videoPath,
+		"-vn",
+		"-acodec", "pcm_s16le",
+		"-ar", "16000",
+		"-ac", "1",
+		"-y",
 		audioPath,
 	)
 	output, err := cmd.CombinedOutput()
@@ -459,6 +485,12 @@ type MockExtractor struct {
 	LastVideoPath string
 	// LastAudioPath stores the last audioPath argument.
 	LastAudioPath string
+	// SegmentCallCount tracks how many times ExtractAudioSegment was called.
+	SegmentCallCount int
+	// LastStartSec stores the last startSec argument to ExtractAudioSegment.
+	LastStartSec float64
+	// LastEndSec stores the last endSec argument to ExtractAudioSegment.
+	LastEndSec float64
 }
 
 // NewMockExtractor creates a new MockExtractor for testing.
@@ -476,6 +508,22 @@ func (m *MockExtractor) ExtractAudio(videoPath, audioPath string) error {
 			return m.FailError
 		}
 		return fmt.Errorf("mock extraction failed")
+	}
+	return nil
+}
+
+// ExtractAudioSegment implements the Extractor interface for testing.
+func (m *MockExtractor) ExtractAudioSegment(videoPath, audioPath string, startSec, endSec float64) error {
+	m.SegmentCallCount++
+	m.LastVideoPath = videoPath
+	m.LastAudioPath = audioPath
+	m.LastStartSec = startSec
+	m.LastEndSec = endSec
+	if m.ShouldFail {
+		if m.FailError != nil {
+			return m.FailError
+		}
+		return fmt.Errorf("mock segment extraction failed")
 	}
 	return nil
 }

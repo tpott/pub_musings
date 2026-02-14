@@ -108,18 +108,24 @@ import '../styles/upload.css';
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
 				<div class="current-subtitle" aria-live="polite" aria-atomic="true"><span class="current-subtitle-inner" id="currentSubtitle"></span></div>
 				<div class="subtitle-feedback" id="subtitleFeedback" style="display: none;">
-					<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
-						<span class="emoji">👍</span>
+					<button class="feedback-toggle-btn" id="feedbackToggle" aria-label="Rate subtitle alignment">
+						<span class="feedback-dot" id="feedbackDot"></span>
+						Rate
 					</button>
-					<button class="feedback-btn early" data-feedback="early" aria-label="Mark current segment as appearing too early" title="Subtitle appears before the voice starts">
-						<span class="emoji">⏪</span> Early
-					</button>
-					<button class="feedback-btn late" data-feedback="late" aria-label="Mark current segment as appearing too late" title="Subtitle persists after the voice ends">
-						<span class="emoji">⏩</span> Late
-					</button>
-					<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
-						<span class="emoji">❓</span> Missing
-					</button>
+					<div class="feedback-options" id="feedbackOptions" style="display: none;">
+						<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
+							<span class="emoji">👍</span>
+						</button>
+						<button class="feedback-btn early" data-feedback="early" aria-label="Mark current segment as appearing too early" title="Subtitle appears before the voice starts">
+							<span class="emoji">⏪</span> Early
+						</button>
+						<button class="feedback-btn late" data-feedback="late" aria-label="Mark current segment as appearing too late" title="Subtitle persists after the voice ends">
+							<span class="emoji">⏩</span> Late
+						</button>
+						<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
+							<span class="emoji">❓</span> Missing
+						</button>
+					</div>
 				</div>
 				<div class="edit-actions" id="editActions">
 					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
@@ -357,7 +363,6 @@ import '../styles/upload.css';
 			import {
 				startTranscription as startTranscriptionPoll,
 				pollTranscriptionStatus,
-				parseSRT,
 				getLanguageDisplayName,
 				createTranscriptionState,
 			} from '../utils/transcription-polling';
@@ -383,6 +388,10 @@ import '../styles/upload.css';
 				createBurnState,
 			} from '../utils/subtitle-sync';
 			import { showConfirm } from '../utils/dialog';
+			import {
+				showEmbeddedSubtitlesNotice,
+				setupEmbeddedSubtitlesHandler,
+			} from '../utils/upload-embedded';
 
 			// --- DOM Elements ---
 			const dropzone = getRequiredElement('dropzone', HTMLElement);
@@ -612,7 +621,7 @@ import '../styles/upload.css';
 					fullTextSection.style.display = 'block';
 				}
 
-				showEmbeddedSubtitlesNotice();
+				showEmbeddedSubtitlesNotice(transcriptionState.embeddedSubtitleTracks, embeddedEls);
 
 				if (editorState.currentUploadId) {
 					previewVideo.src = `/api/videos/${editorState.currentUploadId}/video`;
@@ -622,70 +631,18 @@ import '../styles/upload.css';
 			}
 
 			// --- Embedded subtitles ---
-			function showEmbeddedSubtitlesNotice() {
-				const textTracks = transcriptionState.embeddedSubtitleTracks.filter(t => t.text_based);
-				if (textTracks.length === 0) {
-					embeddedSubtitlesNotice.style.display = 'none';
-					return;
-				}
+			const embeddedEls = {
+				notice: embeddedSubtitlesNotice,
+				list: embeddedSubtitlesList,
+				trackSelect: embeddedTrackSelect,
+				useBtn: useEmbeddedBtn,
+				unsavedIndicator,
+				transcriptionStatus,
+			};
 
-				embeddedSubtitlesList.textContent = textTracks.map(t => {
-					let label = t.language || 'Unknown';
-					if (t.title) label += ` (${t.title})`;
-					if (t.default) label += ' [default]';
-					return label;
-				}).join(', ');
-
-				embeddedTrackSelect.innerHTML = '';
-				textTracks.forEach((track, i) => {
-					const option = document.createElement('option');
-					option.value = track.index.toString();
-					let label = track.language || 'Unknown language';
-					if (track.title) label = `${label} - ${track.title}`;
-					label += ` (${track.codec})`;
-					if (track.default) label += ' [default]';
-					option.textContent = label;
-					if (i === 0) option.selected = true;
-					embeddedTrackSelect.appendChild(option);
-				});
-
-				embeddedTrackSelect.style.display = textTracks.length === 1 ? 'none' : 'block';
-				embeddedSubtitlesNotice.style.display = 'flex';
-			}
-
-			useEmbeddedBtn.addEventListener('click', async () => {
-				if (!editorState.currentUploadId) return;
-				const trackIndex = parseInt(embeddedTrackSelect.value, 10);
-				useEmbeddedBtn.disabled = true;
-				useEmbeddedBtn.textContent = 'Loading...';
-
-				try {
-					const response = await fetchWithTimeout(
-						`/api/videos/${editorState.currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
-					);
-					if (!response.ok) {
-						const err = await response.json();
-						throw new Error(err.error || 'Failed to extract subtitles');
-					}
-					const srtContent = await response.text();
-					const parsedSegments = parseSRT(srtContent);
-					if (parsedSegments.length === 0) throw new Error('No subtitles found in embedded track');
-
-					editorState.transcriptionSegments = parsedSegments;
-					editorState.editedSegments = structuredClone(parsedSegments);
-					editorState.hasUnsavedChanges = true;
-					unsavedIndicator.classList.add('visible');
-
-					renderSegments(editorState, editorEls);
-					fullText.textContent = parsedSegments.map(s => s.text).join(' ');
-					transcriptionStatus.textContent = 'Loaded embedded subtitles! (Unsaved)';
-				} catch (error) {
-					console.error('Failed to load embedded subtitles:', error);
-					transcriptionStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
-				} finally {
-					useEmbeddedBtn.disabled = false;
-					useEmbeddedBtn.textContent = 'Use Embedded Subtitles';
-				}
+			setupEmbeddedSubtitlesHandler(editorState, embeddedEls, {
+				renderSegments: () => renderSegments(editorState, editorEls),
+				setFullText: (text) => { fullText.textContent = text; },
 			});
 
 			// --- Transcript alignment ---

@@ -2063,6 +2063,53 @@ curl -X POST http://localhost:8080/api/transcribe/abc123/align \
 
 ---
 
+### POST /api/transcribe/{id}/gap
+
+Transcribe a specific time range (gap) in a video. Used to fill in missing segments detected in the subtitle editor.
+
+**Authentication**: Required (owner via user session or `session_id` query parameter)
+
+**Rate Limit**: 5/min per IP (shared with transcribe/reprocess)
+
+**Request Body**:
+```json
+{
+  "start": 10.5,
+  "end": 15.0,
+  "language": "en"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `start` | number | Yes | Start time in seconds (must be >= 0) |
+| `end` | number | Yes | End time in seconds (must be > start) |
+| `language` | string | No | Language code (defaults to "auto") |
+
+**Constraints**:
+- Maximum gap duration: 5 minutes (300 seconds)
+- Language code max length: 10 characters
+
+**Response** `200 OK`:
+```json
+{
+  "text": "transcribed text here",
+  "segments": [
+    {"id": 0, "start": 10.5, "end": 12.0, "text": "transcribed"},
+    {"id": 1, "start": 12.0, "end": 15.0, "text": "text here"}
+  ]
+}
+```
+
+Segment timestamps are absolute (offset by `start` from whisper's relative timestamps).
+
+**Errors**:
+- `400 Bad Request`: Invalid time range or language code
+- `403 Forbidden`: User does not own this video
+- `404 Not Found`: Video not found
+
+---
+
 ## Subtitles
 
 ### GET /api/videos/{id}/subtitles.srt
