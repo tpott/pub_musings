@@ -448,6 +448,8 @@ import '../styles/global.css';
       }
 
       // Success
+      verifyTotpBtn.disabled = false;
+      verifyTotpBtn.textContent = 'Enable 2FA';
       hideAllFlows();
       totpCodeInput.value = '';
       setupPasswordInput.value = '';
@@ -519,6 +521,8 @@ import '../styles/global.css';
       }
 
       // Success
+      confirmDisableBtn.disabled = false;
+      confirmDisableBtn.textContent = 'Disable 2FA';
       hideAllFlows();
       updateTOTPDisplay(false);
       disablePasswordInput.value = '';
