@@ -36,6 +36,11 @@ Production-ready voice-controlled web app for children. 293 tasks completed.
 
 ## Last Completed
 
+- Task 333 (2026-02-13): PBT RED — test spec files and config defining the PBT API:
+  - pbt.config.ts (workers:1, timeout:120s, no webServer)
+  - show-cat.spec.ts, show-unknown.spec.ts, two-commands.spec.ts, fixture-cat.spec.ts
+  - test:pbt script in package.json
+  - Tests import createPBT from helpers/pbt/runner — won't compile until GREEN tasks
 - Tasks 331-332 (2026-02-11): Deep inspection round 23 — two fixes:
   - Task 331: Update specs/auth.md to match current code (fix handler file path to backend/api/handlers_auth.go, update sessions schema token→token_hash)
   - Task 332: Fix star rating accessibility — remove incorrect role=radiogroup, add aria-pressed to toggle buttons

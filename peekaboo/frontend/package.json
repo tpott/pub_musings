@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:pbt": "playwright test --config tests/pbt/pbt.config.ts"
   },
   "dependencies": {
     "astro": "^5.0.0"
