@@ -58,14 +58,34 @@ def resolve_secrets() -> dict[str, str]:
     return secrets
 
 
+def fetch_csrf_token(host: str, session_id: str) -> str:
+    """Fetch a CSRF token via GET /api/auth/csrf. Returns token or empty string."""
+    url = f"{host}/api/auth/csrf"
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", f"Bearer {session_id}")
+    req.add_header("User-Agent", "peekaboo-admin/1.0")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("token", "")
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
+        return ""
+
+
 def create_concept(host: str, session_id: str, concept_id: str, name: str) -> int:
     """Call POST /api/admin/concepts and return exit code."""
+    csrf_token = fetch_csrf_token(host, session_id)
+    if not csrf_token:
+        print("Error: Failed to fetch CSRF token. Check API_SESSION_ID.", file=sys.stderr)
+        return 2
+
     url = f"{host}/api/admin/concepts"
     payload = json.dumps({"id": concept_id, "name": name}).encode("utf-8")
 
     req = urllib.request.Request(url, data=payload, method="POST")
     req.add_header("Authorization", f"Bearer {session_id}")
     req.add_header("Content-Type", "application/json")
+    req.add_header("X-CSRF-Token", csrf_token)
     req.add_header("User-Agent", "peekaboo-admin/1.0")
 
     try:
@@ -83,7 +103,11 @@ def create_concept(host: str, session_id: str, concept_id: str, name: str) -> in
             print("Error: Authentication failed (401). Check API_SESSION_ID.", file=sys.stderr)
             return 2
         if e.code == 403:
-            print("Error: Forbidden (403). User is not in TRUSTED_USERS.", file=sys.stderr)
+            try:
+                data = json.loads(body)
+                print(f"Error: Forbidden (403): {data.get('error', 'access denied')}", file=sys.stderr)
+            except json.JSONDecodeError:
+                print("Error: Forbidden (403). User is not in TRUSTED_USERS.", file=sys.stderr)
             return 2
         if e.code == 409:
             print(f"Concept '{concept_id}' already exists.", file=sys.stderr)

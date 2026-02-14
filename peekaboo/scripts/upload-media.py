@@ -230,9 +230,28 @@ def print_file_metadata(label: str, filepath: str, mime_type: str) -> list[str]:
     return warnings
 
 
+def fetch_csrf_token(host: str, session_id: str) -> str:
+    """Fetch a CSRF token via GET /api/auth/csrf. Returns token or empty string."""
+    url = f"{host}/api/auth/csrf"
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", f"Bearer {session_id}")
+    req.add_header("User-Agent", "peekaboo-admin/1.0")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("token", "")
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
+        return ""
+
+
 def upload_media(host: str, session_id: str, concept_id: str,
                  photo_path: str, audio_path: str | None, video_path: str | None) -> int:
     """Upload media files via multipart POST. Returns exit code."""
+    csrf_token = fetch_csrf_token(host, session_id)
+    if not csrf_token:
+        print("Error: Failed to fetch CSRF token. Check API_SESSION_ID.", file=sys.stderr)
+        return 2
+
     # Build multipart body manually (no requests dependency)
     boundary = "----PeekabooUpload" + os.urandom(8).hex()
     body_parts: list[bytes] = []
@@ -270,6 +289,7 @@ def upload_media(host: str, session_id: str, concept_id: str,
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Authorization", f"Bearer {session_id}")
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+    req.add_header("X-CSRF-Token", csrf_token)
     req.add_header("User-Agent", "peekaboo-admin/1.0")
 
     try:
@@ -293,7 +313,11 @@ def upload_media(host: str, session_id: str, concept_id: str,
             print("Error: Authentication failed (401). Check API_SESSION_ID.", file=sys.stderr)
             return 2
         if e.code == 403:
-            print("Error: Forbidden (403). User is not in TRUSTED_USERS.", file=sys.stderr)
+            try:
+                data = json.loads(body_text)
+                print(f"Error: Forbidden (403): {data.get('error', 'access denied')}", file=sys.stderr)
+            except json.JSONDecodeError:
+                print("Error: Forbidden (403). User is not in TRUSTED_USERS.", file=sys.stderr)
             return 2
 
         try:

@@ -5,9 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/tpott/pub_musings/peekaboo/backend/auth"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
@@ -31,56 +29,6 @@ type adminConceptResponse struct {
 type adminConceptsListResponse struct {
 	Concepts []adminConceptResponse `json:"concepts,omitempty"`
 	Error    string                 `json:"error,omitempty"`
-}
-
-// authenticateAdmin validates the session token and checks TRUSTED_USERS.
-// Returns the user ID on success, or writes an error response and returns "".
-func (h *AdminHandler) authenticateAdmin(w http.ResponseWriter, r *http.Request) string {
-	sessionToken := extractSessionToken(r)
-	if sessionToken == "" {
-		writeJSON(w, http.StatusUnauthorized, adminConceptResponse{Error: "not authenticated"})
-		return ""
-	}
-
-	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
-	if err != nil {
-		slog.Error("admin: failed to look up session",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-		writeJSON(w, http.StatusInternalServerError, adminConceptResponse{Error: "internal error"})
-		return ""
-	}
-
-	if session == nil || time.Now().UTC().After(session.ExpiresAt) {
-		writeJSON(w, http.StatusUnauthorized, adminConceptResponse{Error: "not authenticated"})
-		return ""
-	}
-
-	user, err := h.DB.GetUserByID(session.UserID)
-	if err != nil {
-		slog.Error("admin: failed to look up user",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-		writeJSON(w, http.StatusInternalServerError, adminConceptResponse{Error: "internal error"})
-		return ""
-	}
-
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, adminConceptResponse{Error: "not authenticated"})
-		return ""
-	}
-
-	if len(h.TrustedUsers) == 0 {
-		writeJSON(w, http.StatusForbidden, adminConceptResponse{Error: "TRUSTED_USERS not configured"})
-		return ""
-	}
-
-	if !h.TrustedUsers[user.ID] {
-		writeJSON(w, http.StatusForbidden, adminConceptResponse{Error: "admin access required"})
-		return ""
-	}
-
-	return user.ID
 }
 
 // HandleCreateConcept handles POST /api/admin/concepts.

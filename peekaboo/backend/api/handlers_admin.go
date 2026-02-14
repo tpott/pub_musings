@@ -31,6 +31,56 @@ func NewAdminHandler(database *db.DB, trustedUsers string) *AdminHandler {
 	return &AdminHandler{DB: database, TrustedUsers: trusted}
 }
 
+// authenticateAdmin validates the session token and checks TRUSTED_USERS.
+// Returns the user ID on success, or writes an error response and returns "".
+func (h *AdminHandler) authenticateAdmin(w http.ResponseWriter, r *http.Request) string {
+	sessionToken := extractSessionToken(r)
+	if sessionToken == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return ""
+	}
+
+	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
+	if err != nil {
+		slog.Error("admin: failed to look up session",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return ""
+	}
+
+	if session == nil || time.Now().UTC().After(session.ExpiresAt) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return ""
+	}
+
+	user, err := h.DB.GetUserByID(session.UserID)
+	if err != nil {
+		slog.Error("admin: failed to look up user",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return ""
+	}
+
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return ""
+	}
+
+	if len(h.TrustedUsers) == 0 {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "TRUSTED_USERS not configured"})
+		return ""
+	}
+
+	if !h.TrustedUsers[user.ID] {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin access required"})
+		return ""
+	}
+
+	return user.ID
+}
+
 // adminFeedbackItem is a single feedback item in the admin response.
 type adminFeedbackItem struct {
 	ID         string  `json:"id"`
@@ -61,50 +111,8 @@ func (h *AdminHandler) HandleListFeedback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Authenticate
-	sessionToken := extractSessionToken(r)
-	if sessionToken == "" {
-		writeJSON(w, http.StatusUnauthorized, adminFeedbackResponse{Error: "not authenticated"})
-		return
-	}
-
-	session, err := h.DB.GetSessionByTokenHash(auth.HashToken(sessionToken))
-	if err != nil {
-		slog.Error("admin feedback: failed to look up session",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-		writeJSON(w, http.StatusInternalServerError, adminFeedbackResponse{Error: "internal error"})
-		return
-	}
-
-	if session == nil || time.Now().UTC().After(session.ExpiresAt) {
-		writeJSON(w, http.StatusUnauthorized, adminFeedbackResponse{Error: "not authenticated"})
-		return
-	}
-
-	user, err := h.DB.GetUserByID(session.UserID)
-	if err != nil {
-		slog.Error("admin feedback: failed to look up user",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-		writeJSON(w, http.StatusInternalServerError, adminFeedbackResponse{Error: "internal error"})
-		return
-	}
-
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, adminFeedbackResponse{Error: "not authenticated"})
-		return
-	}
-
-	// Fail-closed: deny all if no TRUSTED_USERS configured
-	if len(h.TrustedUsers) == 0 {
-		writeJSON(w, http.StatusForbidden, adminFeedbackResponse{Error: "TRUSTED_USERS not configured"})
-		return
-	}
-
-	// Check TRUSTED_USERS authorization
-	if !h.TrustedUsers[user.ID] {
-		writeJSON(w, http.StatusForbidden, adminFeedbackResponse{Error: "admin access required"})
+	userID := h.authenticateAdmin(w, r)
+	if userID == "" {
 		return
 	}
 
@@ -160,7 +168,7 @@ func (h *AdminHandler) HandleListFeedback(w http.ResponseWriter, r *http.Request
 	}
 
 	slog.Info("admin listed feedback",
-		"user_id", user.ID,
+		"user_id", userID,
 		"status_filter", status,
 		"total", total,
 		"returned", len(respItems),

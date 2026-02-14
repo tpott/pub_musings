@@ -270,11 +270,14 @@ func saveUploadedFile(src io.Reader, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("create file %s: %w", destPath, err)
 	}
-	defer dst.Close()
 
 	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
 		return fmt.Errorf("write file %s: %w", destPath, err)
 	}
 
+	if err := dst.Close(); err != nil {
+		return fmt.Errorf("close file %s: %w", destPath, err)
+	}
 	return nil
 }
