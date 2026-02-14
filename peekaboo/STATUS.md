@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 318 tasks completed.
+Production-ready voice-controlled web app for children. 320 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,11 @@ Production-ready voice-controlled web app for children. 318 tasks completed.
 
 ## Last Completed
 
+- Tasks 363-364 (2026-02-14): Deep inspection round 28 — two hardening fixes:
+  - Task 363: Add io.LimitReader to saveUploadedFile for per-file size enforcement (defense-in-depth)
+  - Task 364: Enable PRAGMA foreign_keys = ON in SQLite configuration
+- Tasks 360-362 (2026-02-14): Deep inspection round 27 — CSRF fix, file close, auth dedup
+- Tasks 352-359 (2026-02-14): Media management API, admin scripts, and docs
 - Task 351 (2026-02-14): Fix PBT audio-pipeline.ts missing __dirname definition (ESM compatibility)
 - Task 350 (2026-02-13): Deep inspection round 26 — fix GetInteraction missing sql.ErrNoRows check
 - Tasks 348-349 (2026-02-13): Deep inspection round 25 — two auth security fixes:

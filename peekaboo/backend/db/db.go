@@ -129,6 +129,7 @@ func Open(path string) (*DB, error) {
 		"PRAGMA busy_timeout = 5000",  // Wait up to 5 seconds if database is locked
 		"PRAGMA journal_mode = WAL",   // Write-Ahead Logging for better concurrency
 		"PRAGMA synchronous = NORMAL", // Balance between safety and performance
+		"PRAGMA foreign_keys = ON",    // Enforce declared foreign key constraints
 	}
 	for _, pragma := range pragmas {
 		if _, err := conn.Exec(pragma); err != nil {

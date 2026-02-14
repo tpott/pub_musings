@@ -186,7 +186,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	// Save photo
 	photoFileName := "photo" + photoExt
 	photoPath := filepath.Join(setDir, photoFileName)
-	if err := saveUploadedFile(photoFile, photoPath); err != nil {
+	if err := saveUploadedFile(photoFile, photoPath, maxUploadPhotoSize); err != nil {
 		slog.Error("admin media: failed to save photo",
 			"error", err,
 			"path", photoPath,
@@ -204,7 +204,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	if audioFile != nil {
 		audioFileName := "audio" + audioExt
 		audioPath := filepath.Join(setDir, audioFileName)
-		if err := saveUploadedFile(audioFile, audioPath); err != nil {
+		if err := saveUploadedFile(audioFile, audioPath, maxUploadAudioSize); err != nil {
 			slog.Error("admin media: failed to save audio",
 				"error", err,
 				"path", audioPath,
@@ -219,7 +219,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	if videoFile != nil {
 		videoFileName := "video" + videoExt
 		videoPath := filepath.Join(setDir, videoFileName)
-		if err := saveUploadedFile(videoFile, videoPath); err != nil {
+		if err := saveUploadedFile(videoFile, videoPath, maxUploadVideoSize); err != nil {
 			slog.Error("admin media: failed to save video",
 				"error", err,
 				"path", videoPath,
@@ -265,15 +265,23 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 }
 
 // saveUploadedFile writes the contents of an uploaded file to disk.
-func saveUploadedFile(src io.Reader, destPath string) error {
+// maxSize limits how many bytes are read from src (defense-in-depth).
+func saveUploadedFile(src io.Reader, destPath string, maxSize int64) error {
 	dst, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("create file %s: %w", destPath, err)
 	}
 
-	if _, err := io.Copy(dst, src); err != nil {
+	limited := io.LimitReader(src, maxSize+1)
+	n, err := io.Copy(dst, limited)
+	if err != nil {
 		dst.Close()
 		return fmt.Errorf("write file %s: %w", destPath, err)
+	}
+	if n > maxSize {
+		dst.Close()
+		os.Remove(destPath)
+		return fmt.Errorf("file %s exceeds size limit", destPath)
 	}
 
 	if err := dst.Close(); err != nil {

@@ -94,6 +94,16 @@ func TestSQLiteConfiguration(t *testing.T) {
 	if synchronous != 1 {
 		t.Errorf("synchronous = %d, want 1 (NORMAL)", synchronous)
 	}
+
+	// Verify foreign_keys is ON
+	var foreignKeys int
+	err = db.conn.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys)
+	if err != nil {
+		t.Fatalf("Failed to query foreign_keys: %v", err)
+	}
+	if foreignKeys != 1 {
+		t.Errorf("foreign_keys = %d, want 1 (ON)", foreignKeys)
+	}
 }
 
 func TestInit(t *testing.T) {
