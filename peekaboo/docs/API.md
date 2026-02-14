@@ -375,9 +375,14 @@ All errors return JSON with an `error` field. Internal details are logged server
 | Code | Description |
 |------|-------------|
 | 200 | Success |
+| 201 | Created (registration, concept/media creation) |
 | 400 | Bad Request (invalid input) |
+| 401 | Unauthorized (not authenticated) |
+| 403 | Forbidden (CSRF failure, admin access required) |
 | 404 | Not Found |
 | 405 | Method Not Allowed |
+| 409 | Conflict (duplicate email, TOTP already enabled/disabled) |
+| 413 | Request Entity Too Large (audio, request body) |
 | 429 | Too Many Requests |
 | 500 | Internal Server Error |
 | 503 | Service Unavailable (capacity or dependency) |

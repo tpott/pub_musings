@@ -37,7 +37,7 @@ systemctl --user restart peekaboo
 echo "Waiting for backend to start..."
 for i in 1 2 3 4 5; do
     sleep 2
-    if curl -sf http://localhost:${BACKEND_PORT}/health > /dev/null; then
+    if curl -sf --max-time 5 "http://localhost:${BACKEND_PORT}/health" > /dev/null; then
         echo "Peekaboo backend deployed successfully"
         exit 0
     fi
@@ -45,5 +45,20 @@ for i in 1 2 3 4 5; do
 done
 
 echo "WARNING: Health check failed after 5 attempts!"
-curl http://localhost:${BACKEND_PORT}/health 2>/dev/null || echo "Server not responding"
+curl --max-time 5 "http://localhost:${BACKEND_PORT}/health" 2>/dev/null || echo "Server not responding"
+
+# Rollback to previous binary if available
+if [[ -f peekaboo-prev ]]; then
+    echo "Rolling back to previous binary..."
+    mv peekaboo-prev peekaboo
+    systemctl --user restart peekaboo
+    sleep 2
+    if curl -sf --max-time 5 "http://localhost:${BACKEND_PORT}/health" > /dev/null; then
+        echo "Rollback succeeded — previous version is running"
+    else
+        echo "ERROR: Rollback also failed — manual intervention required"
+    fi
+else
+    echo "No previous binary available for rollback"
+fi
 exit 1

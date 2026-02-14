@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 323 tasks completed.
+Production-ready voice-controlled web app for children. 325 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,9 @@ Production-ready voice-controlled web app for children. 323 tasks completed.
 
 ## Last Completed
 
+- Tasks 368-369 (2026-02-14): Deep inspection round 30 — deploy robustness + docs:
+  - Task 368: Add --max-time 5 to deploy health check curls + automatic rollback to peekaboo-prev on failure
+  - Task 369: Add missing HTTP status codes (201, 401, 403, 409, 413) to API.md error table
 - Tasks 365-367 (2026-02-14): Deep inspection round 29 — deploy fix + DB hardening:
   - Task 365: Fix deploy script health check port mismatch (9070→8070 to match systemd service)
   - Task 366: Add composite index on login_attempts(email, success, created_at) for lockout query

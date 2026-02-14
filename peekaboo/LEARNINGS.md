@@ -6,6 +6,16 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-14: Deploy health checks need curl timeouts and automatic rollback
+
+**Problem:** `deploy-peekaboo-backend.sh` health check curls had no `--max-time` flag. If the server accepts connections but hangs (e.g., stuck on DB migration), curl blocks indefinitely and the deploy script never completes. Also, when the health check failed after all retries, the broken binary stayed deployed with no rollback.
+
+**Solution:** Added `--max-time 5` to all curl calls. Added rollback logic after health check failure: restore `peekaboo-prev` binary and restart the service. Script still exits 1 to signal deployment failure.
+
+**Lesson:** Always set `--max-time` on deployment health check curls — a hanging server is worse than a failing one because the deploy script never completes. Always implement automatic rollback to the previous version on deploy failure.
+
+---
+
 ### 2026-02-14: Deploy script health check port must match systemd service PORT
 
 **Context:** Deep inspection found `BACKEND_PORT=9070` in `deploy-peekaboo-backend.sh` but `PORT=8070` in `peekaboo.service`.
