@@ -45,23 +45,32 @@ func (h *AudioWebSocketHandler) handleControlMessage(ctx context.Context, conn *
 	case MsgTypeStopRecording:
 		state.mu.Lock()
 		state.isRecording = false
-		audioData := state.webmParser.GrabAudio()
-		state.webmParser.Clear()
-		firstChunkTS := state.firstChunkClient
-		state.accumulatedWords = nil // clear accumulation on stop
-		willProcess := len(audioData) >= minAudioSize
+		alreadyProcessing := state.isProcessing
+		var audioData []byte
+		var firstChunkTS float64
+		if !alreadyProcessing {
+			audioData = state.webmParser.GrabAudio()
+			state.webmParser.Clear()
+			firstChunkTS = state.firstChunkClient
+			state.accumulatedWords = nil // clear accumulation on stop
+		}
+		willProcess := !alreadyProcessing && len(audioData) >= minAudioSize
 		if willProcess {
 			state.isProcessing = true // prevent idle timeout and buffer watcher races
 		}
 		state.mu.Unlock()
 
-		logger.Debug("recording stopped", "buffer_size", len(audioData))
+		if alreadyProcessing {
+			logger.Debug("recording stopped, audio already being processed")
+		} else {
+			logger.Debug("recording stopped", "buffer_size", len(audioData))
+		}
 
 		if willProcess {
 			go h.processAudio(ctx, conn, state, audioData, firstChunkTS, logger)
-		} else if len(audioData) > 0 {
+		} else if !alreadyProcessing && len(audioData) > 0 {
 			h.sendError(ctx, conn, "audio too short", logger)
-		} else {
+		} else if !alreadyProcessing {
 			// Empty buffer - user stopped recording without speaking
 			h.sendError(ctx, conn, "No audio recorded", logger)
 		}
