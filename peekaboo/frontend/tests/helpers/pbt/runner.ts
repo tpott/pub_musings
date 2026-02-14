@@ -9,18 +9,15 @@ import { getWSObserverScript } from './ws-observer';
 import type { PBTConfig } from './types';
 
 const DEFAULT_TIMEOUT = 30_000;
+const MIC_SELECTOR = '[data-testid="mic-button"]';
 
-/**
- * Create a PBT runner for a Playwright page.
- * Reads PIPER_SERVER_URL from env (required for say(), not for sayFixture()).
- */
+/** Create a PBT runner. Reads PIPER_SERVER_URL from env for say(). */
 export async function createPBT(
   page: Page,
   opts?: { timeout?: number },
 ): Promise<PBTRunner> {
-  const piperUrl = process.env.PIPER_SERVER_URL || '';
   const config: PBTConfig = {
-    piperUrl,
+    piperUrl: process.env.PIPER_SERVER_URL || '',
     timeout: opts?.timeout ?? DEFAULT_TIMEOUT,
   };
   return new PBTRunner(page, config);
@@ -40,9 +37,7 @@ class PBTRunner {
   /** Synthesize text via Piper, inject audio, click mic. */
   async say(text: string): Promise<void> {
     if (!this.config.piperUrl) {
-      throw new Error(
-        'PIPER_SERVER_URL not set — say() requires Piper. Use sayFixture() instead.',
-      );
+      throw new Error('PIPER_SERVER_URL not set — use sayFixture() instead.');
     }
     const audio = await synthesizeAndChunk(text, this.config.piperUrl);
     await this.injectAndPlay(audio.chunks);
@@ -50,11 +45,10 @@ class PBTRunner {
 
   /** Use a pre-recorded .webm fixture file. */
   async sayFixture(filename: string): Promise<void> {
-    const chunks = fixtureToChunks(filename);
-    await this.injectAndPlay(chunks);
+    await this.injectAndPlay(fixtureToChunks(filename));
   }
 
-  /** Assert that a media image is visible with src containing subject. */
+  /** Assert media image visible with src containing subject. */
   async assertMedia(subject: string): Promise<void> {
     const img = this.page.locator('[data-testid="media-image"]');
     await expect(img).toBeVisible({ timeout: this.config.timeout });
@@ -62,84 +56,65 @@ class PBTRunner {
     expect(src).toContain(`/data/media/${subject}/`);
   }
 
-  /** Assert that no media image is visible. */
+  /** Assert no media image visible. */
   async assertNoMedia(): Promise<void> {
     await expect(
       this.page.locator('[data-testid="media-image"]'),
     ).not.toBeVisible({ timeout: this.config.timeout });
   }
 
-  /** Assert that a tts_audio WS message was received. */
+  /** Assert tts_audio WS message received. */
   async assertTTS(contains?: string): Promise<void> {
-    await expect
-      .poll(
-        () => this.getWSMessages().then((msgs) => {
-          const tts = msgs.filter((m: any) => m.type === 'tts_audio');
-          if (tts.length === 0) return null;
-          if (contains) {
-            return tts.some((m: any) =>
-              m.text?.toLowerCase().includes(contains.toLowerCase()),
-            )
-              ? true
-              : null;
-          }
-          return true;
-        }),
-        { timeout: this.config.timeout },
-      )
-      .toBeTruthy();
+    await this.pollWSMessage('tts_audio', 'text', contains);
   }
 
-  /** Assert that no tts_audio WS message is in the buffer. */
+  /** Assert no tts_audio WS message in buffer. */
   async assertNoTTS(): Promise<void> {
-    // Short wait to ensure no late TTS arrives
     await this.page.waitForTimeout(2000);
     const msgs = await this.getWSMessages();
-    const tts = msgs.filter((m: any) => m.type === 'tts_audio');
-    expect(tts).toHaveLength(0);
+    expect(msgs.filter((m: any) => m.type === 'tts_audio')).toHaveLength(0);
   }
 
-  /** Assert that transcript display contains text. */
+  /** Assert transcript display contains text. */
   async assertTranscript(text: string): Promise<void> {
     const el = this.page.locator('[data-testid="transcript-display"]');
     await expect(el).toContainText(text, { timeout: this.config.timeout });
   }
 
-  /** Assert that an error WS message was received. */
+  /** Assert error WS message received. */
   async assertError(text?: string): Promise<void> {
+    await this.pollWSMessage('error', 'message', text);
+  }
+
+  /** Reset captured WS message buffer (for multi-command tests). */
+  async clear(): Promise<void> {
+    await this.page.evaluate(() => (window as any).__PBT_CLEAR_MESSAGES__?.());
+  }
+
+  // --- Private helpers ---
+
+  /** Poll WS messages for a specific type, optionally matching a field. */
+  private async pollWSMessage(
+    type: string, field: string, contains?: string,
+  ): Promise<void> {
     await expect
       .poll(
         () => this.getWSMessages().then((msgs) => {
-          const errors = msgs.filter((m: any) => m.type === 'error');
-          if (errors.length === 0) return null;
-          if (text) {
-            return errors.some((m: any) =>
-              m.message?.toLowerCase().includes(text.toLowerCase()),
-            )
-              ? true
-              : null;
-          }
-          return true;
+          const matched = msgs.filter((m: any) => m.type === type);
+          if (matched.length === 0) return null;
+          if (!contains) return true;
+          return matched.some((m: any) =>
+            m[field]?.toLowerCase().includes(contains.toLowerCase()),
+          ) ? true : null;
         }),
         { timeout: this.config.timeout },
       )
       .toBeTruthy();
   }
 
-  /** Reset the captured WS message buffer (for multi-command tests). */
-  async clear(): Promise<void> {
-    await this.page.evaluate(() => {
-      (window as any).__PBT_CLEAR_MESSAGES__?.();
-    });
-  }
-
-  // --- Private ---
-
   private async injectAndPlay(chunks: string[]): Promise<void> {
     this.sessions.push(chunks);
-
     if (!this.initialized) {
-      // First call: inject init scripts, set sessions, navigate
       await this.page.addInitScript(getScriptedRecorderScript());
       await this.page.addInitScript(getWSObserverScript());
       await this.page.addInitScript((sessions: string[][]) => {
@@ -149,30 +124,22 @@ class PBTRunner {
       await this.page.waitForLoadState('domcontentloaded');
       this.initialized = true;
     } else {
-      // Subsequent call: push new session via evaluate
       await this.page.evaluate((newChunks: string[]) => {
         (window as any).__PBT_SESSIONS__.push(newChunks);
       }, chunks);
-
-      // If recorder is currently active, stop it first
-      const micButton = this.page.locator('[data-testid="mic-button"]');
-      const isRecording = await micButton.getAttribute('aria-pressed');
-      if (isRecording === 'true') {
-        await micButton.click();
-        // Brief wait for stop to complete
+      // Stop active recorder before starting new session
+      const mic = this.page.locator(MIC_SELECTOR);
+      if ((await mic.getAttribute('aria-pressed')) === 'true') {
+        await mic.click();
         await this.page.waitForTimeout(500);
       }
     }
-
-    // Click mic to start recording
-    const micButton = this.page.locator('[data-testid="mic-button"]');
-    await expect(micButton).toBeVisible();
-    await micButton.click();
+    const mic = this.page.locator(MIC_SELECTOR);
+    await expect(mic).toBeVisible();
+    await mic.click();
   }
 
   private async getWSMessages(): Promise<any[]> {
-    return this.page.evaluate(() => {
-      return (window as any).__PBT_WS_MESSAGES__ || [];
-    });
+    return this.page.evaluate(() => (window as any).__PBT_WS_MESSAGES__ || []);
   }
 }
