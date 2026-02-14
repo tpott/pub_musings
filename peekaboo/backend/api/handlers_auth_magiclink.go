@@ -166,20 +166,7 @@ func (h *AuthHandler) HandleMagicLinkVerify(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Atomically mark token as used (prevents TOCTOU race with concurrent requests)
-	if err := h.DB.MarkMagicLinkTokenUsed(id); err != nil {
-		if errors.Is(err, db.ErrTokenAlreadyUsed) {
-			writeJSON(w, http.StatusBadRequest, magicLinkVerifyResponse{Error: "token already used"})
-			return
-		}
-		slog.Error("magic-link-verify: failed to mark token used",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-		writeJSON(w, http.StatusInternalServerError, magicLinkVerifyResponse{Error: "internal error"})
-		return
-	}
-
-	// Look up user
+	// Look up user before transaction (read-only, no side effects)
 	user, err := h.DB.GetUserByID(userID)
 	if err != nil {
 		slog.Error("magic-link-verify: failed to look up user",
@@ -222,8 +209,13 @@ func (h *AuthHandler) HandleMagicLinkVerify(w http.ResponseWriter, r *http.Reque
 		CreatedAt: now,
 	}
 
-	if err := h.DB.CreateSession(session); err != nil {
-		slog.Error("magic-link-verify: failed to create session",
+	// Atomically mark token as used and create session in one transaction
+	if err := h.DB.RedeemMagicLinkToken(id, session); err != nil {
+		if errors.Is(err, db.ErrTokenAlreadyUsed) {
+			writeJSON(w, http.StatusBadRequest, magicLinkVerifyResponse{Error: "token already used"})
+			return
+		}
+		slog.Error("magic-link-verify: failed to redeem token",
 			"error", err,
 			"request_id", logging.GetRequestID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, magicLinkVerifyResponse{Error: "internal error"})

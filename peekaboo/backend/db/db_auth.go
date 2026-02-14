@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email, created_at);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_lockout ON login_attempts(email, success, created_at);
 `
 
 // User represents a registered user.
@@ -319,6 +320,43 @@ func (db *DB) DeleteUnusedEmailVerificationTokens(userID string) error {
 	return nil
 }
 
+// VerifyEmailWithToken atomically marks a verification token as used and sets the
+// user's email as verified within a single transaction. Returns ErrTokenAlreadyUsed
+// if the token was already consumed.
+func (db *DB) VerifyEmailWithToken(tokenID, userID string) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	result, err := tx.Exec("UPDATE email_verification_tokens SET used = 1 WHERE id = ? AND used = 0", tokenID)
+	if err != nil {
+		return fmt.Errorf("mark verification token used: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("mark verification token used: rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrTokenAlreadyUsed
+	}
+
+	result, err = tx.Exec("UPDATE users SET email_verified = 1, verified_at = CURRENT_TIMESTAMP WHERE id = ?", userID)
+	if err != nil {
+		return fmt.Errorf("set email verified: %w", err)
+	}
+	n, err = result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set email verified: rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+
+	return tx.Commit()
+}
+
 // StoreMagicLinkToken stores a hashed magic link token.
 func (db *DB) StoreMagicLinkToken(id, userID, tokenHash string, expiresAt time.Time) error {
 	_, err := db.conn.Exec(`
@@ -372,6 +410,39 @@ func (db *DB) DeleteUnusedMagicLinkTokens(userID string) error {
 		return fmt.Errorf("delete unused magic link tokens: %w", err)
 	}
 	return nil
+}
+
+// RedeemMagicLinkToken atomically marks a magic link token as used and creates
+// a session within a single transaction. Returns ErrTokenAlreadyUsed if the token
+// was already consumed.
+func (db *DB) RedeemMagicLinkToken(tokenID string, session *Session) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is a no-op
+
+	result, err := tx.Exec("UPDATE magic_link_tokens SET used = 1 WHERE id = ? AND used = 0", tokenID)
+	if err != nil {
+		return fmt.Errorf("mark magic link token used: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("mark magic link token used: rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrTokenAlreadyUsed
+	}
+
+	_, err = tx.Exec(`
+		INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, session.ID, session.UserID, session.TokenHash, session.ExpiresAt, session.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert session: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 // RecordLoginAttempt records a login attempt (success or failure).

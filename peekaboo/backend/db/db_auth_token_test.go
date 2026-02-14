@@ -344,3 +344,112 @@ func TestDeleteExpiredLoginAttempts(t *testing.T) {
 		t.Errorf("deleted = %d, want 3", deleted)
 	}
 }
+
+func TestVerifyEmailWithToken(t *testing.T) {
+	db := openTestDB(t)
+
+	user := &User{
+		ID:           "verify-tx-user",
+		Email:        "verifytx@example.com",
+		PasswordHash: "hash",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	tokenHash := "verify-tx-hash"
+	tokenID := "verify-tx-1"
+	if err := db.StoreEmailVerificationToken(tokenID, user.ID, tokenHash, time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	// Verify atomically marks token + sets email verified
+	if err := db.VerifyEmailWithToken(tokenID, user.ID); err != nil {
+		t.Fatalf("VerifyEmailWithToken failed: %v", err)
+	}
+
+	// Token should be marked used
+	_, _, _, used, err := db.GetEmailVerificationToken(tokenHash)
+	if err != nil {
+		t.Fatalf("GetEmailVerificationToken failed: %v", err)
+	}
+	if !used {
+		t.Error("token should be marked as used")
+	}
+
+	// User should be verified
+	u, err := db.GetUserByEmail(user.Email)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if !u.EmailVerified {
+		t.Error("user email should be verified")
+	}
+
+	// Second call should return ErrTokenAlreadyUsed
+	err = db.VerifyEmailWithToken(tokenID, user.ID)
+	if err != ErrTokenAlreadyUsed {
+		t.Errorf("second VerifyEmailWithToken: expected ErrTokenAlreadyUsed, got %v", err)
+	}
+}
+
+func TestRedeemMagicLinkToken(t *testing.T) {
+	db := openTestDB(t)
+
+	user := &User{
+		ID:           "redeem-tx-user",
+		Email:        "redeemtx@example.com",
+		PasswordHash: "hash",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	tokenID := "redeem-tx-1"
+	if err := db.StoreMagicLinkToken(tokenID, user.ID, "redeem-tx-hash", time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	now := time.Now().UTC()
+	session := &Session{
+		ID:        "redeem-sess-1",
+		UserID:    user.ID,
+		TokenHash: "redeem-session-hash",
+		ExpiresAt: now.Add(24 * time.Hour),
+		CreatedAt: now,
+	}
+
+	// Redeem atomically marks token + creates session
+	if err := db.RedeemMagicLinkToken(tokenID, session); err != nil {
+		t.Fatalf("RedeemMagicLinkToken failed: %v", err)
+	}
+
+	// Token should be marked used
+	_, _, _, used, err := db.GetMagicLinkToken("redeem-tx-hash")
+	if err != nil {
+		t.Fatalf("GetMagicLinkToken failed: %v", err)
+	}
+	if !used {
+		t.Error("token should be marked as used")
+	}
+
+	// Session should exist
+	s, err := db.GetSessionByTokenHash("redeem-session-hash")
+	if err != nil {
+		t.Fatalf("GetSessionByTokenHash failed: %v", err)
+	}
+	if s == nil {
+		t.Fatal("session should exist after redeem")
+	}
+	if s.UserID != user.ID {
+		t.Errorf("session user_id = %q, want %q", s.UserID, user.ID)
+	}
+
+	// Second call should return ErrTokenAlreadyUsed
+	err = db.RedeemMagicLinkToken(tokenID, session)
+	if err != ErrTokenAlreadyUsed {
+		t.Errorf("second RedeemMagicLinkToken: expected ErrTokenAlreadyUsed, got %v", err)
+	}
+}

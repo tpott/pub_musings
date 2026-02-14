@@ -6,6 +6,28 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-14: Deploy script health check port must match systemd service PORT
+
+**Context:** Deep inspection found `BACKEND_PORT=9070` in `deploy-peekaboo-backend.sh` but `PORT=8070` in `peekaboo.service`.
+
+**Impact:** Every deployment health check fails with "Server not responding" even though the backend is running fine on port 8070.
+
+**Fix:** Changed deploy script default from 9070 to 8070 to match the systemd service.
+
+**Lesson:** When systemd services and deployment scripts both reference ports, keep them as a single source of truth or add a startup verification check.
+
+---
+
+### 2026-02-14: Multi-step DB operations with side effects need transactions
+
+**Context:** Email verification consumed the token (MarkEmailVerificationTokenUsed) then set email_verified in a separate query. If the second query failed, the token was consumed but the email wasn't verified — user locked out.
+
+**Fix:** Created `VerifyEmailWithToken` and `RedeemMagicLinkToken` methods that wrap both operations in a single database transaction with `tx.Begin()/tx.Commit()`.
+
+**Lesson:** When consuming a one-time token AND performing a follow-up mutation, wrap both in a transaction. If either fails, the entire operation rolls back.
+
+---
+
 ### 2026-02-11: ARIA radiogroup requires radio semantics or arrow key navigation
 
 **Problem:** Star rating used `role="radiogroup"` on the container but individual star `<button>` elements lacked `role="radio"`, `aria-checked`, and arrow key navigation. Screen readers announced the group as a radiogroup but users couldn't interact with it using the expected arrow key pattern.

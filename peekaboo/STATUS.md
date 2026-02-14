@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 320 tasks completed.
+Production-ready voice-controlled web app for children. 323 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,10 @@ Production-ready voice-controlled web app for children. 320 tasks completed.
 
 ## Last Completed
 
+- Tasks 365-367 (2026-02-14): Deep inspection round 29 — deploy fix + DB hardening:
+  - Task 365: Fix deploy script health check port mismatch (9070→8070 to match systemd service)
+  - Task 366: Add composite index on login_attempts(email, success, created_at) for lockout query
+  - Task 367: Add DB transactions for email verification (VerifyEmailWithToken) and magic link (RedeemMagicLinkToken) — prevents consumed-but-unused token state on partial failures
 - Tasks 363-364 (2026-02-14): Deep inspection round 28 — two hardening fixes:
   - Task 363: Add io.LimitReader to saveUploadedFile for per-file size enforcement (defense-in-depth)
   - Task 364: Enable PRAGMA foreign_keys = ON in SQLite configuration

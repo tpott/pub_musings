@@ -284,22 +284,13 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Atomically mark token as used (prevents TOCTOU race with concurrent requests)
-	if err := h.DB.MarkEmailVerificationTokenUsed(id); err != nil {
+	// Atomically mark token as used and verify email in one transaction
+	if err := h.DB.VerifyEmailWithToken(id, userID); err != nil {
 		if errors.Is(err, db.ErrTokenAlreadyUsed) {
 			writeJSON(w, http.StatusBadRequest, verifyResponse{Error: "token already used"})
 			return
 		}
-		slog.Error("verify: failed to mark token used",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-		writeJSON(w, http.StatusInternalServerError, verifyResponse{Error: "internal error"})
-		return
-	}
-
-	// Set user as verified
-	if err := h.DB.SetEmailVerified(userID); err != nil {
-		slog.Error("verify: failed to set email verified",
+		slog.Error("verify: failed to verify email",
 			"error", err,
 			"request_id", logging.GetRequestID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, verifyResponse{Error: "internal error"})

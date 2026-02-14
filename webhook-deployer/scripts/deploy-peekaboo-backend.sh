@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Backend port - should match PORT in peekaboo.service
-BACKEND_PORT="${BACKEND_PORT:-9070}"
+BACKEND_PORT="${BACKEND_PORT:-8070}"
 
 cd /home/trevor/pub_musings
 git fetch origin
