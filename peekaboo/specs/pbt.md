@@ -2,181 +2,289 @@
 
 ## Context
 
-Peekaboo is a voice-controlled children's app where a child says "show me a cat" and sees a photo. The existing e2e tests use **mocked** APIs and pre-recorded audio fixtures. There is no way to write simple, human-readable integration tests that exercise the **real** Piper TTS + Whisper STT + LLM pipeline.
+Peekaboo is a voice-controlled children's app where a child says "show me a cat"
+and sees a photo. The existing e2e tests use **mocked** APIs and pre-recorded audio
+fixtures. There is no way to write simple, human-readable integration tests that
+exercise the **real** Piper TTS + Whisper STT + LLM pipeline.
 
-PBT is a DSL-driven test tool that lets you write scripts like:
+PBT is a set of Playwright helper methods that let you write tests like:
 
-```
-say show me a cat
-assert media cat
-assert no tts
-```
-
-It synthesizes real audio via Piper, feeds it through the app's real WebSocket pipeline (Whisper STT -> LLM intent -> media lookup), and asserts on the results using Playwright.
-
-## DSL Syntax
-
-```
-# Comments start with #
-wait <duration>                  # e.g. wait 2s, wait 500ms
-say <text>                       # synthesize audio, inject into app
-assert media <subject>           # media-image visible with subject in src
-assert no media                  # no media-image visible
-assert tts [contains <text>]     # tts_audio WS message received
-assert no tts                    # no tts_audio WS message received
-assert transcript <text>         # transcript display contains text
-assert error [<text>]            # error WS message received
-clear                            # reset captured WS messages
+```typescript
+test('show me a cat displays cat media', async ({ page }) => {
+  const pbt = await createPBT(page);
+  await pbt.say('show me a cat');
+  await pbt.assertMedia('cat');
+  await pbt.assertNoTTS();
+});
 ```
 
-Assertions poll with a configurable timeout (default 30s), so explicit `wait` after `say` is usually unnecessary.
+It synthesizes real audio via Piper, feeds it through the app's real WebSocket
+pipeline (Whisper STT -> LLM intent -> media lookup), and asserts on the results.
+
+## Test API
+
+### PBTRunner methods
+
+```typescript
+// Create runner. Reads PIPER_SERVER_URL from env.
+// Skips test if Piper is unavailable.
+createPBT(page: Page, opts?: { timeout?: number }) => Promise<PBTRunner>
+
+// --- Input ---
+pbt.say(text: string)         // Synthesize via Piper, inject audio, click mic
+pbt.sayFixture(filename: string) // Use pre-recorded .webm from tests/fixtures/
+
+// --- Assertions (all poll with timeout, default 30s) ---
+pbt.assertMedia(subject: string)         // media-image visible, src contains subject
+pbt.assertNoMedia()                      // no media-image visible
+pbt.assertTTS(contains?: string)         // tts_audio WS message received
+pbt.assertNoTTS()                        // no tts_audio WS message in buffer
+pbt.assertTranscript(text: string)       // transcript display contains text
+pbt.assertError(text?: string)           // error WS message received
+
+// --- Utilities ---
+pbt.clear()   // Reset captured WS message buffer (for multi-command tests)
+```
+
+### Example tests
+
+```typescript
+// frontend/tests/pbt/show-cat.spec.ts
+import { test } from '@playwright/test';
+import { createPBT } from '../helpers/pbt/runner';
+
+test('show me a cat displays cat media', async ({ page }) => {
+  const pbt = await createPBT(page);
+  await pbt.say('show me a cat');
+  await pbt.assertMedia('cat');
+  await pbt.assertTranscript('cat');
+  await pbt.assertNoTTS();
+});
+
+// frontend/tests/pbt/show-unknown.spec.ts
+test('unknown subject triggers TTS fallback', async ({ page }) => {
+  const pbt = await createPBT(page);
+  await pbt.say('what is the weather today');
+  await pbt.assertNoMedia();
+  await pbt.assertTTS();
+});
+
+// frontend/tests/pbt/two-commands.spec.ts
+test('two sequential voice commands', async ({ page }) => {
+  const pbt = await createPBT(page);
+  await pbt.say('show me a cat');
+  await pbt.assertMedia('cat');
+  await pbt.clear();
+  await pbt.say('show me a dog');
+  await pbt.assertMedia('dog');
+});
+
+// frontend/tests/pbt/fixture-cat.spec.ts
+// Works without Piper — uses pre-recorded audio
+test('show cat from fixture', async ({ page }) => {
+  const pbt = await createPBT(page);
+  await pbt.sayFixture('me-show-me-a-cat.webm');
+  await pbt.assertMedia('cat');
+});
+```
 
 ## Architecture
 
 ```
-.pbt script  -->  DSL Parser  -->  commands[]
-                                      |
-                              Pre-synthesize audio:
-                              Piper (text->WAV) + ffmpeg (WAV->WebM/Opus)
-                                      |
-                              Build RecordingSessions
-                              (one session per "say" command)
-                                      |
-                              Inject into Playwright page:
-                              - ScriptedMediaRecorder (replays audio)
-                              - WebSocket observer (captures server msgs)
-                                      |
-                              Execute commands sequentially:
-                              say -> click mic, chunks flow, backend auto-processes
-                              wait -> page.waitForTimeout()
-                              assert -> Playwright expect() with polling
-                              clear -> reset WS message buffer
+Test calls pbt.say("show me a cat")
+    |
+    v
+Piper HTTP API: text -> WAV bytes
+    |
+    v
+ffmpeg: WAV -> WebM/Opus
+    |
+    v
+Split into 4KB base64 chunks
+    |
+    v
+Inject ScriptedMediaRecorder via addInitScript (first say)
+  or push session via page.evaluate (subsequent says)
+    |
+    v
+Navigate to page (first say only)
+    |
+    v
+Click mic button -> ScriptedMediaRecorder emits chunks
+    |
+    v
+Real WebSocket -> real backend -> Whisper -> LLM -> response
+    |
+    v
+Assertions poll DOM / captured WS messages
 ```
 
-### How `say` works
+### How `say()` works
 
-Each `say` = one mic start/stop cycle. The ScriptedMediaRecorder holds pre-synthesized audio for each session. On each `start(500)` call, it advances to the next session and emits chunks at 500ms intervals.
+**First call** in a test:
+1. Synthesize audio: Piper (text -> WAV) + ffmpeg (WAV -> WebM/Opus)
+2. Split WebM into 4KB base64 chunks
+3. `page.addInitScript()` to inject ScriptedMediaRecorder + WS observer
+4. Set `window.__PBT_SESSIONS__ = [chunks]`
+5. `page.goto('/')`
+6. Click mic -> ScriptedMediaRecorder emits chunks at 500ms intervals
+7. Backend buffer threshold fires after 3s, sends to Whisper
 
-1. If mic is currently recording, click to stop first
-2. Click mic to start -> `ScriptedMediaRecorder.start(500)` emits WebM chunks
-3. Backend's buffer threshold fires after 3s, sends audio to Whisper
-4. Whisper transcribes -> LLM extracts intent -> media/TTS response sent back
-5. Assertions poll for expected state (up to 30s timeout)
+**Subsequent calls** in the same test:
+1. Synthesize + chunk audio (same as above)
+2. `page.evaluate()` to push new session to `window.__PBT_SESSIONS__`
+3. If recorder is active, click mic to stop
+4. Click mic to start -> ScriptedMediaRecorder advances to next session
 
-### How assertions work
+### How `sayFixture()` works
 
-- **DOM assertions** (`assert media`, `assert transcript`): Playwright `expect(locator)` with timeout
-- **WS assertions** (`assert tts`, `assert no tts`, `assert error`): Read captured messages from `window.__PBT_WS_MESSAGES__` via `page.evaluate()`
-- **`clear`**: Resets `__PBT_WS_MESSAGES__` array for multi-command tests
+Same as `say()` but reads the .webm file from `tests/fixtures/` instead of
+calling Piper + ffmpeg. Useful for:
+- Running tests when Piper is unavailable
+- Deterministic audio (no TTS variance)
+
+### ScriptedMediaRecorder
+
+Injected via `addInitScript()`. Reads sessions from `window.__PBT_SESSIONS__`
+(an array of `string[][]` — array of sessions, each session is an array of
+base64 chunks). On each `start(500)` call, advances to the next session and
+emits chunks at 500ms intervals. On `stop()`, flushes remaining chunks.
+
+This is the same pattern as `FileMediaRecorder` in `real-services.spec.ts`
+but generalized to support multiple sequential sessions.
+
+### WS observer
+
+Injected via `addInitScript()`. Wraps `WebSocket` constructor to intercept
+incoming messages. Stores parsed JSON messages in `window.__PBT_WS_MESSAGES__`.
+Exposes `window.__PBT_CLEAR_MESSAGES__()` for the `clear()` method.
 
 ## Files to Create
 
-### 1. `frontend/tests/helpers/pbt/types.ts` (~60 lines)
-Type definitions: DSL command types, `SynthesizedAudio`, `RecordingSession`, `PBTConfig`.
+### Helpers (`frontend/tests/helpers/pbt/`)
 
-### 2. `frontend/tests/helpers/pbt/dsl-parser.ts` (~120 lines)
-Line-by-line regex parser. `parsePBTFile(path) -> PBTScript`. `parseDuration("2s") -> {ms: 2000}`.
+**`types.ts`** (~40 lines)
+- `PBTConfig`: `{ piperUrl: string, timeout: number }`
+- `SynthesizedAudio`: `{ text: string, chunks: string[] }`
 
-### 3. `frontend/tests/helpers/pbt/piper-client.ts` (~40 lines)
-`synthesizeWAV(text, config) -> Buffer`. POST JSON `{text, length_scale}` to Piper server (same protocol as `backend/tts/piper.go`). Returns WAV bytes.
+**`piper-client.ts`** (~40 lines)
+- `synthesizeWAV(text: string, piperUrl: string): Promise<Buffer>`
+- POST `{ text, length_scale: 1.0 }` to Piper server, returns WAV bytes
+- Same protocol as `backend/tts/piper.go` Synthesize method
 
-### 4. `frontend/tests/helpers/pbt/audio-pipeline.ts` (~80 lines)
-- `wavToWebmOpus(wav: Buffer) -> Buffer` via `execFileSync('ffmpeg', ['-i','pipe:0','-c:a','libopus','-b:a','32k','-ar','16000','-ac','1','-f','webm','pipe:1'])`
-- `splitIntoBase64Chunks(webm: Buffer) -> string[]` (4KB chunks, matching `real-services.spec.ts` pattern)
-- `synthesizeAndChunk(text, config) -> SynthesizedAudio` (full pipeline)
+**`audio-pipeline.ts`** (~60 lines)
+- `wavToWebmOpus(wav: Buffer): Buffer` — ffmpeg via `execFileSync`
+- `splitIntoChunks(webm: Buffer, chunkSize?: number): string[]` — 4KB base64 chunks
+- `synthesizeAndChunk(text: string, piperUrl: string): Promise<SynthesizedAudio>`
+- `fixtureToChunks(fixturePath: string): string[]`
 
-### 5. `frontend/tests/helpers/pbt/scripted-recorder.ts` (~120 lines)
-`getScriptedRecorderScript(sessions: RecordingSession[])` returns a function for `page.addInitScript()`. Replaces `window.MediaRecorder` with a class that:
-- Tracks a session index (advances on each `start()` call)
-- Emits pre-loaded base64 chunks at `timeslice` intervals via `setInterval`
-- On `stop()`, flushes remaining chunks synchronously (matching existing `FileMediaRecorder` pattern from `real-services.spec.ts:82-122`)
+**`scripted-recorder.ts`** (~80 lines)
+- `getScriptedRecorderScript(): () => void` for `page.addInitScript()`
+- Defines ScriptedMediaRecorder class that reads from `window.__PBT_SESSIONS__`
+- Defines mock `getUserMedia` returning a mock stream
 
-### 6. `frontend/tests/helpers/pbt/ws-observer.ts` (~40 lines)
-`getWSObserverScript()` returns a function for `page.addInitScript()`. Extends `WebSocket` class, adds `addEventListener('message', ...)` in constructor to capture all incoming JSON messages into `window.__PBT_WS_MESSAGES__`. Exposes `window.__PBT_CLEAR_MESSAGES__()`.
+**`ws-observer.ts`** (~40 lines)
+- `getWSObserverScript(): () => void` for `page.addInitScript()`
+- Wraps WebSocket to capture incoming JSON messages
+- `window.__PBT_WS_MESSAGES__` and `window.__PBT_CLEAR_MESSAGES__()`
 
-### 7. `frontend/tests/helpers/pbt/runner.ts` (~250 lines)
-Core orchestrator:
-- `loadConfig()`: reads `PIPER_SERVER_URL`, `PBT_APP_URL`, `PBT_ASSERT_TIMEOUT` from env
-- `presynthesizeAudio(script, config)`: parallel Piper+ffmpeg for all `say` commands
-- `buildRecordingSessions(script, audioMap)`: one session per `say`
-- `executePBTScript(page, script, config)`: inject scripts, navigate, execute commands
-- `executeCommand()`: dispatch per command type
-- Assertion functions: `assertMedia`, `assertNoMedia`, `assertTTS`, `assertNoTTS`, `assertTranscript`, `assertError`
+**`runner.ts`** (~150 lines)
+- `createPBT(page, opts?)` factory function
+- `PBTRunner` class with all methods described in Test API
+- Handles first-say vs subsequent-say injection logic
+- All assertion methods use Playwright `expect()` with configurable timeout
 
-### 8. `frontend/tests/pbt/pbt.config.ts` (~25 lines)
-Playwright config: `testDir: '.'`, `workers: 1`, `timeout: 120000`, no `webServer` (assumes services running).
+### Tests (`frontend/tests/pbt/`)
 
-### 9. `frontend/tests/pbt/pbt-runner.spec.ts` (~50 lines)
-Discovers `.pbt` files from `tests/pbt/`, creates one Playwright test per file. Skips if `PIPER_SERVER_URL` not set.
+**`pbt.config.ts`** (~25 lines)
+- Separate Playwright config: `workers: 1`, `timeout: 120_000`
+- No `webServer` — assumes backend + frontend already running
 
-### 10. `tests/pbt/show-cat.pbt`
-```
-# Basic: say "show me a cat", verify cat media
-say show me a cat
-assert media cat
-assert transcript cat
-assert no tts
-```
+**`show-cat.spec.ts`** (~15 lines)
+**`show-unknown.spec.ts`** (~15 lines)
+**`two-commands.spec.ts`** (~20 lines)
+**`fixture-cat.spec.ts`** (~15 lines)
 
-### 11. `tests/pbt/show-unknown.pbt`
-```
-# Unknown subject should trigger TTS fallback
-say what is the weather today
-assert no media
-assert tts
-```
+### Package script
 
-### 12. `tests/pbt/two-commands.pbt`
-```
-# Two sequential voice commands
-say show me a cat
-assert media cat
-clear
-say show me a dog
-assert media dog
-```
-
-### 13. `frontend/package.json` - add script
+`frontend/package.json` — add:
 ```json
 "test:pbt": "playwright test --config tests/pbt/pbt.config.ts"
 ```
 
-## Key Patterns Reused
+## Patterns Reused
 
-| Pattern | Source File | Reuse |
-|---------|-----------|-------|
-| FileMediaRecorder (chunk loading, start/stop, base64->Uint8Array) | `frontend/tests/e2e/real-services.spec.ts:32-85` | ScriptedMediaRecorder extends this pattern |
-| Mock getUserMedia + stream | `frontend/tests/helpers/mock-media-recorder.ts:124-131` | Same mock stream object |
-| Piper HTTP protocol | `backend/tts/piper.go:69-116` | Same JSON request format |
-| WebM chunk splitting | `real-services.spec.ts:20-24` | Same 4KB chunk size |
+| Pattern | Source | Reuse |
+|---------|--------|-------|
+| FileMediaRecorder | `real-services.spec.ts` injectFileMediaRecorder | ScriptedMediaRecorder generalizes this |
+| Mock getUserMedia | `mock-media-recorder.ts` | Same mock stream object |
+| Piper HTTP protocol | `backend/tts/piper.go` Synthesize method | Same JSON request format |
+| WebM chunk splitting | `real-services.spec.ts` | Same 4KB chunk size |
+
+## Implementation Tasks (test-first order)
+
+1. **Write the test files** — `show-cat.spec.ts`, `fixture-cat.spec.ts`, etc.
+   These define the API contract. They won't compile yet.
+
+2. **Write `types.ts`** — type definitions referenced by tests and helpers.
+
+3. **Write `pbt.config.ts`** — so Playwright can discover the test files.
+
+4. **Write `piper-client.ts`** — HTTP client for Piper TTS.
+   Verify: call Piper directly from a Node script, confirm WAV bytes returned.
+
+5. **Write `audio-pipeline.ts`** — ffmpeg WAV->WebM + chunking.
+   Verify: convert a WAV to WebM, compare chunk count to existing fixture.
+
+6. **Write `ws-observer.ts`** — WebSocket message capture script.
+
+7. **Write `scripted-recorder.ts`** — multi-session MediaRecorder mock.
+
+8. **Write `runner.ts`** — PBTRunner class tying everything together.
+   Verify: `fixture-cat.spec.ts` passes (needs backend + frontend + whisper).
+
+9. **Verify Piper-based tests** — `show-cat.spec.ts` passes
+   (needs backend + frontend + whisper + piper).
+
+10. **Add `test:pbt` script** to `frontend/package.json`.
 
 ## Prerequisites
 
 - Backend running (port 8080)
 - Frontend dev server running (port 4321)
 - Whisper server running (`WHISPER_SERVER_URL`)
-- Piper server running (`PIPER_SERVER_URL`)
-- `ffmpeg` with `libopus` codec in PATH
+- ffmpeg with libopus in PATH (confirmed available)
+- Piper server running (`PIPER_SERVER_URL`) — only for `say()`, not `sayFixture()`
+
+## Environment Setup
+
+PBT helpers read service URLs from environment variables. Source the project
+`.env` before running:
+
+```bash
+# Load environment (from project root)
+source .env
+
+# Or export individually
+export PIPER_SERVER_URL=http://10.0.2.2:8051
+export WHISPER_SERVER_URL=http://10.0.2.2:8050
+```
+
+The `pbt.config.ts` Playwright config does NOT start services — backend,
+frontend, Whisper, and Piper must already be running.
+
+Fixture-based tests (`sayFixture`) need Whisper + backend + frontend.
+Piper-based tests (`say`) additionally need Piper.
 
 ## Verification
 
 ```bash
-# Run all pbt tests
-cd frontend && PIPER_SERVER_URL=http://localhost:5000 npm run test:pbt
+# Run all pbt tests (needs all services)
+cd frontend && npm run test:pbt
+
+# Run fixture-only tests (no Piper needed)
+cd frontend && npx playwright test --config tests/pbt/pbt.config.ts fixture-cat
 
 # Run a specific test
-cd frontend && PIPER_SERVER_URL=http://localhost:5000 npx playwright test --config tests/pbt/pbt.config.ts --grep "show-cat"
+cd frontend && npx playwright test --config tests/pbt/pbt.config.ts --grep "show.*cat"
 ```
-
-## Implementation Order
-
-1. `types.ts` (no deps)
-2. `dsl-parser.ts` (depends on types)
-3. `piper-client.ts` (depends on types)
-4. `audio-pipeline.ts` (depends on piper-client)
-5. `ws-observer.ts` (standalone browser script)
-6. `scripted-recorder.ts` (depends on types)
-7. `runner.ts` (depends on all above)
-8. `pbt.config.ts` + `pbt-runner.spec.ts`
-9. `.pbt` example scripts
-10. `package.json` script addition
