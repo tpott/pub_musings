@@ -6,10 +6,10 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 602 tests across 45 test files
+- **Backend (Go)**: 610 tests across 46 test files
 - **Frontend (TypeScript)**: 900 tests across 34 test files
 - **E2E (Playwright)**: 71 scenarios across 7 spec files (66 active, 5 permanently skipped)
-- **Total**: 1,573 tests
+- **Total**: 1,581 tests
 
 ## Backend Tests
 
@@ -50,6 +50,7 @@ go test -run TestAuthLogin -v
 | `helpers_test.go` | main | Helper function tests |
 | `video_helpers_test.go` | main | Video helper function tests |
 | `goroutine_test.go` | main | Goroutine management tests |
+| `scheduler_test.go` | main | Scheduler cleanup tests (video/session/token expiry, orphan chunks) |
 | `align/align_test.go` | align | Transcript alignment algorithm |
 | `align/lyrics_test.go` | align | Lyrics mode alignment tests |
 | `audio/audio_test.go` | audio | Audio extraction and magic byte validation |

@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**510 tasks completed** as of 2026-02-14.
+**513 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
+- **Backend:** Go server (52 source files, ~16,100 lines total), 610 tests across 46 files
 - **Frontend:** Astro/TypeScript, 900 tests across 34 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,573 tests, 35 specification documents
+- **Total:** 1,581 tests, 35 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,11 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 501-503, 511: Code quality and scheduler tests (2026-02-14)
+- **Task 501:** Replaced `(window as any)` casts with proper `Window` interface declarations in `global.d.ts`. Covers `currentVideoId` and `cookieConsent`. 4 files cleaned
+- **Task 502:** Fixed `any[]` type in `upload.astro` `handleSubtitleOpen` — now uses `TranscriptionSegment[]`
+- **Task 503:** Added 8 scheduler cleanup tests in `scheduler_test.go` — covers expired videos, sessions, auth tokens, upload sessions, orphan chunk dirs, and preservation of non-expired items. 610 backend tests across 46 files
 
 ### Task 511: Edit UI timing adjustment buttons (2026-02-14)
 - Added `adjustSegmentTime` function to `segment-editor.ts` — nudges start/end by 0.1s (0.5s with Shift)
