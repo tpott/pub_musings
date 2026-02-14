@@ -6,6 +6,16 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-14: Multi-step file+DB operations need cleanup on partial failure
+
+**Context:** `HandleUploadMedia` saves photo, audio, and video files to disk, then inserts a DB record. If the DB insert fails, the files are orphaned — they exist on disk with no corresponding database row.
+
+**Fix:** Track saved file paths as you go. On any failure after saving files, call a cleanup function to remove them and the (now-empty) set directory.
+
+**Rule:** When a handler writes files then persists metadata to a DB, always have a cleanup path for the files if the DB operation fails. Track what was written and remove it on error.
+
+---
+
 ### 2026-02-14: SQLite INSERT OR IGNORE does NOT suppress FK violations
 
 **Context:** `SeedMediaSet` uses `INSERT OR IGNORE INTO media_sets`. One might assume `OR IGNORE` silently swallows all constraint errors. However, SQLite's `ON CONFLICT` clause (which `OR IGNORE` maps to) only applies to UNIQUE, NOT NULL, CHECK, and PRIMARY KEY constraints — **not** FOREIGN KEY constraints. FK violations always abort the statement regardless of `OR IGNORE`.

@@ -34,6 +34,8 @@ ENV_FILE = PROJECT_DIR / ".env"
 
 REQUIRED_KEYS = ("PROD_HOST", "API_SESSION_ID")
 
+MAX_RESPONSE_SIZE = 1024 * 1024  # 1 MB
+
 # Constraints
 MAX_AUDIO_DURATION = 5.0   # seconds
 MAX_VIDEO_DURATION = 10.0  # seconds
@@ -238,7 +240,7 @@ def fetch_csrf_token(host: str, session_id: str) -> str:
     req.add_header("User-Agent", "peekaboo-admin/1.0")
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(resp.read(MAX_RESPONSE_SIZE).decode("utf-8"))
             return data.get("token", "")
     except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
         return ""
@@ -294,7 +296,7 @@ def upload_media(host: str, session_id: str, concept_id: str,
 
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(resp.read(MAX_RESPONSE_SIZE).decode("utf-8"))
             print(f"\nUploaded successfully!")
             print(f"  Concept: {data.get('concept_id')}")
             print(f"  Set: {data.get('set')}")
@@ -307,7 +309,7 @@ def upload_media(host: str, session_id: str, concept_id: str,
     except urllib.error.HTTPError as e:
         body_text = ""
         if e.fp:
-            body_text = e.fp.read().decode("utf-8", errors="replace")
+            body_text = e.fp.read(MAX_RESPONSE_SIZE).decode("utf-8", errors="replace")
 
         if e.code == 401:
             print("Error: Authentication failed (401). Check API_SESSION_ID.", file=sys.stderr)

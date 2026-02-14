@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 330 tasks completed.
+Production-ready voice-controlled web app for children. 333 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,10 @@ Production-ready voice-controlled web app for children. 330 tasks completed.
 
 ## Last Completed
 
+- Tasks 377-379 (2026-02-14): Deep inspection round 35 — orphaned file cleanup, script hardening, lint strictness:
+  - Task 377: Fix orphaned files on failed DB insert in HandleUploadMedia — track saved file paths, clean up on failure. 3 new cleanupFiles unit tests.
+  - Task 378: Add MAX_RESPONSE_SIZE (1MB) limits to resp.read() calls in add-concept.py and upload-media.py (7 call sites total).
+  - Task 379: Upgrade scripts/lint.sh from set -e to set -euo pipefail for stricter error handling.
 - Task 376 (2026-02-14): Deep inspection round 34 — form accessibility ARIA attributes:
   - Task 376: Add role="alert" to all 8 field-error divs, aria-describedby linking inputs to error divs, and aria-invalid toggling in showFieldError/clearFieldError across login.astro, register.astro, settings.astro. 3 new E2E tests verify attributes.
 - Task 375 (2026-02-14): Deep inspection round 33 — FK enforcement test + docs fix:

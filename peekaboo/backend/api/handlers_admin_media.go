@@ -183,6 +183,9 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Track saved files for cleanup on failure
+	var savedFiles []string
+
 	// Save photo
 	photoFileName := "photo" + photoExt
 	photoPath := filepath.Join(setDir, photoFileName)
@@ -194,6 +197,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to save photo"})
 		return
 	}
+	savedFiles = append(savedFiles, photoPath)
 
 	// Database paths (relative, matching seedMediaFromDisk convention)
 	dbPhotoPath := filepath.Join("data/media", conceptID, setName, photoFileName)
@@ -209,9 +213,11 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 				"error", err,
 				"path", audioPath,
 				"request_id", logging.GetRequestID(r.Context()))
+			cleanupFiles(savedFiles, setDir)
 			writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to save audio"})
 			return
 		}
+		savedFiles = append(savedFiles, audioPath)
 		dbAudioPath = filepath.Join("data/media", conceptID, setName, audioFileName)
 	}
 
@@ -224,9 +230,11 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 				"error", err,
 				"path", videoPath,
 				"request_id", logging.GetRequestID(r.Context()))
+			cleanupFiles(savedFiles, setDir)
 			writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to save video"})
 			return
 		}
+		savedFiles = append(savedFiles, videoPath)
 		dbVideoPath = filepath.Join("data/media", conceptID, setName, videoFileName)
 	}
 
@@ -236,6 +244,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 			"error", err,
 			"concept_id", conceptID,
 			"request_id", logging.GetRequestID(r.Context()))
+		cleanupFiles(savedFiles, setDir)
 		writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to register media set"})
 		return
 	}
@@ -262,6 +271,17 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+// cleanupFiles removes saved files and the set directory on upload failure.
+func cleanupFiles(paths []string, setDir string) {
+	for _, p := range paths {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			slog.Warn("admin media: failed to clean up file", "path", p, "error", err)
+		}
+	}
+	// Remove the set directory if empty (best-effort)
+	_ = os.Remove(setDir)
 }
 
 // saveUploadedFile writes the contents of an uploaded file to disk.

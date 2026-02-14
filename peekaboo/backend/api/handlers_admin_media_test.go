@@ -322,3 +322,73 @@ func TestUploadMedia_DatabaseRecordCreated(t *testing.T) {
 		t.Errorf("DB photo_path = %q, want data/media/cat/set1/photo.jpg", ms.PhotoPath)
 	}
 }
+
+func TestCleanupFiles_RemovesFilesAndEmptyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	setDir := filepath.Join(tmpDir, "cat", "set1")
+	if err := os.MkdirAll(setDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Create some files
+	photoPath := filepath.Join(setDir, "photo.jpg")
+	audioPath := filepath.Join(setDir, "audio.mp3")
+	for _, p := range []string{photoPath, audioPath} {
+		if err := os.WriteFile(p, []byte("test"), 0644); err != nil {
+			t.Fatalf("WriteFile %s: %v", p, err)
+		}
+	}
+
+	cleanupFiles([]string{photoPath, audioPath}, setDir)
+
+	// Files should be removed
+	for _, p := range []string{photoPath, audioPath} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("Expected %s to be removed", p)
+		}
+	}
+
+	// Empty set directory should also be removed
+	if _, err := os.Stat(setDir); !os.IsNotExist(err) {
+		t.Errorf("Expected empty set directory %s to be removed", setDir)
+	}
+}
+
+func TestCleanupFiles_LeavesNonEmptyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	setDir := filepath.Join(tmpDir, "cat", "set1")
+	if err := os.MkdirAll(setDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Create files — only clean up one, leave the other
+	photoPath := filepath.Join(setDir, "photo.jpg")
+	otherFile := filepath.Join(setDir, "other.txt")
+	for _, p := range []string{photoPath, otherFile} {
+		if err := os.WriteFile(p, []byte("test"), 0644); err != nil {
+			t.Fatalf("WriteFile %s: %v", p, err)
+		}
+	}
+
+	cleanupFiles([]string{photoPath}, setDir)
+
+	// Cleaned file should be gone
+	if _, err := os.Stat(photoPath); !os.IsNotExist(err) {
+		t.Errorf("Expected %s to be removed", photoPath)
+	}
+
+	// Directory should remain (still has other.txt)
+	if _, err := os.Stat(setDir); os.IsNotExist(err) {
+		t.Error("Expected set directory to remain (not empty)")
+	}
+}
+
+func TestCleanupFiles_NonexistentFilesNoError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Cleaning up nonexistent files should not panic or error
+	cleanupFiles([]string{
+		filepath.Join(tmpDir, "does-not-exist.jpg"),
+		filepath.Join(tmpDir, "also-missing.mp3"),
+	}, filepath.Join(tmpDir, "no-such-dir"))
+}

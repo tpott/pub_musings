@@ -28,6 +28,8 @@ ENV_FILE = PROJECT_DIR / ".env"
 
 REQUIRED_KEYS = ("PROD_HOST", "API_SESSION_ID")
 
+MAX_RESPONSE_SIZE = 1024 * 1024  # 1 MB
+
 
 def load_env_file(path: Path) -> dict[str, str]:
     """Parse a KEY=VALUE file, ignoring comments and blank lines."""
@@ -66,7 +68,7 @@ def fetch_csrf_token(host: str, session_id: str) -> str:
     req.add_header("User-Agent", "peekaboo-admin/1.0")
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(resp.read(MAX_RESPONSE_SIZE).decode("utf-8"))
             return data.get("token", "")
     except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
         return ""
@@ -90,14 +92,14 @@ def create_concept(host: str, session_id: str, concept_id: str, name: str) -> in
 
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
-            body = resp.read().decode("utf-8")
+            body = resp.read(MAX_RESPONSE_SIZE).decode("utf-8")
             data = json.loads(body)
             print(f"Created concept: {data.get('id')} ({data.get('name')})")
             return 0
     except urllib.error.HTTPError as e:
         body = ""
         if e.fp:
-            body = e.fp.read().decode("utf-8", errors="replace")
+            body = e.fp.read(MAX_RESPONSE_SIZE).decode("utf-8", errors="replace")
 
         if e.code == 401:
             print("Error: Authentication failed (401). Check API_SESSION_ID.", file=sys.stderr)
