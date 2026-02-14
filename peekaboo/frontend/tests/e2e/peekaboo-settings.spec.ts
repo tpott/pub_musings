@@ -192,6 +192,47 @@ test.describe('Settings: TOTP Setup Flow', () => {
     await expect(page.locator('#setup-error')).toContainText('invalid TOTP code');
   });
 
+  test('TOTP setup field errors have ARIA attributes for screen readers', async ({ page }) => {
+    await mockMeEndpoint(page, true);
+    await mockCSRFEndpoint(page);
+
+    await page.route('**/api/auth/totp/setup', route => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          secret: 'JBSWY3DPEBLW64TMMQ',
+          uri: 'otpauth://totp/Peekaboo:test@example.com?secret=JBSWY3DPEBLW64TMMQ',
+        }),
+      });
+    });
+
+    await page.goto('/settings');
+    await expect(page.locator('#account-info')).toBeVisible({ timeout: 5000 });
+
+    // Verify ARIA attributes on field errors
+    await expect(page.locator('#totp-code-error')).toHaveAttribute('role', 'alert');
+    await expect(page.locator('#setup-password-error')).toHaveAttribute('role', 'alert');
+    await expect(page.locator('#disable-password-error')).toHaveAttribute('role', 'alert');
+
+    // Verify inputs have aria-describedby
+    await expect(page.locator('#totp-code')).toHaveAttribute('aria-describedby', 'totp-code-error');
+    await expect(page.locator('#setup-password')).toHaveAttribute('aria-describedby', 'setup-password-error');
+    await expect(page.locator('#disable-password')).toHaveAttribute('aria-describedby', 'disable-password-error');
+
+    // Start setup flow and trigger validation
+    await page.click('#setup-totp-btn');
+    await expect(page.locator('#totp-setup-flow')).toBeVisible({ timeout: 5000 });
+
+    // Submit with empty code
+    await page.click('#verify-totp-btn');
+    await expect(page.locator('#totp-code')).toHaveAttribute('aria-invalid', 'true');
+
+    // Typing clears aria-invalid
+    await page.fill('#totp-code', '1');
+    await expect(page.locator('#totp-code')).not.toHaveAttribute('aria-invalid');
+  });
+
   test('cancel setup hides the flow', async ({ page }) => {
     await mockMeEndpoint(page, true);
     await mockCSRFEndpoint(page);

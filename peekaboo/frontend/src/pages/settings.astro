@@ -103,8 +103,9 @@ import '../styles/global.css';
                     maxlength="6"
                     autocomplete="one-time-code"
                     placeholder="000000"
+                    aria-describedby="totp-code-error"
                   />
-                  <div class="field-error hidden" id="totp-code-error"></div>
+                  <div class="field-error hidden" id="totp-code-error" role="alert"></div>
                 </div>
 
                 <div class="form-group">
@@ -114,8 +115,9 @@ import '../styles/global.css';
                     id="setup-password"
                     autocomplete="current-password"
                     placeholder="Enter your password"
+                    aria-describedby="setup-password-error"
                   />
-                  <div class="field-error hidden" id="setup-password-error"></div>
+                  <div class="field-error hidden" id="setup-password-error" role="alert"></div>
                 </div>
 
                 <button type="submit" class="btn-submit" id="verify-totp-btn">
@@ -144,8 +146,9 @@ import '../styles/global.css';
                   id="disable-password"
                   autocomplete="current-password"
                   placeholder="Enter your password"
+                  aria-describedby="disable-password-error"
                 />
-                <div class="field-error hidden" id="disable-password-error"></div>
+                <div class="field-error hidden" id="disable-password-error" role="alert"></div>
               </div>
 
               <button type="submit" class="btn-danger" id="confirm-disable-btn">
@@ -243,14 +246,16 @@ import '../styles/global.css';
     el.classList.add('hidden');
   }
 
-  function showFieldError(el: HTMLDivElement, message: string): void {
+  function showFieldError(el: HTMLDivElement, input: HTMLInputElement, message: string): void {
     el.textContent = message;
     el.classList.remove('hidden');
+    input.setAttribute('aria-invalid', 'true');
   }
 
-  function clearFieldError(el: HTMLDivElement): void {
+  function clearFieldError(el: HTMLDivElement, input: HTMLInputElement): void {
     el.textContent = '';
     el.classList.add('hidden');
+    input.removeAttribute('aria-invalid');
   }
 
   function updateTOTPDisplay(enabled: boolean): void {
@@ -400,21 +405,21 @@ import '../styles/global.css';
   totpVerifyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError(setupError);
-    clearFieldError(totpCodeError);
-    clearFieldError(setupPasswordError);
+    clearFieldError(totpCodeError, totpCodeInput);
+    clearFieldError(setupPasswordError, setupPasswordInput);
 
     const code = totpCodeInput.value.trim();
     const password = setupPasswordInput.value;
 
     if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      showFieldError(totpCodeError, 'Enter a 6-digit code');
+      showFieldError(totpCodeError, totpCodeInput, 'Enter a 6-digit code');
       totpCodeInput.focus();
       return;
     }
 
     const passwordErr = validatePassword(password);
     if (passwordErr) {
-      showFieldError(setupPasswordError, passwordErr);
+      showFieldError(setupPasswordError, setupPasswordInput, passwordErr);
       setupPasswordInput.focus();
       return;
     }
@@ -482,12 +487,12 @@ import '../styles/global.css';
   totpDisableForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError(disableError);
-    clearFieldError(disablePasswordError);
+    clearFieldError(disablePasswordError, disablePasswordInput);
 
     const password = disablePasswordInput.value;
     const disablePasswordErr = validatePassword(password);
     if (disablePasswordErr) {
-      showFieldError(disablePasswordError, disablePasswordErr);
+      showFieldError(disablePasswordError, disablePasswordInput, disablePasswordErr);
       disablePasswordInput.focus();
       return;
     }
@@ -541,9 +546,9 @@ import '../styles/global.css';
   });
 
   // Clear field errors on input
-  totpCodeInput.addEventListener('input', () => clearFieldError(totpCodeError));
-  setupPasswordInput.addEventListener('input', () => clearFieldError(setupPasswordError));
-  disablePasswordInput.addEventListener('input', () => clearFieldError(disablePasswordError));
+  totpCodeInput.addEventListener('input', () => clearFieldError(totpCodeError, totpCodeInput));
+  setupPasswordInput.addEventListener('input', () => clearFieldError(setupPasswordError, setupPasswordInput));
+  disablePasswordInput.addEventListener('input', () => clearFieldError(disablePasswordError, disablePasswordInput));
 
   retryLoadBtn.addEventListener('click', () => loadUserInfo());
 

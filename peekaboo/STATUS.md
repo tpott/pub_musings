@@ -8,7 +8,7 @@ Production-ready voice-controlled web app for children. 330 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 328 unit tests, 56 E2E tests
+- **Astro frontend** with TypeScript, 328 unit tests, 59 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
@@ -36,6 +36,8 @@ Production-ready voice-controlled web app for children. 330 tasks completed.
 
 ## Last Completed
 
+- Task 376 (2026-02-14): Deep inspection round 34 — form accessibility ARIA attributes:
+  - Task 376: Add role="alert" to all 8 field-error divs, aria-describedby linking inputs to error divs, and aria-invalid toggling in showFieldError/clearFieldError across login.astro, register.astro, settings.astro. 3 new E2E tests verify attributes.
 - Task 375 (2026-02-14): Deep inspection round 33 — FK enforcement test + docs fix:
   - Task 375: Add TestForeignKeyEnforcement verifying SeedMediaSet rejects non-existent concept_id. Remove stale port 9070 reference from DEPLOY.md.
 - Tasks 373-374 (2026-02-14): Deep inspection round 32 — DB bug fix + test coverage:

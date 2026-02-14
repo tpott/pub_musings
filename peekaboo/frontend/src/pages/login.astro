@@ -38,8 +38,9 @@ import '../styles/global.css';
               required
               autocomplete="email"
               placeholder="you@example.com"
+              aria-describedby="email-error"
             />
-            <div class="field-error hidden" id="email-error"></div>
+            <div class="field-error hidden" id="email-error" role="alert"></div>
           </div>
 
           <div class="form-group">
@@ -51,8 +52,9 @@ import '../styles/global.css';
               required
               autocomplete="current-password"
               placeholder="Enter your password"
+              aria-describedby="password-error"
             />
-            <div class="field-error hidden" id="password-error"></div>
+            <div class="field-error hidden" id="password-error" role="alert"></div>
           </div>
 
           <div class="form-group hidden" id="totp-group">
@@ -66,8 +68,9 @@ import '../styles/global.css';
               pattern="[0-9]*"
               maxlength="6"
               placeholder="6-digit code"
+              aria-describedby="totp-error"
             />
-            <div class="field-error hidden" id="totp-error"></div>
+            <div class="field-error hidden" id="totp-error" role="alert"></div>
           </div>
 
           <button type="submit" class="btn-submit" id="submit-btn">
@@ -103,14 +106,16 @@ import '../styles/global.css';
   const emailError = document.getElementById('email-error') as HTMLDivElement;
   const passwordError = document.getElementById('password-error') as HTMLDivElement;
 
-  function showFieldError(el: HTMLDivElement, message: string): void {
+  function showFieldError(el: HTMLDivElement, input: HTMLInputElement, message: string): void {
     el.textContent = message;
     el.classList.remove('hidden');
+    input.setAttribute('aria-invalid', 'true');
   }
 
-  function clearFieldError(el: HTMLDivElement): void {
+  function clearFieldError(el: HTMLDivElement, input: HTMLInputElement): void {
     el.textContent = '';
     el.classList.add('hidden');
+    input.removeAttribute('aria-invalid');
   }
 
   function showFormError(message: string): void {
@@ -124,14 +129,14 @@ import '../styles/global.css';
   }
 
   // Clear field errors on input
-  emailInput.addEventListener('input', () => clearFieldError(emailError));
-  passwordInput.addEventListener('input', () => clearFieldError(passwordError));
+  emailInput.addEventListener('input', () => clearFieldError(emailError, emailInput));
+  passwordInput.addEventListener('input', () => clearFieldError(passwordError, passwordInput));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearFormError();
-    clearFieldError(emailError);
-    clearFieldError(passwordError);
+    clearFieldError(emailError, emailInput);
+    clearFieldError(passwordError, passwordInput);
 
     const email = emailInput.value;
     const password = passwordInput.value;
@@ -139,14 +144,14 @@ import '../styles/global.css';
     // Client-side validation
     const emailErr = validateEmail(email);
     if (emailErr) {
-      showFieldError(emailError, emailErr);
+      showFieldError(emailError, emailInput, emailErr);
       emailInput.focus();
       return;
     }
 
     const passwordErr = validatePassword(password);
     if (passwordErr) {
-      showFieldError(passwordError, passwordErr);
+      showFieldError(passwordError, passwordInput, passwordErr);
       passwordInput.focus();
       return;
     }

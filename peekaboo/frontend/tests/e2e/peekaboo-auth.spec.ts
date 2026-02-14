@@ -98,6 +98,36 @@ test.describe('Auth: Registration', () => {
     await page.click('#submit-btn');
     await expect(page.locator('#password-error')).toContainText('at least 8 characters');
   });
+
+  test('register field errors have ARIA attributes for screen readers', async ({ page }) => {
+    await page.goto('/register');
+
+    // Verify field-error divs have role="alert"
+    await expect(page.locator('#email-error')).toHaveAttribute('role', 'alert');
+    await expect(page.locator('#password-error')).toHaveAttribute('role', 'alert');
+
+    // Verify inputs have aria-describedby pointing to error divs
+    await expect(page.locator('#email')).toHaveAttribute('aria-describedby', 'email-error');
+    await expect(page.locator('#password')).toHaveAttribute('aria-describedby', 'password-error');
+
+    // Submit empty form to trigger validation
+    await page.click('#submit-btn');
+
+    // Input should have aria-invalid when error is shown
+    await expect(page.locator('#email')).toHaveAttribute('aria-invalid', 'true');
+
+    // Fill valid email and submit to trigger password error
+    await page.fill('#email', 'user@example.com');
+    // Typing clears the error and aria-invalid
+    await expect(page.locator('#email')).not.toHaveAttribute('aria-invalid');
+
+    await page.click('#submit-btn');
+    await expect(page.locator('#password')).toHaveAttribute('aria-invalid', 'true');
+
+    // Typing in password clears aria-invalid
+    await page.fill('#password', 'x');
+    await expect(page.locator('#password')).not.toHaveAttribute('aria-invalid');
+  });
 });
 
 test.describe('Auth: Login', () => {
@@ -249,6 +279,28 @@ test.describe('Auth: Login', () => {
     await page.click('#submit-btn');
     await expect(page.locator('#email-error')).toBeVisible();
     await expect(page.locator('#email-error')).toContainText('Email is required');
+  });
+
+  test('login field errors have ARIA attributes for screen readers', async ({ page }) => {
+    await page.goto('/login');
+
+    // Verify field-error divs have role="alert"
+    await expect(page.locator('#email-error')).toHaveAttribute('role', 'alert');
+    await expect(page.locator('#password-error')).toHaveAttribute('role', 'alert');
+    await expect(page.locator('#totp-error')).toHaveAttribute('role', 'alert');
+
+    // Verify inputs have aria-describedby
+    await expect(page.locator('#email')).toHaveAttribute('aria-describedby', 'email-error');
+    await expect(page.locator('#password')).toHaveAttribute('aria-describedby', 'password-error');
+    await expect(page.locator('#totp')).toHaveAttribute('aria-describedby', 'totp-error');
+
+    // Submit empty form to trigger validation
+    await page.click('#submit-btn');
+    await expect(page.locator('#email')).toHaveAttribute('aria-invalid', 'true');
+
+    // Typing clears aria-invalid
+    await page.fill('#email', 'user@example.com');
+    await expect(page.locator('#email')).not.toHaveAttribute('aria-invalid');
   });
 });
 
