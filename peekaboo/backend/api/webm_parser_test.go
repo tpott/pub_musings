@@ -122,6 +122,64 @@ func TestWebMParserResetClearsState(t *testing.T) {
 	}
 }
 
+func TestWebMParserClearThenAppendPreservesInit(t *testing.T) {
+	data, err := os.ReadFile("../../tests/fixtures/me-show-me-a-cat.webm")
+	if err != nil {
+		t.Fatalf("failed to read test audio: %v", err)
+	}
+
+	p := NewWebMParser()
+	p.Append(data)
+
+	if !p.Parsed() {
+		t.Fatal("expected parser to be parsed after appending WebM data")
+	}
+
+	initSeg := p.InitSegment()
+	if initSeg == nil {
+		t.Fatal("expected init segment to be non-nil")
+	}
+
+	// Grab audio before clear
+	firstGrab := p.GrabAudio()
+	if firstGrab == nil {
+		t.Fatal("expected non-nil audio before clear")
+	}
+
+	// Clear the buffer
+	p.Clear()
+	if p.BufferLen() != 0 {
+		t.Errorf("expected buffer to be empty after Clear, got %d", p.BufferLen())
+	}
+
+	// Append new cluster data (simulating new audio arriving)
+	newCluster := data[len(initSeg):] // just the cluster portion
+	p.Append(newCluster)
+
+	// GrabAudio should return initSegment + newCluster
+	secondGrab := p.GrabAudio()
+	if secondGrab == nil {
+		t.Fatal("expected non-nil audio after Clear + Append")
+	}
+
+	// Verify it starts with the EBML magic bytes
+	if !bytes.HasPrefix(secondGrab, []byte{0x1A, 0x45, 0xDF, 0xA3}) {
+		t.Error("GrabAudio after Clear should start with EBML header")
+	}
+
+	// Verify it contains the init segment
+	if !bytes.HasPrefix(secondGrab, initSeg) {
+		t.Error("GrabAudio after Clear should start with cached init segment")
+	}
+
+	// Verify the total length is initSegment + newCluster
+	expectedLen := len(initSeg) + len(newCluster)
+	if len(secondGrab) != expectedLen {
+		t.Errorf("expected GrabAudio length %d (init=%d + cluster=%d), got %d",
+			expectedLen, len(initSeg), len(newCluster), len(secondGrab))
+	}
+}
+
 func TestWebMParserEmptyBuffer(t *testing.T) {
 	p := NewWebMParser()
 

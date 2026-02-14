@@ -121,8 +121,13 @@ func (p *WebMParser) GrabAudio() []byte {
 }
 
 // Clear resets the raw buffer but preserves the cached init segment.
+// Resets clusterPos to 0 so subsequent appends correctly start at
+// the beginning of the new buffer (GrabAudio prepends initSegment).
 func (p *WebMParser) Clear() {
 	p.rawBuffer = nil
+	if p.parsed {
+		p.clusterPos = 0
+	}
 }
 
 // BufferLen returns the current raw buffer length.
