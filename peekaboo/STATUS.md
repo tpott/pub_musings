@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 300 tasks completed.
+Production-ready voice-controlled web app for children. 303 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,10 @@ Production-ready voice-controlled web app for children. 300 tasks completed.
 
 ## Last Completed
 
+- Tasks 343-345 (2026-02-13): Deep inspection round 24 — three security/UX fixes:
+  - Task 343: Fix stop_recording vs bufferThresholdWatcher race (duplicate processAudio prevention)
+  - Task 344: Fix TOTP failures bypassing account lockout (move success recording after all auth checks)
+  - Task 345: Fix TOTP verify/disable buttons stuck disabled after success
 - Tasks 333-336, 340-341 (2026-02-13): PBT framework complete:
   - pbt.config.ts (workers:1, timeout:120s, no webServer)
   - show-cat.spec.ts, show-unknown.spec.ts, two-commands.spec.ts, fixture-cat.spec.ts

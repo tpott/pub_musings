@@ -19,8 +19,11 @@ func openaiTranscriptResponse(calls []toolCall) openaiResponse {
 		Model:   "gpt-4o-mini",
 		Choices: []openaiChoice{
 			{
-				Index:        0,
-				ToolCalls:    calls,
+				Index: 0,
+				Message: openaiMessage{
+					Role:      "assistant",
+					ToolCalls: calls,
+				},
 				FinishReason: "tool_calls",
 			},
 		},

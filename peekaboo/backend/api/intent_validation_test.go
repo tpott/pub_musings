@@ -184,7 +184,7 @@ func TestIntentHandler_OpenAIProvider(t *testing.T) {
 			t.Errorf("Expected Authorization header, got %s", r.Header.Get("Authorization"))
 		}
 
-		// Return OpenAI-style response with tool call
+		// Return OpenAI-style response with tool call (tool_calls inside message)
 		resp := map[string]interface{}{
 			"id":     "chatcmpl-123",
 			"object": "chat.completion",
@@ -195,14 +195,14 @@ func TestIntentHandler_OpenAIProvider(t *testing.T) {
 					"message": map[string]interface{}{
 						"role":    "assistant",
 						"content": "",
-					},
-					"tool_calls": []map[string]interface{}{
-						{
-							"id":   "call_123",
-							"type": "function",
-							"function": map[string]interface{}{
-								"name":      "show_media",
-								"arguments": `{"subject":"cat"}`,
+						"tool_calls": []map[string]interface{}{
+							{
+								"id":   "call_123",
+								"type": "function",
+								"function": map[string]interface{}{
+									"name":      "show_media",
+									"arguments": `{"subject":"cat"}`,
+								},
 							},
 						},
 					},

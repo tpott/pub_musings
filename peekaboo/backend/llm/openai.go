@@ -55,8 +55,9 @@ type openaiRequest struct {
 }
 
 type openaiMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
+	ToolCalls []toolCall `json:"tool_calls,omitempty"`
 }
 
 type openaiTool struct {
@@ -82,7 +83,6 @@ type openaiResponse struct {
 type openaiChoice struct {
 	Index        int           `json:"index"`
 	Message      openaiMessage `json:"message"`
-	ToolCalls    []toolCall    `json:"tool_calls,omitempty"`
 	FinishReason string        `json:"finish_reason"`
 }
 
@@ -174,7 +174,7 @@ func (p *openaiProvider) ExtractIntent(ctx context.Context, text string) (*Inten
 	}
 
 	choice := apiResp.Choices[0]
-	for _, tc := range choice.ToolCalls {
+	for _, tc := range choice.Message.ToolCalls {
 		if tc.Type == "function" && tc.Function.Name == "show_media" {
 			var input showMediaInput
 			if err := json.Unmarshal([]byte(tc.Function.Arguments), &input); err != nil {
@@ -300,7 +300,7 @@ func (p *openaiProvider) ProcessTranscript(ctx context.Context, req TranscriptRe
 		return nil, fmt.Errorf("no choices in response")
 	}
 
-	result, err := parseOpenAIToolActions(apiResp.Choices[0].ToolCalls)
+	result, err := parseOpenAIToolActions(apiResp.Choices[0].Message.ToolCalls)
 	if err != nil {
 		return nil, err
 	}

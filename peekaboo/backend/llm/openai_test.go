@@ -46,14 +46,14 @@ func TestOpenAIProvider_ExtractIntent_Success(t *testing.T) {
 					Index: 0,
 					Message: openaiMessage{
 						Role: "assistant",
-					},
-					ToolCalls: []toolCall{
-						{
-							ID:   "call_123",
-							Type: "function",
-							Function: functionCall{
-								Name:      "show_media",
-								Arguments: `{"subject": "cat"}`,
+						ToolCalls: []toolCall{
+							{
+								ID:   "call_123",
+								Type: "function",
+								Function: functionCall{
+									Name:      "show_media",
+									Arguments: `{"subject": "cat"}`,
+								},
 							},
 						},
 					},
@@ -195,13 +195,16 @@ func TestOpenAIProvider_DifferentSubjects(t *testing.T) {
 					Choices: []openaiChoice{
 						{
 							Index: 0,
-							ToolCalls: []toolCall{
-								{
-									ID:   "call_test",
-									Type: "function",
-									Function: functionCall{
-										Name:      "show_media",
-										Arguments: `{"subject": "` + tc.expected + `"}`,
+							Message: openaiMessage{
+								Role: "assistant",
+								ToolCalls: []toolCall{
+									{
+										ID:   "call_test",
+										Type: "function",
+										Function: functionCall{
+											Name:      "show_media",
+											Arguments: `{"subject": "` + tc.expected + `"}`,
+										},
 									},
 								},
 							},
