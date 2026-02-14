@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -309,6 +310,40 @@ func TestGetRandomMediaSetAllAnimals(t *testing.T) {
 		if ms.PhotoPath != expectedPhoto {
 			t.Errorf("GetRandomMediaSet(%s).PhotoPath = %q, want %q", animal, ms.PhotoPath, expectedPhoto)
 		}
+	}
+}
+
+func TestForeignKeyEnforcement(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Inserting a media_set with a non-existent concept_id should fail
+	// because media_sets.concept_id REFERENCES concepts(id) and
+	// PRAGMA foreign_keys = ON.
+	err = db.SeedMediaSet("nonexistent", "photo.jpg", "audio.mp3", "")
+	if err == nil {
+		t.Fatal("SeedMediaSet with non-existent concept_id should fail due to FK constraint")
+	}
+
+	// Verify the error mentions foreign key
+	if !strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+		t.Errorf("expected FK constraint error, got: %v", err)
+	}
+
+	// Inserting with a valid concept_id (seeded by Init) should succeed
+	err = db.SeedMediaSet("cat", "data/media/cat/set1/photo.jpg", "", "")
+	if err != nil {
+		t.Fatalf("SeedMediaSet with valid concept_id should succeed: %v", err)
 	}
 }
 

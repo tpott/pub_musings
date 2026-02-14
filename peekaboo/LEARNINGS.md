@@ -6,6 +6,16 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-14: SQLite INSERT OR IGNORE does NOT suppress FK violations
+
+**Context:** `SeedMediaSet` uses `INSERT OR IGNORE INTO media_sets`. One might assume `OR IGNORE` silently swallows all constraint errors. However, SQLite's `ON CONFLICT` clause (which `OR IGNORE` maps to) only applies to UNIQUE, NOT NULL, CHECK, and PRIMARY KEY constraints — **not** FOREIGN KEY constraints. FK violations always abort the statement regardless of `OR IGNORE`.
+
+**Verification:** `TestForeignKeyEnforcement` confirms that `SeedMediaSet("nonexistent", ...)` returns `FOREIGN KEY constraint failed` even with `INSERT OR IGNORE`.
+
+**Rule:** Don't assume `INSERT OR IGNORE` suppresses FK violations. PRAGMA foreign_keys=ON combined with REFERENCES clauses will enforce referential integrity regardless of conflict resolution clauses.
+
+---
+
 ### 2026-02-14: SQLite CURRENT_TIMESTAMP vs Go time.Time format mismatch
 
 **Context:** go-sqlite3 stores `time.Time` values in RFC3339 format (`2006-01-02T15:04:05Z`), but SQLite's `CURRENT_TIMESTAMP` returns `YYYY-MM-DD HH:MM:SS`. Comparing these with `WHERE expires_at < CURRENT_TIMESTAMP` does lexicographic string comparison which breaks at the `T` vs space character.

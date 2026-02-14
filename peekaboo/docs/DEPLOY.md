@@ -217,7 +217,7 @@ peekaboo.pottingers.us {
 }
 ```
 
-> **Note:** The port (8070) should match the `PORT` environment variable configured in `peekaboo.service`. Production may use a different port (e.g., 9070).
+> **Note:** The port (8070) should match the `PORT` environment variable configured in `peekaboo.service`.
 
 ## HTTPS and TLS
 

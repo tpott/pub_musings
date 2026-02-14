@@ -36,6 +36,8 @@ Production-ready voice-controlled web app for children. 330 tasks completed.
 
 ## Last Completed
 
+- Task 375 (2026-02-14): Deep inspection round 33 — FK enforcement test + docs fix:
+  - Task 375: Add TestForeignKeyEnforcement verifying SeedMediaSet rejects non-existent concept_id. Remove stale port 9070 reference from DEPLOY.md.
 - Tasks 373-374 (2026-02-14): Deep inspection round 32 — DB bug fix + test coverage:
   - Task 373: Fix CURRENT_TIMESTAMP vs Go time.Time format mismatch in 3 cleanup functions (sessions, email tokens, magic link tokens) — SQLite string comparison was unreliable. Added 4 DB tests.
   - Task 374: Add 2 tests for logging statusRecorder.Hijack (supported + unsupported)
