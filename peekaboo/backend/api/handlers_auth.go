@@ -433,13 +433,6 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Record successful attempt
-	if err := h.DB.RecordLoginAttempt(email, clientIP, true); err != nil {
-		slog.Error("login: failed to record login attempt",
-			"error", err,
-			"request_id", logging.GetRequestID(r.Context()))
-	}
-
 	// Check email verified
 	if !user.EmailVerified {
 		writeJSON(w, http.StatusForbidden, loginResponse{
@@ -475,9 +468,21 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !valid {
+			if err := h.DB.RecordLoginAttempt(email, clientIP, false); err != nil {
+				slog.Error("login: failed to record login attempt",
+					"error", err,
+					"request_id", logging.GetRequestID(r.Context()))
+			}
 			writeJSON(w, http.StatusUnauthorized, loginResponse{Error: "invalid 2FA code"})
 			return
 		}
+	}
+
+	// Record successful attempt (after all auth checks pass)
+	if err := h.DB.RecordLoginAttempt(email, clientIP, true); err != nil {
+		slog.Error("login: failed to record login attempt",
+			"error", err,
+			"request_id", logging.GetRequestID(r.Context()))
 	}
 
 	// Clear failed attempts on successful login

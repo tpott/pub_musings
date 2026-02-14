@@ -191,6 +191,52 @@ func TestLogin_TOTPInvalidCode(t *testing.T) {
 	}
 }
 
+func TestLogin_TOTPFailureCountsTowardLockout(t *testing.T) {
+	database := setupAuthTestDB(t)
+	handler := NewAuthHandler(database, &mockEmailSender{})
+
+	totpSecret := "JBSWY3DPEHPK3PXP"
+	hash, _ := auth.HashPassword("correctpassword")
+	id, _ := auth.GenerateID()
+	now := time.Now().UTC()
+	user := &db.User{
+		ID: id, Email: "totp-lockout@example.com", PasswordHash: hash,
+		TOTPSecret: &totpSecret, TOTPEnabled: true,
+		EmailVerified: true, VerifiedAt: &now, CreatedAt: now,
+	}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Send LockoutThreshold bad TOTP codes (correct password)
+	for i := 0; i < auth.LockoutThreshold; i++ {
+		body, _ := json.Marshal(loginRequest{
+			Email: "totp-lockout@example.com", Password: "correctpassword", TOTPCode: "000000",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:1234"
+		w := httptest.NewRecorder()
+		handler.HandleLogin(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: expected 401, got %d: %s", i+1, w.Code, w.Body.String())
+		}
+	}
+
+	// Next attempt with correct password should be locked out
+	validCode, _ := auth.GenerateCodeAt(totpSecret, time.Now())
+	body, _ := json.Marshal(loginRequest{
+		Email: "totp-lockout@example.com", Password: "correctpassword", TOTPCode: validCode,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1234"
+	w := httptest.NewRecorder()
+	handler.HandleLogin(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("Expected 429 (locked out after TOTP failures), got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // --- Integration: Setup → Enable → Login with TOTP → Disable ---
 
 func TestTOTPFullFlow(t *testing.T) {
