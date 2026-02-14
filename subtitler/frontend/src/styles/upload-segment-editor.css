@@ -229,6 +229,44 @@
 .segment-delete-btn:hover {
 	background-color: var(--delete-btn-hover);
 }
+/* Layer toggle (sentence vs word mode) */
+.layer-toggle {
+	display: flex;
+	gap: 0.25rem;
+	margin-top: 0.5rem;
+	justify-content: center;
+}
+.layer-btn {
+	padding: 0.25rem 0.75rem;
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+	background: var(--bg-secondary);
+	color: var(--text-secondary);
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: background-color 0.15s, color 0.15s;
+}
+.layer-btn.active {
+	background: var(--accent-color);
+	color: #fff;
+	border-color: var(--accent-color);
+}
+.layer-btn:hover:not(.active) {
+	background: var(--bg-hover);
+}
+
+/* Karaoke word highlighting */
+.word-current {
+	font-weight: bold;
+	color: var(--accent-color);
+}
+.word-past {
+	opacity: 0.7;
+}
+.word-future {
+	opacity: 0.5;
+}
+
 /* Subtitle feedback buttons (shown below the current subtitle display) */
 .subtitle-feedback {
 	display: flex;

@@ -107,6 +107,10 @@ import '../styles/upload.css';
 				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
 				<div class="current-subtitle" aria-live="polite" aria-atomic="true"><span class="current-subtitle-inner" id="currentSubtitle"></span></div>
+				<div class="layer-toggle" id="layerToggle" style="display: none;" role="group" aria-label="Subtitle display mode">
+					<button class="layer-btn active" id="layerSentencesBtn" aria-pressed="true">Sentences</button>
+					<button class="layer-btn" id="layerWordsBtn" aria-pressed="false">Words</button>
+				</div>
 				<div class="subtitle-feedback" id="subtitleFeedback" style="display: none;">
 					<button class="feedback-toggle-btn" id="feedbackToggle" aria-label="Rate subtitle alignment">
 						<span class="feedback-dot" id="feedbackDot"></span>
@@ -392,6 +396,12 @@ import '../styles/upload.css';
 				showEmbeddedSubtitlesNotice,
 				setupEmbeddedSubtitlesHandler,
 			} from '../utils/upload-embedded';
+			import {
+				hasWordData,
+				createLayerToggleState,
+				setupLayerToggle,
+			} from '../utils/subtitle-layers';
+			import type { SubtitleLayer } from '../utils/subtitle-layers';
 
 			// --- DOM Elements ---
 			const dropzone = getRequiredElement('dropzone', HTMLElement);
@@ -410,6 +420,9 @@ import '../styles/upload.css';
 			const fullTextHeader = getRequiredElement('fullTextHeader', HTMLElement);
 			const currentSubtitle = getRequiredElement('currentSubtitle', HTMLElement);
 			const subtitleFeedback = getRequiredElement('subtitleFeedback', HTMLElement);
+			const layerToggleEl = getRequiredElement('layerToggle', HTMLElement);
+			const layerSentencesBtn = getRequiredElement('layerSentencesBtn', HTMLButtonElement);
+			const layerWordsBtn = getRequiredElement('layerWordsBtn', HTMLButtonElement);
 			const actions = getRequiredElement('actions', HTMLElement);
 			const embeddedSubtitlesNotice = getRequiredElement('embeddedSubtitlesNotice', HTMLElement);
 			const embeddedSubtitlesList = getRequiredElement('embeddedSubtitlesList', HTMLElement);
@@ -468,6 +481,7 @@ import '../styles/upload.css';
 			const editorState = createSegmentEditorState();
 			const burnState = createBurnState();
 			const speedState = createSpeedUIState();
+			const layerState = createLayerToggleState();
 			const subtitleSyncState = { active: false };
 
 			const editorEls: SegmentEditorElements = {
@@ -581,7 +595,7 @@ import '../styles/upload.css';
 			}
 
 			const updateCurrentSubtitle = createSubtitleUpdater(
-				editorState, previewVideo, currentSubtitle, subtitleFeedback, segmentsEl
+				editorState, previewVideo, currentSubtitle, subtitleFeedback, segmentsEl, layerState
 			);
 
 			window.addEventListener('beforeunload', (e) => {
@@ -622,6 +636,17 @@ import '../styles/upload.css';
 				}
 
 				showEmbeddedSubtitlesNotice(transcriptionState.embeddedSubtitleTracks, embeddedEls);
+
+				// Show/hide layer toggle based on word data availability
+				if (hasWordData(editorState.transcriptionSegments)) {
+					layerToggleEl.style.display = '';
+					setupLayerToggle(layerSentencesBtn, layerWordsBtn, layerState, (_layer: SubtitleLayer) => {
+						// Force subtitle update when layer changes
+						updateCurrentSubtitle();
+					});
+				} else {
+					layerToggleEl.style.display = 'none';
+				}
 
 				if (editorState.currentUploadId) {
 					previewVideo.src = `/api/videos/${editorState.currentUploadId}/video`;
@@ -822,8 +847,8 @@ import '../styles/upload.css';
 				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
 				openFn(segs);
 			}
-			downloadSrt.addEventListener('click', (e) => handleSubtitleOpen(e, openSRT));
-			downloadVtt.addEventListener('click', (e) => handleSubtitleOpen(e, openVTT));
+			downloadSrt.addEventListener('click', (e) => handleSubtitleOpen(e, (segs) => openSRT(segs, layerState.currentLayer)));
+			downloadVtt.addEventListener('click', (e) => handleSubtitleOpen(e, (segs) => openVTT(segs, layerState.currentLayer)));
 			downloadJson.addEventListener('click', (e) => handleSubtitleOpen(e, openJSON));
 			// --- Burn subtitles ---
 			burnBtn.addEventListener('click', () => {

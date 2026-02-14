@@ -259,15 +259,7 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 			}
 
 			// Convert segments to database format
-			segments := make([]db.Segment, len(result.Segments))
-			for i, s := range result.Segments {
-				segments[i] = db.Segment{
-					ID:    s.ID,
-					Start: s.Start,
-					End:   s.End,
-					Text:  s.Text,
-				}
-			}
+			segments := whisperSegmentsToDBSegments(result.Segments)
 
 			// Success - save to database and record metrics
 			transcriptionDuration := time.Since(transcriptionStart)
@@ -739,6 +731,10 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		for i := range result.Segments {
 			result.Segments[i].Start += req.Start
 			result.Segments[i].End += req.Start
+			for j := range result.Segments[i].Words {
+				result.Segments[i].Words[j].Start += req.Start
+				result.Segments[i].Words[j].End += req.Start
+			}
 		}
 
 		logging.InfoContext(r.Context(), "Gap transcription complete",

@@ -4,21 +4,22 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**514 tasks completed** as of 2026-02-14.
+**515 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 610 tests across 46 files
-- **Frontend:** Astro/TypeScript, 923 tests across 37 files
+- **Backend:** Go server (52 source files, ~16,200 lines total), 619 tests across 46 files
+- **Frontend:** Astro/TypeScript, 952 tests across 38 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,604 tests, 35 specification documents
+- **Total:** 1,642 tests, 35 specification documents
 
 ## Feature Summary
 
 ### Core
 - Video upload (500MB limit) with chunked upload support (>50MB auto-split)
 - Whisper transcription integration (whisper-server and whisper-cli)
-- Multi-format export: SRT, VTT, JSON (client-side generation)
+- Multi-format export: SRT, VTT, JSON (client-side generation, word-level export)
 - Subtitle editor with timing adjustment
+- Word-level timestamps with karaoke display (sentence/word layer toggle)
 - Video subtitle burning (ffmpeg encode or soft subtitles)
 - SQLite database with versioned migrations (9 migrations)
 
@@ -62,6 +63,14 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 508: Multi-layered speech detection — word-level timestamps (2026-02-14)
+- **Backend word capture:** Added `Word` struct to `db_types.go` and `WhisperWord` to `globals.go`. Updated whisper response parsing in `helpers.go` to capture `words[]` from verbose_json. Created 6 conversion helpers (`whisperWordsToDBWords`, `dbWordsToWhisperWords`, etc.) replacing 4 manual conversion sites. Gap transcription adjusts word timestamps by offset. 9 new tests in `helpers_test.go`
+- **Frontend layer toggle:** New `subtitle-layers.ts` utility (105 lines) — `SubtitleLayer` type, localStorage persistence, `renderKaraokeHTML` with word-current/past/future highlighting, toggle button setup. Layer toggle UI in upload page shows only when word data exists
+- **Karaoke display:** `createSubtitleUpdater` in `subtitle-sync.ts` accepts optional `LayerToggleState`. Word mode renders per-word spans with time-based CSS classes instead of plain text
+- **Cross-layer edit propagation:** Editing sentence text clears `words` (stale data). Timing edits preserve word data (relative positions still valid)
+- **Word-level export:** `generateSRT`/`generateVTT` accept `layer` param — word mode flattens to individual word entries. `generateJSON` includes word data when available. `flattenToWords` falls back to segment-level for segments without words
+- **Tests:** 23 tests in new `subtitle-layers.test.ts`, 10 word-level export tests in `subtitles.test.ts`. 952 frontend tests across 38 files, 619 backend tests
 
 ### Task 512: Edit UI gap detection with async transcription (2026-02-14)
 - **Gap detection:** `detectGaps()` in `gap-detection.ts` finds time gaps > 0.5s between segments (before first, between, after last). 14 TDD tests

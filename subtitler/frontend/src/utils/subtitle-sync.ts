@@ -25,6 +25,8 @@ import {
 	performRedo
 } from './segment-editor';
 import type { SegmentEditorState, SegmentEditorElements } from './segment-editor';
+import { renderKaraokeHTML } from './subtitle-layers';
+import type { LayerToggleState } from './subtitle-layers';
 
 // --- Subtitle sync ---
 
@@ -47,7 +49,8 @@ export function createSubtitleUpdater(
 	previewVideo: HTMLVideoElement,
 	currentSubtitle: HTMLElement,
 	subtitleFeedback: HTMLElement,
-	segmentsContainer: HTMLElement
+	segmentsContainer: HTMLElement,
+	layerState?: LayerToggleState
 ): () => void {
 	return function updateCurrentSubtitle() {
 		const currentTime = previewVideo.currentTime;
@@ -65,11 +68,16 @@ export function createSubtitleUpdater(
 		}
 
 		if (currentSeg) {
-			const useBionic = isBionicEnabled();
-			if (useBionic) {
-				currentSubtitle.innerHTML = renderBionicText(currentSeg.text.trim(), { enabled: true });
+			const useWords = layerState?.currentLayer === 'words' && currentSeg.words && currentSeg.words.length > 0;
+			if (useWords) {
+				currentSubtitle.innerHTML = renderKaraokeHTML(currentSeg, currentTime);
 			} else {
-				currentSubtitle.textContent = currentSeg.text.trim();
+				const useBionic = isBionicEnabled();
+				if (useBionic) {
+					currentSubtitle.innerHTML = renderBionicText(currentSeg.text.trim(), { enabled: true });
+				} else {
+					currentSubtitle.textContent = currentSeg.text.trim();
+				}
 			}
 		} else {
 			currentSubtitle.textContent = '';

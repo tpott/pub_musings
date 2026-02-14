@@ -393,6 +393,8 @@ function setupEditHandlers(state: SegmentEditorState, els: SegmentEditorElements
 			const target = e.target as HTMLTextAreaElement;
 			const index = parseInt(target.getAttribute('data-index') || '0', 10);
 			state.editedSegments[index].text = target.value;
+			// Clear word data when sentence text is edited (word timestamps no longer valid)
+			state.editedSegments[index].words = undefined;
 			markUnsaved(state, els);
 		});
 	});

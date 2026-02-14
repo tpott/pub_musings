@@ -14,12 +14,21 @@ import (
 	"github.com/tpott/subtitler/backend/security"
 )
 
+// WhisperWord represents a single word with timing from Whisper
+type WhisperWord struct {
+	Word        string  `json:"word"`
+	Start       float64 `json:"start"`
+	End         float64 `json:"end"`
+	Probability float64 `json:"probability"`
+}
+
 // WhisperSegment represents a transcribed segment with timing
 type WhisperSegment struct {
-	ID    int     `json:"id"`
-	Start float64 `json:"start"` // start time in seconds
-	End   float64 `json:"end"`   // end time in seconds
-	Text  string  `json:"text"`
+	ID    int           `json:"id"`
+	Start float64       `json:"start"` // start time in seconds
+	End   float64       `json:"end"`   // end time in seconds
+	Text  string        `json:"text"`
+	Words []WhisperWord `json:"words,omitempty"`
 }
 
 // WhisperResult represents the full transcription result

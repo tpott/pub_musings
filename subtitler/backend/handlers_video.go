@@ -400,15 +400,7 @@ func registerVideoHandlers(mux *http.ServeMux) { //nolint:funlen // route regist
 			}
 
 			// Convert segments to database format
-			segments := make([]db.Segment, len(result.Segments))
-			for i, s := range result.Segments {
-				segments[i] = db.Segment{
-					ID:    s.ID,
-					Start: s.Start,
-					End:   s.End,
-					Text:  s.Text,
-				}
-			}
+			segments := whisperSegmentsToDBSegments(result.Segments)
 
 			// Success
 			logging.Info("Reprocessing complete", "upload_id", uploadID, "segment_count", len(result.Segments))

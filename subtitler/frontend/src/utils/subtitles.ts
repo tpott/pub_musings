@@ -5,7 +5,8 @@
  * loaded segment data, avoiding unnecessary server round-trips.
  */
 
-import type { TranscriptionSegment } from '../types/transcription';
+import type { TranscriptionSegment, TranscriptionWord } from '../types/transcription';
+import type { SubtitleLayer } from './subtitle-layers';
 import { escapeHtml } from './html';
 
 /**
@@ -35,27 +36,55 @@ export function formatVTTTimestamp(seconds: number): string {
 }
 
 /**
- * Generate SRT subtitle content from segments
+ * Flatten segments into individual word entries for word-level export.
+ * Falls back to segment-level entries if a segment has no word data.
  */
-export function generateSRT(segments: TranscriptionSegment[]): string {
+function flattenToWords(segments: TranscriptionSegment[]): TranscriptionWord[] {
+  const words: TranscriptionWord[] = [];
+  for (const seg of segments) {
+    if (seg.words && seg.words.length > 0) {
+      words.push(...seg.words);
+    } else {
+      // Fallback: treat the whole segment as a single "word"
+      words.push({ text: seg.text.trim(), start: seg.start, end: seg.end });
+    }
+  }
+  return words;
+}
+
+/**
+ * Generate SRT subtitle content from segments.
+ * In word mode, each word becomes a separate subtitle entry.
+ */
+export function generateSRT(segments: TranscriptionSegment[], layer: SubtitleLayer = 'sentences'): string {
   const lines: string[] = [];
 
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
-    // SRT sequence numbers are 1-indexed
-    lines.push(String(i + 1));
-    lines.push(`${formatSRTTimestamp(segment.start)} --> ${formatSRTTimestamp(segment.end)}`);
-    lines.push(segment.text.trim());
-    lines.push(''); // Blank line between entries
+  if (layer === 'words') {
+    const words = flattenToWords(segments);
+    for (let i = 0; i < words.length; i++) {
+      lines.push(String(i + 1));
+      lines.push(`${formatSRTTimestamp(words[i].start)} --> ${formatSRTTimestamp(words[i].end)}`);
+      lines.push(words[i].text.trim());
+      lines.push('');
+    }
+  } else {
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      lines.push(String(i + 1));
+      lines.push(`${formatSRTTimestamp(segment.start)} --> ${formatSRTTimestamp(segment.end)}`);
+      lines.push(segment.text.trim());
+      lines.push('');
+    }
   }
 
   return lines.join('\n');
 }
 
 /**
- * Generate WebVTT subtitle content from segments
+ * Generate WebVTT subtitle content from segments.
+ * In word mode, each word becomes a separate subtitle entry.
  */
-export function generateVTT(segments: TranscriptionSegment[]): string {
+export function generateVTT(segments: TranscriptionSegment[], layer: SubtitleLayer = 'sentences'): string {
   const lines: string[] = ['WEBVTT'];
 
   if (segments.length === 0) {
@@ -65,29 +94,49 @@ export function generateVTT(segments: TranscriptionSegment[]): string {
 
   lines.push('');
 
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
-    // VTT cue identifiers are optional but helpful
-    lines.push(String(i + 1));
-    lines.push(`${formatVTTTimestamp(segment.start)} --> ${formatVTTTimestamp(segment.end)}`);
-    lines.push(segment.text.trim());
-    lines.push(''); // Blank line between entries
+  if (layer === 'words') {
+    const words = flattenToWords(segments);
+    for (let i = 0; i < words.length; i++) {
+      lines.push(String(i + 1));
+      lines.push(`${formatVTTTimestamp(words[i].start)} --> ${formatVTTTimestamp(words[i].end)}`);
+      lines.push(words[i].text.trim());
+      lines.push('');
+    }
+  } else {
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      lines.push(String(i + 1));
+      lines.push(`${formatVTTTimestamp(segment.start)} --> ${formatVTTTimestamp(segment.end)}`);
+      lines.push(segment.text.trim());
+      lines.push('');
+    }
   }
 
   return lines.join('\n');
 }
 
 /**
- * Generate JSON subtitle content from segments
+ * Generate JSON subtitle content from segments.
+ * Always includes word data when available.
  */
 export function generateJSON(segments: TranscriptionSegment[]): string {
   const output = {
-    segments: segments.map(s => ({
-      id: s.id,
-      start: s.start,
-      end: s.end,
-      text: s.text
-    }))
+    segments: segments.map(s => {
+      const entry: Record<string, unknown> = {
+        id: s.id,
+        start: s.start,
+        end: s.end,
+        text: s.text,
+      };
+      if (s.words && s.words.length > 0) {
+        entry.words = s.words.map(w => ({
+          text: w.text,
+          start: w.start,
+          end: w.end,
+        }));
+      }
+      return entry;
+    })
   };
   return JSON.stringify(output, null, 2);
 }
@@ -164,16 +213,16 @@ export function triggerDownload(content: string, filename: string, mimeType: str
 /**
  * Download segments as SRT file
  */
-export function downloadSRT(segments: TranscriptionSegment[], baseFilename: string): void {
-  const content = generateSRT(segments);
+export function downloadSRT(segments: TranscriptionSegment[], baseFilename: string, layer: SubtitleLayer = 'sentences'): void {
+  const content = generateSRT(segments, layer);
   triggerDownload(content, `${baseFilename}.srt`, 'text/plain; charset=utf-8');
 }
 
 /**
  * Download segments as VTT file
  */
-export function downloadVTT(segments: TranscriptionSegment[], baseFilename: string): void {
-  const content = generateVTT(segments);
+export function downloadVTT(segments: TranscriptionSegment[], baseFilename: string, layer: SubtitleLayer = 'sentences'): void {
+  const content = generateVTT(segments, layer);
   triggerDownload(content, `${baseFilename}.vtt`, 'text/vtt; charset=utf-8');
 }
 
@@ -288,17 +337,19 @@ function openAsViewerPage(content: string, title: string, language?: string): vo
 /**
  * Open SRT content in new tab as formatted viewer
  */
-export function openSRT(segments: TranscriptionSegment[]): void {
-  const content = generateSRT(segments);
-  openAsViewerPage(content, 'Subtitles (SRT)');
+export function openSRT(segments: TranscriptionSegment[], layer: SubtitleLayer = 'sentences'): void {
+  const content = generateSRT(segments, layer);
+  const label = layer === 'words' ? 'Subtitles - Words (SRT)' : 'Subtitles (SRT)';
+  openAsViewerPage(content, label);
 }
 
 /**
  * Open VTT content in new tab as formatted viewer
  */
-export function openVTT(segments: TranscriptionSegment[]): void {
-  const content = generateVTT(segments);
-  openAsViewerPage(content, 'Subtitles (WebVTT)');
+export function openVTT(segments: TranscriptionSegment[], layer: SubtitleLayer = 'sentences'): void {
+  const content = generateVTT(segments, layer);
+  const label = layer === 'words' ? 'Subtitles - Words (WebVTT)' : 'Subtitles (WebVTT)';
+  openAsViewerPage(content, label);
 }
 
 /**
