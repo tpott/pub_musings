@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**515 tasks completed** as of 2026-02-14.
+**519 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,200 lines total), 619 tests across 46 files
+- **Backend:** Go server (52 source files, ~16,200 lines total), 620 tests across 47 files
 - **Frontend:** Astro/TypeScript, 952 tests across 38 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,642 tests, 35 specification documents
+- **Total:** 1,643 tests, 35 specification documents
 
 ## Feature Summary
 
@@ -63,6 +63,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 514-517: Security fixes, error handling, docs (2026-02-14)
+- **Task 514:** Added `io.LimitReader` (1MB) to CAPTCHA verification response parsing in `captcha/captcha.go`. Previously decoded hCaptcha JSON response without size limit — defense-in-depth against memory exhaustion from compromised upstream. Made `verifyURL` field injectable for testing. Added 4 test server tests (success, failure, oversized response rejection, invalid JSON). 620 backend tests across 47 files
+- **Task 515:** Made single-file upload `destFile.Close()` error fatal in `handlers_upload.go`. Previously logged Close() failure as warning but continued to encrypt potentially corrupt data. Now removes partial file and returns 500. Consistent with close-error patterns from tasks 480, 490, 497
+- **Task 516:** Updated TESTING.md — backend 610→620 tests (47 files), frontend 923→952 tests (38 files), total 1,643. Added missing `api_gap_test.go` and `subtitle-layers.test.ts` to test file tables
+- **Task 517:** Updated PROGRESS.md task count and test counts
 
 ### Task 508: Multi-layered speech detection — word-level timestamps (2026-02-14)
 - **Backend word capture:** Added `Word` struct to `db_types.go` and `WhisperWord` to `globals.go`. Updated whisper response parsing in `helpers.go` to capture `words[]` from verbose_json. Created 6 conversion helpers (`whisperWordsToDBWords`, `dbWordsToWhisperWords`, etc.) replacing 4 manual conversion sites. Gap transcription adjusts word timestamps by offset. 9 new tests in `helpers_test.go`

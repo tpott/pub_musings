@@ -6,10 +6,10 @@ This document describes how to run tests for the Subtitler project.
 
 The project has comprehensive test coverage across both backend and frontend:
 
-- **Backend (Go)**: 610 tests across 46 test files
-- **Frontend (TypeScript)**: 923 tests across 37 test files
+- **Backend (Go)**: 620 tests across 47 test files
+- **Frontend (TypeScript)**: 952 tests across 38 test files
 - **E2E (Playwright)**: 71 scenarios across 7 spec files (66 active, 5 permanently skipped)
-- **Total**: 1,604 tests
+- **Total**: 1,643 tests
 
 ## Backend Tests
 
@@ -43,6 +43,7 @@ go test -run TestAuthLogin -v
 | `api_upload_test.go` | main | Upload API tests (single + chunked uploads) |
 | `api_video_test.go` | main | Video API tests (list, delete, transcription, segments, burn, caching) |
 | `api_system_test.go` | main | System API tests (health, logs, feedback, admin, metrics) |
+| `api_gap_test.go` | main | Gap transcription API tests (create segment from time gap) |
 | `api_test_helpers_test.go` | main | Shared test infrastructure (testServer, registerHandlers) |
 | `subtitle_format_test.go` | main | SRT formatting unit tests |
 | `config_test.go` | main | Configuration and environment variable tests |
@@ -161,6 +162,7 @@ npm run test:watch
 | `src/utils/settings-sessions.test.ts` | Session management, parseUserAgent, revoke flow |
 | `src/utils/settings-totp.test.ts` | TOTP setup, verification, disable, recovery codes |
 | `src/utils/subtitle-sync.test.ts` | Subtitle synchronization, speed UI, burn subtitles |
+| `src/utils/subtitle-layers.test.ts` | Subtitle layer toggle, karaoke rendering, word-level display |
 | `src/utils/subtitles.test.ts` | Subtitle format generation (SRT, VTT, JSON) |
 | `src/utils/transcription-polling.test.ts` | Polling, ETA calculation, SRT parsing |
 | `src/utils/upload-file.test.ts` | File upload, chunked upload, progress tracking |
