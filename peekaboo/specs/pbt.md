@@ -247,7 +247,7 @@ source .env
 
 # Or export individually
 export PIPER_SERVER_URL=http://10.0.2.2:8051
-export WHISPER_SERVER_URL=http://10.0.2.2:8050
+export WHISPER_SERVER_URL=http://10.0.2.2:8765
 ```
 
 The `pbt.config.ts` Playwright config does NOT start services — backend,

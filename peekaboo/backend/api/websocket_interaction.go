@@ -48,7 +48,7 @@ func buildSTTLog(resp *WhisperResponse, latency time.Duration, chunkCount int, r
 	}
 
 	// VAD: speech detected if transcript is non-empty
-	sttLog.VADSpeechDetected = len(resp.Text) > 0 && resp.Text != ""
+	sttLog.VADSpeechDetected = resp.Text != ""
 
 	return sttLog
 }
