@@ -1,8 +1,10 @@
 package logging
 
 import (
+	"bufio"
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -162,5 +164,39 @@ func TestStatusRecorder(t *testing.T) {
 				t.Errorf("statusRecorder.statusCode = %d, want %d", recorder.statusCode, tc.wantCode)
 			}
 		})
+	}
+}
+
+// hijackableResponseWriter implements both http.ResponseWriter and http.Hijacker.
+type hijackableResponseWriter struct {
+	http.ResponseWriter
+	hijacked bool
+}
+
+func (h *hijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h.hijacked = true
+	return nil, nil, nil
+}
+
+func TestStatusRecorderHijack_Supported(t *testing.T) {
+	inner := &hijackableResponseWriter{ResponseWriter: httptest.NewRecorder()}
+	recorder := &statusRecorder{ResponseWriter: inner, statusCode: http.StatusOK}
+
+	_, _, err := recorder.Hijack()
+	if err != nil {
+		t.Fatalf("Hijack() returned error: %v", err)
+	}
+	if !inner.hijacked {
+		t.Error("Hijack() did not delegate to inner ResponseWriter")
+	}
+}
+
+func TestStatusRecorderHijack_NotSupported(t *testing.T) {
+	// httptest.NewRecorder() does not implement http.Hijacker
+	recorder := &statusRecorder{ResponseWriter: httptest.NewRecorder(), statusCode: http.StatusOK}
+
+	_, _, err := recorder.Hijack()
+	if err != http.ErrNotSupported {
+		t.Errorf("Hijack() error = %v, want http.ErrNotSupported", err)
 	}
 }

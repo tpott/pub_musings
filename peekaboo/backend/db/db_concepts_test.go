@@ -330,6 +330,72 @@ func TestNextMediaSetNumberNoConflict(t *testing.T) {
 	}
 }
 
+func TestListConceptIDs_SeedData(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+	if err := db.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	ids, err := db.ListConceptIDs()
+	if err != nil {
+		t.Fatalf("ListConceptIDs failed: %v", err)
+	}
+	// Init() seeds 6 default concepts
+	want := []string{"cat", "chicken", "cow", "dog", "duck", "pig"}
+	if len(ids) != len(want) {
+		t.Fatalf("ListConceptIDs = %v, want %v", ids, want)
+	}
+	for i, id := range ids {
+		if id != want[i] {
+			t.Errorf("ListConceptIDs[%d] = %q, want %q", i, id, want[i])
+		}
+	}
+}
+
+func TestListConceptIDs_WithAdditionalConcepts(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+	if err := db.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Insert new concepts (non-conflicting with seed data)
+	for _, c := range []struct{ id, name string }{
+		{"zebra", "Zebra"},
+		{"horse", "Horse"},
+	} {
+		if err := db.InsertConcept(c.id, c.name); err != nil {
+			t.Fatalf("InsertConcept(%s) failed: %v", c.id, err)
+		}
+	}
+
+	ids, err := db.ListConceptIDs()
+	if err != nil {
+		t.Fatalf("ListConceptIDs failed: %v", err)
+	}
+	// 6 seed + 2 new, sorted alphabetically
+	want := []string{"cat", "chicken", "cow", "dog", "duck", "horse", "pig", "zebra"}
+	if len(ids) != len(want) {
+		t.Fatalf("ListConceptIDs = %v, want %v", ids, want)
+	}
+	for i, id := range ids {
+		if id != want[i] {
+			t.Errorf("ListConceptIDs[%d] = %q, want %q", i, id, want[i])
+		}
+	}
+}
+
 // itoa is a simple int-to-string helper for test data.
 func itoa(n int) string {
 	return fmt.Sprintf("%d", n)

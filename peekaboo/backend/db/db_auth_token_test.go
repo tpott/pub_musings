@@ -453,3 +453,99 @@ func TestRedeemMagicLinkToken(t *testing.T) {
 		t.Errorf("second RedeemMagicLinkToken: expected ErrTokenAlreadyUsed, got %v", err)
 	}
 }
+
+func TestDeleteExpiredEmailVerificationTokens(t *testing.T) {
+	db := openTestDB(t)
+
+	user := &User{
+		ID:           "evcleanup-user",
+		Email:        "evcleanup@example.com",
+		PasswordHash: "hash",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Store one expired token and one fresh token
+	expired := time.Now().UTC().Add(-1 * time.Hour)
+	fresh := time.Now().UTC().Add(24 * time.Hour)
+
+	if err := db.StoreEmailVerificationToken("ev-expired", user.ID, "hash-expired", expired); err != nil {
+		t.Fatalf("StoreEmailVerificationToken(expired) failed: %v", err)
+	}
+	if err := db.StoreEmailVerificationToken("ev-fresh", user.ID, "hash-fresh", fresh); err != nil {
+		t.Fatalf("StoreEmailVerificationToken(fresh) failed: %v", err)
+	}
+
+	deleted, err := db.DeleteExpiredEmailVerificationTokens()
+	if err != nil {
+		t.Fatalf("DeleteExpiredEmailVerificationTokens failed: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("deleted = %d, want 1", deleted)
+	}
+
+	// Fresh token should still exist
+	_, _, _, _, err = db.GetEmailVerificationToken("hash-fresh")
+	if err != nil {
+		t.Errorf("fresh token should still exist: %v", err)
+	}
+
+	// Expired token should be gone
+	id, _, _, _, err := db.GetEmailVerificationToken("hash-expired")
+	if err != nil {
+		t.Fatalf("GetEmailVerificationToken(expired) error: %v", err)
+	}
+	if id != "" {
+		t.Error("expired token should have been deleted")
+	}
+}
+
+func TestDeleteExpiredMagicLinkTokens(t *testing.T) {
+	db := openTestDB(t)
+
+	user := &User{
+		ID:           "mlcleanup-user",
+		Email:        "mlcleanup@example.com",
+		PasswordHash: "hash",
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Store one expired token and one fresh token
+	expired := time.Now().UTC().Add(-1 * time.Hour)
+	fresh := time.Now().UTC().Add(24 * time.Hour)
+
+	if err := db.StoreMagicLinkToken("ml-expired", user.ID, "ml-hash-expired", expired); err != nil {
+		t.Fatalf("StoreMagicLinkToken(expired) failed: %v", err)
+	}
+	if err := db.StoreMagicLinkToken("ml-fresh", user.ID, "ml-hash-fresh", fresh); err != nil {
+		t.Fatalf("StoreMagicLinkToken(fresh) failed: %v", err)
+	}
+
+	deleted, err := db.DeleteExpiredMagicLinkTokens()
+	if err != nil {
+		t.Fatalf("DeleteExpiredMagicLinkTokens failed: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("deleted = %d, want 1", deleted)
+	}
+
+	// Fresh token should still exist
+	_, _, _, _, err = db.GetMagicLinkToken("ml-hash-fresh")
+	if err != nil {
+		t.Errorf("fresh token should still exist: %v", err)
+	}
+
+	// Expired token should be gone
+	id, _, _, _, err := db.GetMagicLinkToken("ml-hash-expired")
+	if err != nil {
+		t.Fatalf("GetMagicLinkToken(expired) error: %v", err)
+	}
+	if id != "" {
+		t.Error("expired token should have been deleted")
+	}
+}

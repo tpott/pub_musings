@@ -6,6 +6,16 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-14: SQLite CURRENT_TIMESTAMP vs Go time.Time format mismatch
+
+**Context:** go-sqlite3 stores `time.Time` values in RFC3339 format (`2006-01-02T15:04:05Z`), but SQLite's `CURRENT_TIMESTAMP` returns `YYYY-MM-DD HH:MM:SS`. Comparing these with `WHERE expires_at < CURRENT_TIMESTAMP` does lexicographic string comparison which breaks at the `T` vs space character.
+
+**Fix:** Pass `time.Now().UTC()` as a `?` parameter instead of using `CURRENT_TIMESTAMP` in cleanup queries. This ensures both sides are in the same format for reliable comparison.
+
+**Rule:** Never use `CURRENT_TIMESTAMP` to compare against columns populated from Go `time.Time` values — always pass Go time as a parameter.
+
+---
+
 ### 2026-02-14: Extract helpers for fragile error string comparisons
 
 **Problem:** 12 handlers across the api package checked for `http.MaxBytesReader` errors using `err.Error() == "http: request body too large"` (most handlers) or `strings.Contains(err.Error(), "http: request body too large")` (admin handlers). If Go's http package ever changes this error message, all handlers break silently.

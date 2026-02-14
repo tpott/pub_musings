@@ -257,7 +257,7 @@ func (db *DB) DeleteSession(sessionID string) error {
 
 // DeleteExpiredSessions removes all sessions that have expired.
 func (db *DB) DeleteExpiredSessions() (int64, error) {
-	result, err := db.conn.Exec("DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP")
+	result, err := db.conn.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC())
 	if err != nil {
 		return 0, fmt.Errorf("delete expired sessions: %w", err)
 	}
@@ -495,7 +495,7 @@ func (db *DB) DeleteExpiredLoginAttempts(before time.Time) (int64, error) {
 
 // DeleteExpiredEmailVerificationTokens removes verification tokens past their expires_at.
 func (db *DB) DeleteExpiredEmailVerificationTokens() (int64, error) {
-	result, err := db.conn.Exec("DELETE FROM email_verification_tokens WHERE expires_at < CURRENT_TIMESTAMP")
+	result, err := db.conn.Exec("DELETE FROM email_verification_tokens WHERE expires_at < ?", time.Now().UTC())
 	if err != nil {
 		return 0, fmt.Errorf("delete expired email verification tokens: %w", err)
 	}
@@ -504,7 +504,7 @@ func (db *DB) DeleteExpiredEmailVerificationTokens() (int64, error) {
 
 // DeleteExpiredMagicLinkTokens removes magic link tokens past their expires_at.
 func (db *DB) DeleteExpiredMagicLinkTokens() (int64, error) {
-	result, err := db.conn.Exec("DELETE FROM magic_link_tokens WHERE expires_at < CURRENT_TIMESTAMP")
+	result, err := db.conn.Exec("DELETE FROM magic_link_tokens WHERE expires_at < ?", time.Now().UTC())
 	if err != nil {
 		return 0, fmt.Errorf("delete expired magic link tokens: %w", err)
 	}

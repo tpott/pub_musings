@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 328 tasks completed.
+Production-ready voice-controlled web app for children. 330 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,9 @@ Production-ready voice-controlled web app for children. 328 tasks completed.
 
 ## Last Completed
 
+- Tasks 373-374 (2026-02-14): Deep inspection round 32 — DB bug fix + test coverage:
+  - Task 373: Fix CURRENT_TIMESTAMP vs Go time.Time format mismatch in 3 cleanup functions (sessions, email tokens, magic link tokens) — SQLite string comparison was unreliable. Added 4 DB tests.
+  - Task 374: Add 2 tests for logging statusRecorder.Hijack (supported + unsupported)
 - Tasks 370-372 (2026-02-14): Deep inspection round 31 — code quality + specs + PBT robustness:
   - Task 370: Extract isBodyTooLargeError() helper — replaces 12 fragile string comparisons across handlers
   - Task 371: Update specs/media-management.md status to Implemented, clean up architecture.md TODO
