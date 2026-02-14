@@ -211,6 +211,46 @@ function clearHistory(state: SegmentEditorState, els: SegmentEditorElements): vo
 	updateUndoRedoButtons(state, els);
 }
 
+// --- Timing adjustment ---
+
+/** Minimum gap between start and end times in seconds */
+const MIN_TIME_GAP = 0.1;
+
+/** Round to 3 decimal places to avoid floating-point drift */
+function roundTime(t: number): number {
+	return Math.round(t * 1000) / 1000;
+}
+
+export function adjustSegmentTime(
+	state: SegmentEditorState,
+	els: SegmentEditorElements,
+	index: number,
+	type: 'start' | 'end',
+	direction: 'earlier' | 'later',
+	shiftKey: boolean
+): void {
+	const step = shiftKey ? 0.5 : 0.1;
+	const delta = direction === 'earlier' ? -step : step;
+	const segment = state.editedSegments[index];
+
+	pushToHistory(state, els);
+
+	if (type === 'start') {
+		segment.start = roundTime(Math.max(0, segment.start + delta));
+		if (segment.start >= segment.end - MIN_TIME_GAP) {
+			segment.start = roundTime(segment.end - MIN_TIME_GAP);
+		}
+	} else {
+		segment.end = roundTime(segment.end + delta);
+		if (segment.end <= segment.start + MIN_TIME_GAP) {
+			segment.end = roundTime(segment.start + MIN_TIME_GAP);
+		}
+	}
+
+	markUnsaved(state, els);
+	renderSegments(state, els);
+}
+
 // --- Segment rendering ---
 
 function formatTimeForInput(seconds: number): string {
@@ -234,10 +274,18 @@ export function renderSegments(state: SegmentEditorState, els: SegmentEditorElem
 				<div class="segment-text">${displayText}</div>
 				<div class="segment-edit">
 					<div class="time-inputs">
-						<label>Start:</label>
-						<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" aria-describedby="time-error-start-${index}" />
-						<label>End:</label>
-						<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" aria-describedby="time-error-end-${index}" />
+						<div class="time-adjust-group">
+							<button class="time-adjust-btn" data-direction="earlier" data-type="start" data-index="${index}" aria-label="Move start earlier">&#9664;</button>
+							<button class="time-adjust-btn" data-direction="later" data-type="start" data-index="${index}" aria-label="Move start later">&#9654;</button>
+							<label>Start:</label>
+							<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" aria-describedby="time-error-start-${index}" />
+						</div>
+						<div class="time-adjust-group">
+							<label>End:</label>
+							<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" aria-describedby="time-error-end-${index}" />
+							<button class="time-adjust-btn" data-direction="earlier" data-type="end" data-index="${index}" aria-label="Move end earlier">&#9664;</button>
+							<button class="time-adjust-btn" data-direction="later" data-type="end" data-index="${index}" aria-label="Move end later">&#9654;</button>
+						</div>
 					</div>
 					<div class="time-error" id="time-error-start-${index}" data-type="start" data-index="${index}" role="alert"></div>
 					<div class="time-error" id="time-error-end-${index}" data-type="end" data-index="${index}" role="alert"></div>
@@ -340,6 +388,19 @@ function setupEditHandlers(state: SegmentEditorState, els: SegmentEditorElements
 				state.editedSegments[index].end = parsed.seconds;
 				markUnsaved(state, els);
 			}
+		});
+	});
+
+	// Timing adjustment buttons
+	els.segments.querySelectorAll('.time-adjust-btn').forEach((btn: Element) => {
+		btn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			const target = btn as HTMLButtonElement;
+			const index = parseInt(target.getAttribute('data-index') || '0', 10);
+			const type = target.getAttribute('data-type') as 'start' | 'end';
+			const direction = target.getAttribute('data-direction') as 'earlier' | 'later';
+			const shiftKey = (e as MouseEvent).shiftKey;
+			adjustSegmentTime(state, els, index, type, direction, shiftKey);
 		});
 	});
 
