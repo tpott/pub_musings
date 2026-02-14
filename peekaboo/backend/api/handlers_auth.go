@@ -112,7 +112,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, registerResponse{Error: "request body too large"})
 			return
 		}
@@ -361,7 +361,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, loginResponse{Error: "request body too large"})
 			return
 		}
@@ -697,7 +697,7 @@ func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Re
 
 	var req resendVerificationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, resendVerificationResponse{Error: "request body too large"})
 			return
 		}

@@ -278,6 +278,13 @@ func detectTrailingSilence(resp *WhisperResponse) float64 {
 	return gap
 }
 
+// isBodyTooLargeError checks whether an error from json.Decoder.Decode (or
+// similar) was caused by http.MaxBytesReader rejecting an oversized body.
+// Using a helper avoids fragile string comparisons scattered across handlers.
+func isBodyTooLargeError(err error) bool {
+	return err != nil && err.Error() == "http: request body too large"
+}
+
 // writeJSON writes a JSON response with the given status code.
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")

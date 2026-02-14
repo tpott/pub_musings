@@ -42,7 +42,7 @@ func (h *AdminHandler) HandleCreateConcept(w http.ResponseWriter, r *http.Reques
 
 	var req adminConceptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if strings.Contains(err.Error(), "http: request body too large") {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, adminConceptResponse{Error: "request body too large"})
 			return
 		}

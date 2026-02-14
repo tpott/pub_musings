@@ -61,7 +61,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadTotal)
 
 	if err := r.ParseMultipartForm(maxUploadTotal); err != nil {
-		if strings.Contains(err.Error(), "http: request body too large") {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, adminMediaResponse{Error: "upload too large (max 70MB total)"})
 			return
 		}

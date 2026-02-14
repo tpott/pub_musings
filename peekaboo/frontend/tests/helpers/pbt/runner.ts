@@ -68,11 +68,18 @@ class PBTRunner {
     await this.pollWSMessage('tts_audio', 'text', contains);
   }
 
-  /** Assert no tts_audio WS message in buffer. */
+  /** Assert no tts_audio WS message in buffer. Polls to catch late arrivals. */
   async assertNoTTS(): Promise<void> {
-    await this.page.waitForTimeout(2000);
-    const msgs = await this.getWSMessages();
-    expect(msgs.filter((m: any) => m.type === 'tts_audio')).toHaveLength(0);
+    // Poll over 2s to catch TTS arriving at any point, failing immediately
+    // if a tts_audio message appears instead of only checking at the end
+    await expect
+      .poll(
+        () => this.getWSMessages().then(
+          (msgs) => msgs.filter((m: any) => m.type === 'tts_audio').length,
+        ),
+        { timeout: 2000, intervals: [200, 400, 400, 500, 500] },
+      )
+      .toBe(0);
   }
 
   /** Assert transcript display contains text. */
@@ -127,11 +134,12 @@ class PBTRunner {
       await this.page.evaluate((newChunks: string[]) => {
         (window as any).__PBT_SESSIONS__.push(newChunks);
       }, chunks);
-      // Stop active recorder before starting new session
+      // Stop active recorder before starting new session — wait for
+      // WebSocket close handshake and backend state transition
       const mic = this.page.locator(MIC_SELECTOR);
       if ((await mic.getAttribute('aria-pressed')) === 'true') {
         await mic.click();
-        await this.page.waitForTimeout(500);
+        await this.page.waitForTimeout(1000);
       }
     }
     const mic = this.page.locator(MIC_SELECTOR);

@@ -75,7 +75,7 @@ func (h *FeedbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse JSON body
 	var req FeedbackRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, FeedbackResponse{Error: "request body too large"})
 			return
 		}

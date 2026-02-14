@@ -45,7 +45,7 @@ The whisper-server is already deployed and proven. Flow:
 - **Development/testing:** Use smallest model (`ggml-tiny.en.bin` or `ggml-base.en.bin`) for fast iteration
 - **Production:** Use larger model for accuracy with child speech
 
-**Network topology (TODO: configure):**
+**Network topology:**
 ```
 ┌─────────────────┐      ┌─────────────────┐
 │   VM (ralph)    │      │  Baremetal Mac  │
@@ -56,7 +56,7 @@ The whisper-server is already deployed and proven. Flow:
 └─────────────────┘      └─────────────────┘
 ```
 
-Backend needs `WHISPER_SERVER_URL` env var pointing to baremetal Mac's IP/hostname.
+Backend uses `WHISPER_SERVER_URL` env var (default `http://127.0.0.1:8765`) to reach the whisper-server.
 Reference subtitler's setup for VM-to-host networking (likely `10.0.2.2` for QEMU or host IP for bridged).
 
 **Future enhancements:**

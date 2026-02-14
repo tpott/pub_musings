@@ -6,6 +6,16 @@ When updating, follow [LEARNINGS-FORMAT.md](docs/ralph/LEARNINGS-FORMAT.md).
 
 ---
 
+### 2026-02-14: Extract helpers for fragile error string comparisons
+
+**Problem:** 12 handlers across the api package checked for `http.MaxBytesReader` errors using `err.Error() == "http: request body too large"` (most handlers) or `strings.Contains(err.Error(), "http: request body too large")` (admin handlers). If Go's http package ever changes this error message, all handlers break silently.
+
+**Solution:** Extracted `isBodyTooLargeError(err)` helper in `transcribe.go` (next to `writeJSON`). All 12 handlers now use the helper instead of raw string comparison.
+
+**Lesson:** When multiple handlers share the same fragile string comparison, extract a helper. The single point of change also documents what the check is doing (the function name is clearer than the string literal).
+
+---
+
 ### 2026-02-14: Deploy health checks need curl timeouts and automatic rollback
 
 **Problem:** `deploy-peekaboo-backend.sh` health check curls had no `--max-time` flag. If the server accepts connections but hangs (e.g., stuck on DB migration), curl blocks indefinitely and the deploy script never completes. Also, when the health check failed after all retries, the broken binary stayed deployed with no rollback.

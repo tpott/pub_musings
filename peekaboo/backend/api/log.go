@@ -40,7 +40,7 @@ func (h *LogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var req LogRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isBodyTooLargeError(err) {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
 			return
 		}

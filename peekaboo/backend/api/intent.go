@@ -62,8 +62,7 @@ func (h *IntentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse JSON body
 	var req IntentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// MaxBytesReader returns a specific error type when limit exceeded
-		if err.Error() == "http: request body too large" {
+		if isBodyTooLargeError(err) {
 			writeJSON(w, http.StatusRequestEntityTooLarge, IntentResponse{Error: "request body too large"})
 			return
 		}

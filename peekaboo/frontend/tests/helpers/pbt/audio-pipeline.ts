@@ -61,6 +61,14 @@ export function fixtureToChunks(fixturePath: string): string[] {
   const resolvedPath = path.isAbsolute(fixturePath)
     ? fixturePath
     : path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'fixtures', fixturePath);
-  const data = fs.readFileSync(resolvedPath);
-  return splitIntoChunks(data);
+  try {
+    const data = fs.readFileSync(resolvedPath);
+    return splitIntoChunks(data);
+  } catch (err) {
+    throw new Error(
+      `Failed to load fixture "${fixturePath}"\n` +
+      `  Expected at: ${resolvedPath}\n` +
+      `  ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }

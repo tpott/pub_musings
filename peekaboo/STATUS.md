@@ -4,7 +4,7 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 325 tasks completed.
+Production-ready voice-controlled web app for children. 328 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
@@ -36,6 +36,10 @@ Production-ready voice-controlled web app for children. 325 tasks completed.
 
 ## Last Completed
 
+- Tasks 370-372 (2026-02-14): Deep inspection round 31 — code quality + specs + PBT robustness:
+  - Task 370: Extract isBodyTooLargeError() helper — replaces 12 fragile string comparisons across handlers
+  - Task 371: Update specs/media-management.md status to Implemented, clean up architecture.md TODO
+  - Task 372: PBT runner improvements — fixtureToChunks error context, 500ms→1000ms inter-session wait, assertNoTTS uses expect.poll
 - Tasks 368-369 (2026-02-14): Deep inspection round 30 — deploy robustness + docs:
   - Task 368: Add --max-time 5 to deploy health check curls + automatic rollback to peekaboo-prev on failure
   - Task 369: Add missing HTTP status codes (201, 401, 403, 409, 413) to API.md error table

@@ -1,20 +1,24 @@
 # Media Management Scripts & API
 
-**Status**: Not started
+**Status**: Implemented (Tasks 352-359, 360)
 **Origin**: User feedback (2026-02-14)
 
 ## Goal
 
 Scripts to add new concepts and upload media sets to existing concepts, backed by admin API endpoints. Scripts use `API_SESSION_ID` env var (same pattern as `scripts/fetch-feedback.py`).
 
-## Current State
+## Implementation Summary
 
-- Concepts are hardcoded in `seedData` (db.go) and `seedMediaFromDisk()` (main.go)
-- Media files live on disk at `data/media/{concept}/set{N}/{photo,audio,video}.{ext}`
-- `seedMediaFromDisk()` only scans the 6 hardcoded concept dirs
-- Database schema already supports dynamic concepts (INSERT OR IGNORE)
-- LLM gets concepts dynamically from `ListConceptIDs()`
-- Admin auth exists via `TRUSTED_USERS` env var + session auth
+All tasks completed:
+- **Task 352**: DB methods (`InsertConcept`, `ListConceptsWithCounts`, `NextMediaSetNumber`)
+- **Task 353**: Admin concept endpoints (POST + GET /api/admin/concepts)
+- **Task 354**: Admin media upload endpoint (POST /api/admin/media)
+- **Task 355**: Dynamic `seedMediaFromDisk` (scans all dirs, not hardcoded)
+- **Task 356**: `scripts/add-concept.py`
+- **Task 357**: `scripts/upload-media.py`
+- **Task 358**: Admin user docs in DEPLOY.md
+- **Task 359**: API.md updated with admin endpoints
+- **Task 360**: CSRF token fetch added to admin scripts (both failed 403 without it)
 
 ## Design
 
