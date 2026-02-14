@@ -4,13 +4,13 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**500 tasks completed** as of 2026-01-30.
+**504 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
 - **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 875 tests across 32 files
+- **Frontend:** Astro/TypeScript, 885 tests across 33 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,548 tests, 32 specification documents
+- **Total:** 1,558 tests, 32 specification documents
 
 ## Feature Summary
 
@@ -62,6 +62,12 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Task 506: Bug fix — feedback send button stuck on "Sending..." (2026-02-14)
+- `resetForm()` in FeedbackButton.astro did not reset `submitBtn.textContent` back to "Send Feedback" after successful submission. After closing and reopening the modal, the button still showed "Sending..."
+- Extracted feedback form state management to `feedback-form.ts` utility (resetForm, setSubmitSending, setSubmitReady) for testability
+- Added 10 tests in `feedback-form.test.ts`. 885 frontend tests across 33 files pass
+- Filed 8 new tasks from user feedback (505-512): i18n spec, multi-layer speech spec/impl, misaligned button split, edit UI spec/impl
 
 ### Tasks 497-500: Deep inspection fixes (2026-01-30)
 - **Task 497:** Fixed `EncryptFile` and `DecryptToFile` in crypto/crypto.go ignoring `dst.Close()` errors on write files. Both now check close error, remove partial/corrupted file, and return error. Consistent with close-error patterns from tasks 480, 490
