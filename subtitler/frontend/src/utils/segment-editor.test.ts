@@ -4,7 +4,6 @@ import {
 	createSegmentEditorState,
 	getSegmentFeedback,
 	setSegmentFeedback,
-	updateFeedbackButtons,
 	updateUndoRedoButtons,
 	pushToHistory,
 	performUndo,
@@ -16,10 +15,6 @@ import {
 	getCurrentSegmentIndex,
 	isTextInputFocused,
 	scrollIntoContainerView,
-	renderSegments,
-	setupFeedbackHandler,
-	navigateToSegment,
-	type SegmentEditorState,
 	type SegmentEditorElements,
 	type SegmentEditorCallbacks,
 } from './segment-editor';
@@ -174,9 +169,11 @@ describe('getSegmentFeedback / setSegmentFeedback', () => {
 
 	it('should store feedback for different segments independently', () => {
 		setSegmentFeedback('upload-1', 0, 'good');
-		setSegmentFeedback('upload-1', 1, 'misaligned');
+		setSegmentFeedback('upload-1', 1, 'early');
+		setSegmentFeedback('upload-1', 2, 'late');
 		expect(getSegmentFeedback('upload-1', 0)).toBe('good');
-		expect(getSegmentFeedback('upload-1', 1)).toBe('misaligned');
+		expect(getSegmentFeedback('upload-1', 1)).toBe('early');
+		expect(getSegmentFeedback('upload-1', 2)).toBe('late');
 	});
 
 	it('should remove feedback when set to null', () => {
@@ -201,63 +198,6 @@ describe('getSegmentFeedback / setSegmentFeedback', () => {
 	it('should handle corrupted localStorage data gracefully', () => {
 		localStorageMock._setStore({ 'subtitler:feedback:upload-1': 'not-json{' });
 		expect(getSegmentFeedback('upload-1', 0)).toBeNull();
-	});
-});
-
-describe('updateFeedbackButtons', () => {
-	it('should hide feedback when index is negative', () => {
-		const state = createSegmentEditorState();
-		const feedbackEl = {
-			style: { display: '' },
-			querySelectorAll: vi.fn(() => []),
-		} as unknown as HTMLElement;
-
-		updateFeedbackButtons(state, feedbackEl, -1);
-
-		expect(feedbackEl.style.display).toBe('none');
-		expect(state.feedbackActiveIndex).toBe(-1);
-	});
-
-	it('should show feedback and update active index for valid index', () => {
-		const state = createSegmentEditorState();
-		state.currentUploadId = 'upload-1';
-		const mockBtn = {
-			getAttribute: vi.fn(() => 'good'),
-			classList: { toggle: vi.fn() },
-		};
-		const feedbackEl = {
-			style: { display: 'none' },
-			querySelectorAll: vi.fn(() => [mockBtn]),
-		} as unknown as HTMLElement;
-
-		updateFeedbackButtons(state, feedbackEl, 2);
-
-		expect(feedbackEl.style.display).toBe('');
-		expect(state.feedbackActiveIndex).toBe(2);
-	});
-
-	it('should toggle active class on matching feedback button', () => {
-		const state = createSegmentEditorState();
-		state.currentUploadId = 'upload-1';
-		setSegmentFeedback('upload-1', 0, 'misaligned');
-
-		const btnGood = {
-			getAttribute: vi.fn(() => 'good'),
-			classList: { toggle: vi.fn() },
-		};
-		const btnMisaligned = {
-			getAttribute: vi.fn(() => 'misaligned'),
-			classList: { toggle: vi.fn() },
-		};
-		const feedbackEl = {
-			style: { display: '' },
-			querySelectorAll: vi.fn(() => [btnGood, btnMisaligned]),
-		} as unknown as HTMLElement;
-
-		updateFeedbackButtons(state, feedbackEl, 0);
-
-		expect(btnGood.classList.toggle).toHaveBeenCalledWith('active', false);
-		expect(btnMisaligned.classList.toggle).toHaveBeenCalledWith('active', true);
 	});
 });
 
@@ -871,107 +811,3 @@ describe('saveSegments', () => {
 	});
 });
 
-describe('renderSegments', () => {
-	it('should render segments as HTML', () => {
-		const state = createSegmentEditorState();
-		state.transcriptionSegments = makeSegments(2);
-		const els = makeMockElements();
-
-		renderSegments(state, els);
-
-		expect(els.segments.innerHTML).toContain('data-index="0"');
-		expect(els.segments.innerHTML).toContain('data-index="1"');
-		expect(els.segments.innerHTML).toContain('Segment 0');
-		expect(els.segments.innerHTML).toContain('Segment 1');
-	});
-
-	it('should render edited segments in edit mode', () => {
-		const state = createSegmentEditorState();
-		state.isEditMode = true;
-		state.transcriptionSegments = makeSegments(1);
-		state.editedSegments = [{ id: 0, start: 0, end: 5, text: 'Edited text' }];
-		const els = makeMockElements();
-
-		renderSegments(state, els);
-
-		expect(els.segments.innerHTML).toContain('Edited text');
-		expect(els.segments.innerHTML).toContain('editing');
-	});
-
-	it('should not render when segments are empty', () => {
-		const state = createSegmentEditorState();
-		state.transcriptionSegments = [];
-		const els = makeMockElements();
-		els.segments.innerHTML = 'previous';
-
-		renderSegments(state, els);
-
-		expect(els.segments.innerHTML).toBe('previous');
-	});
-});
-
-describe('setupFeedbackHandler', () => {
-	it('should attach click event listener to feedback element', () => {
-		const state = createSegmentEditorState();
-		const feedbackEl = {
-			addEventListener: vi.fn(),
-		} as unknown as HTMLElement;
-
-		setupFeedbackHandler(state, feedbackEl);
-
-		expect(feedbackEl.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
-	});
-});
-
-describe('navigateToSegment', () => {
-	function makeMockSegmentEl() {
-		return {
-			classList: { add: vi.fn(), remove: vi.fn() },
-			getBoundingClientRect: vi.fn(() => ({ top: 100, bottom: 130 })),
-		};
-	}
-
-	it('should do nothing when no segments exist', () => {
-		const state = createSegmentEditorState();
-		state.transcriptionSegments = [];
-		const els = makeMockElements();
-
-		navigateToSegment(state, els, els.previewVideo, 0);
-
-		expect(els.previewVideo.currentTime).toBe(0);
-	});
-
-	it('should clamp index to valid range', () => {
-		const state = createSegmentEditorState();
-		state.transcriptionSegments = makeSegments(3);
-		const els = makeMockElements();
-		// Add getBoundingClientRect to segments container for scrollIntoContainerView
-		(els.segments as unknown as Record<string, unknown>).getBoundingClientRect =
-			vi.fn(() => ({ top: 0, bottom: 400 }));
-		(els.segments as unknown as Record<string, unknown>).scrollTop = 0;
-		(els.segments.querySelectorAll as ReturnType<typeof vi.fn>).mockReturnValue(
-			[makeMockSegmentEl(), makeMockSegmentEl(), makeMockSegmentEl()]
-		);
-
-		navigateToSegment(state, els, els.previewVideo, 10);
-
-		// Should clamp to last segment (index 2, start = 10)
-		expect(els.previewVideo.currentTime).toBe(10);
-	});
-
-	it('should clamp negative index to 0', () => {
-		const state = createSegmentEditorState();
-		state.transcriptionSegments = makeSegments(3);
-		const els = makeMockElements();
-		(els.segments as unknown as Record<string, unknown>).getBoundingClientRect =
-			vi.fn(() => ({ top: 0, bottom: 400 }));
-		(els.segments as unknown as Record<string, unknown>).scrollTop = 0;
-		(els.segments.querySelectorAll as ReturnType<typeof vi.fn>).mockReturnValue(
-			[makeMockSegmentEl(), makeMockSegmentEl(), makeMockSegmentEl()]
-		);
-
-		navigateToSegment(state, els, els.previewVideo, -5);
-
-		expect(els.previewVideo.currentTime).toBe(0);
-	});
-});

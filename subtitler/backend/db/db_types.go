@@ -32,12 +32,21 @@ type Transcription struct {
 	CompletedAt  *time.Time `json:"completed_at,omitempty"`
 }
 
+// Word represents a single word with timing from Whisper word-level timestamps
+type Word struct {
+	Text        string  `json:"text"`
+	Start       float64 `json:"start"`
+	End         float64 `json:"end"`
+	Probability float64 `json:"probability,omitempty"`
+}
+
 // Segment represents a single subtitle segment
 type Segment struct {
 	ID    int     `json:"id"`
 	Start float64 `json:"start"`
 	End   float64 `json:"end"`
 	Text  string  `json:"text"`
+	Words []Word  `json:"words,omitempty"`
 }
 
 // Role constants for user authorization

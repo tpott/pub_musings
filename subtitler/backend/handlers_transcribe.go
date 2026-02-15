@@ -259,15 +259,7 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 			}
 
 			// Convert segments to database format
-			segments := make([]db.Segment, len(result.Segments))
-			for i, s := range result.Segments {
-				segments[i] = db.Segment{
-					ID:    s.ID,
-					Start: s.Start,
-					End:   s.End,
-					Text:  s.Text,
-				}
-			}
+			segments := whisperSegmentsToDBSegments(result.Segments)
 
 			// Success - save to database and record metrics
 			transcriptionDuration := time.Since(transcriptionStart)
@@ -634,6 +626,126 @@ func registerTranscriptionHandlers(mux *http.ServeMux) { //nolint:funlen // rout
 		}
 		httputil.RespondJSON(w, http.StatusOK, response)
 	})
+
+	// Transcribe a gap (time range) in an existing video
+	mux.HandleFunc("POST /api/transcribe/{id}/gap", transcribeLimiter.Wrap(func(w http.ResponseWriter, r *http.Request) {
+		uploadID, valid := validatePathID(w, r.PathValue("id"), "Upload ID")
+		if !valid {
+			return
+		}
+
+		// Parse request body
+		var req struct {
+			Start    float64 `json:"start"`
+			End      float64 `json:"end"`
+			Language string  `json:"language"`
+		}
+		if err := httputil.DecodeJSONBody(r, w, &req, 0); err != nil {
+			if err.Error() == "http: request body too large" {
+				httputil.RespondError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+			} else {
+				httputil.RespondError(w, http.StatusBadRequest, "Invalid request body")
+			}
+			return
+		}
+
+		// Validate time range
+		if req.Start < 0 {
+			httputil.RespondError(w, http.StatusBadRequest, "Start time must be >= 0")
+			return
+		}
+		if req.End <= req.Start {
+			httputil.RespondError(w, http.StatusBadRequest, "End time must be greater than start time")
+			return
+		}
+		if req.End-req.Start > 300 {
+			httputil.RespondError(w, http.StatusBadRequest, "Gap duration cannot exceed 5 minutes")
+			return
+		}
+
+		// Default language
+		lang := req.Language
+		if lang == "" {
+			lang = "auto"
+		}
+		if err := validation.ValidateLanguageCode(lang); err != nil {
+			httputil.RespondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// Find video and check access
+		video, err := getVideoForDecryption(uploadID)
+		if err != nil {
+			httputil.RespondError(w, http.StatusNotFound, errmsg.ForVideoNotFound(err))
+			return
+		}
+
+		token := auth.GetTokenFromRequest(r)
+		user, _, _ := auth.ValidateSession(database, token)
+		sessionID := getValidSessionID(r)
+
+		hasAccess := false
+		if user != nil && video.UserID != nil && *video.UserID == user.ID {
+			hasAccess = true
+		} else if sessionID != "" && video.SessionID != nil && *video.SessionID == sessionID {
+			hasAccess = true
+		}
+		if !hasAccess {
+			httputil.RespondError(w, http.StatusForbidden, "You do not have permission to access this video")
+			return
+		}
+
+		// Decrypt video if encrypted
+		workingVideoPath := video.FilePath
+		if strings.HasSuffix(video.FilePath, ".age") {
+			decryptedPath, err := multiEnc.DecryptToTempFile(video.FilePath, video.KeyVersion)
+			if err != nil {
+				logging.ErrorContext(r.Context(), "Video decryption failed for gap transcription", "error", err)
+				httputil.RespondError(w, http.StatusInternalServerError, "Video decryption failed")
+				return
+			}
+			workingVideoPath = decryptedPath
+			defer removeWithLogging(decryptedPath, "decrypted video cleanup after gap transcription")
+		}
+
+		// Extract audio segment for the gap
+		audioPath := filepath.Join(uploadDir, uploadID+"_gap.wav")
+		if err := audioExtractor.ExtractAudioSegment(workingVideoPath, audioPath, req.Start, req.End); err != nil {
+			logging.ErrorContext(r.Context(), "Audio segment extraction failed", "error", err, "start", req.Start, "end", req.End)
+			httputil.RespondError(w, http.StatusInternalServerError, "Audio extraction failed")
+			return
+		}
+		defer removeWithLogging(audioPath, "gap audio cleanup after transcription")
+
+		// Transcribe the gap audio
+		outputPath := filepath.Join(uploadDir, uploadID+"_gap_transcript")
+		result, err := transcribe(audioPath, outputPath, lang)
+		if err != nil {
+			logging.ErrorContext(r.Context(), "Gap transcription failed", "error", err)
+			httputil.RespondError(w, http.StatusInternalServerError, "Transcription failed")
+			return
+		}
+
+		// Adjust segment timestamps: whisper returns times relative to the extracted segment,
+		// but we need absolute times relative to the original video
+		for i := range result.Segments {
+			result.Segments[i].Start += req.Start
+			result.Segments[i].End += req.Start
+			for j := range result.Segments[i].Words {
+				result.Segments[i].Words[j].Start += req.Start
+				result.Segments[i].Words[j].End += req.Start
+			}
+		}
+
+		logging.InfoContext(r.Context(), "Gap transcription complete",
+			"upload_id", uploadID, "start", req.Start, "end", req.End,
+			"segments", len(result.Segments))
+
+		httputil.RespondJSON(w, http.StatusOK, map[string]interface{}{
+			"text":     result.Text,
+			"segments": result.Segments,
+		})
+	}))
 }
 
 // assembleChunks copies chunk files into a single destination file in order.

@@ -143,9 +143,13 @@ func registerUploadHandlers(mux *http.ServeMux) { //nolint:funlen // route regis
 			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save file")
 			return
 		}
-		// Close before encrypting - log any close error but continue since data is written
+		// Close before encrypting — must succeed for data integrity
 		if err := destFile.Close(); err != nil {
-			logging.WarnContext(r.Context(), "Error closing destination file", "path", destPath, "error", err)
+			logging.ErrorContext(r.Context(), "Error closing destination file", "path", destPath, "error", err)
+			removeWithLogging(destPath, "partial file cleanup after close error")
+			metrics.RecordUploadFailed()
+			httputil.RespondError(w, http.StatusInternalServerError, "Failed to save file")
+			return
 		}
 
 		logging.InfoContext(r.Context(), "Uploaded file", "filename", header.Filename, "bytes", written, "dest_path", destPath)

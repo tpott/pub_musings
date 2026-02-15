@@ -107,16 +107,29 @@ import '../styles/upload.css';
 				<h2>Transcription<span class="unsaved-indicator" id="unsavedIndicator">(unsaved changes)</span></h2>
 				<p class="transcription-status" id="transcriptionStatus">Starting transcription...</p>
 				<div class="current-subtitle" aria-live="polite" aria-atomic="true"><span class="current-subtitle-inner" id="currentSubtitle"></span></div>
+				<div class="layer-toggle" id="layerToggle" style="display: none;" role="group" aria-label="Subtitle display mode">
+					<button class="layer-btn active" id="layerSentencesBtn" aria-pressed="true">Sentences</button>
+					<button class="layer-btn" id="layerWordsBtn" aria-pressed="false">Words</button>
+				</div>
 				<div class="subtitle-feedback" id="subtitleFeedback" style="display: none;">
-					<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
-						<span class="emoji">👍</span>
+					<button class="feedback-toggle-btn" id="feedbackToggle" aria-label="Rate subtitle alignment">
+						<span class="feedback-dot" id="feedbackDot"></span>
+						Rate
 					</button>
-					<button class="feedback-btn misaligned" data-feedback="misaligned" aria-label="Mark current segment as misaligned" title="Timing is off">
-						<span class="emoji">⏱️</span> Misaligned
-					</button>
-					<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
-						<span class="emoji">❓</span> Missing
-					</button>
+					<div class="feedback-options" id="feedbackOptions" style="display: none;">
+						<button class="feedback-btn good" data-feedback="good" aria-label="Mark current segment as good alignment" title="Good alignment">
+							<span class="emoji">👍</span>
+						</button>
+						<button class="feedback-btn early" data-feedback="early" aria-label="Mark current segment as appearing too early" title="Subtitle appears before the voice starts">
+							<span class="emoji">⏪</span> Early
+						</button>
+						<button class="feedback-btn late" data-feedback="late" aria-label="Mark current segment as appearing too late" title="Subtitle persists after the voice ends">
+							<span class="emoji">⏩</span> Late
+						</button>
+						<button class="feedback-btn missing" data-feedback="missing" aria-label="Mark current segment as missing words" title="Words are missing">
+							<span class="emoji">❓</span> Missing
+						</button>
+					</div>
 				</div>
 				<div class="edit-actions" id="editActions">
 					<button class="undo-redo-btn" id="undoBtn" disabled title="Undo (Ctrl+Z)" aria-label="Undo last edit">
@@ -334,7 +347,7 @@ import '../styles/upload.css';
 				type RetranscribeProgressElements,
 			} from '../utils/retranscribe-progress';
 			import { fetchWithTimeout } from '../utils/fetch-timeout';
-			import type { TranscriptionResult, LanguageHints } from '../types/transcription';
+			import type { TranscriptionResult, TranscriptionSegment, LanguageHints } from '../types/transcription';
 
 			import {
 				LANGUAGE_DISPLAY_NAMES,
@@ -354,7 +367,6 @@ import '../styles/upload.css';
 			import {
 				startTranscription as startTranscriptionPoll,
 				pollTranscriptionStatus,
-				parseSRT,
 				getLanguageDisplayName,
 				createTranscriptionState,
 			} from '../utils/transcription-polling';
@@ -380,6 +392,16 @@ import '../styles/upload.css';
 				createBurnState,
 			} from '../utils/subtitle-sync';
 			import { showConfirm } from '../utils/dialog';
+			import {
+				showEmbeddedSubtitlesNotice,
+				setupEmbeddedSubtitlesHandler,
+			} from '../utils/upload-embedded';
+			import {
+				hasWordData,
+				createLayerToggleState,
+				setupLayerToggle,
+			} from '../utils/subtitle-layers';
+			import type { SubtitleLayer } from '../utils/subtitle-layers';
 
 			// --- DOM Elements ---
 			const dropzone = getRequiredElement('dropzone', HTMLElement);
@@ -398,6 +420,9 @@ import '../styles/upload.css';
 			const fullTextHeader = getRequiredElement('fullTextHeader', HTMLElement);
 			const currentSubtitle = getRequiredElement('currentSubtitle', HTMLElement);
 			const subtitleFeedback = getRequiredElement('subtitleFeedback', HTMLElement);
+			const layerToggleEl = getRequiredElement('layerToggle', HTMLElement);
+			const layerSentencesBtn = getRequiredElement('layerSentencesBtn', HTMLButtonElement);
+			const layerWordsBtn = getRequiredElement('layerWordsBtn', HTMLButtonElement);
 			const actions = getRequiredElement('actions', HTMLElement);
 			const embeddedSubtitlesNotice = getRequiredElement('embeddedSubtitlesNotice', HTMLElement);
 			const embeddedSubtitlesList = getRequiredElement('embeddedSubtitlesList', HTMLElement);
@@ -456,6 +481,7 @@ import '../styles/upload.css';
 			const editorState = createSegmentEditorState();
 			const burnState = createBurnState();
 			const speedState = createSpeedUIState();
+			const layerState = createLayerToggleState();
 			const subtitleSyncState = { active: false };
 
 			const editorEls: SegmentEditorElements = {
@@ -569,7 +595,7 @@ import '../styles/upload.css';
 			}
 
 			const updateCurrentSubtitle = createSubtitleUpdater(
-				editorState, previewVideo, currentSubtitle, subtitleFeedback, segmentsEl
+				editorState, previewVideo, currentSubtitle, subtitleFeedback, segmentsEl, layerState
 			);
 
 			window.addEventListener('beforeunload', (e) => {
@@ -609,7 +635,18 @@ import '../styles/upload.css';
 					fullTextSection.style.display = 'block';
 				}
 
-				showEmbeddedSubtitlesNotice();
+				showEmbeddedSubtitlesNotice(transcriptionState.embeddedSubtitleTracks, embeddedEls);
+
+				// Show/hide layer toggle based on word data availability
+				if (hasWordData(editorState.transcriptionSegments)) {
+					layerToggleEl.style.display = '';
+					setupLayerToggle(layerSentencesBtn, layerWordsBtn, layerState, (_layer: SubtitleLayer) => {
+						// Force subtitle update when layer changes
+						updateCurrentSubtitle();
+					});
+				} else {
+					layerToggleEl.style.display = 'none';
+				}
 
 				if (editorState.currentUploadId) {
 					previewVideo.src = `/api/videos/${editorState.currentUploadId}/video`;
@@ -619,70 +656,18 @@ import '../styles/upload.css';
 			}
 
 			// --- Embedded subtitles ---
-			function showEmbeddedSubtitlesNotice() {
-				const textTracks = transcriptionState.embeddedSubtitleTracks.filter(t => t.text_based);
-				if (textTracks.length === 0) {
-					embeddedSubtitlesNotice.style.display = 'none';
-					return;
-				}
+			const embeddedEls = {
+				notice: embeddedSubtitlesNotice,
+				list: embeddedSubtitlesList,
+				trackSelect: embeddedTrackSelect,
+				useBtn: useEmbeddedBtn,
+				unsavedIndicator,
+				transcriptionStatus,
+			};
 
-				embeddedSubtitlesList.textContent = textTracks.map(t => {
-					let label = t.language || 'Unknown';
-					if (t.title) label += ` (${t.title})`;
-					if (t.default) label += ' [default]';
-					return label;
-				}).join(', ');
-
-				embeddedTrackSelect.innerHTML = '';
-				textTracks.forEach((track, i) => {
-					const option = document.createElement('option');
-					option.value = track.index.toString();
-					let label = track.language || 'Unknown language';
-					if (track.title) label = `${label} - ${track.title}`;
-					label += ` (${track.codec})`;
-					if (track.default) label += ' [default]';
-					option.textContent = label;
-					if (i === 0) option.selected = true;
-					embeddedTrackSelect.appendChild(option);
-				});
-
-				embeddedTrackSelect.style.display = textTracks.length === 1 ? 'none' : 'block';
-				embeddedSubtitlesNotice.style.display = 'flex';
-			}
-
-			useEmbeddedBtn.addEventListener('click', async () => {
-				if (!editorState.currentUploadId) return;
-				const trackIndex = parseInt(embeddedTrackSelect.value, 10);
-				useEmbeddedBtn.disabled = true;
-				useEmbeddedBtn.textContent = 'Loading...';
-
-				try {
-					const response = await fetchWithTimeout(
-						`/api/videos/${editorState.currentUploadId}/embedded-subtitles/${trackIndex}?format=srt`
-					);
-					if (!response.ok) {
-						const err = await response.json();
-						throw new Error(err.error || 'Failed to extract subtitles');
-					}
-					const srtContent = await response.text();
-					const parsedSegments = parseSRT(srtContent);
-					if (parsedSegments.length === 0) throw new Error('No subtitles found in embedded track');
-
-					editorState.transcriptionSegments = parsedSegments;
-					editorState.editedSegments = structuredClone(parsedSegments);
-					editorState.hasUnsavedChanges = true;
-					unsavedIndicator.classList.add('visible');
-
-					renderSegments(editorState, editorEls);
-					fullText.textContent = parsedSegments.map(s => s.text).join(' ');
-					transcriptionStatus.textContent = 'Loaded embedded subtitles! (Unsaved)';
-				} catch (error) {
-					console.error('Failed to load embedded subtitles:', error);
-					transcriptionStatus.textContent = `Error: ${error instanceof Error ? error.message : error}`;
-				} finally {
-					useEmbeddedBtn.disabled = false;
-					useEmbeddedBtn.textContent = 'Use Embedded Subtitles';
-				}
+			setupEmbeddedSubtitlesHandler(editorState, embeddedEls, {
+				renderSegments: () => renderSegments(editorState, editorEls),
+				setFullText: (text) => { fullText.textContent = text; },
 			});
 
 			// --- Transcript alignment ---
@@ -856,14 +841,14 @@ import '../styles/upload.css';
 			redoBtn.addEventListener('click', () => performRedo(editorState, editorEls));
 
 			// --- Subtitle download buttons ---
-			function handleSubtitleOpen(e: Event, openFn: (segs: any[]) => void) {
+			function handleSubtitleOpen(e: Event, openFn: (segs: TranscriptionSegment[]) => void) {
 				e.preventDefault();
 				const segs = editorState.isEditMode ? editorState.editedSegments : editorState.transcriptionSegments;
 				if (segs.length === 0) { showStatus('No subtitles to view', 'error'); return; }
 				openFn(segs);
 			}
-			downloadSrt.addEventListener('click', (e) => handleSubtitleOpen(e, openSRT));
-			downloadVtt.addEventListener('click', (e) => handleSubtitleOpen(e, openVTT));
+			downloadSrt.addEventListener('click', (e) => handleSubtitleOpen(e, (segs) => openSRT(segs, layerState.currentLayer)));
+			downloadVtt.addEventListener('click', (e) => handleSubtitleOpen(e, (segs) => openVTT(segs, layerState.currentLayer)));
 			downloadJson.addEventListener('click', (e) => handleSubtitleOpen(e, openJSON));
 			// --- Burn subtitles ---
 			burnBtn.addEventListener('click', () => {

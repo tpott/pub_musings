@@ -344,4 +344,93 @@ describe('Subtitle utilities', () => {
       expect(srt).toContain('00:00:01,568');
     });
   });
+
+  describe('Word-level export', () => {
+    const segmentsWithWords: TranscriptionSegment[] = [
+      {
+        id: 0, start: 0, end: 2.5, text: 'Hello world',
+        words: [
+          { text: 'Hello', start: 0.0, end: 0.4 },
+          { text: 'world', start: 0.5, end: 0.9 },
+        ],
+      },
+      { id: 1, start: 3.0, end: 5.5, text: 'No words here' },
+    ];
+
+    describe('generateSRT with words layer', () => {
+      it('generates per-word entries in word mode', () => {
+        const srt = generateSRT(segmentsWithWords, 'words');
+        const lines = srt.split('\n');
+
+        // First word
+        expect(lines[0]).toBe('1');
+        expect(lines[1]).toBe('00:00:00,000 --> 00:00:00,400');
+        expect(lines[2]).toBe('Hello');
+
+        // Second word
+        expect(lines[4]).toBe('2');
+        expect(lines[5]).toBe('00:00:00,500 --> 00:00:00,900');
+        expect(lines[6]).toBe('world');
+
+        // Segment without words falls back to segment level
+        expect(lines[8]).toBe('3');
+        expect(lines[9]).toBe('00:00:03,000 --> 00:00:05,500');
+        expect(lines[10]).toBe('No words here');
+      });
+
+      it('uses sentence mode by default', () => {
+        const srt = generateSRT(segmentsWithWords);
+        const lines = srt.split('\n');
+
+        // Should have 2 entries, not 3
+        expect(lines[0]).toBe('1');
+        expect(lines[2]).toBe('Hello world');
+        expect(lines[4]).toBe('2');
+        expect(lines[6]).toBe('No words here');
+      });
+    });
+
+    describe('generateVTT with words layer', () => {
+      it('generates per-word entries in word mode', () => {
+        const vtt = generateVTT(segmentsWithWords, 'words');
+        expect(vtt).toContain('WEBVTT');
+        expect(vtt).toContain('00:00:00.000 --> 00:00:00.400');
+        expect(vtt).toContain('Hello');
+        expect(vtt).toContain('00:00:00.500 --> 00:00:00.900');
+        expect(vtt).toContain('world');
+        expect(vtt).toContain('00:00:03.000 --> 00:00:05.500');
+        expect(vtt).toContain('No words here');
+      });
+    });
+
+    describe('generateJSON with word data', () => {
+      it('includes words when available', () => {
+        const json = generateJSON(segmentsWithWords);
+        const parsed = JSON.parse(json);
+
+        expect(parsed.segments[0].words).toEqual([
+          { text: 'Hello', start: 0.0, end: 0.4 },
+          { text: 'world', start: 0.5, end: 0.9 },
+        ]);
+      });
+
+      it('omits words when not available', () => {
+        const json = generateJSON(segmentsWithWords);
+        const parsed = JSON.parse(json);
+
+        expect(parsed.segments[1].words).toBeUndefined();
+      });
+
+      it('does not include probability in word export', () => {
+        const segments: TranscriptionSegment[] = [{
+          id: 0, start: 0, end: 1, text: 'Hi',
+          words: [{ text: 'Hi', start: 0, end: 0.5, probability: 0.99 }],
+        }];
+        const json = generateJSON(segments);
+        const parsed = JSON.parse(json);
+
+        expect(parsed.segments[0].words[0]).not.toHaveProperty('probability');
+      });
+    });
+  });
 });

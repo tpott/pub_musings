@@ -368,6 +368,13 @@
 	import { csrfFetch, getCsrfToken } from '../utils/csrf';
 	import { getSessionId } from '../utils/session';
 	import { showAlert } from '../utils/dialog';
+	import {
+		createFeedbackFormState,
+		resetForm as resetFormUtil,
+		setSubmitSending,
+		setSubmitReady,
+		type FeedbackFormElements,
+	} from '../utils/feedback-form';
 
 	const feedbackBtn = document.getElementById('feedbackBtn') as HTMLButtonElement;
 	const feedbackModal = document.getElementById('feedbackModal') as HTMLElement;
@@ -379,9 +386,13 @@
 	const charCount = document.getElementById('charCount') as HTMLElement;
 	const submitBtn = document.getElementById('feedbackSubmit') as HTMLButtonElement;
 
-	let selectedRating: number | null = null;
 	const starRatingContainer = document.getElementById('starRating') as HTMLElement;
 	const stars = starRatingContainer.querySelectorAll('.star');
+
+	const formState = createFeedbackFormState();
+	const formElements: FeedbackFormElements = {
+		feedbackForm, feedbackSuccess, submitBtn, charCount, stars,
+	};
 
 	// Character count update
 	feedbackText.addEventListener('input', () => {
@@ -416,9 +427,9 @@
 		const star = (e.target as HTMLElement).closest('.star');
 		if (!star) return;
 		const index = Array.from(stars).indexOf(star);
-		selectedRating = index + 1;
+		formState.selectedRating = index + 1;
 		stars.forEach((s, i) => {
-			if (i < selectedRating!) {
+			if (i < formState.selectedRating!) {
 				s.classList.add('active');
 			} else {
 				s.classList.remove('active');
@@ -429,32 +440,23 @@
 	// Open modal
 	function openModal() {
 		// Save current overflow state so we can restore it on close
-		previousOverflow = document.body.style.overflow;
+		formState.previousOverflow = document.body.style.overflow;
 		feedbackModal.classList.add('visible');
 		document.body.style.overflow = 'hidden';
 		feedbackClose.focus();
 	}
 
-	// Track whether body overflow was already hidden before opening
-	let previousOverflow = '';
-
 	// Close modal
 	function closeModal() {
 		feedbackModal.classList.remove('visible');
 		// Restore previous overflow state instead of always clearing
-		document.body.style.overflow = previousOverflow;
+		document.body.style.overflow = formState.previousOverflow;
 		feedbackBtn.focus();
 	}
 
 	// Reset form
 	function resetForm() {
-		feedbackForm.reset();
-		feedbackForm.style.display = 'block';
-		feedbackSuccess.style.display = 'none';
-		selectedRating = null;
-		stars.forEach(s => s.classList.remove('active'));
-		charCount.textContent = '0 / 10,240';
-		submitBtn.disabled = false;
+		resetFormUtil(formElements, formState);
 	}
 
 	feedbackBtn.addEventListener('click', openModal);
@@ -483,8 +485,7 @@
 		const sessionId = getSessionId();
 
 		// Disable submit button
-		submitBtn.disabled = true;
-		submitBtn.textContent = 'Sending...';
+		setSubmitSending(submitBtn);
 
 		try {
 			// Get CSRF token first
@@ -496,9 +497,9 @@
 				body: JSON.stringify({
 					text: formData.get('text'),
 					type: formData.get('type'),
-					rating: selectedRating,
+					rating: formState.selectedRating,
 					page_url: window.location.href,
-					video_id: (window as any).currentVideoId || null,
+					video_id: window.currentVideoId || null,
 					session_id: sessionId,
 					browser_info: `${navigator.userAgent}; viewport: ${window.innerWidth}x${window.innerHeight}`
 				})
@@ -517,13 +518,11 @@
 			} else {
 				const data = await response.json();
 				await showAlert(data.error || 'Failed to send feedback. Please try again.', 'error');
-				submitBtn.disabled = false;
-				submitBtn.textContent = 'Send Feedback';
+				setSubmitReady(submitBtn);
 			}
 		} catch (err) {
 			await showAlert('Error sending feedback. Please check your connection and try again.', 'error');
-			submitBtn.disabled = false;
-			submitBtn.textContent = 'Send Feedback';
+			setSubmitReady(submitBtn);
 		}
 	});
 </script>

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,6 +19,9 @@ const (
 
 	// Request timeout for verification
 	verifyTimeout = 10 * time.Second
+
+	// Maximum response size from hCaptcha API (1MB — actual responses are ~200 bytes)
+	maxCaptchaResponseSize = 1 << 20
 )
 
 var (
@@ -50,6 +54,7 @@ type Config struct {
 type hCaptchaVerifier struct {
 	siteKey   string
 	secretKey string
+	verifyURL string
 	client    *http.Client
 }
 
@@ -70,6 +75,7 @@ func New(cfg Config) Verifier {
 	return &hCaptchaVerifier{
 		siteKey:   cfg.SiteKey,
 		secretKey: cfg.SecretKey,
+		verifyURL: hCaptchaVerifyURL,
 		client: &http.Client{
 			Timeout: verifyTimeout,
 		},
@@ -101,7 +107,7 @@ func (v *hCaptchaVerifier) Verify(ctx context.Context, token string, remoteIP st
 	}
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, "POST", hCaptchaVerifyURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", v.verifyURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return ErrServiceUnavailable
 	}
@@ -114,9 +120,9 @@ func (v *hCaptchaVerifier) Verify(ctx context.Context, token string, remoteIP st
 	}
 	defer resp.Body.Close()
 
-	// Parse response
+	// Parse response with size limit to prevent memory exhaustion
 	var result hCaptchaResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxCaptchaResponseSize)).Decode(&result); err != nil {
 		return ErrServiceUnavailable
 	}
 

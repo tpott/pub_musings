@@ -349,7 +349,7 @@ export function setupModalListeners(els: ModalElements, state: ModalState): {
 		disableKidMode(els, state);
 
 		state.currentVideoId = null;
-		(window as any).currentVideoId = null;
+		window.currentVideoId = null;
 		state.subtitleSegments = [];
 		state.cachedSegmentElements = [];
 
@@ -361,7 +361,7 @@ export function setupModalListeners(els: ModalElements, state: ModalState): {
 
 	async function openVideoModal(videoId: string, filename: string) {
 		state.currentVideoId = videoId;
-		(window as any).currentVideoId = videoId;
+		window.currentVideoId = videoId;
 		state.subtitleSegments = [];
 
 		// Reset modal state

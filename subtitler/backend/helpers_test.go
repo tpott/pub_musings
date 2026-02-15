@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/tpott/subtitler/backend/db"
 )
 
 func TestGenerateID(t *testing.T) {
@@ -263,6 +266,209 @@ func TestValidatePathID(t *testing.T) {
 		}
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("Expected status 400, got %d", rec.Code)
+		}
+	})
+}
+
+func TestWhisperWordsToDBWords(t *testing.T) {
+	t.Run("converts words correctly", func(t *testing.T) {
+		whisperWords := []WhisperWord{
+			{Word: "Hello", Start: 0.0, End: 0.4, Probability: 0.95},
+			{Word: "world", Start: 0.5, End: 0.9, Probability: 0.92},
+		}
+
+		dbWords := whisperWordsToDBWords(whisperWords)
+
+		if len(dbWords) != 2 {
+			t.Fatalf("expected 2 words, got %d", len(dbWords))
+		}
+		if dbWords[0].Text != "Hello" {
+			t.Errorf("expected Text 'Hello', got %q", dbWords[0].Text)
+		}
+		if dbWords[0].Start != 0.0 || dbWords[0].End != 0.4 {
+			t.Errorf("unexpected timing: start=%f end=%f", dbWords[0].Start, dbWords[0].End)
+		}
+		if dbWords[0].Probability != 0.95 {
+			t.Errorf("expected probability 0.95, got %f", dbWords[0].Probability)
+		}
+		if dbWords[1].Text != "world" {
+			t.Errorf("expected Text 'world', got %q", dbWords[1].Text)
+		}
+	})
+
+	t.Run("returns nil for empty input", func(t *testing.T) {
+		result := whisperWordsToDBWords(nil)
+		if result != nil {
+			t.Errorf("expected nil, got %v", result)
+		}
+		result = whisperWordsToDBWords([]WhisperWord{})
+		if result != nil {
+			t.Errorf("expected nil for empty slice, got %v", result)
+		}
+	})
+}
+
+func TestDBWordsToWhisperWords(t *testing.T) {
+	t.Run("converts words correctly", func(t *testing.T) {
+		dbWords := []db.Word{
+			{Text: "Hello", Start: 0.0, End: 0.4, Probability: 0.95},
+			{Text: "world", Start: 0.5, End: 0.9, Probability: 0.92},
+		}
+
+		whisperWords := dbWordsToWhisperWords(dbWords)
+
+		if len(whisperWords) != 2 {
+			t.Fatalf("expected 2 words, got %d", len(whisperWords))
+		}
+		if whisperWords[0].Word != "Hello" {
+			t.Errorf("expected Word 'Hello', got %q", whisperWords[0].Word)
+		}
+		if whisperWords[1].Word != "world" {
+			t.Errorf("expected Word 'world', got %q", whisperWords[1].Word)
+		}
+	})
+
+	t.Run("returns nil for empty input", func(t *testing.T) {
+		result := dbWordsToWhisperWords(nil)
+		if result != nil {
+			t.Errorf("expected nil, got %v", result)
+		}
+	})
+}
+
+func TestWhisperSegmentsToDBSegments(t *testing.T) {
+	t.Run("converts segments with words", func(t *testing.T) {
+		whisperSegs := []WhisperSegment{
+			{
+				ID: 0, Start: 0.0, End: 4.5, Text: "Hello world",
+				Words: []WhisperWord{
+					{Word: "Hello", Start: 0.0, End: 0.4, Probability: 0.95},
+					{Word: "world", Start: 0.5, End: 0.9, Probability: 0.92},
+				},
+			},
+			{ID: 1, Start: 5.0, End: 8.0, Text: "No words here"},
+		}
+
+		dbSegs := whisperSegmentsToDBSegments(whisperSegs)
+
+		if len(dbSegs) != 2 {
+			t.Fatalf("expected 2 segments, got %d", len(dbSegs))
+		}
+		if len(dbSegs[0].Words) != 2 {
+			t.Errorf("segment 0: expected 2 words, got %d", len(dbSegs[0].Words))
+		}
+		if dbSegs[1].Words != nil {
+			t.Errorf("segment 1: expected nil words, got %v", dbSegs[1].Words)
+		}
+	})
+}
+
+func TestDBSegmentsToWhisperSegments(t *testing.T) {
+	t.Run("converts segments with words", func(t *testing.T) {
+		dbSegs := []db.Segment{
+			{
+				ID: 0, Start: 0.0, End: 4.5, Text: "Hello world",
+				Words: []db.Word{
+					{Text: "Hello", Start: 0.0, End: 0.4, Probability: 0.95},
+				},
+			},
+		}
+
+		whisperSegs := dbSegmentsToWhisperSegments(dbSegs)
+
+		if len(whisperSegs) != 1 {
+			t.Fatalf("expected 1 segment, got %d", len(whisperSegs))
+		}
+		if len(whisperSegs[0].Words) != 1 {
+			t.Errorf("expected 1 word, got %d", len(whisperSegs[0].Words))
+		}
+		if whisperSegs[0].Words[0].Word != "Hello" {
+			t.Errorf("expected Word 'Hello', got %q", whisperSegs[0].Words[0].Word)
+		}
+	})
+}
+
+func TestWordDataJSONRoundtrip(t *testing.T) {
+	t.Run("segment with words survives JSON marshal/unmarshal", func(t *testing.T) {
+		original := []db.Segment{
+			{
+				ID: 0, Start: 0.0, End: 4.5, Text: "Hello world",
+				Words: []db.Word{
+					{Text: "Hello", Start: 0.0, End: 0.4, Probability: 0.95},
+					{Text: "world", Start: 0.5, End: 0.9, Probability: 0.92},
+				},
+			},
+			{ID: 1, Start: 5.0, End: 8.0, Text: "No words"},
+		}
+
+		data, err := json.Marshal(original)
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+
+		var restored []db.Segment
+		if err := json.Unmarshal(data, &restored); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+
+		if len(restored) != 2 {
+			t.Fatalf("expected 2 segments, got %d", len(restored))
+		}
+		if len(restored[0].Words) != 2 {
+			t.Fatalf("segment 0: expected 2 words, got %d", len(restored[0].Words))
+		}
+		if restored[0].Words[0].Text != "Hello" {
+			t.Errorf("expected word text 'Hello', got %q", restored[0].Words[0].Text)
+		}
+		if restored[0].Words[0].Probability != 0.95 {
+			t.Errorf("expected probability 0.95, got %f", restored[0].Words[0].Probability)
+		}
+		if restored[1].Words != nil {
+			t.Errorf("segment 1: expected nil words after roundtrip, got %v", restored[1].Words)
+		}
+	})
+
+	t.Run("existing transcription without words deserializes with nil Words", func(t *testing.T) {
+		// Simulate old data format without words field
+		oldJSON := `[{"id":0,"start":0.0,"end":2.5,"text":"Hello world."}]`
+
+		var segments []db.Segment
+		if err := json.Unmarshal([]byte(oldJSON), &segments); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+
+		if len(segments) != 1 {
+			t.Fatalf("expected 1 segment, got %d", len(segments))
+		}
+		if segments[0].Words != nil {
+			t.Errorf("expected nil Words for old format, got %v", segments[0].Words)
+		}
+		if segments[0].Text != "Hello world." {
+			t.Errorf("expected text 'Hello world.', got %q", segments[0].Text)
+		}
+	})
+
+	t.Run("omitempty excludes words from JSON when nil", func(t *testing.T) {
+		seg := db.Segment{ID: 0, Start: 0.0, End: 2.5, Text: "Test"}
+		data, err := json.Marshal(seg)
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+
+		if strings.Contains(string(data), "words") {
+			t.Errorf("expected no 'words' key in JSON when Words is nil, got: %s", string(data))
+		}
+	})
+
+	t.Run("omitempty excludes probability when zero", func(t *testing.T) {
+		word := db.Word{Text: "hello", Start: 0.0, End: 0.4}
+		data, err := json.Marshal(word)
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+
+		if strings.Contains(string(data), "probability") {
+			t.Errorf("expected no 'probability' key when zero, got: %s", string(data))
 		}
 	})
 }

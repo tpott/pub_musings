@@ -1,4 +1,14 @@
 /**
+ * A single word with timing from Whisper word-level timestamps
+ */
+export interface TranscriptionWord {
+  text: string;
+  start: number;
+  end: number;
+  probability?: number;
+}
+
+/**
  * Transcription segment with timing information
  */
 export interface TranscriptionSegment {
@@ -6,6 +16,7 @@ export interface TranscriptionSegment {
   start: number; // start time in seconds
   end: number;   // end time in seconds
   text: string;
+  words?: TranscriptionWord[];
 }
 
 /**

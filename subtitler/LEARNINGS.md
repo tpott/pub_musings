@@ -260,6 +260,16 @@ Hard-won lessons from development. Future Ralphs: READ THIS FIRST.
 
 ## Frontend
 
+### 2026-02-14: Vitest — mock globals BEFORE importing modules that use them
+
+**Problem:** Testing `subtitle-layers.ts` which calls `localStorage.getItem()` at import time threw `localStorage is not defined`. Similarly, tests using `document.createElement('button')` failed with `document is not defined` in Node.
+
+**Solution:** Two patterns: (1) Create a mock object and use `vi.stubGlobal('localStorage', localStorageMock)` BEFORE the `import` statement for the module under test. (2) For DOM elements like buttons, create factory functions returning mock objects with `classList`, `setAttribute`, `getAttribute`, `addEventListener` etc., cast as `unknown as HTMLButtonElement`.
+
+**Lesson:** `vi.stubGlobal()` must appear before module imports that reference the global. For DOM-dependent utility code, mock the specific DOM interfaces your code uses rather than pulling in jsdom — keeps tests fast and explicit about dependencies.
+
+---
+
 ### 2026-01-30: E2E test count: grep vs Playwright disagree on parameterized tests
 
 **Problem:** Grepping for `test(` declarations found 67, but Playwright reports 71 total (58 passed + 13 skipped). The capture-design.spec.ts uses a parameterized pattern where 1 `test()` call inside a `sites.forEach` loop generates 5 test instances.

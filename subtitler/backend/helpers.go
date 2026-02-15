@@ -471,6 +471,7 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 
 	// Parse verbose_json response
 	// verbose_json format has: task, language, duration, text, segments[]
+	// Each segment may include a words[] array with per-word timestamps
 	var serverResp struct {
 		Task     string  `json:"task"`
 		Language string  `json:"language"`
@@ -481,6 +482,12 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 			Start float64 `json:"start"`
 			End   float64 `json:"end"`
 			Text  string  `json:"text"`
+			Words []struct {
+				Word        string  `json:"word"`
+				Start       float64 `json:"start"`
+				End         float64 `json:"end"`
+				Probability float64 `json:"probability"`
+			} `json:"words"`
 		} `json:"segments"`
 	}
 	if err := json.Unmarshal(respBody, &serverResp); err != nil {
@@ -495,12 +502,24 @@ func transcribeAudioServer(audioPath, language string) (*WhisperResult, error) {
 		Segments: make([]WhisperSegment, len(serverResp.Segments)),
 	}
 	for i, seg := range serverResp.Segments {
-		result.Segments[i] = WhisperSegment{
+		ws := WhisperSegment{
 			ID:    seg.ID,
 			Start: seg.Start,
 			End:   seg.End,
 			Text:  seg.Text,
 		}
+		if len(seg.Words) > 0 {
+			ws.Words = make([]WhisperWord, len(seg.Words))
+			for j, w := range seg.Words {
+				ws.Words[j] = WhisperWord{
+					Word:        w.Word,
+					Start:       w.Start,
+					End:         w.End,
+					Probability: w.Probability,
+				}
+			}
+		}
+		result.Segments[i] = ws
 	}
 
 	return result, nil
@@ -523,6 +542,70 @@ func transcribe(audioPath, outputPath, language string) (*WhisperResult, error) 
 	}
 	logging.Info("Using whisper-cli", "model", model, "language", language)
 	return transcribeAudio(audioPath, outputPath, language)
+}
+
+// whisperWordsToDBWords converts WhisperWord slices to db.Word slices
+func whisperWordsToDBWords(words []WhisperWord) []db.Word {
+	if len(words) == 0 {
+		return nil
+	}
+	result := make([]db.Word, len(words))
+	for i, w := range words {
+		result[i] = db.Word{
+			Text:        w.Word,
+			Start:       w.Start,
+			End:         w.End,
+			Probability: w.Probability,
+		}
+	}
+	return result
+}
+
+// dbWordsToWhisperWords converts db.Word slices to WhisperWord slices
+func dbWordsToWhisperWords(words []db.Word) []WhisperWord {
+	if len(words) == 0 {
+		return nil
+	}
+	result := make([]WhisperWord, len(words))
+	for i, w := range words {
+		result[i] = WhisperWord{
+			Word:        w.Text,
+			Start:       w.Start,
+			End:         w.End,
+			Probability: w.Probability,
+		}
+	}
+	return result
+}
+
+// whisperSegmentsToDBSegments converts WhisperSegment slices to db.Segment slices
+func whisperSegmentsToDBSegments(segments []WhisperSegment) []db.Segment {
+	result := make([]db.Segment, len(segments))
+	for i, s := range segments {
+		result[i] = db.Segment{
+			ID:    s.ID,
+			Start: s.Start,
+			End:   s.End,
+			Text:  s.Text,
+			Words: whisperWordsToDBWords(s.Words),
+		}
+	}
+	return result
+}
+
+// dbSegmentsToWhisperSegments converts db.Segment slices to WhisperSegment slices
+func dbSegmentsToWhisperSegments(segments []db.Segment) []WhisperSegment {
+	result := make([]WhisperSegment, len(segments))
+	for i, s := range segments {
+		result[i] = WhisperSegment{
+			ID:    s.ID,
+			Start: s.Start,
+			End:   s.End,
+			Text:  s.Text,
+			Words: dbWordsToWhisperWords(s.Words),
+		}
+	}
+	return result
 }
 
 // formatSRTTimestamp formats seconds as SRT timestamp (HH:MM:SS,mmm)
@@ -680,15 +763,7 @@ func dbTranscriptionToStatus(t *db.Transcription) *TranscriptionStatus {
 			// Return empty segments array instead of failing completely
 			segments = []db.Segment{}
 		}
-		whisperSegments := make([]WhisperSegment, len(segments))
-		for i, s := range segments {
-			whisperSegments[i] = WhisperSegment{
-				ID:    s.ID,
-				Start: s.Start,
-				End:   s.End,
-				Text:  s.Text,
-			}
-		}
+		whisperSegments := dbSegmentsToWhisperSegments(segments)
 		status.Result = &WhisperResult{
 			Language: t.Language,
 			Duration: t.Duration,

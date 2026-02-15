@@ -2,7 +2,10 @@ package captcha
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -139,6 +142,88 @@ func TestMockVerifier(t *testing.T) {
 		err = v.Verify(context.Background(), "valid-token", "ip")
 		if err != nil {
 			t.Errorf("Should succeed with valid token, got: %v", err)
+		}
+	})
+}
+
+func TestHCaptchaVerifier_WithTestServer(t *testing.T) {
+	t.Run("successful verification", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"success": true}`)
+		}))
+		defer server.Close()
+
+		v := &hCaptchaVerifier{
+			secretKey: "test-secret",
+			verifyURL: server.URL,
+			client:    server.Client(),
+		}
+
+		err := v.Verify(context.Background(), "valid-token", "127.0.0.1")
+		if err != nil {
+			t.Errorf("Expected success, got: %v", err)
+		}
+	})
+
+	t.Run("failed verification", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"success": false, "error-codes": ["invalid-input-response"]}`)
+		}))
+		defer server.Close()
+
+		v := &hCaptchaVerifier{
+			secretKey: "test-secret",
+			verifyURL: server.URL,
+			client:    server.Client(),
+		}
+
+		err := v.Verify(context.Background(), "invalid-token", "127.0.0.1")
+		if err != ErrInvalidToken {
+			t.Errorf("Expected ErrInvalidToken, got: %v", err)
+		}
+	})
+
+	t.Run("oversized response rejected", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// Send a response larger than maxCaptchaResponseSize
+			// The JSON decoder will fail because the body is truncated mid-stream
+			w.Write([]byte(`{"success": true, "padding": "`))
+			w.Write([]byte(strings.Repeat("x", maxCaptchaResponseSize+1)))
+			w.Write([]byte(`"}`))
+		}))
+		defer server.Close()
+
+		v := &hCaptchaVerifier{
+			secretKey: "test-secret",
+			verifyURL: server.URL,
+			client:    server.Client(),
+		}
+
+		err := v.Verify(context.Background(), "valid-token", "127.0.0.1")
+		if err != ErrServiceUnavailable {
+			t.Errorf("Expected ErrServiceUnavailable for oversized response, got: %v", err)
+		}
+	})
+
+	t.Run("invalid JSON rejected", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html>Server Error</html>")
+		}))
+		defer server.Close()
+
+		v := &hCaptchaVerifier{
+			secretKey: "test-secret",
+			verifyURL: server.URL,
+			client:    server.Client(),
+		}
+
+		err := v.Verify(context.Background(), "valid-token", "127.0.0.1")
+		if err != ErrServiceUnavailable {
+			t.Errorf("Expected ErrServiceUnavailable for invalid JSON, got: %v", err)
 		}
 	})
 }

@@ -139,11 +139,19 @@ export type LanguageHintsResponse = z.infer<typeof LanguageHintsResponseSchema>;
 // Transcription Schemas
 // ============================================
 
+export const TranscriptionWordSchema = z.object({
+	text: z.string(),
+	start: z.number(),
+	end: z.number(),
+	probability: z.number().optional(),
+});
+
 export const TranscriptionSegmentSchema = z.object({
 	id: z.number(),
 	start: z.number(),
 	end: z.number(),
 	text: z.string(),
+	words: z.array(TranscriptionWordSchema).optional(),
 });
 
 export type TranscriptionSegment = z.infer<typeof TranscriptionSegmentSchema>;

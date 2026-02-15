@@ -4,21 +4,22 @@ This file tracks high-level progress on the subtitler project. For detailed spec
 
 ## Project Status Summary
 
-**500 tasks completed** as of 2026-01-30.
+**519 tasks completed** as of 2026-02-14.
 Completed tasks archived to `TASKS_archive.jsonl`.
 
-- **Backend:** Go server (52 source files, ~16,100 lines total), 602 tests across 45 files
-- **Frontend:** Astro/TypeScript, 875 tests across 32 files
+- **Backend:** Go server (52 source files, ~16,200 lines total), 620 tests across 47 files
+- **Frontend:** Astro/TypeScript, 952 tests across 38 files
 - **E2E:** Playwright tests (71 scenarios across 7 spec files, 66 active + 5 permanently skipped)
-- **Total:** 1,548 tests, 32 specification documents
+- **Total:** 1,643 tests, 35 specification documents
 
 ## Feature Summary
 
 ### Core
 - Video upload (500MB limit) with chunked upload support (>50MB auto-split)
 - Whisper transcription integration (whisper-server and whisper-cli)
-- Multi-format export: SRT, VTT, JSON (client-side generation)
+- Multi-format export: SRT, VTT, JSON (client-side generation, word-level export)
 - Subtitle editor with timing adjustment
+- Word-level timestamps with karaoke display (sentence/word layer toggle)
 - Video subtitle burning (ffmpeg encode or soft subtitles)
 - SQLite database with versioned migrations (9 migrations)
 
@@ -62,6 +63,48 @@ Completed tasks archived to `TASKS_archive.jsonl`.
 - Graceful shutdown with context cancellation
 
 ## Recent Work
+
+### Tasks 514-517: Security fixes, error handling, docs (2026-02-14)
+- **Task 514:** Added `io.LimitReader` (1MB) to CAPTCHA verification response parsing in `captcha/captcha.go`. Previously decoded hCaptcha JSON response without size limit — defense-in-depth against memory exhaustion from compromised upstream. Made `verifyURL` field injectable for testing. Added 4 test server tests (success, failure, oversized response rejection, invalid JSON). 620 backend tests across 47 files
+- **Task 515:** Made single-file upload `destFile.Close()` error fatal in `handlers_upload.go`. Previously logged Close() failure as warning but continued to encrypt potentially corrupt data. Now removes partial file and returns 500. Consistent with close-error patterns from tasks 480, 490, 497
+- **Task 516:** Updated TESTING.md — backend 610→620 tests (47 files), frontend 923→952 tests (38 files), total 1,643. Added missing `api_gap_test.go` and `subtitle-layers.test.ts` to test file tables
+- **Task 517:** Updated PROGRESS.md task count and test counts
+
+### Task 508: Multi-layered speech detection — word-level timestamps (2026-02-14)
+- **Backend word capture:** Added `Word` struct to `db_types.go` and `WhisperWord` to `globals.go`. Updated whisper response parsing in `helpers.go` to capture `words[]` from verbose_json. Created 6 conversion helpers (`whisperWordsToDBWords`, `dbWordsToWhisperWords`, etc.) replacing 4 manual conversion sites. Gap transcription adjusts word timestamps by offset. 9 new tests in `helpers_test.go`
+- **Frontend layer toggle:** New `subtitle-layers.ts` utility (105 lines) — `SubtitleLayer` type, localStorage persistence, `renderKaraokeHTML` with word-current/past/future highlighting, toggle button setup. Layer toggle UI in upload page shows only when word data exists
+- **Karaoke display:** `createSubtitleUpdater` in `subtitle-sync.ts` accepts optional `LayerToggleState`. Word mode renders per-word spans with time-based CSS classes instead of plain text
+- **Cross-layer edit propagation:** Editing sentence text clears `words` (stale data). Timing edits preserve word data (relative positions still valid)
+- **Word-level export:** `generateSRT`/`generateVTT` accept `layer` param — word mode flattens to individual word entries. `generateJSON` includes word data when available. `flattenToWords` falls back to segment-level for segments without words
+- **Tests:** 23 tests in new `subtitle-layers.test.ts`, 10 word-level export tests in `subtitles.test.ts`. 952 frontend tests across 38 files, 619 backend tests
+
+### Task 512: Edit UI gap detection with async transcription (2026-02-14)
+- **Gap detection:** `detectGaps()` in `gap-detection.ts` finds time gaps > 0.5s between segments (before first, between, after last). 14 TDD tests
+- **Backend endpoint:** `POST /api/transcribe/{id}/gap` extracts audio segment via FFmpeg, transcribes with Whisper, adjusts timestamps to absolute. Validates time range (start >= 0, end > start, max 5 min). 4 test functions (8 subtests) in `api_gap_test.go`
+- **Frontend gap fill:** "+" buttons rendered between segments in edit mode. Clicking creates empty segment, triggers async transcription, shows "Transcribing..." indicator. `gap-fill.ts` utility with 9 tests
+- **Progressive disclosure:** Feedback buttons collapsed behind toggle dot. Dot color shows current feedback type. Options collapse on segment change
+- **Refactoring:** Extracted `upload-embedded.ts` from `upload.astro` (1003→954 lines). Split `segment-editor.test.ts` into `segment-editor.test.ts` + `segment-editor-ui.test.ts`. 923 frontend tests across 37 files
+
+### Tasks 501-503, 511: Code quality and scheduler tests (2026-02-14)
+- **Task 501:** Replaced `(window as any)` casts with proper `Window` interface declarations in `global.d.ts`. Covers `currentVideoId` and `cookieConsent`. 4 files cleaned
+- **Task 502:** Fixed `any[]` type in `upload.astro` `handleSubtitleOpen` — now uses `TranscriptionSegment[]`
+- **Task 503:** Added 8 scheduler cleanup tests in `scheduler_test.go` — covers expired videos, sessions, auth tokens, upload sessions, orphan chunk dirs, and preservation of non-expired items. 610 backend tests across 46 files
+
+### Task 511: Edit UI timing adjustment buttons (2026-02-14)
+- Added `adjustSegmentTime` function to `segment-editor.ts` — nudges start/end by 0.1s (0.5s with Shift)
+- Arrow buttons (◀ ▶) rendered in edit mode around start/end time inputs
+- Constraints: start ≥ 0, start < end - 0.1, end > start + 0.1
+- Floating-point drift prevented with `roundTime()` (3 decimal places)
+- Event delegation wired in `setupEditHandlers`, CSS in `upload-segment-editor.css`
+- 15 TDD tests in new `segment-editor-timing.test.ts`. 900 frontend tests across 34 files pass
+
+### Tasks 505-510: User feedback — bugs, specs, and features (2026-02-14)
+- **Task 506:** Fixed feedback send button stuck on "Sending..." — `resetForm()` didn't reset `submitBtn.textContent`. Extracted feedback form state to `feedback-form.ts` utility. 10 tests added
+- **Task 505:** Wrote i18n spec (`specs/i18n.md`) — zero-dependency approach with TypeScript translation modules, 5 languages (English, Spanish, Hindi, French, American Cowboy), data-i18n attributes for client-side translation
+- **Task 509:** Split "misaligned" feedback button into "early" (subtitle before voice) and "late" (subtitle after voice). `FeedbackType` updated from `'misaligned'` to `'early' | 'late'`
+- **Task 507:** Wrote multi-layer speech spec (`specs/multi-layer-speech.md`) — Whisper already returns word-level timestamps in verbose_json but backend discards them. Spec covers sentence/word layers, karaoke display, cross-layer edit propagation
+- **Task 510:** Wrote edit UI v2 spec (`specs/edit-ui-v2.md`) — timing adjustment arrows (0.1s/0.5s steps), gap detection with "+" buttons for async transcription, progressive disclosure for feedback buttons. TDD test plan included
+- Filed 8 new tasks from user feedback (505-512): i18n spec, multi-layer speech spec/impl, misaligned button split, edit UI spec/impl
 
 ### Tasks 497-500: Deep inspection fixes (2026-01-30)
 - **Task 497:** Fixed `EncryptFile` and `DecryptToFile` in crypto/crypto.go ignoring `dst.Close()` errors on write files. Both now check close error, remove partial/corrupted file, and return error. Consistent with close-error patterns from tasks 480, 490

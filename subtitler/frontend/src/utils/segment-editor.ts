@@ -10,10 +10,12 @@ import { renderBionicText, isBionicEnabled } from './bionic';
 import { getOptionalElement } from './dom';
 import { formatTime } from './transcription-polling';
 import { MAX_HISTORY_SIZE } from './upload-constants';
+import { detectGaps } from './gap-detection';
+import { createGapSegment, insertGapSegment, transcribeGap } from './gap-fill';
 import type { TranscriptionSegment } from '../types/transcription';
 
 /** Feedback type for segment alignment quality */
-export type FeedbackType = 'good' | 'misaligned' | 'missing' | null;
+export type FeedbackType = 'good' | 'early' | 'late' | 'missing' | null;
 
 /** Mutable state for segment editing */
 export interface SegmentEditorState {
@@ -103,6 +105,13 @@ export function setSegmentFeedback(uploadId: string | null, index: number, feedb
 	}
 }
 
+function updateFeedbackDot(subtitleFeedback: HTMLElement, feedback: FeedbackType): void {
+	const dot = subtitleFeedback.querySelector('.feedback-dot') as HTMLElement | null;
+	if (!dot) return;
+	dot.className = 'feedback-dot';
+	if (feedback) dot.classList.add(feedback);
+}
+
 export function updateFeedbackButtons(
 	state: SegmentEditorState,
 	subtitleFeedback: HTMLElement,
@@ -120,6 +129,11 @@ export function updateFeedbackButtons(
 		const btnType = btn.getAttribute('data-feedback');
 		btn.classList.toggle('active', btnType === feedback);
 	});
+	updateFeedbackDot(subtitleFeedback, feedback);
+
+	// Collapse options on segment change
+	const options = subtitleFeedback.querySelector('.feedback-options') as HTMLElement | null;
+	if (options) options.style.display = 'none';
 }
 
 /** Set up persistent click handler for subtitle feedback buttons */
@@ -127,6 +141,17 @@ export function setupFeedbackHandler(
 	state: SegmentEditorState,
 	subtitleFeedback: HTMLElement
 ): void {
+	// Toggle button shows/hides feedback options
+	const toggleBtn = subtitleFeedback.querySelector('.feedback-toggle-btn');
+	const optionsEl = subtitleFeedback.querySelector('.feedback-options') as HTMLElement | null;
+
+	if (toggleBtn && optionsEl) {
+		toggleBtn.addEventListener('click', () => {
+			optionsEl.style.display = optionsEl.style.display === 'none' ? 'flex' : 'none';
+		});
+	}
+
+	// Feedback button clicks
 	subtitleFeedback.addEventListener('click', (e) => {
 		const target = (e.target as HTMLElement).closest('.feedback-btn') as HTMLButtonElement | null;
 		if (!target || state.feedbackActiveIndex < 0) return;
@@ -144,6 +169,10 @@ export function setupFeedbackHandler(
 			const btnType = btn.getAttribute('data-feedback');
 			btn.classList.toggle('active', btnType === newFeedback);
 		});
+
+		// Update dot and collapse options after selection
+		updateFeedbackDot(subtitleFeedback, newFeedback);
+		if (optionsEl) optionsEl.style.display = 'none';
 	});
 }
 
@@ -211,6 +240,46 @@ function clearHistory(state: SegmentEditorState, els: SegmentEditorElements): vo
 	updateUndoRedoButtons(state, els);
 }
 
+// --- Timing adjustment ---
+
+/** Minimum gap between start and end times in seconds */
+const MIN_TIME_GAP = 0.1;
+
+/** Round to 3 decimal places to avoid floating-point drift */
+function roundTime(t: number): number {
+	return Math.round(t * 1000) / 1000;
+}
+
+export function adjustSegmentTime(
+	state: SegmentEditorState,
+	els: SegmentEditorElements,
+	index: number,
+	type: 'start' | 'end',
+	direction: 'earlier' | 'later',
+	shiftKey: boolean
+): void {
+	const step = shiftKey ? 0.5 : 0.1;
+	const delta = direction === 'earlier' ? -step : step;
+	const segment = state.editedSegments[index];
+
+	pushToHistory(state, els);
+
+	if (type === 'start') {
+		segment.start = roundTime(Math.max(0, segment.start + delta));
+		if (segment.start >= segment.end - MIN_TIME_GAP) {
+			segment.start = roundTime(segment.end - MIN_TIME_GAP);
+		}
+	} else {
+		segment.end = roundTime(segment.end + delta);
+		if (segment.end <= segment.start + MIN_TIME_GAP) {
+			segment.end = roundTime(segment.start + MIN_TIME_GAP);
+		}
+	}
+
+	markUnsaved(state, els);
+	renderSegments(state, els);
+}
+
 // --- Segment rendering ---
 
 function formatTimeForInput(seconds: number): string {
@@ -221,33 +290,76 @@ function formatTimeForInput(seconds: number): string {
 	return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
 }
 
+function renderSegmentHtml(seg: TranscriptionSegment, index: number, isEditMode: boolean, useBionic: boolean): string {
+	const displayText = useBionic ? renderBionicText(seg.text, { enabled: true }) : escapeHtml(seg.text);
+	return `
+	<div class="segment${isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
+		<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
+		<div class="segment-text">${displayText}</div>
+		<div class="segment-edit">
+			<div class="time-inputs">
+				<div class="time-adjust-group">
+					<button class="time-adjust-btn" data-direction="earlier" data-type="start" data-index="${index}" aria-label="Move start earlier">&#9664;</button>
+					<button class="time-adjust-btn" data-direction="later" data-type="start" data-index="${index}" aria-label="Move start later">&#9654;</button>
+					<label>Start:</label>
+					<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" aria-describedby="time-error-start-${index}" />
+				</div>
+				<div class="time-adjust-group">
+					<label>End:</label>
+					<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" aria-describedby="time-error-end-${index}" />
+					<button class="time-adjust-btn" data-direction="earlier" data-type="end" data-index="${index}" aria-label="Move end earlier">&#9664;</button>
+					<button class="time-adjust-btn" data-direction="later" data-type="end" data-index="${index}" aria-label="Move end later">&#9654;</button>
+				</div>
+			</div>
+			<div class="time-error" id="time-error-start-${index}" data-type="start" data-index="${index}" role="alert"></div>
+			<div class="time-error" id="time-error-end-${index}" data-type="end" data-index="${index}" role="alert"></div>
+			<textarea class="segment-textarea" data-index="${index}">${escapeHtml(seg.text)}</textarea>
+			<div class="segment-actions">
+				<button class="segment-delete-btn" data-index="${index}" aria-label="Delete segment ${index + 1}">Delete</button>
+			</div>
+		</div>
+	</div>`;
+}
+
+function renderGapButton(start: number, end: number, afterIndex: number): string {
+	const duration = (end - start).toFixed(1);
+	return `<button class="gap-fill-btn" data-start="${start}" data-end="${end}" data-after="${afterIndex}" aria-label="Fill gap from ${formatTime(start)} to ${formatTime(end)}">+ Missing? (${duration}s gap)</button>`;
+}
+
 export function renderSegments(state: SegmentEditorState, els: SegmentEditorElements): void {
 	const segsToRender = state.isEditMode ? state.editedSegments : state.transcriptionSegments;
 	const useBionic = !state.isEditMode && isBionicEnabled();
 
 	if (segsToRender.length > 0) {
-		els.segments.innerHTML = segsToRender.map((seg, index) => {
-			const displayText = useBionic ? renderBionicText(seg.text, { enabled: true }) : escapeHtml(seg.text);
-			return `
-			<div class="segment${state.isEditMode ? ' editing' : ''}" data-index="${index}" data-start="${seg.start}" data-end="${seg.end}">
-				<div class="segment-time">${formatTime(seg.start)} - ${formatTime(seg.end)}</div>
-				<div class="segment-text">${displayText}</div>
-				<div class="segment-edit">
-					<div class="time-inputs">
-						<label>Start:</label>
-						<input type="text" class="time-input-start" value="${formatTimeForInput(seg.start)}" data-index="${index}" aria-describedby="time-error-start-${index}" />
-						<label>End:</label>
-						<input type="text" class="time-input-end" value="${formatTimeForInput(seg.end)}" data-index="${index}" aria-describedby="time-error-end-${index}" />
-					</div>
-					<div class="time-error" id="time-error-start-${index}" data-type="start" data-index="${index}" role="alert"></div>
-					<div class="time-error" id="time-error-end-${index}" data-type="end" data-index="${index}" role="alert"></div>
-					<textarea class="segment-textarea" data-index="${index}">${escapeHtml(seg.text)}</textarea>
-					<div class="segment-actions">
-						<button class="segment-delete-btn" data-index="${index}" aria-label="Delete segment ${index + 1}">Delete</button>
-					</div>
-				</div>
-			</div>
-		`}).join('');
+		let html: string;
+		if (state.isEditMode) {
+			// Detect gaps and intersperse gap buttons
+			const videoDuration = els.previewVideo.duration || 0;
+			const gaps = detectGaps(segsToRender, videoDuration);
+			const gapsByAfterIndex = new Map(gaps.map(g => [g.afterIndex, g]));
+			const parts: string[] = [];
+
+			// Gap before first segment
+			const beforeGap = gapsByAfterIndex.get(-1);
+			if (beforeGap) {
+				parts.push(renderGapButton(beforeGap.start, beforeGap.end, beforeGap.afterIndex));
+			}
+
+			for (let i = 0; i < segsToRender.length; i++) {
+				parts.push(renderSegmentHtml(segsToRender[i], i, true, false));
+				const afterGap = gapsByAfterIndex.get(i);
+				if (afterGap) {
+					parts.push(renderGapButton(afterGap.start, afterGap.end, afterGap.afterIndex));
+				}
+			}
+			html = parts.join('');
+		} else {
+			html = segsToRender.map((seg, index) =>
+				renderSegmentHtml(seg, index, false, useBionic)
+			).join('');
+		}
+
+		els.segments.innerHTML = html;
 
 		// Cache segment elements for timeupdate performance
 		state.cachedSegmentElements = Array.from(els.segments.querySelectorAll('.segment')) as HTMLElement[];
@@ -281,6 +393,8 @@ function setupEditHandlers(state: SegmentEditorState, els: SegmentEditorElements
 			const target = e.target as HTMLTextAreaElement;
 			const index = parseInt(target.getAttribute('data-index') || '0', 10);
 			state.editedSegments[index].text = target.value;
+			// Clear word data when sentence text is edited (word timestamps no longer valid)
+			state.editedSegments[index].words = undefined;
 			markUnsaved(state, els);
 		});
 	});
@@ -343,6 +457,19 @@ function setupEditHandlers(state: SegmentEditorState, els: SegmentEditorElements
 		});
 	});
 
+	// Timing adjustment buttons
+	els.segments.querySelectorAll('.time-adjust-btn').forEach((btn: Element) => {
+		btn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			const target = btn as HTMLButtonElement;
+			const index = parseInt(target.getAttribute('data-index') || '0', 10);
+			const type = target.getAttribute('data-type') as 'start' | 'end';
+			const direction = target.getAttribute('data-direction') as 'earlier' | 'later';
+			const shiftKey = (e as MouseEvent).shiftKey;
+			adjustSegmentTime(state, els, index, type, direction, shiftKey);
+		});
+	});
+
 	// Delete buttons
 	els.segments.querySelectorAll('.segment-delete-btn').forEach((btn: Element) => {
 		btn.addEventListener('click', (e) => {
@@ -353,6 +480,47 @@ function setupEditHandlers(state: SegmentEditorState, els: SegmentEditorElements
 			state.editedSegments.forEach((seg, i) => seg.id = i);
 			markUnsaved(state, els);
 			renderSegments(state, els);
+		});
+	});
+
+	// Gap fill buttons
+	els.segments.querySelectorAll('.gap-fill-btn').forEach((btn: Element) => {
+		btn.addEventListener('click', (e) => {
+			e.stopPropagation();
+			const target = btn as HTMLButtonElement;
+			const start = parseFloat(target.getAttribute('data-start') || '0');
+			const end = parseFloat(target.getAttribute('data-end') || '0');
+			const afterIndex = parseInt(target.getAttribute('data-after') || '-1', 10);
+
+			pushToHistory(state, els);
+			const gap = createGapSegment(start, end);
+			state.editedSegments = insertGapSegment(state.editedSegments, gap, afterIndex);
+			markUnsaved(state, els);
+			renderSegments(state, els);
+
+			// Kick off async transcription for the gap
+			if (state.currentUploadId) {
+				const insertedIndex = afterIndex + 1;
+				const segEl = els.segments.querySelector(`.segment[data-index="${insertedIndex}"]`);
+				if (segEl) segEl.classList.add('transcribing');
+
+				transcribeGap(state.currentUploadId, start, end).then(result => {
+					// Update the segment text if still in edit mode
+					if (state.isEditMode && state.editedSegments[insertedIndex]) {
+						const text = result.text || result.segments.map(s => s.text).join(' ');
+						if (text) {
+							state.editedSegments[insertedIndex].text = text.trim();
+							markUnsaved(state, els);
+							renderSegments(state, els);
+						}
+					}
+				}).catch(err => {
+					console.error('Gap transcription failed:', err);
+					// Remove transcribing indicator
+					const el = els.segments.querySelector(`.segment[data-index="${insertedIndex}"]`);
+					if (el) el.classList.remove('transcribing');
+				});
+			}
 		});
 	});
 }
