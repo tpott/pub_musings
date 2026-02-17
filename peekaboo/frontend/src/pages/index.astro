@@ -30,6 +30,14 @@ import '../styles/global.css';
       <h1 class="title">Peekaboo!</h1>
       <MediaDisplay />
       <MicButton />
+      <div id="debug-text-input" class="debug-text-input hidden" data-testid="debug-text-input">
+        <form id="debug-text-form" data-testid="debug-text-form">
+          <input type="text" id="debug-text-field" data-testid="debug-text-field"
+            placeholder="Type a command, e.g. show me a cat"
+            autocomplete="off" aria-label="Debug text command" />
+          <button type="submit" data-testid="debug-text-submit" aria-label="Submit text command">Go</button>
+        </form>
+      </div>
     </main>
     <FeedbackButton />
   </body>
@@ -122,6 +130,26 @@ import '../styles/global.css';
       },
     });
 
+    // Enable debug text input mode via ?debug=text query param
+    if (urlParams.get('debug') === 'text') {
+      const debugContainer = document.getElementById('debug-text-input');
+      const debugForm = document.getElementById('debug-text-form') as HTMLFormElement;
+      const debugField = document.getElementById('debug-text-field') as HTMLInputElement;
+
+      if (debugContainer && debugForm && debugField) {
+        debugContainer.classList.remove('hidden');
+
+        debugForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const text = debugField.value.trim();
+          if (text) {
+            debugField.value = '';
+            flow.submitText(text);
+          }
+        });
+      }
+    }
+
     // Clean up resources when the page is unloaded
     window.addEventListener('pagehide', () => {
       flow.destroy();
@@ -173,5 +201,50 @@ import '../styles/global.css';
 
   .browser-error li {
     margin: 0.25rem 0;
+  }
+
+  /* Debug text input mode */
+  .debug-text-input.hidden {
+    display: none;
+  }
+
+  .debug-text-input {
+    margin-top: 1rem;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .debug-text-input form {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .debug-text-input input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid var(--border);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .debug-text-input input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .debug-text-input button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .debug-text-input button:hover {
+    background: var(--accent-hover);
   }
 </style>

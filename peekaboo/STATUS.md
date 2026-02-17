@@ -4,15 +4,16 @@ This file tracks high level progress on the peekaboo project.
 
 ## Current State
 
-Production-ready voice-controlled web app for children. 333 tasks completed.
+Production-ready voice-controlled web app for children. 334 tasks completed.
 
 ### Architecture
 - **Go backend** with SQLite, WebSocket audio streaming, age encryption
-- **Astro frontend** with TypeScript, 328 unit tests, 59 E2E tests
+- **Astro frontend** with TypeScript, 339 unit tests, 64 E2E tests
 - **External services**: whisper-server (STT), Anthropic/OpenAI (intent), optional Piper (TTS)
 
 ### Key Features
 - Full voice flow: record → transcribe → intent → media display
+- Debug text input mode (`?debug=text`) for testing without microphone
 - WebSocket streaming (default) with continuous listening mode
 - Day/night theme (light/dark/auto) with warm neutral palette
 - Feedback form with database persistence and rate limiting
@@ -36,6 +37,11 @@ Production-ready voice-controlled web app for children. 333 tasks completed.
 
 ## Last Completed
 
+- Task 383 (2026-02-16): Debug text input mode for testing without microphone:
+  - Added `submitText()` public method to PeekabooFlow — bypasses audio recording, goes directly to extractIntent → fetchMedia → display.show
+  - Added debug text input UI to index.astro, hidden by default, activated via `?debug=text` query parameter
+  - 11 new unit tests (peekaboo-flow-text.test.ts), 5 new E2E tests (peekaboo-debug-text.spec.ts)
+  - Total: 339 unit tests, 64 E2E tests
 - Tasks 377-379 (2026-02-14): Deep inspection round 35 — orphaned file cleanup, script hardening, lint strictness:
   - Task 377: Fix orphaned files on failed DB insert in HandleUploadMedia — track saved file paths, clean up on failure. 3 new cleanupFiles unit tests.
   - Task 378: Add MAX_RESPONSE_SIZE (1MB) limits to resp.read() calls in add-concept.py and upload-media.py (7 call sites total).

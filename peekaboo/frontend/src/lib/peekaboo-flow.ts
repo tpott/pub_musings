@@ -517,6 +517,34 @@ export class PeekabooFlow {
   }
 
   /**
+   * Submit text directly to the intent pipeline, bypassing audio recording.
+   * Used for debug/development testing without a microphone.
+   */
+  async submitText(text: string): Promise<void> {
+    if (this.state === 'transcribing' || this.state === 'searching') {
+      return;
+    }
+
+    try {
+      this.setState('searching');
+
+      const { subject } = await extractIntent(text);
+      const media = await fetchMedia(subject);
+
+      await this.display.show(media, subject);
+      this.setState('displaying');
+
+      try {
+        await speakSubject(subject);
+      } catch (ttsError) {
+        logger.warn('TTS unavailable:', ttsError);
+      }
+    } catch (error) {
+      this.handleError(error as Error);
+    }
+  }
+
+  /**
    * Get current state
    */
   getState(): FlowState {
