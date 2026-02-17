@@ -43,3 +43,5 @@ sites:
     repository: tpott/pub_musings
     repo_path: /home/trevor/pub_musings
     deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-peekaboo-backend.sh
+    environment:
+      BACKEND_PORT: 9070
