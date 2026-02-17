@@ -18,7 +18,7 @@ Operational runbook for adding a new concept (animal, object, etc.) to Peekaboo 
 
 ```bash
 source .env
-curl -s -H "Authorization: Bearer $API_SESSION_ID" "$PROD_HOST/api/admin/concepts" | python3 -m json.tool
+curl -s -H "Authorization: Bearer $API_SESSION_ID" "$PROD_HOST/api/admin/concepts"
 ```
 
 Response lists concepts with media set counts:
@@ -96,7 +96,7 @@ Add `--video /tmp/video.mp4` if a video was also sourced.
 
 ```bash
 source .env
-curl -s -H "Authorization: Bearer $API_SESSION_ID" "$PROD_HOST/api/admin/concepts" | python3 -m json.tool
+curl -s -H "Authorization: Bearer $API_SESSION_ID" "$PROD_HOST/api/admin/concepts"
 ```
 
 Confirm the concept appears with the expected `media_set_count`.
