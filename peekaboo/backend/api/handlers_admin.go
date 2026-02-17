@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"filippo.io/age"
+
 	"github.com/tpott/pub_musings/peekaboo/backend/auth"
 	"github.com/tpott/pub_musings/peekaboo/backend/db"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
@@ -15,7 +17,8 @@ import (
 // AdminHandler handles admin-only API endpoints.
 type AdminHandler struct {
 	DB           *db.DB
-	TrustedUsers map[string]bool // user IDs allowed to access admin endpoints
+	TrustedUsers map[string]bool     // user IDs allowed to access admin endpoints
+	Identity     *age.X25519Identity // if set, uploads are encrypted at rest
 }
 
 // NewAdminHandler creates a new AdminHandler.

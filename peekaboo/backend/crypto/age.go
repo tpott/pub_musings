@@ -152,6 +152,16 @@ func (b *ByteReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
+// EncryptWriter creates an io.WriteCloser that encrypts data written to it.
+// The caller MUST Close the returned writer to flush the final encryption chunk.
+func EncryptWriter(dst io.Writer, identity *age.X25519Identity) (io.WriteCloser, error) {
+	w, err := age.Encrypt(dst, identity.Recipient())
+	if err != nil {
+		return nil, fmt.Errorf("create encryptor: %w", err)
+	}
+	return w, nil
+}
+
 // DecryptReader creates an io.Reader that decrypts data from the source reader.
 // The caller is responsible for closing the source reader after reading is complete.
 func DecryptReader(src io.Reader, identity *age.X25519Identity) (io.Reader, error) {

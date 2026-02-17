@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"filippo.io/age"
+
+	"github.com/tpott/pub_musings/peekaboo/backend/crypto"
 	"github.com/tpott/pub_musings/peekaboo/backend/logging"
 )
 
@@ -189,7 +192,8 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	// Save photo
 	photoFileName := "photo" + photoExt
 	photoPath := filepath.Join(setDir, photoFileName)
-	if err := saveUploadedFile(photoFile, photoPath, maxUploadPhotoSize); err != nil {
+	actualPhotoPath, err := saveUploadedFile(photoFile, photoPath, maxUploadPhotoSize, h.Identity)
+	if err != nil {
 		slog.Error("admin media: failed to save photo",
 			"error", err,
 			"path", photoPath,
@@ -197,7 +201,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to save photo"})
 		return
 	}
-	savedFiles = append(savedFiles, photoPath)
+	savedFiles = append(savedFiles, actualPhotoPath)
 
 	// Database paths (relative, matching seedMediaFromDisk convention)
 	dbPhotoPath := filepath.Join("data/media", conceptID, setName, photoFileName)
@@ -208,7 +212,8 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	if audioFile != nil {
 		audioFileName := "audio" + audioExt
 		audioPath := filepath.Join(setDir, audioFileName)
-		if err := saveUploadedFile(audioFile, audioPath, maxUploadAudioSize); err != nil {
+		actualAudioPath, err := saveUploadedFile(audioFile, audioPath, maxUploadAudioSize, h.Identity)
+		if err != nil {
 			slog.Error("admin media: failed to save audio",
 				"error", err,
 				"path", audioPath,
@@ -217,7 +222,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to save audio"})
 			return
 		}
-		savedFiles = append(savedFiles, audioPath)
+		savedFiles = append(savedFiles, actualAudioPath)
 		dbAudioPath = filepath.Join("data/media", conceptID, setName, audioFileName)
 	}
 
@@ -225,7 +230,8 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 	if videoFile != nil {
 		videoFileName := "video" + videoExt
 		videoPath := filepath.Join(setDir, videoFileName)
-		if err := saveUploadedFile(videoFile, videoPath, maxUploadVideoSize); err != nil {
+		actualVideoPath, err := saveUploadedFile(videoFile, videoPath, maxUploadVideoSize, h.Identity)
+		if err != nil {
 			slog.Error("admin media: failed to save video",
 				"error", err,
 				"path", videoPath,
@@ -234,7 +240,7 @@ func (h *AdminHandler) HandleUploadMedia(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusInternalServerError, adminMediaResponse{Error: "failed to save video"})
 			return
 		}
-		savedFiles = append(savedFiles, videoPath)
+		savedFiles = append(savedFiles, actualVideoPath)
 		dbVideoPath = filepath.Join("data/media", conceptID, setName, videoFileName)
 	}
 
@@ -286,26 +292,62 @@ func cleanupFiles(paths []string, setDir string) {
 
 // saveUploadedFile writes the contents of an uploaded file to disk.
 // maxSize limits how many bytes are read from src (defense-in-depth).
-func saveUploadedFile(src io.Reader, destPath string, maxSize int64) error {
-	dst, err := os.Create(destPath)
+// When identity is non-nil, the file is encrypted at rest (saved with .age suffix).
+// Returns the actual path written (may have .age suffix).
+func saveUploadedFile(src io.Reader, destPath string, maxSize int64, identity *age.X25519Identity) (string, error) {
+	actualPath := destPath
+	if identity != nil {
+		actualPath = destPath + ".age"
+	}
+
+	dst, err := os.Create(actualPath)
 	if err != nil {
-		return fmt.Errorf("create file %s: %w", destPath, err)
+		return "", fmt.Errorf("create file %s: %w", actualPath, err)
+	}
+
+	var target io.Writer = dst
+	var encWriter io.WriteCloser
+	if identity != nil {
+		encWriter, err = crypto.EncryptWriter(dst, identity)
+		if err != nil {
+			dst.Close()
+			os.Remove(actualPath)
+			return "", fmt.Errorf("create encryptor for %s: %w", actualPath, err)
+		}
+		target = encWriter
 	}
 
 	limited := io.LimitReader(src, maxSize+1)
-	n, err := io.Copy(dst, limited)
+	n, err := io.Copy(target, limited)
 	if err != nil {
+		if encWriter != nil {
+			encWriter.Close()
+		}
 		dst.Close()
-		return fmt.Errorf("write file %s: %w", destPath, err)
+		os.Remove(actualPath)
+		return "", fmt.Errorf("write file %s: %w", actualPath, err)
 	}
 	if n > maxSize {
+		if encWriter != nil {
+			encWriter.Close()
+		}
 		dst.Close()
-		os.Remove(destPath)
-		return fmt.Errorf("file %s exceeds size limit", destPath)
+		os.Remove(actualPath)
+		return "", fmt.Errorf("file %s exceeds size limit", actualPath)
+	}
+
+	// Close encryptor first to flush final chunk, then close file
+	if encWriter != nil {
+		if err := encWriter.Close(); err != nil {
+			dst.Close()
+			os.Remove(actualPath)
+			return "", fmt.Errorf("close encryptor for %s: %w", actualPath, err)
+		}
 	}
 
 	if err := dst.Close(); err != nil {
-		return fmt.Errorf("close file %s: %w", destPath, err)
+		os.Remove(actualPath)
+		return "", fmt.Errorf("close file %s: %w", actualPath, err)
 	}
-	return nil
+	return actualPath, nil
 }

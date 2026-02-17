@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/tpott/pub_musings/peekaboo/backend/crypto"
 )
 
 // createFormFileWithType creates a multipart form file part with a specific Content-Type.
@@ -391,4 +393,164 @@ func TestCleanupFiles_NonexistentFilesNoError(t *testing.T) {
 		filepath.Join(tmpDir, "does-not-exist.jpg"),
 		filepath.Join(tmpDir, "also-missing.mp3"),
 	}, filepath.Join(tmpDir, "no-such-dir"))
+}
+
+func TestUploadMedia_EncryptedAtRest(t *testing.T) {
+	database := setupAuthTestDB(t)
+	user, token := createAdminSession(t, database, "admin@example.com")
+	handler := NewAdminHandler(database, user.ID)
+
+	// Set up age identity for encryption
+	identity, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	handler.Identity = identity
+
+	tmpDir := t.TempDir()
+	t.Setenv("MEDIA_DIR", tmpDir)
+
+	photo := bytes.Repeat([]byte{0xFF, 0xD8, 0xFF}, 100)
+	audio := bytes.Repeat([]byte{0x00}, 200)
+	req := createMediaUploadRequest(t, "cat", photo, audio, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	handler.HandleUploadMedia(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("Expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Encrypted files should exist on disk
+	photoAgePath := filepath.Join(tmpDir, "cat", "set1", "photo.jpg.age")
+	if _, err := os.Stat(photoAgePath); os.IsNotExist(err) {
+		t.Error("Expected photo.jpg.age to exist on disk")
+	}
+	audioAgePath := filepath.Join(tmpDir, "cat", "set1", "audio.mp3.age")
+	if _, err := os.Stat(audioAgePath); os.IsNotExist(err) {
+		t.Error("Expected audio.mp3.age to exist on disk")
+	}
+
+	// Plaintext files should NOT exist
+	photoPlainPath := filepath.Join(tmpDir, "cat", "set1", "photo.jpg")
+	if _, err := os.Stat(photoPlainPath); !os.IsNotExist(err) {
+		t.Error("Expected plaintext photo.jpg to NOT exist on disk")
+	}
+	audioPlainPath := filepath.Join(tmpDir, "cat", "set1", "audio.mp3")
+	if _, err := os.Stat(audioPlainPath); !os.IsNotExist(err) {
+		t.Error("Expected plaintext audio.mp3 to NOT exist on disk")
+	}
+
+	// Decrypt and verify content matches original
+	photoCipher, err := os.ReadFile(photoAgePath)
+	if err != nil {
+		t.Fatalf("Read photo.jpg.age: %v", err)
+	}
+	photoDecrypted, err := crypto.DecryptBytes(photoCipher, identity)
+	if err != nil {
+		t.Fatalf("DecryptBytes photo: %v", err)
+	}
+	if !bytes.Equal(photoDecrypted, photo) {
+		t.Error("Decrypted photo doesn't match original")
+	}
+
+	audioCipher, err := os.ReadFile(audioAgePath)
+	if err != nil {
+		t.Fatalf("Read audio.mp3.age: %v", err)
+	}
+	audioDecrypted, err := crypto.DecryptBytes(audioCipher, identity)
+	if err != nil {
+		t.Fatalf("DecryptBytes audio: %v", err)
+	}
+	if !bytes.Equal(audioDecrypted, audio) {
+		t.Error("Decrypted audio doesn't match original")
+	}
+
+	// DB paths should NOT include .age
+	var resp adminMediaResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+	if resp.PhotoPath != "data/media/cat/set1/photo.jpg" {
+		t.Errorf("photo_path = %q, want data/media/cat/set1/photo.jpg", resp.PhotoPath)
+	}
+	if resp.AudioPath != "data/media/cat/set1/audio.mp3" {
+		t.Errorf("audio_path = %q, want data/media/cat/set1/audio.mp3", resp.AudioPath)
+	}
+
+	// Verify DB record also lacks .age
+	ms, err := database.GetRandomMediaSet("cat")
+	if err != nil {
+		t.Fatalf("GetRandomMediaSet: %v", err)
+	}
+	if ms == nil {
+		t.Fatal("Expected media set in database")
+	}
+	if ms.PhotoPath != "data/media/cat/set1/photo.jpg" {
+		t.Errorf("DB photo_path = %q, want data/media/cat/set1/photo.jpg", ms.PhotoPath)
+	}
+}
+
+func TestUploadMedia_PlaintextWhenNoIdentity(t *testing.T) {
+	database := setupAuthTestDB(t)
+	user, token := createAdminSession(t, database, "admin@example.com")
+	handler := NewAdminHandler(database, user.ID)
+	// handler.Identity is nil — no encryption
+
+	tmpDir := t.TempDir()
+	t.Setenv("MEDIA_DIR", tmpDir)
+
+	photo := bytes.Repeat([]byte{0xFF, 0xD8, 0xFF}, 100)
+	req := createMediaUploadRequest(t, "cat", photo, nil, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	handler.HandleUploadMedia(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("Expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Plaintext file should exist
+	photoPlainPath := filepath.Join(tmpDir, "cat", "set1", "photo.jpg")
+	if _, err := os.Stat(photoPlainPath); os.IsNotExist(err) {
+		t.Error("Expected plaintext photo.jpg to exist on disk")
+	}
+
+	// .age file should NOT exist
+	photoAgePath := filepath.Join(tmpDir, "cat", "set1", "photo.jpg.age")
+	if _, err := os.Stat(photoAgePath); !os.IsNotExist(err) {
+		t.Error("Expected photo.jpg.age to NOT exist when identity is nil")
+	}
+}
+
+func TestUploadMedia_EncryptedCleanupOnFailure(t *testing.T) {
+	// Verify that cleanupFiles works with .age file paths
+	tmpDir := t.TempDir()
+	setDir := filepath.Join(tmpDir, "cat", "set1")
+	if err := os.MkdirAll(setDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Create .age files simulating encrypted uploads
+	photoAgePath := filepath.Join(setDir, "photo.jpg.age")
+	audioAgePath := filepath.Join(setDir, "audio.mp3.age")
+	for _, p := range []string{photoAgePath, audioAgePath} {
+		if err := os.WriteFile(p, []byte("encrypted-data"), 0644); err != nil {
+			t.Fatalf("WriteFile %s: %v", p, err)
+		}
+	}
+
+	cleanupFiles([]string{photoAgePath, audioAgePath}, setDir)
+
+	// .age files should be removed
+	for _, p := range []string{photoAgePath, audioAgePath} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("Expected %s to be removed", p)
+		}
+	}
+
+	// Empty set directory should also be removed
+	if _, err := os.Stat(setDir); !os.IsNotExist(err) {
+		t.Errorf("Expected empty set directory to be removed")
+	}
 }

@@ -235,6 +235,43 @@ func TestDecryptReader(t *testing.T) {
 	}
 }
 
+func TestEncryptWriter(t *testing.T) {
+	plaintext := []byte("Test data for streaming encryption via EncryptWriter")
+
+	identity, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	// Encrypt using EncryptWriter
+	var buf ByteBuffer
+	w, err := EncryptWriter(&buf, identity)
+	if err != nil {
+		t.Fatalf("EncryptWriter failed: %v", err)
+	}
+	if _, err := w.Write(plaintext); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	// Verify ciphertext differs from plaintext
+	ciphertext := buf.Bytes()
+	if bytes.Equal(ciphertext, plaintext) {
+		t.Error("Ciphertext should not equal plaintext")
+	}
+
+	// Decrypt and verify roundtrip
+	decrypted, err := DecryptBytes(ciphertext, identity)
+	if err != nil {
+		t.Fatalf("DecryptBytes failed: %v", err)
+	}
+	if !bytes.Equal(decrypted, plaintext) {
+		t.Errorf("Decrypted data doesn't match.\nGot: %s\nWant: %s", decrypted, plaintext)
+	}
+}
+
 func TestLoadIdentityFromFile(t *testing.T) {
 	dir := t.TempDir()
 
