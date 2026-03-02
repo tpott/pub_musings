@@ -1,0 +1,6 @@
+# Astro generated
+.astro/
+
+# Playwright
+playwright-report/
+test-results/

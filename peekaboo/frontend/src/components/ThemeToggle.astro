@@ -1,0 +1,165 @@
+---
+// ThemeToggle - Day/Night mode toggle button
+// Cycles through: light → dark → auto → light
+// Placed in top-right corner of the page.
+---
+
+<button
+  class="theme-toggle"
+  data-testid="theme-toggle"
+  type="button"
+  aria-label="Toggle theme"
+>
+  <!-- Sun icon (shown in light mode) -->
+  <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+    <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+  </svg>
+  <!-- Moon icon (shown in dark mode) -->
+  <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+    <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+  </svg>
+  <!-- Auto icon (shown in auto mode) -->
+  <svg class="icon-auto" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+    <path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0112 22zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8c.28 0 .5-.22.5-.5a.54.54 0 00-.14-.35c-.41-.46-.63-1.05-.63-1.65a2.5 2.5 0 012.5-2.5H16c2.21 0 4-1.79 4-4 0-3.86-3.59-7-8-7z"/>
+    <circle cx="6.5" cy="11.5" r="1.5"/>
+    <circle cx="9.5" cy="7.5" r="1.5"/>
+    <circle cx="14.5" cy="7.5" r="1.5"/>
+    <circle cx="17.5" cy="11.5" r="1.5"/>
+  </svg>
+</button>
+
+<script>
+  const THEME_KEY = 'peekaboo:theme';
+  type ThemeMode = 'light' | 'dark' | 'auto';
+
+  function getThemeMode(): ThemeMode {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch { /* private browsing */ }
+    return 'auto';
+  }
+
+  function systemPrefersDark(): boolean {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function applyTheme(mode: ThemeMode): void {
+    const isDark = mode === 'dark' || (mode === 'auto' && systemPrefersDark());
+
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    document.documentElement.setAttribute('data-theme-mode', mode);
+
+    // Update toggle button aria-label
+    const btn = document.querySelector('[data-testid="theme-toggle"]');
+    if (btn) {
+      const labels: Record<ThemeMode, string> = {
+        light: 'Theme: light mode. Click for dark mode.',
+        dark: 'Theme: dark mode. Click for auto mode.',
+        auto: 'Theme: auto mode. Click for light mode.',
+      };
+      btn.setAttribute('aria-label', labels[mode]);
+    }
+  }
+
+  function cycleTheme(): void {
+    const current = getThemeMode();
+    const next: Record<ThemeMode, ThemeMode> = {
+      light: 'dark',
+      dark: 'auto',
+      auto: 'light',
+    };
+    const newMode = next[current];
+
+    try {
+      if (newMode === 'auto') {
+        localStorage.removeItem(THEME_KEY);
+      } else {
+        localStorage.setItem(THEME_KEY, newMode);
+      }
+    } catch { /* private browsing */ }
+
+    applyTheme(newMode);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.querySelector('[data-testid="theme-toggle"]');
+    if (btn) {
+      btn.addEventListener('click', cycleTheme);
+    }
+
+    // Apply current theme (in case ThemeInit didn't run perfectly)
+    applyTheme(getThemeMode());
+
+    // Listen for system preference changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (getThemeMode() === 'auto') {
+        applyTheme('auto');
+      }
+    });
+  });
+</script>
+
+<style>
+  .theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+    z-index: 999;
+  }
+
+  .theme-toggle:hover {
+    background: var(--bg-surface-alt);
+    color: var(--text-primary);
+    transform: scale(1.05);
+  }
+
+  .theme-toggle:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .theme-toggle:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  .theme-toggle:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Icon visibility based on theme mode */
+  .icon-sun,
+  .icon-moon,
+  .icon-auto {
+    display: none;
+  }
+
+  :global(:root[data-theme-mode="light"]) .icon-sun {
+    display: block;
+  }
+
+  :global(:root[data-theme-mode="dark"]) .icon-moon {
+    display: block;
+  }
+
+  :global(:root[data-theme-mode="auto"]) .icon-auto {
+    display: block;
+  }
+</style>

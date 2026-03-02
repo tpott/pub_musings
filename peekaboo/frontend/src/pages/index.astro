@@ -1,0 +1,250 @@
+---
+import MicButton from '../components/MicButton.astro';
+import MediaDisplay from '../components/MediaDisplay.astro';
+import FeedbackButton from '../components/FeedbackButton.astro';
+import LoginButton from '../components/LoginButton.astro';
+import LogoutButton from '../components/LogoutButton.astro';
+import SettingsButton from '../components/SettingsButton.astro';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import '../styles/theme.css';
+import '../styles/global.css';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Voice-controlled media display for kids" />
+    <title>Peekaboo</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <ThemeInit />
+  </head>
+  <body>
+    <LoginButton />
+    <LogoutButton />
+    <SettingsButton />
+    <ThemeToggle />
+    <main>
+      <h1 class="title">Peekaboo!</h1>
+      <MediaDisplay />
+      <MicButton />
+      <div id="debug-text-input" class="debug-text-input hidden" data-testid="debug-text-input">
+        <form id="debug-text-form" data-testid="debug-text-form">
+          <input type="text" id="debug-text-field" data-testid="debug-text-field"
+            placeholder="Type a command, e.g. show me a cat"
+            autocomplete="off" aria-label="Debug text command" />
+          <button type="submit" data-testid="debug-text-submit" aria-label="Submit text command">Go</button>
+        </form>
+      </div>
+    </main>
+    <FeedbackButton />
+  </body>
+</html>
+
+<script>
+  import { PeekabooFlow } from '../lib/peekaboo-flow';
+  import { AudioRecorder } from '../lib/audio-recorder';
+  import { logger } from '../lib/logger';
+  import { fetchCSRFToken } from '../lib/csrf';
+
+  /**
+   * Show a visible error message when the browser doesn't support voice recording
+   */
+  function showBrowserSupportError(container: HTMLElement): void {
+    container.replaceChildren();
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'browser-error';
+    errorDiv.setAttribute('role', 'alert');
+
+    const h2 = document.createElement('h2');
+    h2.textContent = 'Browser Not Supported';
+    errorDiv.appendChild(h2);
+
+    const p1 = document.createElement('p');
+    p1.textContent = "Your browser doesn't support voice recording.";
+    errorDiv.appendChild(p1);
+
+    const p2 = document.createElement('p');
+    p2.textContent = 'Please try one of these browsers:';
+    errorDiv.appendChild(p2);
+
+    const ul = document.createElement('ul');
+    for (const browser of ['Chrome (version 49+)', 'Firefox (version 25+)', 'Safari (version 14.1+)', 'Edge (version 79+)']) {
+      const li = document.createElement('li');
+      li.textContent = browser;
+      ul.appendChild(li);
+    }
+    errorDiv.appendChild(ul);
+
+    container.appendChild(errorDiv);
+    container.setAttribute('aria-label', 'Browser not supported error');
+  }
+
+  // Fetch CSRF token for authenticated users (fire-and-forget).
+  // If not authenticated, this silently returns null and POST requests
+  // proceed without a CSRF header (which the backend allows for anon users).
+  fetchCSRFToken();
+
+  // Initialize the flow when DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const micButton = document.querySelector('[data-testid="mic-button"]') as HTMLButtonElement;
+    const mediaContainer = document.querySelector('[data-testid="media-display"]') as HTMLElement;
+    const transcriptContainer = document.querySelector('[data-testid="transcript-display"]') as HTMLElement;
+
+    if (!micButton || !mediaContainer) {
+      logger.error('Peekaboo: Required elements not found');
+      return;
+    }
+
+    // Check if microphone is supported
+    if (!AudioRecorder.isSupported()) {
+      micButton.disabled = true;
+      micButton.title = 'Microphone not supported in this browser';
+      micButton.setAttribute('aria-label', 'Microphone not supported');
+
+      // Show visible error banner instead of just a tooltip
+      showBrowserSupportError(mediaContainer);
+      return;
+    }
+
+    // WebSocket mode is enabled by default for continuous listening UX
+    // Can be disabled via query param: ?useWebSocket=false
+    const urlParams = new URLSearchParams(window.location.search);
+    const useWebSocket = urlParams.get('useWebSocket') !== 'false' &&
+                        (window as any).__PEEKABOO_USE_WEBSOCKET__ !== false;
+
+    // Initialize the full flow
+    const flow = new PeekabooFlow({
+      micButton,
+      mediaContainer,
+      transcriptContainer,
+      useWebSocket,
+      onStateChange: (state) => {
+        logger.debug('Peekaboo state:', state);
+        document.dispatchEvent(new CustomEvent('peekaboo:statechange', { detail: { state } }));
+      },
+      onError: (error) => {
+        logger.error('Peekaboo error:', error);
+      },
+    });
+
+    // Enable debug text input mode via ?debug=text query param
+    if (urlParams.get('debug') === 'text') {
+      const debugContainer = document.getElementById('debug-text-input');
+      const debugForm = document.getElementById('debug-text-form') as HTMLFormElement;
+      const debugField = document.getElementById('debug-text-field') as HTMLInputElement;
+
+      if (debugContainer && debugForm && debugField) {
+        debugContainer.classList.remove('hidden');
+
+        debugForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const text = debugField.value.trim();
+          if (text) {
+            debugField.value = '';
+            flow.submitText(text);
+          }
+        });
+      }
+    }
+
+    // Clean up resources when the page is unloaded
+    window.addEventListener('pagehide', () => {
+      flow.destroy();
+    });
+  });
+</script>
+
+<style>
+  .title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  @media (min-width: 768px) {
+    .title {
+      font-size: 3rem;
+    }
+  }
+
+  /* Browser support error styling */
+  .browser-error {
+    text-align: center;
+    padding: 2rem;
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    border-radius: 1rem;
+    color: var(--error-text);
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .browser-error h2 {
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
+  }
+
+  .browser-error p {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+  }
+
+  .browser-error ul {
+    text-align: left;
+    display: inline-block;
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .browser-error li {
+    margin: 0.25rem 0;
+  }
+
+  /* Debug text input mode */
+  .debug-text-input.hidden {
+    display: none;
+  }
+
+  .debug-text-input {
+    margin-top: 1rem;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .debug-text-input form {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .debug-text-input input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid var(--border);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .debug-text-input input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .debug-text-input button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .debug-text-input button:hover {
+    background: var(--accent-hover);
+  }
+</style>

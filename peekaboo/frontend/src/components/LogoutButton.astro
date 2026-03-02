@@ -1,0 +1,93 @@
+---
+// LogoutButton - Shows a logout button when the user is authenticated.
+// Checks /api/auth/me on load to determine auth state.
+// Placed in top-left corner of the page (ThemeToggle is top-right).
+---
+
+<button
+  class="logout-btn hidden"
+  data-testid="logout-button"
+  type="button"
+  aria-label="Log out"
+>
+  <!-- Logout icon (door with arrow) -->
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+    <path d="M5 5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h7v-2H5V5zm16 7l-4-4v3H9v2h8v3l4-4z"/>
+  </svg>
+</button>
+
+<script>
+  import { checkAuth, logout } from '../lib/auth';
+  import { logger } from '../lib/logger';
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const btn = document.querySelector('[data-testid="logout-button"]') as HTMLButtonElement;
+    if (!btn) return;
+
+    const isAuthenticated = await checkAuth();
+    if (isAuthenticated) {
+      btn.classList.remove('hidden');
+    }
+
+    btn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to log out?')) return;
+      btn.disabled = true;
+      try {
+        await logout();
+        window.location.href = '/login';
+      } catch (err) {
+        logger.error('Logout failed:', err);
+        btn.disabled = false;
+      }
+    });
+  });
+</script>
+
+<style>
+  .logout-btn {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+    z-index: 999;
+  }
+
+  .logout-btn:hover {
+    background: var(--bg-surface-alt);
+    color: var(--text-primary);
+    transform: scale(1.05);
+  }
+
+  .logout-btn:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .logout-btn:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  .logout-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .logout-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .logout-btn.hidden {
+    display: none;
+  }
+</style>

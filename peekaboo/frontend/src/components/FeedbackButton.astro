@@ -1,0 +1,597 @@
+---
+// FeedbackButton - Floating feedback button with modal form
+---
+
+<div id="feedback-container" data-testid="feedback-container">
+  <button
+    id="feedback-btn"
+    data-testid="feedback-btn"
+    type="button"
+    class="feedback-btn"
+    aria-label="Send feedback"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="feedback-icon" aria-hidden="true">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+      <path d="M11 5h2v6h-2zM11 13h2v2h-2z"/>
+    </svg>
+  </button>
+
+  <div
+    id="feedback-modal"
+    data-testid="feedback-modal"
+    class="feedback-modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="feedback-title"
+  >
+    <div class="modal-overlay" data-testid="modal-overlay"></div>
+    <div class="modal-content">
+      <button
+        type="button"
+        class="modal-close"
+        data-testid="modal-close"
+        aria-label="Close feedback form"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+
+      <h2 id="feedback-title">Send Feedback</h2>
+
+      <form id="feedback-form" data-testid="feedback-form">
+        <div class="form-group">
+          <label for="feedback-type">Type</label>
+          <select id="feedback-type" name="type" required data-testid="feedback-type">
+            <option value="general">General Feedback</option>
+            <option value="bug">Bug Report</option>
+            <option value="feature">Feature Request</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label id="rating-label">Rating (optional)</label>
+          <div class="rating-container" aria-labelledby="rating-label" data-testid="rating-container">
+            <button type="button" class="star-btn" data-rating="1" aria-label="Rate 1 star" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+            <button type="button" class="star-btn" data-rating="2" aria-label="Rate 2 stars" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+            <button type="button" class="star-btn" data-rating="3" aria-label="Rate 3 stars" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+            <button type="button" class="star-btn" data-rating="4" aria-label="Rate 4 stars" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+            <button type="button" class="star-btn" data-rating="5" aria-label="Rate 5 stars" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="feedback-message">Message</label>
+          <textarea
+            id="feedback-message"
+            name="message"
+            required
+            maxlength="5000"
+            placeholder="Tell us what you think..."
+            rows="4"
+            data-testid="feedback-message"
+          ></textarea>
+          <div class="char-count" data-testid="char-count">0 / 5000</div>
+        </div>
+
+        <div class="form-error hidden" id="form-error" data-testid="form-error" role="alert"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" data-testid="btn-cancel">Cancel</button>
+          <button type="submit" class="btn-submit" data-testid="btn-submit">Send</button>
+        </div>
+      </form>
+
+      <div class="success-message hidden" id="success-message" data-testid="success-message" role="status">
+        Thanks for your feedback!
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { submitFeedback, getOrCreateSessionId, type FeedbackData } from '../lib/feedback';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const feedbackBtn = document.getElementById('feedback-btn') as HTMLButtonElement;
+    const modal = document.getElementById('feedback-modal') as HTMLElement;
+    const modalOverlay = modal.querySelector('.modal-overlay') as HTMLElement;
+    const closeBtn = modal.querySelector('.modal-close') as HTMLButtonElement;
+    const cancelBtn = modal.querySelector('.btn-cancel') as HTMLButtonElement;
+    const form = document.getElementById('feedback-form') as HTMLFormElement;
+    const messageInput = document.getElementById('feedback-message') as HTMLTextAreaElement;
+    const charCount = modal.querySelector('.char-count') as HTMLElement;
+    const formError = document.getElementById('form-error') as HTMLElement;
+    const successMessage = document.getElementById('success-message') as HTMLElement;
+    const ratingContainer = modal.querySelector('.rating-container') as HTMLElement;
+    const starBtns = ratingContainer.querySelectorAll('.star-btn') as NodeListOf<HTMLButtonElement>;
+
+    let selectedRating: number | null = null;
+    let successTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let capturedContext: { conceptId: string | null; transcript: string | null } = {
+      conceptId: null,
+      transcript: null,
+    };
+
+    // Capture context when modal opens (not on submit)
+    function captureContext(): void {
+      // Get last displayed concept from media display
+      const mediaDisplay = document.querySelector('[data-testid="media-display"]') as HTMLElement;
+      const img = mediaDisplay?.querySelector('img');
+      if (img?.src) {
+        // Extract concept from URL like /data/media/cat/set1/photo.jpg
+        const match = img.src.match(/\/data\/media\/([^/]+)\//);
+        capturedContext.conceptId = match ? match[1] : null;
+      }
+
+      // Get last transcript
+      const transcriptDisplay = document.querySelector('[data-testid="transcript-display"]') as HTMLElement;
+      const lastEntry = transcriptDisplay?.querySelector('.transcript-entry:last-child');
+      capturedContext.transcript = lastEntry?.textContent || null;
+    }
+
+    // Open modal
+    function openModal(): void {
+      captureContext();
+      modal.classList.remove('hidden');
+      form.classList.remove('hidden');
+      successMessage.classList.add('hidden');
+      formError.classList.add('hidden');
+      messageInput.focus();
+      document.body.style.overflow = 'hidden';
+    }
+
+    // Close modal
+    function closeModal(): void {
+      if (successTimeoutId !== null) {
+        clearTimeout(successTimeoutId);
+        successTimeoutId = null;
+      }
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      resetForm();
+      feedbackBtn.focus();
+    }
+
+    // Reset form
+    function resetForm(): void {
+      form.reset();
+      selectedRating = null;
+      updateStars(0);
+      charCount.textContent = '0 / 5000';
+      formError.classList.add('hidden');
+    }
+
+    // Update star display
+    function updateStars(rating: number): void {
+      starBtns.forEach((btn, index) => {
+        const selected = index < rating;
+        btn.classList.toggle('selected', selected);
+        btn.setAttribute('aria-pressed', String(selected));
+      });
+    }
+
+    // Show error
+    function showError(message: string): void {
+      formError.textContent = message;
+      formError.classList.remove('hidden');
+    }
+
+    // Show success
+    function showSuccess(): void {
+      form.classList.add('hidden');
+      successMessage.classList.remove('hidden');
+      successTimeoutId = setTimeout(closeModal, 1500);
+    }
+
+    // Event: Hide/show during recording state
+    document.addEventListener('peekaboo:statechange', ((e: CustomEvent<{ state: string }>) => {
+      if (e.detail.state === 'recording') {
+        feedbackBtn.classList.add('hidden');
+      } else {
+        feedbackBtn.classList.remove('hidden');
+      }
+    }) as EventListener);
+
+    // Event: Open modal
+    feedbackBtn.addEventListener('click', openModal);
+
+    // Event: Close modal
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', closeModal);
+
+    // Event: Keyboard handling (Escape to close, Tab focus trap)
+    document.addEventListener('keydown', (e) => {
+      if (modal.classList.contains('hidden')) return;
+
+      if (e.key === 'Escape') {
+        closeModal();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const modalContent = modal.querySelector('.modal-content') as HTMLElement;
+        const focusable = modalContent.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), select, textarea, input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    });
+
+    // Event: Star rating
+    starBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const rating = parseInt(btn.dataset.rating || '0', 10);
+        if (selectedRating === rating) {
+          // Clicking same star clears rating
+          selectedRating = null;
+          updateStars(0);
+        } else {
+          selectedRating = rating;
+          updateStars(rating);
+        }
+      });
+    });
+
+    // Event: Character count
+    messageInput.addEventListener('input', () => {
+      charCount.textContent = `${messageInput.value.length} / 5000`;
+    });
+
+    // Event: Form submit
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const typeSelect = document.getElementById('feedback-type') as HTMLSelectElement;
+      const message = messageInput.value.trim();
+
+      if (!message) {
+        showError('Please enter a message');
+        return;
+      }
+
+      const submitBtn = form.querySelector('.btn-submit') as HTMLButtonElement;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+      formError.classList.add('hidden');
+
+      try {
+        const data: FeedbackData = {
+          type: typeSelect.value as 'general' | 'bug' | 'feature',
+          message,
+          rating: selectedRating,
+          context: {
+            sessionId: getOrCreateSessionId(),
+            pageUrl: window.location.href,
+            conceptId: capturedContext.conceptId,
+            transcript: capturedContext.transcript,
+            userAgent: navigator.userAgent,
+          },
+        };
+
+        await submitFeedback(data);
+        showSuccess();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to send feedback';
+        showError(message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send';
+      }
+    });
+  });
+</script>
+
+<style>
+  /* Floating button */
+  .feedback-btn {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px var(--accent-shadow);
+    transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 1000;
+  }
+
+  .feedback-btn.hidden {
+    display: none;
+  }
+
+  .feedback-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 15px var(--accent-shadow-hover);
+  }
+
+  .feedback-btn:focus {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+  }
+
+  .feedback-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Modal overlay */
+  .feedback-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .feedback-modal.hidden {
+    display: none;
+  }
+
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--overlay);
+  }
+
+  /* Modal content */
+  .modal-content {
+    position: relative;
+    background: var(--modal-bg);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: var(--modal-close);
+    border-radius: 0.25rem;
+  }
+
+  .modal-close:hover {
+    color: var(--modal-close-hover);
+    background: var(--bg-surface-alt);
+  }
+
+  .modal-close:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  #feedback-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: var(--modal-text);
+  }
+
+  /* Form styles */
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--modal-label);
+    margin-bottom: 0.5rem;
+  }
+
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-input);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--bg-surface);
+    color: var(--modal-text);
+  }
+
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring-shadow);
+  }
+
+  .form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+
+  .char-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 0.25rem;
+  }
+
+  /* Rating stars */
+  .rating-container {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .star-btn {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: var(--star-unselected);
+    transition: color 0.15s, transform 0.15s;
+  }
+
+  .star-btn:hover {
+    transform: scale(1.1);
+  }
+
+  .star-btn:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  .star-btn.selected {
+    color: var(--star-color);
+  }
+
+  .star-btn:hover,
+  .star-btn:hover ~ .star-btn {
+    color: var(--star-color);
+  }
+
+  /* Reverse hover effect - highlight all stars up to hovered one */
+  .rating-container:hover .star-btn {
+    color: var(--star-unselected);
+  }
+  .rating-container:hover .star-btn:hover,
+  .rating-container .star-btn:hover ~ .star-btn {
+    color: var(--star-unselected);
+  }
+  .rating-container:hover .star-btn:hover {
+    color: var(--star-color);
+  }
+  .rating-container .star-btn:has(~ .star-btn:hover),
+  .rating-container .star-btn:hover {
+    color: var(--star-color);
+  }
+
+  /* Form error */
+  .form-error {
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    color: var(--error-text);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-error.hidden {
+    display: none;
+  }
+
+  /* Success message */
+  .success-message {
+    text-align: center;
+    padding: 2rem;
+    color: var(--success-text);
+    font-size: 1.125rem;
+    font-weight: 500;
+  }
+
+  .success-message.hidden {
+    display: none;
+  }
+
+  /* Modal actions */
+  .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+
+  .btn-cancel,
+  .btn-submit {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .btn-cancel {
+    background: var(--btn-cancel-bg);
+    border: 1px solid var(--btn-cancel-border);
+    color: var(--btn-cancel-text);
+  }
+
+  .btn-cancel:hover {
+    background: var(--btn-cancel-hover);
+  }
+
+  .btn-cancel:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .btn-submit {
+    background: var(--accent);
+    border: none;
+    color: var(--text-on-accent);
+  }
+
+  .btn-submit:hover {
+    background: var(--accent-hover);
+  }
+
+  .btn-submit:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>

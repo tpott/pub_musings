@@ -1,0 +1,139 @@
+---
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import '../styles/theme.css';
+import '../styles/global.css';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Sign in to Peekaboo via magic link" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Magic Link - Peekaboo</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <ThemeInit />
+  </head>
+  <body>
+    <ThemeToggle />
+    <main>
+      <div class="auth-card">
+        <h1 class="auth-title">Signing You In</h1>
+
+        <div class="status-message" id="status" role="status">
+          <p id="status-text">Verifying magic link...</p>
+        </div>
+
+        <div class="auth-links hidden" id="login-link">
+          <a href="/login">Request a new magic link</a>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
+
+<script>
+  import { verifyMagicLink } from '../lib/auth';
+
+  const statusEl = document.getElementById('status') as HTMLDivElement;
+  const statusText = document.getElementById('status-text') as HTMLParagraphElement;
+  const loginLinkEl = document.getElementById('login-link') as HTMLDivElement;
+
+  async function verify(): Promise<void> {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (!token) {
+      statusEl.classList.add('error');
+      statusText.textContent = 'Missing magic link token.';
+      loginLinkEl.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      await verifyMagicLink(token);
+      statusEl.classList.add('success');
+      statusText.textContent = 'Signed in! Redirecting...';
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1000);
+    } catch (err) {
+      statusEl.classList.add('error');
+      const message = err instanceof Error ? err.message : 'Magic link verification failed';
+      statusText.textContent = message;
+      loginLinkEl.classList.remove('hidden');
+    }
+  }
+
+  verify();
+</script>
+
+<style>
+  main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1rem;
+  }
+
+  .auth-card {
+    background: var(--bg-surface);
+    border-radius: 1rem;
+    padding: 2rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: var(--shadow-card);
+    text-align: center;
+  }
+
+  .auth-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 1.5rem;
+  }
+
+  .status-message {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+  }
+
+  .status-message.success {
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    color: var(--success-text);
+  }
+
+  .status-message.error {
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    color: var(--error-text);
+  }
+
+  .status-message p {
+    margin: 0;
+  }
+
+  .auth-links {
+    margin-top: 1.25rem;
+    font-size: 0.875rem;
+  }
+
+  .auth-links a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .auth-links a:hover {
+    text-decoration: underline;
+  }
+
+  .hidden {
+    display: none;
+  }
+</style>

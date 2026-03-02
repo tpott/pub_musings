@@ -1,0 +1,91 @@
+---
+// MicButton - Large touch-friendly microphone button for voice input
+---
+
+<button class="mic-button" data-testid="mic-button" aria-label="Press and hold to record voice command" aria-pressed="false">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="mic-icon" aria-hidden="true">
+    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+  </svg>
+</button>
+
+<!-- Event handling is done by PeekabooFlow initialized in index.astro -->
+
+<style>
+  .mic-button {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    box-shadow: 0 4px 15px var(--accent-shadow);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mic-button:hover {
+    transform: scale(1.05);
+    background: var(--accent-hover);
+    box-shadow: 0 6px 20px var(--accent-shadow-hover);
+  }
+
+  .mic-button:focus {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 4px;
+  }
+
+  .mic-button:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  .mic-button:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 4px;
+  }
+
+  .mic-button:active {
+    transform: scale(0.95);
+  }
+
+  .mic-button.recording {
+    animation: pulse 1.5s infinite;
+    background: linear-gradient(135deg, var(--recording-start) 0%, var(--recording-end) 100%);
+  }
+
+  .mic-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 var(--recording-shadow);
+    }
+    50% {
+      box-shadow: 0 0 0 20px transparent;
+    }
+  }
+
+  .mic-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  @media (min-width: 768px) {
+    .mic-button {
+      width: 150px;
+      height: 150px;
+    }
+
+    .mic-icon {
+      width: 60px;
+      height: 60px;
+    }
+  }
+</style>

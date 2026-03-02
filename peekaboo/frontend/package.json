@@ -1,0 +1,23 @@
+{
+  "name": "peekaboo-frontend",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:pbt": "playwright test --config tests/pbt/pbt.config.ts"
+  },
+  "dependencies": {
+    "astro": "^5.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.1",
+    "jsdom": "^26.0.0",
+    "vitest": "^3.0.0"
+  }
+}

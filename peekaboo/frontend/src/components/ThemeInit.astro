@@ -1,0 +1,21 @@
+---
+// ThemeInit - Inline script to apply saved theme before first render (prevents FOUC)
+// Must be placed in <head> of the HTML document.
+---
+
+<script is:inline>
+  (function() {
+    var THEME_KEY = 'peekaboo:theme';
+    var savedTheme = null;
+    try { savedTheme = localStorage.getItem(THEME_KEY); } catch(e) { /* private browsing */ }
+    var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+      document.documentElement.classList.add('dark');
+    }
+
+    // Store mode for ThemeToggle to read
+    var mode = savedTheme || 'auto';
+    document.documentElement.setAttribute('data-theme-mode', mode);
+  })();
+</script>

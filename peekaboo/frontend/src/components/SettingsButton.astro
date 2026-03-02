@@ -1,0 +1,75 @@
+---
+// SettingsButton - Shows a settings gear icon when the user is authenticated.
+// Navigates to /settings. Positioned next to the LogoutButton.
+---
+
+<a
+  class="settings-btn hidden"
+  data-testid="settings-button"
+  href="/settings"
+  aria-label="Account settings"
+>
+  <!-- Gear icon -->
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.61 3.61 0 0112 15.6z"/>
+  </svg>
+</a>
+
+<script>
+  import { checkAuth } from '../lib/auth';
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const btn = document.querySelector('[data-testid="settings-button"]') as HTMLAnchorElement;
+    if (!btn) return;
+
+    const isAuthenticated = await checkAuth();
+    if (isAuthenticated) {
+      btn.classList.remove('hidden');
+    }
+  });
+</script>
+
+<style>
+  .settings-btn {
+    position: fixed;
+    top: 1rem;
+    left: 3.5rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+    z-index: 999;
+    text-decoration: none;
+  }
+
+  .settings-btn:hover {
+    background: var(--bg-surface-alt);
+    color: var(--text-primary);
+    transform: scale(1.05);
+  }
+
+  .settings-btn:focus {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .settings-btn:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  .settings-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .settings-btn.hidden {
+    display: none;
+  }
+</style>

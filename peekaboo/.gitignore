@@ -1,0 +1,33 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Data directory (media files, db, age keys)
+data/
+backend/data/
+
+# Build outputs
+peekaboo
+
+# IDE
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python virtualenv
+.venv/
+
+# Node
+node_modules/
+dist/
+
+# Test results (Playwright)
+test-results/
+
+# Feedback fetch
+.feedback-cursor
+FEEDBACK.md

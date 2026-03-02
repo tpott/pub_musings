@@ -1,0 +1,22 @@
+[Unit]
+Description=Peekaboo voice-controlled media app
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/trevor/pub_musings/peekaboo
+ExecStart=/home/trevor/pub_musings/peekaboo/peekaboo
+Environment=PORT=8070
+EnvironmentFile=/home/trevor/pub_musings/peekaboo/.env
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/trevor/pub_musings/peekaboo/data
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target
