@@ -129,7 +129,7 @@ journalctl --user -u peekaboo -f
 
 ```bash
 cd /home/trevor/pub_musings
-git pull origin peek1
+git pull origin trunk
 ```
 
 ### 2. Decrypt secrets
@@ -478,7 +478,7 @@ sqlite3 data/peekaboo.db "
 
 ## Webhook Deployer
 
-The webhook-deployer is configured in `../webhook-deployer/config.yaml` to deploy both frontend and backend when changes are pushed to the `peek1` branch.
+The webhook-deployer is configured in `../webhook-deployer/config.yaml` to deploy both frontend and backend when changes are pushed to the `trunk` branch.
 
 Deploy scripts location:
 - `../webhook-deployer/scripts/deploy-peekaboo-frontend.sh`

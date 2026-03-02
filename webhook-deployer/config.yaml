@@ -31,7 +31,7 @@ sites:
   - name: peekaboo-frontend
     path: /home/trevor/pub_musings/peekaboo/frontend
     path_prefix: peekaboo/frontend/
-    branch: peek1
+    branch: trunk
     repository: tpott/pub_musings
     repo_path: /home/trevor/pub_musings
     deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-peekaboo-frontend.sh
@@ -39,7 +39,7 @@ sites:
   - name: peekaboo-backend
     path: /home/trevor/pub_musings/peekaboo
     path_prefix: peekaboo/
-    branch: peek1
+    branch: trunk
     repository: tpott/pub_musings
     repo_path: /home/trevor/pub_musings
     deploy_script: /home/trevor/pub_musings/webhook-deployer/scripts/deploy-peekaboo-backend.sh
