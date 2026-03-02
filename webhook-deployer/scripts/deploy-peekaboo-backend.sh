@@ -7,9 +7,9 @@ BACKEND_PORT="${BACKEND_PORT:-8070}"
 cd /home/trevor/pub_musings
 git fetch origin
 
-# Checkout peek1 branch (peekaboo development branch)
-git checkout peek1
-git pull origin peek1
+# Checkout trunk branch (peekaboo development branch)
+git checkout trunk
+git pull origin trunk
 
 cd peekaboo
 
