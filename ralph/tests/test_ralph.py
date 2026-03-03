@@ -30,6 +30,7 @@ from ralph.loop import (
     parse_rate_limit_reset,
     print_status_report,
     process_claude_output,
+    select_project,
     validate_project_files,
 )
 from ralph.config import RalphConfig, ProjectConfig
@@ -741,6 +742,136 @@ class TestPrintStatusReport(unittest.TestCase):
 
             self.assertIn("projA", output)
             self.assertNotIn("projB", output)
+
+
+class TestSelectProject(unittest.TestCase):
+    def _make_config(self, names: list[str]) -> RalphConfig:
+        projects = {
+            n: ProjectConfig(name=n, feedback_script="", implementation_plan="")
+            for n in names
+        }
+        return RalphConfig(projects=projects)
+
+    def test_prefers_feedback_over_no_feedback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            old_cwd = os.getcwd()
+            os.chdir(tmp_dir)
+            try:
+                # projA has no feedback, projB has feedback
+                Path("projA").mkdir()
+                Path("projB").mkdir()
+                (Path("projB") / "FEEDBACK.md").write_text("Fix bug")
+
+                config = self._make_config(["projA", "projB"])
+                result = select_project(config, None)
+                self.assertEqual(result, "projB")
+            finally:
+                os.chdir(old_cwd)
+
+    def test_tiebreaks_feedback_by_pending_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            old_cwd = os.getcwd()
+            os.chdir(tmp_dir)
+            try:
+                for name in ("projA", "projB"):
+                    Path(name).mkdir()
+                    (Path(name) / "FEEDBACK.md").write_text("feedback")
+
+                # projA has 1 pending task, projB has 3
+                (Path("projA") / "TASKS.jsonl").write_text('{"status": "todo"}\n')
+                (Path("projB") / "TASKS.jsonl").write_text(
+                    '{"status": "todo"}\n'
+                    '{"status": "todo"}\n'
+                    '{"status": "pending"}\n'
+                )
+
+                config = self._make_config(["projA", "projB"])
+                result = select_project(config, None)
+                self.assertEqual(result, "projB")
+            finally:
+                os.chdir(old_cwd)
+
+    def test_no_feedback_picks_most_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            old_cwd = os.getcwd()
+            os.chdir(tmp_dir)
+            try:
+                for name in ("projA", "projB"):
+                    Path(name).mkdir()
+
+                (Path("projA") / "TASKS.jsonl").write_text('{"status": "todo"}\n')
+                (Path("projB") / "TASKS.jsonl").write_text(
+                    '{"status": "todo"}\n{"status": "todo"}\n'
+                )
+
+                config = self._make_config(["projA", "projB"])
+                result = select_project(config, None)
+                self.assertEqual(result, "projB")
+            finally:
+                os.chdir(old_cwd)
+
+    def test_round_robin_tiebreak(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            old_cwd = os.getcwd()
+            os.chdir(tmp_dir)
+            try:
+                for name in ("projA", "projB", "projC"):
+                    Path(name).mkdir()
+                    (Path(name) / "TASKS.jsonl").write_text('{"status": "todo"}\n')
+
+                config = self._make_config(["projA", "projB", "projC"])
+
+                # All tied: first pick should be projA (first in config order)
+                r1 = select_project(config, None)
+                self.assertEqual(r1, "projA")
+
+                # After projA, should pick projB
+                r2 = select_project(config, "projA")
+                self.assertEqual(r2, "projB")
+
+                # After projB, should pick projC
+                r3 = select_project(config, "projB")
+                self.assertEqual(r3, "projC")
+
+                # After projC, wraps back to projA
+                r4 = select_project(config, "projC")
+                self.assertEqual(r4, "projA")
+            finally:
+                os.chdir(old_cwd)
+
+    def test_single_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            old_cwd = os.getcwd()
+            os.chdir(tmp_dir)
+            try:
+                Path("projA").mkdir()
+                config = self._make_config(["projA"])
+                result = select_project(config, None)
+                self.assertEqual(result, "projA")
+            finally:
+                os.chdir(old_cwd)
+
+    def test_round_robin_only_among_tied(self) -> None:
+        """Round-robin should not rotate to a project with a lower score."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            old_cwd = os.getcwd()
+            os.chdir(tmp_dir)
+            try:
+                for name in ("projA", "projB"):
+                    Path(name).mkdir()
+
+                # projA has 2 tasks, projB has 1
+                (Path("projA") / "TASKS.jsonl").write_text(
+                    '{"status": "todo"}\n{"status": "todo"}\n'
+                )
+                (Path("projB") / "TASKS.jsonl").write_text('{"status": "todo"}\n')
+
+                config = self._make_config(["projA", "projB"])
+                # Even though last_project=projA, projA still wins (not tied)
+                result = select_project(config, "projA")
+                self.assertEqual(result, "projA")
+            finally:
+                os.chdir(old_cwd)
 
 
 if __name__ == "__main__":

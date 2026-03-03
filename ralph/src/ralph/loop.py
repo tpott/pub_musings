@@ -241,14 +241,6 @@ def fetch_feedback(log_file: Path | None, script_path: Path | None = None) -> No
         log(f"Feedback: fetch error: {e}", log_file)
 
 
-def fetch_all_feedback(config: RalphConfig, log_file: Path | None) -> None:
-    """Fetch feedback for all configured projects."""
-    for name, project in config.projects.items():
-        if project.feedback_script:
-            script = Path(project.feedback_script)
-            fetch_feedback(log_file, script_path=script)
-
-
 def count_pending_tasks(project_name: str) -> int:
     """Read project's TASKS.jsonl and count tasks with status=todo or status=pending."""
     tasks_file = Path(project_name) / "TASKS.jsonl"
@@ -273,6 +265,45 @@ def count_pending_tasks(project_name: str) -> int:
 def check_feedback_waiting(project_name: str) -> bool:
     """Check if project's FEEDBACK.md exists."""
     return (Path(project_name) / "FEEDBACK.md").exists()
+
+
+def select_project(config: RalphConfig, last_project: str | None) -> str:
+    """Pick the best project to work on this iteration.
+
+    Priority:
+    1. Projects with feedback waiting (FEEDBACK.md exists), tiebreak by most
+       pending tasks.
+    2. Otherwise, project with the most pending tasks.
+    3. Round-robin tiebreak using last_project to prevent starvation.
+
+    Args:
+        config: The loaded Ralph configuration.
+        last_project: Name of the project selected last iteration (or None).
+
+    Returns:
+        Name of the selected project.
+    """
+    names = list(config.projects.keys())
+
+    # Score each project: (has_feedback, pending_count)
+    scores: dict[str, tuple[bool, int]] = {}
+    for name in names:
+        scores[name] = (check_feedback_waiting(name), count_pending_tasks(name))
+
+    # Sort by (feedback descending, pending descending)
+    ranked = sorted(names, key=lambda n: (scores[n][0], scores[n][1]), reverse=True)
+
+    # Among ties at the top score, apply round-robin past last_project
+    top_score = (scores[ranked[0]][0], scores[ranked[0]][1])
+    tied = [n for n in ranked if (scores[n][0], scores[n][1]) == top_score]
+
+    if last_project is not None and last_project in tied and len(tied) > 1:
+        # Rotate: pick the next project after last_project in config order
+        tied_in_order = [n for n in names if n in tied]
+        idx = tied_in_order.index(last_project)
+        return tied_in_order[(idx + 1) % len(tied_in_order)]
+
+    return tied[0]
 
 
 def find_repo_root() -> Path | None:
@@ -657,13 +688,12 @@ def main() -> None:
         print_status_report(config, project_filter=args.project)
         return
 
-    # Compute project working directory for Claude subprocess
-    project_cwd: Path | None = None
+    # Validate --project cwd upfront if set
     if args.project:
-        project_cwd = Path(args.project).resolve()
-        if not project_cwd.is_dir():
+        fixed_cwd = Path(args.project).resolve()
+        if not fixed_cwd.is_dir():
             print(
-                f"Error: project directory '{project_cwd}' does not exist",
+                f"Error: project directory '{fixed_cwd}' does not exist",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -674,8 +704,8 @@ def main() -> None:
     log_file = args.log_dir / f"ralph-{ralph_id}.log"
     feedback_log = args.log_dir / f"feedback-{ralph_id}.log"
     print(f"Logging to: {log_file}")
-    if project_cwd:
-        log(f"Project CWD: {project_cwd}", log_file)
+
+    last_project: str | None = None
 
     for i in range(max_iterations):
         # Check if we should stop
@@ -683,25 +713,31 @@ def main() -> None:
             log(f"{config.stop_file} found, stopping after {i} iteration(s)", log_file)
             break
 
+        # Select project for this iteration
+        if args.project:
+            selected = args.project
+        else:
+            selected = select_project(config, last_project)
+
+        project_cwd = Path(selected).resolve()
+
         log(
-            f"=== Iteration {i + 1}/{max_iterations} === {get_timestamp()}",
+            f"=== Iteration {i + 1}/{max_iterations} [{selected}] === {get_timestamp()}",
             log_file,
             newline_before=True,
         )
 
-        # Fetch feedback for all projects
-        fetch_all_feedback(config, log_file)
+        # Fetch feedback for the selected project
+        project_cfg = config.projects[selected]
+        if project_cfg.feedback_script:
+            fetch_feedback(log_file, script_path=Path(project_cfg.feedback_script))
 
-        # Build the prompt with project context
-        prompt_content = build_prompt(config, project_filter=args.project)
+        # Build the prompt scoped to the selected project
+        prompt_content = build_prompt(config, project_filter=selected)
 
         # Log feedback before Claude processes it
-        git_before = None
-        for name in config.projects:
-            feedback_file = Path(name) / "FEEDBACK.md"
-            fb = log_feedback_before(feedback_log, feedback_file)
-            if fb is not None:
-                git_before = fb
+        feedback_file = Path(selected) / "FEEDBACK.md"
+        git_before = log_feedback_before(feedback_log, feedback_file)
 
         last_log = {}
         try:
@@ -712,6 +748,7 @@ def main() -> None:
                 last_log = json.loads(last_line)
         except json.JSONDecodeError:
             log(f"Last line failed to parse as JSON: {last_line}", log_file)
+            last_project = selected
             continue
         except FileNotFoundError:
             print("Error: 'claude' command not found", file=sys.stderr)
@@ -722,6 +759,8 @@ def main() -> None:
 
         # Log git state after feedback was processed
         log_feedback_after(feedback_log, git_before)
+
+        last_project = selected
 
         if "result" not in last_log:
             log(f'Last line missing "result": {last_line}', log_file)
