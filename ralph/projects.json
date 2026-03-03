@@ -1,0 +1,21 @@
+{
+  "projects": {
+    "peekaboo": {
+      "feedback_script": "peekaboo/scripts/fetch-feedback.py",
+      "implementation_plan": "peekaboo/plan.md",
+      "lint_commands": ["cd peekaboo && ./scripts/lint.sh"],
+      "test_commands": ["cd peekaboo/backend && go test ./..."]
+    },
+    "subtitler": {
+      "feedback_script": "subtitler/scripts/fetch-feedback.py",
+      "implementation_plan": "subtitler/specs/subtitler.md",
+      "lint_commands": ["cd subtitler && ./scripts/lint.sh"],
+      "test_commands": ["cd subtitler/backend && go test ./..."]
+    }
+  },
+  "defaults": {
+    "model": "opus",
+    "max_iterations": 10,
+    "stop_file": "STOP_RALPH"
+  }
+}
