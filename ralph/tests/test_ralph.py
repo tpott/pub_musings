@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -10,7 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from ralph import (
+import ralph.loop as ralph_mod
+from ralph.loop import (
     INITIAL_BACKOFF_SECONDS,
     MAX_BACKOFF_SECONDS,
     build_prompt,
@@ -18,15 +20,19 @@ from ralph import (
     calculate_sleep_seconds,
     check_feedback_waiting,
     count_pending_tasks,
+    detect_project_from_cwd,
     fetch_feedback,
     generate_ralph_id,
     get_timestamp,
     is_api_server_error,
     log,
+    parse_at_mentions,
     parse_rate_limit_reset,
+    print_status_report,
     process_claude_output,
+    validate_project_files,
 )
-from config import RalphConfig, ProjectConfig
+from ralph.config import RalphConfig, ProjectConfig
 
 
 class TestGenerateRalphId(unittest.TestCase):
@@ -384,7 +390,6 @@ class TestCountPendingTasks(unittest.TestCase):
                 '{"id": 3, "status": "pending", "title": "Task 3"}\n'
                 '{"id": 4, "status": "done", "title": "Task 4"}\n'
             )
-            import os
             old_cwd = os.getcwd()
             os.chdir(tmp_dir)
             try:
@@ -404,7 +409,6 @@ class TestCheckFeedbackWaiting(unittest.TestCase):
             project = Path(tmp_dir) / "myproject"
             project.mkdir()
             (project / "FEEDBACK.md").write_text("Fix the typo")
-            import os
             old_cwd = os.getcwd()
             os.chdir(tmp_dir)
             try:
@@ -445,8 +449,6 @@ class TestBuildPrompt(unittest.TestCase):
                 }
             )
 
-            import os
-            import ralph as ralph_mod
             old_cwd = os.getcwd()
             old_prompt = ralph_mod.PROMPT_FILE
             os.chdir(tmp_dir)
@@ -461,6 +463,8 @@ class TestBuildPrompt(unittest.TestCase):
             self.assertIn("testproj", result)
             self.assertIn("Active Projects", result)
             self.assertIn("1", result)  # pending task count
+            # Paths should not be project-prefixed
+            self.assertNotIn("testproj/TASKS.jsonl", result)
 
     def test_project_filter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -474,13 +478,15 @@ class TestBuildPrompt(unittest.TestCase):
 
             config = RalphConfig(
                 projects={
-                    "projA": ProjectConfig(name="projA", feedback_script="", implementation_plan=""),
-                    "projB": ProjectConfig(name="projB", feedback_script="", implementation_plan=""),
+                    "projA": ProjectConfig(
+                        name="projA", feedback_script="", implementation_plan=""
+                    ),
+                    "projB": ProjectConfig(
+                        name="projB", feedback_script="", implementation_plan=""
+                    ),
                 }
             )
 
-            import os
-            import ralph as ralph_mod
             old_cwd = os.getcwd()
             old_prompt = ralph_mod.PROMPT_FILE
             os.chdir(tmp_dir)
@@ -493,6 +499,248 @@ class TestBuildPrompt(unittest.TestCase):
 
             self.assertIn("projA", result)
             self.assertNotIn("projB", result)
+
+
+class TestParseAtMentions(unittest.TestCase):
+    def test_extracts_file_mentions(self) -> None:
+        text = "Read @STATUS.md and @LEARNINGS.md for context."
+        result = parse_at_mentions(text)
+        self.assertEqual(result, ["LEARNINGS.md", "STATUS.md"])
+
+    def test_extracts_directory_mentions(self) -> None:
+        text = "Check @specs/ and @docs/ directories."
+        result = parse_at_mentions(text)
+        self.assertEqual(result, ["docs/", "specs/"])
+
+    def test_strips_trailing_punctuation(self) -> None:
+        text = "Read @FEEDBACK.md. Then @STATUS.md, and @LEARNINGS.md."
+        result = parse_at_mentions(text)
+        self.assertEqual(result, ["FEEDBACK.md", "LEARNINGS.md", "STATUS.md"])
+
+    def test_filters_templated_mentions(self) -> None:
+        text = "Plan in @specs/{task}.md first. Also read @specs/ dir."
+        result = parse_at_mentions(text)
+        self.assertEqual(result, ["specs/"])
+
+    def test_deduplicates(self) -> None:
+        text = "Read @STATUS.md first, then @STATUS.md again."
+        result = parse_at_mentions(text)
+        self.assertEqual(result, ["STATUS.md"])
+
+    def test_empty_text(self) -> None:
+        result = parse_at_mentions("")
+        self.assertEqual(result, [])
+
+    def test_no_mentions(self) -> None:
+        result = parse_at_mentions("No at-mentions here.")
+        self.assertEqual(result, [])
+
+    def test_real_ralph_md_pattern(self) -> None:
+        text = (
+            "Check your project's @FEEDBACK.md. If any exists, read it.\n"
+            "Read the project's status file (@STATUS.md),\n"
+            "@LEARNINGS.md, @README.md, @AGENTS.md, and @specs/ with Sonnet subagents.\n"
+            "Pick ONE task from the project's @TASKS.jsonl, mark in_progress.\n"
+            "Plan in @specs/{task}.md first.\n"
+            "Update memory files (@STATUS.md, @LEARNINGS.md, @specs/, @docs/),\n"
+        )
+        result = parse_at_mentions(text)
+        self.assertEqual(
+            result,
+            [
+                "AGENTS.md",
+                "FEEDBACK.md",
+                "LEARNINGS.md",
+                "README.md",
+                "STATUS.md",
+                "TASKS.jsonl",
+                "docs/",
+                "specs/",
+            ],
+        )
+
+
+class TestValidateProjectFiles(unittest.TestCase):
+    def test_all_files_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            project = Path(tmp_dir) / "myproject"
+            project.mkdir()
+            (project / "TASKS.jsonl").write_text('{"id": 1}\n')
+            (project / "STATUS.md").write_text("# Status\n")
+            (project / "LEARNINGS.md").write_text("# Learnings\n")
+            mentions = ["TASKS.jsonl", "STATUS.md", "LEARNINGS.md"]
+            result = validate_project_files(project, mentions)
+            self.assertTrue(result["TASKS.jsonl"])
+            self.assertTrue(result["STATUS.md"])
+            self.assertTrue(result["LEARNINGS.md"])
+
+    def test_missing_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            project = Path(tmp_dir) / "myproject"
+            project.mkdir()
+            mentions = ["TASKS.jsonl", "STATUS.md", "LEARNINGS.md"]
+            result = validate_project_files(project, mentions)
+            self.assertFalse(result["TASKS.jsonl"])
+            self.assertFalse(result["STATUS.md"])
+            self.assertFalse(result["LEARNINGS.md"])
+
+    def test_directory_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            project = Path(tmp_dir) / "myproject"
+            project.mkdir()
+            (project / "specs").mkdir()
+            mentions = ["specs/", "docs/"]
+            result = validate_project_files(project, mentions)
+            self.assertTrue(result["specs/"])
+            self.assertFalse(result["docs/"])
+
+    def test_nonexistent_project(self) -> None:
+        result = validate_project_files(
+            Path("/nonexistent_project_xyz"), ["TASKS.jsonl"]
+        )
+        self.assertFalse(result["TASKS.jsonl"])
+
+
+class TestDetectProjectFromCwd(unittest.TestCase):
+    def test_detects_project_dir(self) -> None:
+        repo_root = Path("/fake/repo")
+        original_cwd = Path("/fake/repo/peekaboo")
+        config = RalphConfig(
+            projects={
+                "peekaboo": ProjectConfig(
+                    name="peekaboo", feedback_script="", implementation_plan=""
+                )
+            }
+        )
+        result = detect_project_from_cwd(original_cwd, repo_root, config)
+        self.assertEqual(result, "peekaboo")
+
+    def test_repo_root_returns_none(self) -> None:
+        repo_root = Path("/fake/repo")
+        original_cwd = Path("/fake/repo")
+        config = RalphConfig(
+            projects={
+                "peekaboo": ProjectConfig(
+                    name="peekaboo", feedback_script="", implementation_plan=""
+                )
+            }
+        )
+        result = detect_project_from_cwd(original_cwd, repo_root, config)
+        self.assertIsNone(result)
+
+    def test_unknown_project_returns_none(self) -> None:
+        repo_root = Path("/fake/repo")
+        original_cwd = Path("/fake/repo/unknown_dir")
+        config = RalphConfig(
+            projects={
+                "peekaboo": ProjectConfig(
+                    name="peekaboo", feedback_script="", implementation_plan=""
+                )
+            }
+        )
+        result = detect_project_from_cwd(original_cwd, repo_root, config)
+        self.assertIsNone(result)
+
+    def test_nested_subdir(self) -> None:
+        repo_root = Path("/fake/repo")
+        original_cwd = Path("/fake/repo/peekaboo/backend/api")
+        config = RalphConfig(
+            projects={
+                "peekaboo": ProjectConfig(
+                    name="peekaboo", feedback_script="", implementation_plan=""
+                )
+            }
+        )
+        result = detect_project_from_cwd(original_cwd, repo_root, config)
+        self.assertEqual(result, "peekaboo")
+
+
+class TestPrintStatusReport(unittest.TestCase):
+    def test_prints_config_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create RALPH.md with @-mentions
+            ralph_dir = Path(tmp_dir) / "ralph"
+            ralph_dir.mkdir()
+            (ralph_dir / "RALPH.md").write_text(
+                "Read @TASKS.jsonl and @STATUS.md and @LEARNINGS.md.\n"
+            )
+
+            project = Path(tmp_dir) / "testproj"
+            project.mkdir()
+            (project / "TASKS.jsonl").write_text(
+                '{"id": 1, "status": "todo", "title": "Task 1"}\n'
+            )
+            (project / "STATUS.md").write_text("# Status\n")
+            (project / "LEARNINGS.md").write_text("# Learnings\n")
+
+            config = RalphConfig(
+                projects={
+                    "testproj": ProjectConfig(
+                        name="testproj",
+                        feedback_script="testproj/fetch.py",
+                        implementation_plan="testproj/plan.md",
+                        lint_commands=["cd testproj && lint"],
+                        test_commands=["cd testproj && test"],
+                    )
+                }
+            )
+
+            old_cwd = os.getcwd()
+            old_prompt = ralph_mod.PROMPT_FILE
+            os.chdir(tmp_dir)
+            ralph_mod.PROMPT_FILE = Path("ralph/RALPH.md")
+            try:
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    print_status_report(config)
+                output = stdout.getvalue()
+            finally:
+                os.chdir(old_cwd)
+                ralph_mod.PROMPT_FILE = old_prompt
+
+            self.assertIn("model=opus", output)
+            self.assertIn("testproj", output)
+            self.assertIn("@TASKS.jsonl: ok", output)
+            self.assertIn("@STATUS.md: ok", output)
+            self.assertIn("@LEARNINGS.md: ok", output)
+            self.assertIn("Pending tasks: 1", output)
+            self.assertIn("Plan: testproj/plan.md", output)
+
+    def test_project_filter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ralph_dir = Path(tmp_dir) / "ralph"
+            ralph_dir.mkdir()
+            (ralph_dir / "RALPH.md").write_text("Read @STATUS.md.\n")
+
+            config = RalphConfig(
+                projects={
+                    "projA": ProjectConfig(
+                        name="projA", feedback_script="", implementation_plan=""
+                    ),
+                    "projB": ProjectConfig(
+                        name="projB", feedback_script="", implementation_plan=""
+                    ),
+                }
+            )
+
+            old_cwd = os.getcwd()
+            old_prompt = ralph_mod.PROMPT_FILE
+            os.chdir(tmp_dir)
+            ralph_mod.PROMPT_FILE = Path("ralph/RALPH.md")
+            try:
+                # Need project dirs to exist for validation
+                (Path(tmp_dir) / "projA").mkdir()
+                (Path(tmp_dir) / "projB").mkdir()
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    print_status_report(config, project_filter="projA")
+                output = stdout.getvalue()
+            finally:
+                os.chdir(old_cwd)
+                ralph_mod.PROMPT_FILE = old_prompt
+
+            self.assertIn("projA", output)
+            self.assertNotIn("projB", output)
 
 
 if __name__ == "__main__":

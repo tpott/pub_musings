@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from config import ProjectConfig, RalphConfig, load_config
+from ralph.config import ProjectConfig, RalphConfig, load_config
 
 DEFAULT_MAX_ITERATIONS = 10
 DEFAULT_CONFIG_PATH = Path("ralph/projects.json")
@@ -206,9 +206,7 @@ def get_timestamp() -> str:
     return f"{local_str} | {utc_str} | {epoch_ms:.3f}"
 
 
-def fetch_feedback(
-    log_file: Path | None, script_path: Path | None = None
-) -> None:
+def fetch_feedback(log_file: Path | None, script_path: Path | None = None) -> None:
     """Run a single feedback fetch script. Logs result but never blocks the loop."""
     if script_path is None:
         return
@@ -227,7 +225,10 @@ def fetch_feedback(
         if result.returncode == 0:
             log(f"Feedback: {result.stdout.strip()}", log_file)
         elif result.returncode == 1:
-            log(f"Feedback [{script_path.parent.parent.name}]: No new feedback", log_file)
+            log(
+                f"Feedback [{script_path.parent.parent.name}]: No new feedback",
+                log_file,
+            )
         else:
             stderr_msg = result.stderr.strip()
             log(
@@ -274,6 +275,140 @@ def check_feedback_waiting(project_name: str) -> bool:
     return (Path(project_name) / "FEEDBACK.md").exists()
 
 
+def find_repo_root() -> Path | None:
+    """Find the repository root directory.
+
+    Tries `git rev-parse --show-toplevel` first, then walks up from CWD
+    looking for `ralph/projects.json`.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            candidate = Path(result.stdout.strip())
+            if (candidate / "ralph" / "projects.json").exists():
+                return candidate
+    except Exception:
+        pass
+
+    # Fallback: walk up from CWD
+    current = Path.cwd().resolve()
+    for parent in [current, *current.parents]:
+        if (parent / "ralph" / "projects.json").exists():
+            return parent
+    return None
+
+
+def detect_project_from_cwd(
+    original_cwd: Path, repo_root: Path, config: RalphConfig
+) -> str | None:
+    """Detect project name from the current working directory.
+
+    If CWD is inside a configured project directory, return its name.
+    Returns None if CWD is the repo root or not a known project.
+    """
+    try:
+        relative = original_cwd.relative_to(repo_root)
+    except ValueError:
+        return None
+
+    parts = relative.parts
+    if not parts:
+        return None
+
+    first_component = parts[0]
+    if first_component in config.projects:
+        return first_component
+    return None
+
+
+def parse_at_mentions(text: str) -> list[str]:
+    """Parse @-mentioned file/directory paths from RALPH.md text.
+
+    Extracts patterns like @FEEDBACK.md, @STATUS.md, @specs/ from the prompt.
+    Strips trailing punctuation, filters out templated mentions (containing {),
+    and returns a deduplicated sorted list of relative paths.
+    """
+    # Match @ followed by word chars, dots, slashes, hyphens
+    raw = re.findall(r"@([\w./-]+)", text)
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for mention in raw:
+        # Strip trailing punctuation (periods, commas)
+        cleaned = mention.rstrip(".,;:!?")
+        # Skip templated mentions like specs/{task}.md
+        if "{" in cleaned:
+            continue
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            result.append(cleaned)
+
+    result.sort()
+    return result
+
+
+def validate_project_files(
+    project_dir: Path, at_mentions: list[str]
+) -> dict[str, bool]:
+    """Check existence of @-mentioned files/directories in a project.
+
+    Args:
+        project_dir: Path to the project directory.
+        at_mentions: List of relative paths parsed from RALPH.md.
+
+    Returns a dict mapping each path to whether it exists.
+    """
+    return {path: (project_dir / path).exists() for path in at_mentions}
+
+
+def print_status_report(config: RalphConfig, project_filter: str | None = None) -> None:
+    """Print a status report showing project readiness without invoking Claude."""
+    print(f"Ralph config: model={config.model}, max_iterations={config.max_iterations}")
+    print(f"Stop file: {config.stop_file}")
+    print()
+
+    # Parse @-mentions from RALPH.md
+    if not PROMPT_FILE.exists():
+        print(f"Error: {PROMPT_FILE} not found", file=sys.stderr)
+        sys.exit(1)
+
+    prompt_text = PROMPT_FILE.read_text()
+    at_mentions = parse_at_mentions(prompt_text)
+
+    projects = config.projects
+    if project_filter and project_filter in projects:
+        projects = {project_filter: projects[project_filter]}
+
+    for name, project in projects.items():
+        project_dir = Path(name)
+        print(f"=== {name} ===")
+
+        # Validate @-mentioned files/directories
+        readiness = validate_project_files(project_dir, at_mentions)
+        for path, exists in readiness.items():
+            marker = "ok" if exists else "MISSING"
+            print(f"  @{path}: {marker}")
+
+        # Pending tasks
+        pending = count_pending_tasks(name)
+        print(f"  Pending tasks: {pending}")
+
+        # Feedback waiting
+        has_feedback = check_feedback_waiting(name)
+        print(f"  Feedback waiting: {'yes' if has_feedback else 'no'}")
+
+        # Config details
+        if project.implementation_plan:
+            print(f"  Plan: {project.implementation_plan}")
+
+        print()
+
+
 def build_prompt(config: RalphConfig, project_filter: str | None = None) -> str:
     """Build the full prompt from RALPH.md template plus project context.
 
@@ -294,8 +429,8 @@ def build_prompt(config: RalphConfig, project_filter: str | None = None) -> str:
     lines: list[str] = []
     lines.append("\n---\n")
     lines.append("## Active Projects\n")
-    lines.append("| Project | Path | Pending Tasks | Feedback Waiting |")
-    lines.append("|---------|------|---------------|------------------|")
+    lines.append("| Project | Pending Tasks | Feedback Waiting |")
+    lines.append("|---------|---------------|------------------|")
 
     projects = config.projects
     if project_filter and project_filter in projects:
@@ -304,22 +439,16 @@ def build_prompt(config: RalphConfig, project_filter: str | None = None) -> str:
     for name, project in projects.items():
         pending = count_pending_tasks(name)
         feedback = "Yes" if check_feedback_waiting(name) else "No"
-        lines.append(f"| {name} | {name}/ | {pending} | {feedback} |")
+        lines.append(f"| {name} | {pending} | {feedback} |")
 
     lines.append("")
 
     # Per-project details
     for name, project in projects.items():
         lines.append(f"### Project: {name}")
-        lines.append(f"- **Path:** `{name}/`")
-        lines.append(f"- **Tasks file:** `{name}/TASKS.jsonl`")
-        lines.append(f"- **Status file:** `{name}/STATUS.md` or `{name}/PROGRESS.md`")
-        lines.append(f"- **Learnings:** `{name}/LEARNINGS.md`")
 
         if project.implementation_plan:
             lines.append(f"- **Implementation plan:** `{project.implementation_plan}`")
-        if project.feedback_script:
-            lines.append(f"- **Feedback file:** `{name}/FEEDBACK.md`")
         if project.lint_commands:
             lines.append(f"- **Lint commands:** `{'; '.join(project.lint_commands)}`")
         if project.test_commands:
@@ -381,9 +510,22 @@ def process_claude_output(
 
 
 def run_claude(
-    prompt_content: str, model: str, verbose: bool, log_file: Path | None
+    prompt_content: str,
+    model: str,
+    verbose: bool,
+    log_file: Path | None,
+    cwd: Path | None = None,
 ) -> str | None:
-    """Run claude subprocess and return the last line of output."""
+    """Run claude subprocess and return the last line of output.
+
+    Args:
+        prompt_content: The prompt to send to Claude via stdin.
+        model: Model name to use.
+        verbose: Whether to stream all output.
+        log_file: Path to write JSON output to.
+        cwd: Working directory for the Claude subprocess. If None, inherits
+            the current process's working directory.
+    """
     cmd = [
         "claude",
         "--print",
@@ -400,6 +542,7 @@ def run_claude(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        cwd=cwd,
     ) as proc:
         assert proc.stdin is not None
         assert proc.stdout is not None
@@ -459,13 +602,45 @@ def main() -> None:
         default=DEFAULT_LOG_DIR,
         help=f"Directory to write logs to (default: {DEFAULT_LOG_DIR})",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show project status and readiness without invoking Claude",
+    )
     args = parser.parse_args()
 
+    # Capture original CWD before any chdir
+    original_cwd = Path.cwd().resolve()
+
+    # Find and chdir to repo root
+    repo_root = find_repo_root()
+    if repo_root is not None:
+        os.chdir(repo_root)
+    else:
+        # If we can't find repo root, try to proceed from current directory
+        pass
+
+    # Resolve --config against original CWD if it's a non-default relative path
+    config_path = args.config
+    if config_path != DEFAULT_CONFIG_PATH and not config_path.is_absolute():
+        config_path = original_cwd / config_path
+
     # Load config
-    config = load_config(args.config)
+    config = load_config(config_path)
+
+    # Auto-detect --project from CWD if not set
+    if args.project is None and repo_root is not None:
+        detected = detect_project_from_cwd(original_cwd, repo_root, config)
+        if detected is not None:
+            args.project = detected
+            print(f"Auto-detected project: {detected}")
 
     # CLI overrides
-    max_iterations = args.max_iterations if args.max_iterations is not None else config.max_iterations
+    max_iterations = (
+        args.max_iterations
+        if args.max_iterations is not None
+        else config.max_iterations
+    )
     stop_marker = Path(config.stop_file)
 
     # Validate --project if provided
@@ -477,12 +652,30 @@ def main() -> None:
         )
         sys.exit(1)
 
+    # Dry run: print status and exit
+    if args.dry_run:
+        print_status_report(config, project_filter=args.project)
+        return
+
+    # Compute project working directory for Claude subprocess
+    project_cwd: Path | None = None
+    if args.project:
+        project_cwd = Path(args.project).resolve()
+        if not project_cwd.is_dir():
+            print(
+                f"Error: project directory '{project_cwd}' does not exist",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     # Set up logging
     args.log_dir.mkdir(parents=True, exist_ok=True)
     ralph_id = generate_ralph_id()
     log_file = args.log_dir / f"ralph-{ralph_id}.log"
     feedback_log = args.log_dir / f"feedback-{ralph_id}.log"
     print(f"Logging to: {log_file}")
+    if project_cwd:
+        log(f"Project CWD: {project_cwd}", log_file)
 
     for i in range(max_iterations):
         # Check if we should stop
@@ -512,7 +705,9 @@ def main() -> None:
 
         last_log = {}
         try:
-            last_line = run_claude(prompt_content, config.model, args.verbose, log_file)
+            last_line = run_claude(
+                prompt_content, config.model, args.verbose, log_file, cwd=project_cwd
+            )
             if last_line is not None:
                 last_log = json.loads(last_line)
         except json.JSONDecodeError:
@@ -577,7 +772,11 @@ def main() -> None:
 
                     # Retry the claude call
                     retry_last_line = run_claude(
-                        prompt_content, config.model, args.verbose, log_file
+                        prompt_content,
+                        config.model,
+                        args.verbose,
+                        log_file,
+                        cwd=project_cwd,
                     )
                     if retry_last_line is not None:
                         try:

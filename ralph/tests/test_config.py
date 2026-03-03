@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from config import ProjectConfig, RalphConfig, load_config
+from ralph.config import ProjectConfig, RalphConfig, load_config
 
 
 class TestLoadConfig(unittest.TestCase):
@@ -25,9 +25,7 @@ class TestLoadConfig(unittest.TestCase):
                 "stop_file": "STOP",
             },
         }
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config_data, f)
             f.flush()
             config = load_config(Path(f.name))
@@ -53,9 +51,7 @@ class TestLoadConfig(unittest.TestCase):
                 }
             }
         }
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config_data, f)
             f.flush()
             config = load_config(Path(f.name))
@@ -66,9 +62,7 @@ class TestLoadConfig(unittest.TestCase):
 
     def test_raises_on_missing_projects_key(self) -> None:
         config_data = {"defaults": {"model": "opus"}}
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config_data, f)
             f.flush()
             with self.assertRaises(ValueError):
@@ -92,9 +86,7 @@ class TestLoadConfig(unittest.TestCase):
                 },
             }
         }
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config_data, f)
             f.flush()
             config = load_config(Path(f.name))
@@ -106,14 +98,8 @@ class TestLoadConfig(unittest.TestCase):
         self.assertEqual(config.projects["alpha"].lint_commands, [])
 
     def test_project_missing_optional_fields(self) -> None:
-        config_data = {
-            "projects": {
-                "minimal": {}
-            }
-        }
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as f:
+        config_data: dict[str, object] = {"projects": {"minimal": {}}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config_data, f)
             f.flush()
             config = load_config(Path(f.name))

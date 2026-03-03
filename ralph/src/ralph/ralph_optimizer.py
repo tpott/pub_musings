@@ -12,14 +12,15 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-
+from typing import Any
 
 # --- Data Models ---
+
 
 @dataclass
 class ToolCall:
     name: str
-    input: dict = field(default_factory=dict)
+    input: dict[str, Any] = field(default_factory=dict)
     output_tokens: int = 0
     index: int = 0  # position in session
 
@@ -101,13 +102,14 @@ class Pattern:
 # --- Pricing ---
 
 # Claude Opus 4.5 pricing (per token)
-OPUS_INPUT_PRICE = 15.0 / 1_000_000   # $15 per 1M input tokens
+OPUS_INPUT_PRICE = 15.0 / 1_000_000  # $15 per 1M input tokens
 OPUS_OUTPUT_PRICE = 75.0 / 1_000_000  # $75 per 1M output tokens
 HAIKU_INPUT_PRICE = 0.80 / 1_000_000  # $0.80 per 1M input tokens
 HAIKU_OUTPUT_PRICE = 4.0 / 1_000_000  # $4 per 1M output tokens
 
 
 # --- LogParser ---
+
 
 class LogParser:
     """Parse ralph logs, session logs, and agent logs."""
@@ -116,7 +118,7 @@ class LogParser:
     CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
     RALPH_LOGS_DIR = Path.home() / ".ralph" / "logs"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.runtime_dir: str | None = None
 
     def _cwd_to_runtime_dir(self, cwd: str) -> str:
@@ -134,9 +136,7 @@ class LogParser:
         current_number = 0
         current_total = 0
 
-        iter_pattern = re.compile(
-            r"=== Iteration (\d+)/(\d+) === (.+)"
-        )
+        iter_pattern = re.compile(r"=== Iteration (\d+)/(\d+) === (.+)")
 
         with open(path, "r", errors="replace") as f:
             for line in f:
@@ -172,12 +172,14 @@ class LogParser:
                         cwd = data.get("cwd", "")
                         if cwd:
                             self.runtime_dir = self._cwd_to_runtime_dir(cwd)
-                    iterations.append(Iteration(
-                        number=current_number,
-                        total=current_total,
-                        session_id=current_session_id,
-                        timestamp=current_timestamp,
-                    ))
+                    iterations.append(
+                        Iteration(
+                            number=current_number,
+                            total=current_total,
+                            session_id=current_session_id,
+                            timestamp=current_timestamp,
+                        )
+                    )
 
                 # Check for error result
                 if data.get("type") == "result" and data.get("is_error"):
@@ -220,7 +222,9 @@ class LogParser:
                     cache_creation = usage.get("cache_creation_input_tokens", 0)
                     cache_read = usage.get("cache_read_input_tokens", 0)
                     output_tokens = usage.get("output_tokens", 0)
-                    session.total_input_tokens += input_tokens + cache_creation + cache_read
+                    session.total_input_tokens += (
+                        input_tokens + cache_creation + cache_read
+                    )
                     session.total_output_tokens += output_tokens
 
                     # Extract tool calls
@@ -282,7 +286,9 @@ class LogParser:
                     cache_creation = usage.get("cache_creation_input_tokens", 0)
                     cache_read = usage.get("cache_read_input_tokens", 0)
                     output_tokens = usage.get("output_tokens", 0)
-                    agent.total_input_tokens += input_tokens + cache_creation + cache_read
+                    agent.total_input_tokens += (
+                        input_tokens + cache_creation + cache_read
+                    )
                     agent.total_output_tokens += output_tokens
 
                     content = msg.get("content", [])
@@ -312,6 +318,7 @@ class LogParser:
 
 
 # --- CostAnalyzer ---
+
 
 class CostAnalyzer:
     """Token counting and cost estimation."""
@@ -359,6 +366,7 @@ class CostAnalyzer:
 
 # --- PatternDetector ---
 
+
 class PatternDetector:
     """Find repeated/wasteful behaviors in sessions."""
 
@@ -400,12 +408,14 @@ class PatternDetector:
 
             if wasted_reads > 0:
                 # Estimate ~500 tokens per wasted read (rough average)
-                redundant.append(RedundantRead(
-                    file_path=fp,
-                    read_count=len(indices),
-                    first_read_index=indices[0],
-                    total_wasted_tokens=wasted_reads * 500,
-                ))
+                redundant.append(
+                    RedundantRead(
+                        file_path=fp,
+                        read_count=len(indices),
+                        first_read_index=indices[0],
+                        total_wasted_tokens=wasted_reads * 500,
+                    )
+                )
 
         return sorted(redundant, key=lambda r: r.total_wasted_tokens, reverse=True)
 
@@ -428,11 +438,13 @@ class PatternDetector:
         results = []
         for fp, count in large_reads.items():
             if count > 1:
-                results.append(LargeFileRead(
-                    file_path=fp,
-                    lines_read=0,  # unknown
-                    read_count=count,
-                ))
+                results.append(
+                    LargeFileRead(
+                        file_path=fp,
+                        lines_read=0,  # unknown
+                        read_count=count,
+                    )
+                )
 
         return sorted(results, key=lambda r: r.read_count, reverse=True)
 
@@ -442,8 +454,13 @@ class PatternDetector:
         first_test_index = -1
 
         test_patterns = [
-            "go test", "npm test", "vitest", "verify-all",
-            "test-backend", "test-frontend", "test-e2e",
+            "go test",
+            "npm test",
+            "vitest",
+            "verify-all",
+            "test-backend",
+            "test-frontend",
+            "test-e2e",
         ]
 
         for i, tc in enumerate(session.tool_calls):
@@ -459,19 +476,23 @@ class PatternDetector:
         if first_test_index == -1:
             # No test run found - but only report if edits were made
             if edit_count > 0:
-                return [LateTestRun(
-                    edits_before_test=edit_count,
-                    first_test_index=-1,
-                    total_tool_calls=len(session.tool_calls),
-                )]
+                return [
+                    LateTestRun(
+                        edits_before_test=edit_count,
+                        first_test_index=-1,
+                        total_tool_calls=len(session.tool_calls),
+                    )
+                ]
             return []
 
         if edit_count >= 5:
-            return [LateTestRun(
-                edits_before_test=edit_count,
-                first_test_index=first_test_index,
-                total_tool_calls=len(session.tool_calls),
-            )]
+            return [
+                LateTestRun(
+                    edits_before_test=edit_count,
+                    first_test_index=first_test_index,
+                    total_tool_calls=len(session.tool_calls),
+                )
+            ]
 
         return []
 
@@ -480,11 +501,13 @@ class PatternDetector:
         overhead = []
         for agent in session.agents:
             if len(agent.tool_calls) < 3:
-                overhead.append(AgentOverhead(
-                    agent_id=agent.agent_id,
-                    agent_type=agent.agent_type,
-                    tool_call_count=len(agent.tool_calls),
-                ))
+                overhead.append(
+                    AgentOverhead(
+                        agent_id=agent.agent_id,
+                        agent_type=agent.agent_type,
+                        tool_call_count=len(agent.tool_calls),
+                    )
+                )
         return overhead
 
     def detect_all_patterns(self, sessions: list[Session]) -> list[Pattern]:
@@ -519,39 +542,44 @@ class PatternDetector:
             top_files = sorted(
                 top_redundant_files.items(), key=lambda x: x[1], reverse=True
             )[:3]
-            file_list = ", ".join(
-                f"{Path(fp).name} ({cnt}x)" for fp, cnt in top_files
+            file_list = ", ".join(f"{Path(fp).name} ({cnt}x)" for fp, cnt in top_files)
+            patterns.append(
+                Pattern(
+                    name="Redundant File Reads",
+                    description=f"{total_redundant_reads} redundant reads across {len(sessions)} sessions. Top: {file_list}",
+                    occurrences=total_redundant_reads,
+                    estimated_waste_tokens=total_redundant_tokens,
+                    suggestion="Pre-load frequently read files into prompt or use subagent summaries",
+                )
             )
-            patterns.append(Pattern(
-                name="Redundant File Reads",
-                description=f"{total_redundant_reads} redundant reads across {len(sessions)} sessions. Top: {file_list}",
-                occurrences=total_redundant_reads,
-                estimated_waste_tokens=total_redundant_tokens,
-                suggestion="Pre-load frequently read files into prompt or use subagent summaries",
-            ))
 
         if total_late_tests > 0:
-            patterns.append(Pattern(
-                name="Late Test Execution",
-                description=f"{total_late_tests} sessions ran tests only after 5+ edits",
-                occurrences=total_late_tests,
-                estimated_waste_tokens=total_late_tests * 5000,
-                suggestion="Run tests after every 2-3 edits to catch issues sooner",
-            ))
+            patterns.append(
+                Pattern(
+                    name="Late Test Execution",
+                    description=f"{total_late_tests} sessions ran tests only after 5+ edits",
+                    occurrences=total_late_tests,
+                    estimated_waste_tokens=total_late_tests * 5000,
+                    suggestion="Run tests after every 2-3 edits to catch issues sooner",
+                )
+            )
 
         if total_overhead_agents > 0:
-            patterns.append(Pattern(
-                name="Low-Value Agent Launches",
-                description=f"{total_overhead_agents} agents with <3 tool calls (could use direct tools)",
-                occurrences=total_overhead_agents,
-                estimated_waste_tokens=total_overhead_agents * 2000,
-                suggestion="Use direct Grep/Read instead of launching agents for simple lookups",
-            ))
+            patterns.append(
+                Pattern(
+                    name="Low-Value Agent Launches",
+                    description=f"{total_overhead_agents} agents with <3 tool calls (could use direct tools)",
+                    occurrences=total_overhead_agents,
+                    estimated_waste_tokens=total_overhead_agents * 2000,
+                    suggestion="Use direct Grep/Read instead of launching agents for simple lookups",
+                )
+            )
 
         return sorted(patterns, key=lambda p: p.estimated_waste_tokens, reverse=True)
 
 
 # --- Reporter ---
+
 
 class Reporter:
     """Generate reports from analysis results."""
@@ -578,7 +606,9 @@ class Reporter:
         total_input = sum(c.input_tokens for c in costs)
         total_output = sum(c.output_tokens for c in costs)
         lines.append(f"Total estimated cost: ${total_cost:.2f}")
-        lines.append(f"Total tokens: {_fmt_tokens(total_input)} input, {_fmt_tokens(total_output)} output")
+        lines.append(
+            f"Total tokens: {_fmt_tokens(total_input)} input, {_fmt_tokens(total_output)} output"
+        )
         lines.append("")
 
         # Error rate
@@ -621,7 +651,9 @@ class Reporter:
         if patterns:
             lines.append("Detected Patterns:")
             for i, p in enumerate(patterns, 1):
-                lines.append(f"  {i}. {p.name} ({p.occurrences} occurrences, ~{_fmt_tokens(p.estimated_waste_tokens)} wasted)")
+                lines.append(
+                    f"  {i}. {p.name} ({p.occurrences} occurrences, ~{_fmt_tokens(p.estimated_waste_tokens)} wasted)"
+                )
                 lines.append(f"     {p.description}")
                 lines.append(f"     -> {p.suggestion}")
             lines.append("")
@@ -632,7 +664,9 @@ class Reporter:
             lines.append("  No significant waste patterns detected.")
         else:
             for i, p in enumerate(patterns, 1):
-                lines.append(f"  {i}. {p.suggestion} (saves ~{_fmt_tokens(p.estimated_waste_tokens)} tokens)")
+                lines.append(
+                    f"  {i}. {p.suggestion} (saves ~{_fmt_tokens(p.estimated_waste_tokens)} tokens)"
+                )
         lines.append("")
 
         return "\n".join(lines)
@@ -716,6 +750,7 @@ class Reporter:
 
 # --- Helpers ---
 
+
 def _fmt_tokens(n: int) -> str:
     """Format token count with K/M suffix."""
     if n >= 1_000_000:
@@ -735,16 +770,16 @@ def _summarize_input(tc: ToolCall) -> str:
         fp = inp.get("file_path", "")
         return Path(fp).name if fp else "(no path)"
     if tc.name == "Bash":
-        cmd = inp.get("command", "")
+        cmd: str = inp.get("command", "")
         return cmd[:60] + "..." if len(cmd) > 60 else cmd
     if tc.name == "Grep":
-        pattern = inp.get("pattern", "")
+        pattern: str = inp.get("pattern", "")
         return f'"{pattern}"'
     if tc.name == "Glob":
-        pattern = inp.get("pattern", "")
-        return pattern
+        glob_pattern: str = inp.get("pattern", "")
+        return glob_pattern
     if tc.name == "Task":
-        desc = inp.get("description", "")
+        desc: str = inp.get("description", "")
         return desc
     if tc.name == "TodoWrite":
         return "(todo update)"
@@ -752,6 +787,7 @@ def _summarize_input(tc: ToolCall) -> str:
 
 
 # --- Main ---
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -804,7 +840,7 @@ def main() -> None:
 
     # Apply --last filter
     if args.last > 0:
-        iterations = iterations[-args.last:]
+        iterations = iterations[-args.last :]
 
     # Parse sessions
     cost_analyzer = CostAnalyzer()

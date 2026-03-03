@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).parent
+# ralph/ is two levels up from src/ralph/eval_ralph.py
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 REAL_RALPH_MD = PROJECT_ROOT / "RALPH.md"
 
 
