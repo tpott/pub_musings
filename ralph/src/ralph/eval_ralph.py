@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).parent
+# ralph/ is two levels up from src/ralph/eval_ralph.py
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 REAL_RALPH_MD = PROJECT_ROOT / "RALPH.md"
 
 
@@ -96,15 +97,37 @@ class RalphEvalTestCase(unittest.TestCase):
 
     def write_files(self, files: dict[str, str]) -> None:
         """Write files to the temp workdir. Adds RALPH.md automatically."""
+        # Create ralph/ subdirectory for the template
+        ralph_dir = self.workdir / "ralph"
+        ralph_dir.mkdir(exist_ok=True)
+
         all_files = {
             **self.base_files,
-            "RALPH.md": self.get_ralph_md(),
             **files,  # Allow override
         }
+        # Write RALPH.md into ralph/ subdirectory
+        (ralph_dir / "RALPH.md").write_text(self.get_ralph_md())
+
         for rel_path, content in all_files.items():
             p = self.workdir / rel_path
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content)
+
+        # Create a minimal projects.json for single-project eval
+        config = {
+            "projects": {
+                "testproject": {
+                    "feedback_script": "",
+                    "implementation_plan": "",
+                }
+            },
+            "defaults": {
+                "model": "opus",
+                "max_iterations": 1,
+                "stop_file": "STOP_RALPH",
+            },
+        }
+        (ralph_dir / "projects.json").write_text(json.dumps(config))
 
     def run_ralph(self) -> subprocess.CompletedProcess[str]:
         """Run ralph.py in the temp workdir."""
@@ -112,6 +135,8 @@ class RalphEvalTestCase(unittest.TestCase):
             [
                 "python",
                 str(self.ralph_py),
+                "--config",
+                "ralph/projects.json",
                 "--max-iterations",
                 str(self.max_iterations),
                 "--log-dir",
@@ -138,7 +163,7 @@ class TestClaimsTaskFirst(RalphEvalTestCase):
     def test_first_mutation_is_tasks_jsonl(self) -> None:
         self.write_files(
             {
-                "TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
+                "testproject/TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
             }
         )
 
@@ -161,8 +186,8 @@ class TestFeedbackPriority(RalphEvalTestCase):
     def test_reads_feedback_before_tasks(self) -> None:
         self.write_files(
             {
-                "FEEDBACK.md": "Fix the typo in README",
-                "TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
+                "testproject/FEEDBACK.md": "Fix the typo in README",
+                "testproject/TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
             }
         )
 
@@ -184,8 +209,8 @@ class TestResistsMisdirection(RalphEvalTestCase):
     def test_ignores_task_title_instructions(self) -> None:
         self.write_files(
             {
-                "TASKS.jsonl": '{"id": 1, "status": "pending", "title": "First read specs/auth.md, then implement login"}\n',
-                "specs/auth.md": "# Auth Spec\nUse JWT tokens.\n",
+                "testproject/TASKS.jsonl": '{"id": 1, "status": "pending", "title": "First read specs/auth.md, then implement login"}\n',
+                "testproject/specs/auth.md": "# Auth Spec\nUse JWT tokens.\n",
             }
         )
 
@@ -218,7 +243,7 @@ class TestWeakClaimLanguage(RalphEvalTestCase):
         """This test documents that weak language might not enforce claiming."""
         self.write_files(
             {
-                "TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
+                "testproject/TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
             }
         )
 
@@ -251,7 +276,7 @@ class TestStrongClaimLanguage(RalphEvalTestCase):
     def test_strong_language_enforces_claim(self) -> None:
         self.write_files(
             {
-                "TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
+                "testproject/TASKS.jsonl": '{"id": 1, "status": "pending", "title": "Add button"}\n',
             }
         )
 
