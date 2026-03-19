@@ -147,15 +147,31 @@ cat /tmp/backup-receiver.log
 
 ## Testing
 
-Assuming you have `python3` installed instead of `python`:
+```sh
+python3 -m unittest discover tests
+```
+
+## TV show support
+
+TV discs are auto-detected by analyzing title durations from `makemkvcon`. If 3+ titles cluster in the 15–65 minute range with similar durations, the disc is treated as TV. Episodes are deduplicated by preferring single-segment titles over bumper-prepended variants.
+
+Output follows Jellyfin's expected structure:
+
+```
+TV/<Show Name>/Season 01/<Show Name> S01E01.mp4
+TV/<Show Name>/Season 01/<Show Name> S01E02.mp4
+```
+
+The show name, season, and disc number are parsed from the disc label (e.g. `Avatar_Book_1_Disc_1` → show "Avatar", season 1, disc 1). Override with environment variables when the label isn't sufficient:
 
 ```sh
-python3 -m unittest test_rip
+SHOW_NAME="Avatar The Last Airbender" SEASON=1 EPISODE_START=1 ./rip.py
 ```
+
+Add `BACKUP_DEST_TV` to `rip.conf` for a separate Jellyfin TV library path. Falls back to `BACKUP_DEST` if not set.
 
 ## Future improvements
 
 - **TMDb integration** — look up disc labels against [The Movie Database](https://www.themoviedb.org/) API to auto-detect proper titles, years, and movie-vs-TV classification. Replaces the manual `MOVIE_NAME` override.
-- **TV show support** — rip multi-episode discs, parse season/disc info from disc labels, match titles to episodes by runtime, and output Jellyfin-friendly `Show Name (Year)/Season XX/Show Name S01E01.mp4` structure.
 - **Whisper subtitles** — use `whisper-cli` to generate `.srt` subtitle files from the audio track.
 - **Extras handling** — identify and organize bonus features into Jellyfin-recognized subfolders (`featurettes/`, `behind the scenes/`, `deleted scenes/`).

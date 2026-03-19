@@ -7,8 +7,10 @@ syncs the result to a Jellyfin media server, and sends a notification.
 
 import os
 import re
+import statistics
 import subprocess
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 
@@ -51,6 +53,216 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, shell=True, check=True, **kwargs)
 
 
+def parse_makemkv_info(output):
+    """Parse makemkvcon --robot info output into a list of title dicts.
+
+    Each dict contains:
+        id (int), name (str), duration_secs (int), segment_count (int),
+        segments (str), filename (str)
+    """
+    # TINFO field IDs: 2=name, 9=duration, 25=segment_count, 26=segments, 27=filename
+    raw = defaultdict(dict)
+    for line in output.splitlines():
+        m = re.match(r'^TINFO:(\d+),(\d+),\d+,"(.*)"', line)
+        if not m:
+            continue
+        title_id = int(m.group(1))
+        field_id = int(m.group(2))
+        value = m.group(3)
+        raw[title_id][field_id] = value
+
+    titles = []
+    for tid in sorted(raw):
+        fields = raw[tid]
+        duration_str = fields.get(9, "0:00:00")
+        parts = duration_str.split(":")
+        secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        titles.append({
+            "id": tid,
+            "name": fields.get(2, ""),
+            "duration_secs": secs,
+            "segment_count": int(fields.get(25, "1")),
+            "segments": fields.get(26, ""),
+            "filename": fields.get(27, ""),
+        })
+    return titles
+
+
+def detect_media_type(titles):
+    """Detect whether a disc is a movie or TV show based on title durations.
+
+    Returns "tv" if 3+ titles cluster in the episode range (15-65 min)
+    within 30% of the median duration. Otherwise returns "movie".
+    """
+    episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
+    if len(episode_range) < 3:
+        return "movie"
+    durations = [t["duration_secs"] for t in episode_range]
+    median = statistics.median(durations)
+    cluster = [d for d in durations if abs(d - median) / median <= 0.30]
+    if len(cluster) >= 3:
+        return "tv"
+    return "movie"
+
+
+def select_movie_title(titles):
+    """Select the longest title (by duration) for movie ripping."""
+    return max(titles, key=lambda t: t["duration_secs"])
+
+
+def select_episode_titles(titles):
+    """Select deduplicated episode titles from a TV disc.
+
+    Filters to titles in the episode duration range, prefers single-segment
+    titles (no intro bumper), and deduplicates by checking for shared segments.
+    """
+    # Find titles in episode range
+    episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
+    if not episode_range:
+        return []
+    durations = [t["duration_secs"] for t in episode_range]
+    median = statistics.median(durations)
+    candidates = [t for t in episode_range
+                  if abs(t["duration_secs"] - median) / median <= 0.30]
+    if not candidates:
+        return []
+
+    # Prefer single-segment titles (no intro bumper)
+    single = [t for t in candidates if t["segment_count"] == 1]
+    if single:
+        candidates = single
+
+    # Deduplicate by segments: if one title's segments are a subset of
+    # another's, keep the one with fewer segments
+    seen_segments = set()
+    result = []
+    for t in sorted(candidates, key=lambda t: t["segment_count"]):
+        seg_set = frozenset(t["segments"].split(","))
+        if not any(seg_set & existing == seg_set for existing in seen_segments):
+            result.append(t)
+            seen_segments.add(seg_set)
+
+    return sorted(result, key=lambda t: t["id"])
+
+
+# Patterns for parsing season/disc info from disc labels
+_SEASON_RE = re.compile(
+    r'[_\s](?:S|Season[_\s]?|Book[_\s]?)(\d+)', re.IGNORECASE)
+_DISC_RE = re.compile(
+    r'[_\s](?:D|Disc[_\s]?)(\d+)', re.IGNORECASE)
+
+
+def parse_disc_label(label, media_type="movie"):
+    """Parse a disc label into structured metadata.
+
+    For TV: extracts show_name, season, disc from labels like
+        "Avatar_Book_1_Disc_1" or "BREAKING_BAD_S3_D2"
+    For movies: returns movie_name as-is.
+    """
+    if media_type == "movie":
+        return {"movie_name": label}
+
+    season_match = _SEASON_RE.search(label)
+    disc_match = _DISC_RE.search(label)
+
+    season = int(season_match.group(1)) if season_match else 1
+    disc = int(disc_match.group(1)) if disc_match else 1
+
+    # Strip season/disc suffixes to get the show name
+    name = label
+    # Remove from the earliest match onward
+    cut_positions = []
+    if season_match:
+        cut_positions.append(season_match.start())
+    if disc_match:
+        cut_positions.append(disc_match.start())
+    if cut_positions:
+        name = label[:min(cut_positions)]
+
+    # Clean up: underscores to spaces, strip trailing separators
+    name = name.replace("_", " ").strip(" -")
+
+    return {"show_name": name, "season": season, "disc": disc}
+
+
+def safe_name(name):
+    """Replace non-filename-safe characters with underscores."""
+    return re.sub(r'[^a-zA-Z0-9._-]', '_', name)
+
+
+def find_mkv_for_title(output_dir, title_id):
+    """Find the MKV file produced by makemkvcon for a given title ID.
+
+    makemkvcon names output files like *_tNN.mkv where NN is the title number.
+    """
+    pattern = f"*_t{title_id:02d}.mkv"
+    matches = list(Path(output_dir).glob(pattern))
+    if matches:
+        return matches[0]
+    # Fallback: try without zero-padding
+    pattern = f"*_t{title_id}.mkv"
+    matches = list(Path(output_dir).glob(pattern))
+    if matches:
+        return matches[0]
+    return None
+
+
+def transcode_and_sync(conf, jobs):
+    """Transcode MKV files on the HandBrake host and sync to backup.
+
+    Each job is a dict with: mkv_path, output_name, output_dir, remote_dir
+    """
+    handbrake_host = conf["HANDBRAKE_HOST"]
+    backup_host = conf["BACKUP_HOST"]
+    handbrake_work_dir = conf["HANDBRAKE_WORK_DIR"]
+    handbrake_encoder = conf["HANDBRAKE_ENCODER"]
+    handbrake_preset = conf["HANDBRAKE_PRESET"]
+    handbrake_quality = conf["HANDBRAKE_QUALITY"]
+    handbrake_audio_bitrate = conf["HANDBRAKE_AUDIO_BITRATE"]
+
+    run(f"ssh {handbrake_host} 'mkdir -p {handbrake_work_dir}'")
+
+    for job in jobs:
+        mkv_path = job["mkv_path"]
+        output_name = job["output_name"]
+        output_dir = job["output_dir"]
+        remote_dir = job["remote_dir"]
+        safe_mkv = safe_name(mkv_path.name)
+        safe_out = safe_name(output_name)
+
+        # Upload MKV to HandBrake host
+        run(f"scp -O '{mkv_path}' {handbrake_host}:{handbrake_work_dir}/{safe_mkv}")
+
+        # Transcode
+        run(
+            f"ssh {handbrake_host} '"
+            f"HandBrakeCLI"
+            f" -i {handbrake_work_dir}/{safe_mkv}"
+            f" -o {handbrake_work_dir}/{safe_out}.mp4"
+            f" -e {handbrake_encoder}"
+            f" --encoder-preset {handbrake_preset}"
+            f" -q {handbrake_quality}"
+            f" -B {handbrake_audio_bitrate}'"
+        )
+
+        # Download transcoded file
+        run(f"scp -O {handbrake_host}:{handbrake_work_dir}/{safe_out}.mp4"
+            f" '{output_dir}/{output_name}.mp4'")
+
+        # Clean up remote
+        run(f"ssh {handbrake_host} 'rm"
+            f" {handbrake_work_dir}/{safe_mkv}"
+            f" {handbrake_work_dir}/{safe_out}.mp4'")
+
+        # Clean up local MKV
+        mkv_path.unlink()
+
+        # Sync to backup host
+        run(f"rsync --mkpath -avz"
+            f" '{output_dir}/{output_name}.mp4'"
+            f" {backup_host}:'{remote_dir}/{output_name}.mp4'")
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     conf_path = script_dir / "rip.conf"
@@ -60,84 +272,90 @@ def main():
 
     conf = parse_conf(conf_path)
     rip_dir = conf["RIP_DIR"]
-    handbrake_host = conf["HANDBRAKE_HOST"]
-    backup_host = conf["BACKUP_HOST"]
-    handbrake_work_dir = conf["HANDBRAKE_WORK_DIR"]
-    backup_dest = conf["BACKUP_DEST"]
     openclaw_bin = conf["OPENCLAW_BIN"]
     openclaw_target = conf["OPENCLAW_TARGET"]
-    handbrake_encoder = conf["HANDBRAKE_ENCODER"]
-    handbrake_preset = conf["HANDBRAKE_PRESET"]
-    handbrake_quality = conf["HANDBRAKE_QUALITY"]
-    handbrake_audio_bitrate = conf["HANDBRAKE_AUDIO_BITRATE"]
 
     # Read disc label
     try:
-        disc_name = subprocess.run(
+        disc_label = subprocess.run(
             ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except subprocess.CalledProcessError:
-        disc_name = "UnknownDisc"
+        disc_label = "UnknownDisc"
 
-    # MOVIE_NAME can be overridden via environment
-    movie_name = os.environ.get("MOVIE_NAME", disc_name)
-    safe_movie_name = re.sub(r'[^a-zA-Z0-9._-]', '_', movie_name)
-    output_dir = Path(rip_dir) / "Movies" / movie_name
-    remote_dir = f"{backup_dest}/{movie_name}"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Rip the longest title (by duration) to avoid grabbing extras
-    # Field 9 = duration string "H:MM:SS"
-    # Use subprocess.run directly to capture stdout without echoing the command
+    # Scan disc titles
     info_output = subprocess.run(
-        ["makemkvcon", "-r", "info", "disc:0"],
+        ["makemkvcon", "--robot", "info", "disc:0"],
         capture_output=True, text=True,
     ).stdout
+    titles = parse_makemkv_info(info_output)
 
-    max_secs = 0
-    largest_title = "0"
-    for line in info_output.splitlines():
-        m = re.match(r'^TINFO:(\d+),9,0,"(\d+:\d{2}:\d{2})"', line)
-        if not m:
-            continue
-        title_id = m.group(1)
-        parts = m.group(2).split(":")
-        secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        if secs > max_secs:
-            max_secs = secs
-            largest_title = title_id
+    media_type = detect_media_type(titles)
 
-    run(f"makemkvcon mkv disc:0 {largest_title} {output_dir}")
+    if media_type == "movie":
+        movie_name = os.environ.get("MOVIE_NAME", disc_label)
+        output_dir = Path(rip_dir) / "Movies" / movie_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        backup_dest = conf["BACKUP_DEST"]
 
-    # Find the largest MKV file
-    mkvs = sorted(output_dir.glob("*.mkv"), key=lambda p: p.stat().st_size, reverse=True)
-    if not mkvs:
-        print("Error: no MKV files found after ripping", file=sys.stderr)
-        sys.exit(1)
-    largest_mkv = mkvs[0]
-    mkv_basename = largest_mkv.name
-    safe_mkv_basename = re.sub(r'[^a-zA-Z0-9._-]', '_', mkv_basename)
+        title = select_movie_title(titles)
+        run(f"makemkvcon mkv disc:0 {title['id']} '{output_dir}'")
 
-    # Transcode on the HandBrake host via SSH
-    run(f"ssh {handbrake_host} 'mkdir -p {handbrake_work_dir}'")
-    run(f"scp -O {largest_mkv} {handbrake_host}:{handbrake_work_dir}/{safe_mkv_basename}")
-    run(
-        f"ssh {handbrake_host} '"
-        f"HandBrakeCLI"
-        f" -i {handbrake_work_dir}/{safe_mkv_basename}"
-        f" -o {handbrake_work_dir}/{safe_movie_name}.mp4"
-        f" -e {handbrake_encoder}"
-        f" --encoder-preset {handbrake_preset}"
-        f" -q {handbrake_quality}"
-        f" -B {handbrake_audio_bitrate}'"
-    )
-    run(f"scp -O {handbrake_host}:{handbrake_work_dir}/{safe_movie_name}.mp4 {output_dir}/{movie_name}.mp4")
-    run(f"ssh {handbrake_host} 'rm {handbrake_work_dir}/{safe_mkv_basename} {handbrake_work_dir}/{safe_movie_name}.mp4'")
-    largest_mkv.unlink()
+        # Find the largest MKV (single title ripped)
+        mkvs = sorted(output_dir.glob("*.mkv"),
+                       key=lambda p: p.stat().st_size, reverse=True)
+        if not mkvs:
+            print("Error: no MKV files found after ripping", file=sys.stderr)
+            sys.exit(1)
 
-    # Sync to backup host
-    run(f"rsync --mkpath -avz {output_dir}/{movie_name}.mp4 {backup_host}:{remote_dir}/{movie_name}.mp4")
+        jobs = [{
+            "mkv_path": mkvs[0],
+            "output_name": movie_name,
+            "output_dir": output_dir,
+            "remote_dir": f"{backup_dest}/{movie_name}",
+        }]
+        notify_msg = f"Rip complete: {movie_name} is ready in Jellyfin"
+
+    else:  # tv
+        episodes = select_episode_titles(titles)
+        meta = parse_disc_label(disc_label, media_type="tv")
+        show_name = os.environ.get("SHOW_NAME", meta["show_name"])
+        season = int(os.environ.get("SEASON", meta.get("season", 1)))
+        ep_start = int(os.environ.get("EPISODE_START", "1"))
+
+        season_dir = f"Season {season:02d}"
+        output_dir = Path(rip_dir) / "TV" / show_name / season_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        backup_dest = conf.get("BACKUP_DEST_TV", conf["BACKUP_DEST"])
+
+        # Rip all episode titles
+        for ep in episodes:
+            run(f"makemkvcon mkv disc:0 {ep['id']} '{output_dir}'")
+
+        # Build transcode jobs
+        jobs = []
+        for i, ep in enumerate(episodes):
+            ep_num = ep_start + i
+            ep_name = f"{show_name} S{season:02d}E{ep_num:02d}"
+            mkv = find_mkv_for_title(output_dir, ep["id"])
+            if mkv is None:
+                print(f"Warning: no MKV found for title {ep['id']}, skipping",
+                      file=sys.stderr)
+                continue
+            jobs.append({
+                "mkv_path": mkv,
+                "output_name": ep_name,
+                "output_dir": output_dir,
+                "remote_dir": f"{backup_dest}/{show_name}/{season_dir}",
+            })
+
+        ep_count = len(jobs)
+        ep_end = ep_start + ep_count - 1
+        notify_msg = (f"Rip complete: {show_name} S{season:02d}"
+                      f"E{ep_start:02d}-E{ep_end:02d} ready in Jellyfin")
+
+    transcode_and_sync(conf, jobs)
 
     # Eject disc
     run("eject /dev/sr0")
@@ -146,7 +364,7 @@ def main():
     run(
         f"{openclaw_bin} message send"
         f" --channel matrix --target {openclaw_target}"
-        f" --message 'Rip complete: {movie_name} is ready in Jellyfin'"
+        f" --message '{notify_msg}'"
     )
 
 

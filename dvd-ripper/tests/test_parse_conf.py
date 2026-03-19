@@ -1,4 +1,4 @@
-"""Tests for rip.py config parsing."""
+"""Tests for rip.parse_conf."""
 
 import os
 import tempfile
@@ -104,14 +104,13 @@ class TestParseConf(unittest.TestCase):
 
     def test_real_conf_example(self):
         """Parse the actual rip.conf.example and verify key fields."""
-        example = Path(__file__).resolve().parent / "rip.conf.example"
+        example = Path(__file__).resolve().parent.parent / "rip.conf.example"
         result = parse_conf(example)
         self.assertEqual(result["RIP_DIR"], "/home/youruser/dvd-ripper")
         self.assertEqual(result["HANDBRAKE_HOST"], "qemuhost")
         self.assertEqual(result["BACKUP_HOST"], "mini")
         self.assertEqual(result["HANDBRAKE_ENCODER"], "x265")
         self.assertEqual(result["HANDBRAKE_QUALITY"], "22")
-        # OPENCLAW_BIN references $HOME which should expand from env
         self.assertIn("openclaw", result["OPENCLAW_BIN"])
 
 
