@@ -5,7 +5,7 @@
 # Where this project lives (must match 99-dvd-rip.rules path)
 RIP_DIR="/home/youruser/dvd-ripper"
 
-# User for systemd-run (udev runs as root, launches rip.sh as this user)
+# User for systemd-run (udev runs as root, launches rip.py as this user)
 RIP_USER="youruser"
 
 # SSH host aliases (must match ~/.ssh/config entries)

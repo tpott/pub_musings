@@ -7,14 +7,14 @@ This project is 10x better with a self-hosted Jellyfin server and Jellyfin on a 
 ## How it works
 
 1. A disc is inserted into `/dev/sr0`
-2. udev triggers `rip-udev.sh`, which launches `rip.sh` as a systemd user service
-3. `rip.sh` rips with MakeMKV, SCPs the largest title to the HandBrake host for transcoding, syncs the final `.mp4` to the backup host, and ejects the disc
+2. udev triggers `rip-udev.sh`, which launches `rip.py` as a systemd user service
+3. `rip.py` rips with MakeMKV, SCPs the largest title to the HandBrake host for transcoding, syncs the final `.mp4` to the backup host, and ejects the disc
 
 ## Hosts
 
 | Alias | Role | Scripts |
 |-------|------|---------|
-| **Ripper** (your Linux box) | Rips discs, orchestrates the pipeline | `rip.sh`, `rip-udev.sh`, `99-dvd-rip.rules` |
+| **Ripper** (your Linux box) | Rips discs, orchestrates the pipeline | `rip.py`, `rip-udev.sh`, `99-dvd-rip.rules` |
 | **HandBrake host** (e.g. `qemuhost`) | Efficiently transcodes MKV to MP4 via `HandBrakeCLI` | `handbrake-receiver` |
 | **Backup host** (e.g. `mini`) | Jellyfin media storage | `backup-receiver` |
 
@@ -102,13 +102,13 @@ It triggers on both DVD (`ID_CDROM_MEDIA_DVD`) and Blu-ray (`ID_CDROM_MEDIA_BD`)
 
 ```sh
 # Basic — uses disc label as the movie name
-./rip.sh
+./rip.py
 
 # With a custom Jellyfin-friendly name
-MOVIE_NAME="The Lion King (2019)" ./rip.sh
+MOVIE_NAME="The Lion King (2019)" ./rip.py
 
 # As a systemd service (survives terminal close, logs to journald)
-systemd-run --user --unit="dvd-rip-$(date +%s)" "$RIP_DIR/rip.sh"
+systemd-run --user --unit="dvd-rip-$(date +%s)" "$RIP_DIR/rip.py"
 ```
 
 ## Debugging
@@ -143,6 +143,14 @@ cat /tmp/handbrake-receiver.log
 
 # On the backup host
 cat /tmp/backup-receiver.log
+```
+
+## Testing
+
+Assuming you have `python3` installed instead of `python`:
+
+```sh
+python3 -m unittest test_rip
 ```
 
 ## Future improvements
