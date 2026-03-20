@@ -185,6 +185,48 @@ def parse_disc_label(label, media_type="movie"):
     return {"show_name": name, "season": season, "disc": disc}
 
 
+def compute_episode_start(output_dir, disc, ep_count):
+    """Compute the starting episode number for a TV disc.
+
+    For disc 1, always starts at 1. For disc N>1, requires that all
+    previous discs have been ripped (sequential order enforced).
+
+    Looks at existing .mp4 files named like "Show S01E03.mp4" in output_dir
+    to determine how many episodes have already been ripped.
+    """
+    if disc == 1:
+        return 1
+
+    existing = list(Path(output_dir).glob("*.mp4"))
+    ep_numbers = []
+    for f in existing:
+        m = re.search(r'S\d+E(\d+)\.mp4$', f.name)
+        if m:
+            ep_numbers.append(int(m.group(1)))
+
+    if not ep_numbers:
+        raise RuntimeError(
+            f"Disc {disc} cannot be ripped before disc 1. "
+            f"No existing episodes found in {output_dir}. "
+            f"Please insert discs in order starting from disc 1."
+        )
+
+    expected_prior = disc - 1
+    max_ep = max(ep_numbers)
+    num_existing = len(ep_numbers)
+
+    # Check that the existing episodes form a contiguous range 1..N
+    expected_set = set(range(1, num_existing + 1))
+    if set(ep_numbers) != expected_set:
+        raise RuntimeError(
+            f"Disc {disc}: expected contiguous episodes 1-{num_existing} "
+            f"but found gaps in {output_dir}. "
+            f"Please re-rip missing discs first."
+        )
+
+    return max_ep + 1
+
+
 def safe_name(name):
     """Replace non-filename-safe characters with underscores."""
     return re.sub(r'[^a-zA-Z0-9._-]', '_', name)
@@ -263,6 +305,96 @@ def transcode_and_sync(conf, jobs):
             f" {backup_host}:'{remote_dir}/{output_name}.mp4'")
 
 
+def prepare_movie(conf, titles, disc_label):
+    """Prepare rip jobs for a movie disc.
+
+    Returns (jobs, notify_msg).
+    """
+    rip_dir = conf["RIP_DIR"]
+    movie_name = os.environ.get("MOVIE_NAME", disc_label)
+    output_dir = Path(rip_dir) / "Movies" / movie_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    backup_dest = conf["BACKUP_DEST"]
+
+    title = select_movie_title(titles)
+    run(f"makemkvcon mkv disc:0 {title['id']} '{output_dir}'")
+
+    mkvs = sorted(output_dir.glob("*.mkv"),
+                   key=lambda p: p.stat().st_size, reverse=True)
+    if not mkvs:
+        raise RuntimeError("No MKV files found after ripping")
+
+    jobs = [{
+        "mkv_path": mkvs[0],
+        "output_name": movie_name,
+        "output_dir": output_dir,
+        "remote_dir": f"{backup_dest}/{movie_name}",
+    }]
+    notify_msg = f"Rip complete: {movie_name} is ready in Jellyfin"
+    return jobs, notify_msg
+
+
+def prepare_tv(conf, titles, disc_label):
+    """Prepare rip jobs for a TV disc.
+
+    Computes episode start from disc number and existing files.
+    Requires discs to be ripped in sequential order.
+
+    Returns (jobs, notify_msg).
+    """
+    rip_dir = conf["RIP_DIR"]
+    episodes = select_episode_titles(titles)
+    meta = parse_disc_label(disc_label, media_type="tv")
+    show_name = os.environ.get("SHOW_NAME", meta["show_name"])
+    season = int(os.environ.get("SEASON", meta.get("season", 1)))
+    disc = int(os.environ.get("DISC", meta.get("disc", 1)))
+
+    season_dir = f"Season {season:02d}"
+    output_dir = Path(rip_dir) / "TV" / show_name / season_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    backup_dest = conf.get("BACKUP_DEST_TV", conf["BACKUP_DEST"])
+
+    ep_start = compute_episode_start(output_dir, disc, len(episodes))
+
+    # Rip all episode titles
+    for ep in episodes:
+        run(f"makemkvcon mkv disc:0 {ep['id']} '{output_dir}'")
+
+    # Build transcode jobs
+    jobs = []
+    for i, ep in enumerate(episodes):
+        ep_num = ep_start + i
+        ep_name = f"{show_name} S{season:02d}E{ep_num:02d}"
+        mkv = find_mkv_for_title(output_dir, ep["id"])
+        if mkv is None:
+            print(f"Warning: no MKV found for title {ep['id']}, skipping",
+                  file=sys.stderr)
+            continue
+        jobs.append({
+            "mkv_path": mkv,
+            "output_name": ep_name,
+            "output_dir": output_dir,
+            "remote_dir": f"{backup_dest}/{show_name}/{season_dir}",
+        })
+
+    ep_count = len(jobs)
+    ep_end = ep_start + ep_count - 1
+    notify_msg = (f"Rip complete: {show_name} S{season:02d}"
+                  f"E{ep_start:02d}-E{ep_end:02d} ready in Jellyfin")
+    return jobs, notify_msg
+
+
+def notify(conf, message):
+    """Send a notification via OpenClaw."""
+    openclaw_bin = conf["OPENCLAW_BIN"]
+    openclaw_target = conf["OPENCLAW_TARGET"]
+    run(
+        f"{openclaw_bin} message send"
+        f" --channel matrix --target {openclaw_target}"
+        f" --message '{message}'"
+    )
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     conf_path = script_dir / "rip.conf"
@@ -271,101 +403,45 @@ def main():
         sys.exit(1)
 
     conf = parse_conf(conf_path)
-    rip_dir = conf["RIP_DIR"]
-    openclaw_bin = conf["OPENCLAW_BIN"]
-    openclaw_target = conf["OPENCLAW_TARGET"]
 
-    # Read disc label
     try:
-        disc_label = subprocess.run(
-            ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
-            capture_output=True, text=True, check=True,
-        ).stdout.strip()
-    except subprocess.CalledProcessError:
-        disc_label = "UnknownDisc"
+        # Read disc label
+        try:
+            disc_label = subprocess.run(
+                ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+        except subprocess.CalledProcessError:
+            disc_label = "UnknownDisc"
 
-    # Scan disc titles
-    info_output = subprocess.run(
-        ["makemkvcon", "--robot", "info", "disc:0"],
-        capture_output=True, text=True,
-    ).stdout
-    titles = parse_makemkv_info(info_output)
+        # Scan disc titles
+        info_output = subprocess.run(
+            ["makemkvcon", "--robot", "info", "disc:0"],
+            capture_output=True, text=True,
+        ).stdout
+        titles = parse_makemkv_info(info_output)
 
-    media_type = detect_media_type(titles)
+        media_type = detect_media_type(titles)
 
-    if media_type == "movie":
-        movie_name = os.environ.get("MOVIE_NAME", disc_label)
-        output_dir = Path(rip_dir) / "Movies" / movie_name
-        output_dir.mkdir(parents=True, exist_ok=True)
-        backup_dest = conf["BACKUP_DEST"]
+        if media_type == "movie":
+            jobs, notify_msg = prepare_movie(conf, titles, disc_label)
+        else:
+            jobs, notify_msg = prepare_tv(conf, titles, disc_label)
 
-        title = select_movie_title(titles)
-        run(f"makemkvcon mkv disc:0 {title['id']} '{output_dir}'")
+        transcode_and_sync(conf, jobs)
 
-        # Find the largest MKV (single title ripped)
-        mkvs = sorted(output_dir.glob("*.mkv"),
-                       key=lambda p: p.stat().st_size, reverse=True)
-        if not mkvs:
-            print("Error: no MKV files found after ripping", file=sys.stderr)
-            sys.exit(1)
+        # Eject disc
+        run("eject /dev/sr0")
 
-        jobs = [{
-            "mkv_path": mkvs[0],
-            "output_name": movie_name,
-            "output_dir": output_dir,
-            "remote_dir": f"{backup_dest}/{movie_name}",
-        }]
-        notify_msg = f"Rip complete: {movie_name} is ready in Jellyfin"
+        notify(conf, notify_msg)
 
-    else:  # tv
-        episodes = select_episode_titles(titles)
-        meta = parse_disc_label(disc_label, media_type="tv")
-        show_name = os.environ.get("SHOW_NAME", meta["show_name"])
-        season = int(os.environ.get("SEASON", meta.get("season", 1)))
-        ep_start = int(os.environ.get("EPISODE_START", "1"))
-
-        season_dir = f"Season {season:02d}"
-        output_dir = Path(rip_dir) / "TV" / show_name / season_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        backup_dest = conf.get("BACKUP_DEST_TV", conf["BACKUP_DEST"])
-
-        # Rip all episode titles
-        for ep in episodes:
-            run(f"makemkvcon mkv disc:0 {ep['id']} '{output_dir}'")
-
-        # Build transcode jobs
-        jobs = []
-        for i, ep in enumerate(episodes):
-            ep_num = ep_start + i
-            ep_name = f"{show_name} S{season:02d}E{ep_num:02d}"
-            mkv = find_mkv_for_title(output_dir, ep["id"])
-            if mkv is None:
-                print(f"Warning: no MKV found for title {ep['id']}, skipping",
-                      file=sys.stderr)
-                continue
-            jobs.append({
-                "mkv_path": mkv,
-                "output_name": ep_name,
-                "output_dir": output_dir,
-                "remote_dir": f"{backup_dest}/{show_name}/{season_dir}",
-            })
-
-        ep_count = len(jobs)
-        ep_end = ep_start + ep_count - 1
-        notify_msg = (f"Rip complete: {show_name} S{season:02d}"
-                      f"E{ep_start:02d}-E{ep_end:02d} ready in Jellyfin")
-
-    transcode_and_sync(conf, jobs)
-
-    # Eject disc
-    run("eject /dev/sr0")
-
-    # Notify via OpenClaw
-    run(
-        f"{openclaw_bin} message send"
-        f" --channel matrix --target {openclaw_target}"
-        f" --message '{notify_msg}'"
-    )
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        try:
+            notify(conf, f"Rip FAILED: {e}")
+        except Exception:
+            pass
+        sys.exit(1)
 
 
 if __name__ == "__main__":
