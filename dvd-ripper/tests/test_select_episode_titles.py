@@ -36,15 +36,56 @@ class TestSelectEpisodeTitles(unittest.TestCase):
         for ep in select_episode_titles(titles):
             self.assertEqual(ep["segment_count"], 1)
 
-    def test_sorted_by_title_id(self):
+    def test_sorted_by_segment_number(self):
+        """Episodes should be sorted by segment number (m2ts stream ID),
+        not by MakeMKV title ID, since title IDs can be scrambled."""
         titles = parse_makemkv_info(AVATAR_DISC_INFO)
         episodes = select_episode_titles(titles)
-        ids = [e["id"] for e in episodes]
-        self.assertEqual(ids, sorted(ids))
+        segments = [int(e["segments"]) for e in episodes]
+        self.assertEqual(segments, sorted(segments))
+
+    def test_scrambled_title_ids_sorted_by_segment(self):
+        """Title IDs may not match episode order; segment number wins."""
+        titles = [
+            {"id": 0, "duration_secs": 1400, "segment_count": 1,
+             "segments": "1087"},
+            {"id": 1, "duration_secs": 1420, "segment_count": 1,
+             "segments": "1094"},
+            {"id": 2, "duration_secs": 1380, "segment_count": 1,
+             "segments": "1062"},
+        ]
+        episodes = select_episode_titles(titles)
+        self.assertEqual([e["segments"] for e in episodes],
+                         ["1062", "1087", "1094"])
 
     def test_no_episodes_returns_empty(self):
         titles = parse_makemkv_info(MOVIE_DISC_INFO)
         self.assertEqual(select_episode_titles(titles), [])
+
+    def test_excludes_raw_m2ts_duplicate(self):
+        """A raw m2ts whose segment isn't in any bumper title is excluded."""
+        titles = [
+            # 3 single-segment episodes (from playlists)
+            {"id": 0, "duration_secs": 1400, "segment_count": 1,
+             "segments": "1087"},
+            {"id": 1, "duration_secs": 1420, "segment_count": 1,
+             "segments": "1094"},
+            {"id": 2, "duration_secs": 1380, "segment_count": 1,
+             "segments": "1095"},
+            # Bumper versions confirming those 3 episodes
+            {"id": 10, "duration_secs": 1450, "segment_count": 3,
+             "segments": "1100,1086,1087"},
+            {"id": 11, "duration_secs": 1470, "segment_count": 3,
+             "segments": "1100,1088,1094"},
+            {"id": 12, "duration_secs": 1430, "segment_count": 3,
+             "segments": "1100,1089,1095"},
+            # Raw m2ts duplicate — segment 5 not in any bumper
+            {"id": 18, "duration_secs": 1410, "segment_count": 1,
+             "segments": "5"},
+        ]
+        episodes = select_episode_titles(titles)
+        self.assertEqual(len(episodes), 3)
+        self.assertNotIn(18, [e["id"] for e in episodes])
 
     def test_fallback_when_all_multi_segment(self):
         """If no single-segment episodes exist, still return candidates."""

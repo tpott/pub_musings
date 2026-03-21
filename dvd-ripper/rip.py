@@ -127,9 +127,23 @@ def select_episode_titles(titles):
     if not candidates:
         return []
 
-    # Prefer single-segment titles (no intro bumper)
+    # Separate single-segment (clean) and multi-segment (bumper) candidates
     single = [t for t in candidates if t["segment_count"] == 1]
-    if single:
+    multi = [t for t in candidates if t["segment_count"] > 1]
+
+    if single and multi:
+        # Use multi-segment bumper titles to identify real episode segments.
+        # The last segment in a bumper title is the episode content.
+        # This filters out raw m2ts streams that match the duration range
+        # but are duplicates with the intro baked in.
+        episode_segs = set()
+        for t in multi:
+            parts = t["segments"].split(",")
+            episode_segs.add(parts[-1])
+
+        verified = [t for t in single if t["segments"] in episode_segs]
+        candidates = verified if verified else single
+    elif single:
         candidates = single
 
     # Deduplicate by segments: if one title's segments are a subset of
@@ -142,7 +156,18 @@ def select_episode_titles(titles):
             result.append(t)
             seen_segments.add(seg_set)
 
-    return sorted(result, key=lambda t: t["id"])
+    # Sort by segment number (m2ts stream ID) rather than MakeMKV title ID.
+    # Title IDs reflect playlist discovery order, which can be scrambled.
+    # Segment numbers correspond to the actual disc content streams and are
+    # authored in playback order.
+    def _seg_key(t):
+        seg = t["segments"].split(",")[-1]
+        try:
+            return int(seg)
+        except (ValueError, IndexError):
+            return t["id"]
+
+    return sorted(result, key=_seg_key)
 
 
 # Patterns for parsing season/disc info from disc labels
@@ -419,6 +444,7 @@ def main():
             ["makemkvcon", "--robot", "info", "disc:0"],
             capture_output=True, text=True,
         ).stdout
+        print(info_output, flush=True)
         titles = parse_makemkv_info(info_output)
 
         media_type = detect_media_type(titles)
