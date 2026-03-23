@@ -110,6 +110,35 @@ def select_movie_title(titles):
     return max(titles, key=lambda t: t["duration_secs"])
 
 
+def _find_play_all_order(titles, episode_segments):
+    """Extract episode order from a 'play all' title if one exists.
+
+    The play-all title is a multi-segment title whose segments are a
+    superset of all episode segments (with bumpers/recaps interspersed).
+    Returns episode segments in play-all order, or None if not found.
+    """
+    ep_seg_set = set(episode_segments)
+
+    # Find multi-segment titles that contain all episode segments
+    candidates = []
+    for t in titles:
+        if t["segment_count"] <= 1:
+            continue
+        title_segs = set(t["segments"].split(","))
+        if ep_seg_set.issubset(title_segs):
+            candidates.append(t)
+
+    if not candidates:
+        return None
+
+    # Use the one with the most segments (most likely the full play-all)
+    play_all = max(candidates, key=lambda t: t["segment_count"])
+
+    # Extract episode segments in play-all order
+    play_all_segs = play_all["segments"].split(",")
+    return [s for s in play_all_segs if s in ep_seg_set]
+
+
 def select_episode_titles(titles):
     """Select deduplicated episode titles from a TV disc.
 
@@ -156,10 +185,20 @@ def select_episode_titles(titles):
             result.append(t)
             seen_segments.add(seg_set)
 
-    # Sort by segment number (m2ts stream ID) rather than MakeMKV title ID.
+    # Try to derive order from a "play all" title on the disc.
+    # Play-all titles contain all episode segments interspersed with
+    # bumpers/recaps, and their segment order reflects the intended
+    # viewing order — which can differ from m2ts stream numbering.
+    ep_segs = {t["segments"] for t in result}
+    play_all_order = _find_play_all_order(titles, ep_segs)
+
+    if play_all_order:
+        seg_to_pos = {seg: i for i, seg in enumerate(play_all_order)}
+        return sorted(result,
+                      key=lambda t: seg_to_pos.get(t["segments"], float('inf')))
+
+    # Fall back: sort by segment number (m2ts stream ID).
     # Title IDs reflect playlist discovery order, which can be scrambled.
-    # Segment numbers correspond to the actual disc content streams and are
-    # authored in playback order.
     def _seg_key(t):
         seg = t["segments"].split(",")[-1]
         try:
@@ -368,7 +407,17 @@ def prepare_tv(conf, titles, disc_label):
     Returns (jobs, notify_msg).
     """
     rip_dir = conf["RIP_DIR"]
-    episodes = select_episode_titles(titles)
+    titles_override = os.environ.get("TITLES")
+    if titles_override:
+        title_ids = [int(x) for x in titles_override.split(",")]
+        id_to_title = {t["id"]: t for t in titles}
+        episodes = []
+        for tid in title_ids:
+            if tid not in id_to_title:
+                raise RuntimeError(f"Title ID {tid} not found on disc")
+            episodes.append(id_to_title[tid])
+    else:
+        episodes = select_episode_titles(titles)
     meta = parse_disc_label(disc_label, media_type="tv")
     show_name = os.environ.get("SHOW_NAME", meta["show_name"])
     season = int(os.environ.get("SEASON", meta.get("season", 1)))

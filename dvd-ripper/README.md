@@ -173,6 +173,15 @@ SHOW_NAME="Avatar The Last Airbender" SEASON=1 DISC=1 ./rip.py
 
 Add `BACKUP_DEST_TV` to `rip.conf` for a separate Jellyfin TV library path. Falls back to `BACKUP_DEST` if not set.
 
+Override automatic episode selection with `TITLES` — a comma-separated list of MakeMKV title IDs to rip in order. Useful when the automatic detection picks wrong titles or orders them incorrectly:
+
+```sh
+# Rip specific titles in a specific order
+TITLES="3,4,5,6,7,0,1,2" SHOW_NAME="Avatar" SEASON=2 DISC=1 ./rip.py
+```
+
+Run `makemkvcon --robot info disc:0` to see available title IDs and their segments.
+
 ## Future improvements
 
 - **TMDb integration** — look up disc labels against [The Movie Database](https://www.themoviedb.org/) API to auto-detect proper titles, years, and movie-vs-TV classification. Replaces the manual `MOVIE_NAME` override.

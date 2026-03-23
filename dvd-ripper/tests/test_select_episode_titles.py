@@ -87,6 +87,60 @@ class TestSelectEpisodeTitles(unittest.TestCase):
         self.assertEqual(len(episodes), 3)
         self.assertNotIn(18, [e["id"] for e in episodes])
 
+    def test_play_all_overrides_segment_order(self):
+        """When a play-all title exists, its segment order is used
+        instead of sorting by m2ts stream number."""
+        titles = [
+            # Episodes stored with scrambled segment numbers:
+            # segments 1090-1092 are Ch.6-8, segments 1099-1100 are Ch.1-2
+            {"id": 0, "duration_secs": 1471, "segment_count": 1,
+             "segments": "1090"},
+            {"id": 1, "duration_secs": 1473, "segment_count": 1,
+             "segments": "1091"},
+            {"id": 2, "duration_secs": 1476, "segment_count": 1,
+             "segments": "1092"},
+            {"id": 3, "duration_secs": 1399, "segment_count": 1,
+             "segments": "1099"},
+            {"id": 4, "duration_secs": 1400, "segment_count": 1,
+             "segments": "1100"},
+            # Play-all: correct viewing order (1099,1100 before 1090-1092)
+            {"id": 10, "duration_secs": 7219, "segment_count": 7,
+             "segments": "1093,1099,1100,1090,1091,1092,1084"},
+            # Bumper titles confirming all 5 episodes
+            {"id": 20, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1093,1090"},
+            {"id": 21, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1093,1091"},
+            {"id": 22, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1093,1092"},
+            {"id": 23, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1093,1099"},
+            {"id": 24, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1093,1100"},
+        ]
+        episodes = select_episode_titles(titles)
+        # Play-all says 1099,1100 come before 1090,1091,1092
+        self.assertEqual([e["segments"] for e in episodes],
+                         ["1099", "1100", "1090", "1091", "1092"])
+
+    def test_play_all_not_used_when_single_segment(self):
+        """A single-segment play-all (one big stream) can't provide order."""
+        titles = [
+            {"id": 0, "duration_secs": 1400, "segment_count": 1,
+             "segments": "1087"},
+            {"id": 1, "duration_secs": 1420, "segment_count": 1,
+             "segments": "1094"},
+            {"id": 2, "duration_secs": 1380, "segment_count": 1,
+             "segments": "1062"},
+            # Single-segment play-all — can't determine episode order
+            {"id": 8, "duration_secs": 11232, "segment_count": 1,
+             "segments": "1060"},
+        ]
+        episodes = select_episode_titles(titles)
+        # Falls back to segment number sort
+        self.assertEqual([e["segments"] for e in episodes],
+                         ["1062", "1087", "1094"])
+
     def test_fallback_when_all_multi_segment(self):
         """If no single-segment episodes exist, still return candidates."""
         titles = [
