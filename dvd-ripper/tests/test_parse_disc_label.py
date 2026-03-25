@@ -2,7 +2,7 @@
 
 import unittest
 
-from rip import parse_disc_label
+from disc import parse_disc_label
 
 
 class TestParseDiscLabel(unittest.TestCase):

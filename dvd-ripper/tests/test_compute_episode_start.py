@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from rip import compute_episode_start
+from disc import compute_episode_start
 
 
 class TestComputeEpisodeStart(unittest.TestCase):

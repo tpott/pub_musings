@@ -2,7 +2,7 @@
 
 import unittest
 
-from rip import detect_media_type, parse_makemkv_info
+from titles import detect_media_type, parse_makemkv_info
 from tests.test_data import AVATAR_DISC_INFO, MOVIE_DISC_INFO
 
 

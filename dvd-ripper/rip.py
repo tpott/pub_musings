@@ -7,11 +7,19 @@ syncs the result to a Jellyfin media server, and sends a notification.
 
 import os
 import re
-import statistics
+import shlex
 import subprocess
 import sys
-from collections import defaultdict
 from pathlib import Path
+
+from disc import compute_episode_start, parse_disc_label
+from titles import (
+    detect_media_type,
+    parse_makemkv_info,
+    select_episode_titles,
+    select_movie_title,
+)
+from transcode import find_mkv_for_title, transcode_and_sync
 
 
 def parse_conf(conf_path):
@@ -51,322 +59,6 @@ def run(cmd, **kwargs):
     """Run a command, printing it first (like set -x)."""
     print(f"+ {cmd}", flush=True)
     return subprocess.run(cmd, shell=True, check=True, **kwargs)
-
-
-def parse_makemkv_info(output):
-    """Parse makemkvcon --robot info output into a list of title dicts.
-
-    Each dict contains:
-        id (int), name (str), duration_secs (int), segment_count (int),
-        segments (str), filename (str)
-    """
-    # TINFO field IDs: 2=name, 9=duration, 25=segment_count, 26=segments, 27=filename
-    raw = defaultdict(dict)
-    for line in output.splitlines():
-        m = re.match(r'^TINFO:(\d+),(\d+),\d+,"(.*)"', line)
-        if not m:
-            continue
-        title_id = int(m.group(1))
-        field_id = int(m.group(2))
-        value = m.group(3)
-        raw[title_id][field_id] = value
-
-    titles = []
-    for tid in sorted(raw):
-        fields = raw[tid]
-        duration_str = fields.get(9, "0:00:00")
-        parts = duration_str.split(":")
-        secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-        titles.append({
-            "id": tid,
-            "name": fields.get(2, ""),
-            "duration_secs": secs,
-            "segment_count": int(fields.get(25, "1")),
-            "segments": fields.get(26, ""),
-            "filename": fields.get(27, ""),
-        })
-    return titles
-
-
-def detect_media_type(titles):
-    """Detect whether a disc is a movie or TV show based on title durations.
-
-    Returns "tv" if 3+ titles cluster in the episode range (15-65 min)
-    within 30% of the median duration. Otherwise returns "movie".
-    """
-    episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
-    if len(episode_range) < 3:
-        return "movie"
-    durations = [t["duration_secs"] for t in episode_range]
-    median = statistics.median(durations)
-    cluster = [d for d in durations if abs(d - median) / median <= 0.30]
-    if len(cluster) >= 3:
-        return "tv"
-    return "movie"
-
-
-def select_movie_title(titles):
-    """Select the longest title (by duration) for movie ripping."""
-    return max(titles, key=lambda t: t["duration_secs"])
-
-
-def _find_play_all_order(titles, episode_segments):
-    """Extract episode order from a 'play all' title if one exists.
-
-    The play-all title is a multi-segment title whose segments are a
-    superset of all episode segments (with bumpers/recaps interspersed).
-    Returns episode segments in play-all order, or None if not found.
-    """
-    ep_seg_set = set(episode_segments)
-
-    # Find multi-segment titles that contain all episode segments
-    candidates = []
-    for t in titles:
-        if t["segment_count"] <= 1:
-            continue
-        title_segs = set(t["segments"].split(","))
-        if ep_seg_set.issubset(title_segs):
-            candidates.append(t)
-
-    if not candidates:
-        return None
-
-    # Use the one with the most segments (most likely the full play-all)
-    play_all = max(candidates, key=lambda t: t["segment_count"])
-
-    # Extract episode segments in play-all order
-    play_all_segs = play_all["segments"].split(",")
-    return [s for s in play_all_segs if s in ep_seg_set]
-
-
-def select_episode_titles(titles):
-    """Select deduplicated episode titles from a TV disc.
-
-    Filters to titles in the episode duration range, prefers single-segment
-    titles (no intro bumper), and deduplicates by checking for shared segments.
-    """
-    # Find titles in episode range
-    episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
-    if not episode_range:
-        return []
-    durations = [t["duration_secs"] for t in episode_range]
-    median = statistics.median(durations)
-    candidates = [t for t in episode_range
-                  if abs(t["duration_secs"] - median) / median <= 0.30]
-    if not candidates:
-        return []
-
-    # Separate single-segment (clean) and multi-segment (bumper) candidates
-    single = [t for t in candidates if t["segment_count"] == 1]
-    multi = [t for t in candidates if t["segment_count"] > 1]
-
-    if single and multi:
-        # Use multi-segment bumper titles to identify real episode segments.
-        # The last segment in a bumper title is the episode content.
-        # This filters out raw m2ts streams that match the duration range
-        # but are duplicates with the intro baked in.
-        episode_segs = set()
-        for t in multi:
-            parts = t["segments"].split(",")
-            episode_segs.add(parts[-1])
-
-        verified = [t for t in single if t["segments"] in episode_segs]
-        candidates = verified if verified else single
-    elif single:
-        candidates = single
-
-    # Deduplicate by segments: if one title's segments are a subset of
-    # another's, keep the one with fewer segments
-    seen_segments = set()
-    result = []
-    for t in sorted(candidates, key=lambda t: t["segment_count"]):
-        seg_set = frozenset(t["segments"].split(","))
-        if not any(seg_set & existing == seg_set for existing in seen_segments):
-            result.append(t)
-            seen_segments.add(seg_set)
-
-    # Try to derive order from a "play all" title on the disc.
-    # Play-all titles contain all episode segments interspersed with
-    # bumpers/recaps, and their segment order reflects the intended
-    # viewing order — which can differ from m2ts stream numbering.
-    ep_segs = {t["segments"] for t in result}
-    play_all_order = _find_play_all_order(titles, ep_segs)
-
-    if play_all_order:
-        seg_to_pos = {seg: i for i, seg in enumerate(play_all_order)}
-        return sorted(result,
-                      key=lambda t: seg_to_pos.get(t["segments"], float('inf')))
-
-    # Fall back: sort by segment number (m2ts stream ID).
-    # Title IDs reflect playlist discovery order, which can be scrambled.
-    def _seg_key(t):
-        seg = t["segments"].split(",")[-1]
-        try:
-            return int(seg)
-        except (ValueError, IndexError):
-            return t["id"]
-
-    return sorted(result, key=_seg_key)
-
-
-# Patterns for parsing season/disc info from disc labels
-_SEASON_RE = re.compile(
-    r'[_\s](?:S|Season[_\s]?|Book[_\s]?)(\d+)', re.IGNORECASE)
-_DISC_RE = re.compile(
-    r'[_\s](?:D|Disc[_\s]?)(\d+)', re.IGNORECASE)
-
-
-def parse_disc_label(label, media_type="movie"):
-    """Parse a disc label into structured metadata.
-
-    For TV: extracts show_name, season, disc from labels like
-        "Avatar_Book_1_Disc_1" or "BREAKING_BAD_S3_D2"
-    For movies: returns movie_name as-is.
-    """
-    if media_type == "movie":
-        return {"movie_name": label}
-
-    season_match = _SEASON_RE.search(label)
-    disc_match = _DISC_RE.search(label)
-
-    season = int(season_match.group(1)) if season_match else 1
-    disc = int(disc_match.group(1)) if disc_match else 1
-
-    # Strip season/disc suffixes to get the show name
-    name = label
-    # Remove from the earliest match onward
-    cut_positions = []
-    if season_match:
-        cut_positions.append(season_match.start())
-    if disc_match:
-        cut_positions.append(disc_match.start())
-    if cut_positions:
-        name = label[:min(cut_positions)]
-
-    # Clean up: underscores to spaces, strip trailing separators
-    name = name.replace("_", " ").strip(" -")
-
-    return {"show_name": name, "season": season, "disc": disc}
-
-
-def compute_episode_start(output_dir, disc, ep_count):
-    """Compute the starting episode number for a TV disc.
-
-    For disc 1, always starts at 1. For disc N>1, requires that all
-    previous discs have been ripped (sequential order enforced).
-
-    Looks at existing .mp4 files named like "Show S01E03.mp4" in output_dir
-    to determine how many episodes have already been ripped.
-    """
-    if disc == 1:
-        return 1
-
-    existing = list(Path(output_dir).glob("*.mp4"))
-    ep_numbers = []
-    for f in existing:
-        m = re.search(r'S\d+E(\d+)\.mp4$', f.name)
-        if m:
-            ep_numbers.append(int(m.group(1)))
-
-    if not ep_numbers:
-        raise RuntimeError(
-            f"Disc {disc} cannot be ripped before disc 1. "
-            f"No existing episodes found in {output_dir}. "
-            f"Please insert discs in order starting from disc 1."
-        )
-
-    expected_prior = disc - 1
-    max_ep = max(ep_numbers)
-    num_existing = len(ep_numbers)
-
-    # Check that the existing episodes form a contiguous range 1..N
-    expected_set = set(range(1, num_existing + 1))
-    if set(ep_numbers) != expected_set:
-        raise RuntimeError(
-            f"Disc {disc}: expected contiguous episodes 1-{num_existing} "
-            f"but found gaps in {output_dir}. "
-            f"Please re-rip missing discs first."
-        )
-
-    return max_ep + 1
-
-
-def safe_name(name):
-    """Replace non-filename-safe characters with underscores."""
-    return re.sub(r'[^a-zA-Z0-9._-]', '_', name)
-
-
-def find_mkv_for_title(output_dir, title_id):
-    """Find the MKV file produced by makemkvcon for a given title ID.
-
-    makemkvcon names output files like *_tNN.mkv where NN is the title number.
-    """
-    pattern = f"*_t{title_id:02d}.mkv"
-    matches = list(Path(output_dir).glob(pattern))
-    if matches:
-        return matches[0]
-    # Fallback: try without zero-padding
-    pattern = f"*_t{title_id}.mkv"
-    matches = list(Path(output_dir).glob(pattern))
-    if matches:
-        return matches[0]
-    return None
-
-
-def transcode_and_sync(conf, jobs):
-    """Transcode MKV files on the HandBrake host and sync to backup.
-
-    Each job is a dict with: mkv_path, output_name, output_dir, remote_dir
-    """
-    handbrake_host = conf["HANDBRAKE_HOST"]
-    backup_host = conf["BACKUP_HOST"]
-    handbrake_work_dir = conf["HANDBRAKE_WORK_DIR"]
-    handbrake_encoder = conf["HANDBRAKE_ENCODER"]
-    handbrake_preset = conf["HANDBRAKE_PRESET"]
-    handbrake_quality = conf["HANDBRAKE_QUALITY"]
-    handbrake_audio_bitrate = conf["HANDBRAKE_AUDIO_BITRATE"]
-
-    run(f"ssh {handbrake_host} 'mkdir -p {handbrake_work_dir}'")
-
-    for job in jobs:
-        mkv_path = job["mkv_path"]
-        output_name = job["output_name"]
-        output_dir = job["output_dir"]
-        remote_dir = job["remote_dir"]
-        safe_mkv = safe_name(mkv_path.name)
-        safe_out = safe_name(output_name)
-
-        # Upload MKV to HandBrake host
-        run(f"scp -O '{mkv_path}' {handbrake_host}:{handbrake_work_dir}/{safe_mkv}")
-
-        # Transcode
-        run(
-            f"ssh {handbrake_host} '"
-            f"HandBrakeCLI"
-            f" -i {handbrake_work_dir}/{safe_mkv}"
-            f" -o {handbrake_work_dir}/{safe_out}.mp4"
-            f" -e {handbrake_encoder}"
-            f" --encoder-preset {handbrake_preset}"
-            f" -q {handbrake_quality}"
-            f" -B {handbrake_audio_bitrate}'"
-        )
-
-        # Download transcoded file
-        run(f"scp -O {handbrake_host}:{handbrake_work_dir}/{safe_out}.mp4"
-            f" '{output_dir}/{output_name}.mp4'")
-
-        # Clean up remote
-        run(f"ssh {handbrake_host} 'rm"
-            f" {handbrake_work_dir}/{safe_mkv}"
-            f" {handbrake_work_dir}/{safe_out}.mp4'")
-
-        # Clean up local MKV
-        mkv_path.unlink()
-
-        # Sync to backup host
-        run(f"rsync --mkpath -avz"
-            f" '{output_dir}/{output_name}.mp4'"
-            f" {backup_host}:'{remote_dir}/{output_name}.mp4'")
 
 
 def prepare_movie(conf, titles, disc_label):
@@ -439,7 +131,7 @@ def prepare_tv(conf, titles, disc_label):
     for i, ep in enumerate(episodes):
         ep_num = ep_start + i
         ep_name = f"{show_name} S{season:02d}E{ep_num:02d}"
-        mkv = find_mkv_for_title(output_dir, ep["id"])
+        mkv = find_mkv_for_title(output_dir, ep["id"], ep.get("filename"))
         if mkv is None:
             print(f"Warning: no MKV found for title {ep['id']}, skipping",
                   file=sys.stderr)
@@ -465,7 +157,7 @@ def notify(conf, message):
     run(
         f"{openclaw_bin} message send"
         f" --channel matrix --target {openclaw_target}"
-        f" --message '{message}'"
+        f" --message {shlex.quote(message)}"
     )
 
 
@@ -503,7 +195,7 @@ def main():
         else:
             jobs, notify_msg = prepare_tv(conf, titles, disc_label)
 
-        transcode_and_sync(conf, jobs)
+        transcode_and_sync(conf, jobs, run)
 
         # Eject disc
         run("eject /dev/sr0")

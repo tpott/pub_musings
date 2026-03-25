@@ -2,7 +2,7 @@
 
 import unittest
 
-from rip import parse_makemkv_info, select_movie_title
+from titles import parse_makemkv_info, select_movie_title
 from tests.test_data import AVATAR_DISC_INFO, MOVIE_DISC_INFO
 
 
