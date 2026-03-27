@@ -111,6 +111,16 @@ MOVIE_NAME="The Lion King (2019)" ./rip.py
 systemd-run --user --unit="dvd-rip-$(date +%s)" "$RIP_DIR/rip.py"
 ```
 
+## Stopping a rip
+
+```sh
+# List running dvd-rip units
+systemctl --user list-units 'dvd-rip-*'
+
+# Stop a specific one (sends SIGTERM)
+systemctl --user stop dvd-rip-1711234567
+```
+
 ## Debugging
 
 Check the rip service logs:
@@ -178,6 +188,14 @@ Override automatic episode selection with `TITLES` — a comma-separated list of
 ```sh
 # Rip specific titles in a specific order
 TITLES="3,4,5,6,7,0,1,2" SHOW_NAME="Avatar" SEASON=2 DISC=1 ./rip.py
+
+# Or rip specific titles via systemd. Use absolute path for $RIP_DIR
+systemd-run --user --unit="dvd-rip-$(date +%s)" \
+    --setenv=TITLES="3,4,5,6,7,0,1,2" \
+    --setenv=SHOW_NAME="Avatar" \
+    --setenv=SEASON=2 \
+    --setenv=DISC=1 \
+    "$RIP_DIR/rip.py"
 ```
 
 Run `makemkvcon --robot info disc:0` to see available title IDs and their segments.

@@ -3,7 +3,7 @@
 import unittest
 
 from titles import parse_makemkv_info, select_episode_titles
-from tests.test_data import AVATAR_DISC_INFO, MOVIE_DISC_INFO
+from tests.test_data import AVATAR_DISC_INFO, AVATAR_S03_DISC2_INFO, MOVIE_DISC_INFO
 
 
 class TestSelectEpisodeTitles(unittest.TestCase):
@@ -140,6 +140,60 @@ class TestSelectEpisodeTitles(unittest.TestCase):
         # Falls back to segment number sort
         self.assertEqual([e["segments"] for e in episodes],
                          ["1062", "1087", "1094"])
+
+    def test_two_parter_included_via_play_all(self):
+        """Two-part episodes (~46 min) should be included when the play-all
+        identifies them as episodes, even though they exceed the 30% median
+        duration threshold."""
+        titles = [
+            # 4 regular episodes (~24 min)
+            {"id": 0, "duration_secs": 1473, "segment_count": 1,
+             "segments": "1062"},
+            {"id": 1, "duration_secs": 1470, "segment_count": 1,
+             "segments": "1086"},
+            {"id": 2, "duration_secs": 1475, "segment_count": 1,
+             "segments": "1079"},
+            {"id": 3, "duration_secs": 1459, "segment_count": 1,
+             "segments": "1080"},
+            # 1 two-parter (~46 min) — double the median
+            {"id": 4, "duration_secs": 2765, "segment_count": 1,
+             "segments": "1082"},
+            # Play-all: bumper + all 5 episode segments
+            {"id": 8, "duration_secs": 8642, "segment_count": 6,
+             "segments": "1087,1062,1086,1079,1082,1080"},
+            # Bumper variants (1087 appears first in 4 titles → bumper)
+            {"id": 9, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1087,1062"},
+            {"id": 10, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1087,1086"},
+            {"id": 11, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1087,1079"},
+            {"id": 12, "duration_secs": 1500, "segment_count": 2,
+             "segments": "1087,1080"},
+        ]
+        episodes = select_episode_titles(titles)
+        ep_segs = [e["segments"] for e in episodes]
+        self.assertIn("1082", ep_segs)
+        self.assertEqual(ep_segs, ["1062", "1086", "1079", "1082", "1080"])
+
+    def test_avatar_s03_disc2_includes_two_parters(self):
+        """Real disc data: two-part episodes should not be excluded."""
+        titles = parse_makemkv_info(AVATAR_S03_DISC2_INFO)
+        episodes = select_episode_titles(titles)
+        ep_segs = [e["segments"] for e in episodes]
+        # Must include the two-parter segments
+        self.assertIn("1077", ep_segs)
+        self.assertIn("1082", ep_segs)
+        # Play-all order (skipping bumper 1087 and orphan 1090)
+        self.assertEqual(ep_segs,
+                         ["1062", "1077", "1086", "1079", "1082", "1080"])
+
+    def test_avatar_s03_disc2_count(self):
+        """S03 disc 2 has 6 rippable episodes (7 in play-all, but segment
+        1090 has no standalone title)."""
+        titles = parse_makemkv_info(AVATAR_S03_DISC2_INFO)
+        episodes = select_episode_titles(titles)
+        self.assertEqual(len(episodes), 6)
 
     def test_fallback_when_all_multi_segment(self):
         """If no single-segment episodes exist, still return candidates."""

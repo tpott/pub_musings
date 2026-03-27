@@ -62,6 +62,47 @@ def select_movie_title(titles):
     return max(titles, key=lambda t: t["duration_secs"])
 
 
+def _discover_from_play_all(titles):
+    """Discover episodes using the play-all title for segment identification.
+
+    If a multi-segment play-all title exists (4+ segments), use it to
+    identify episode segments. This avoids the duration filter excluding
+    two-part episodes that are double the typical episode length.
+
+    Returns episodes in play-all order, or None if no usable play-all found.
+    """
+    multi = [t for t in titles if t["segment_count"] > 1]
+    if not multi:
+        return None
+
+    # Play-all: the multi-segment title with the most segments
+    play_all = max(multi, key=lambda t: t["segment_count"])
+    if play_all["segment_count"] < 4:
+        return None
+
+    # Bumper segments appear as the first segment in 2+ multi-segment titles
+    first_seg_counts = {}
+    for t in multi:
+        first_seg = t["segments"].split(",")[0]
+        first_seg_counts[first_seg] = first_seg_counts.get(first_seg, 0) + 1
+    bumper_segs = {seg for seg, count in first_seg_counts.items() if count >= 2}
+
+    # Episode segments: play-all segments minus bumpers
+    play_all_segs = play_all["segments"].split(",")
+    episode_segs = [s for s in play_all_segs if s not in bumper_segs]
+
+    # Map segments to single-segment titles
+    seg_to_title = {}
+    for t in titles:
+        if t["segment_count"] == 1:
+            seg_to_title[t["segments"]] = t
+
+    # Build result in play-all order, skipping segments without standalone titles
+    result = [seg_to_title[seg] for seg in episode_segs if seg in seg_to_title]
+
+    return result if len(result) >= 3 else None
+
+
 def _find_play_all_order(titles, episode_segments):
     """Extract episode order from a 'play all' title if one exists.
 
@@ -97,7 +138,13 @@ def select_episode_titles(titles):
     Filters to titles in the episode duration range, prefers single-segment
     titles (no intro bumper), and deduplicates by checking for shared segments.
     """
-    # Find titles in episode range
+    # Try play-all-based discovery first — avoids duration filter excluding
+    # two-part episodes that are double the typical episode length
+    play_all_result = _discover_from_play_all(titles)
+    if play_all_result:
+        return play_all_result
+
+    # Fall back to duration-based approach
     episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
     if not episode_range:
         return []
