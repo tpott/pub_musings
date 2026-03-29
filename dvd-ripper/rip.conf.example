@@ -31,3 +31,6 @@ HANDBRAKE_ENCODER="x265"
 HANDBRAKE_PRESET="medium"
 HANDBRAKE_QUALITY="22"
 HANDBRAKE_AUDIO_BITRATE="160"
+
+# Eject disc after ripping (true/false)
+AUTO_EJECT="false"

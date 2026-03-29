@@ -161,8 +161,17 @@ def notify(conf, message):
     )
 
 
+STOP_FILE = "STOP"
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
+
+    stop_path = script_dir / STOP_FILE
+    if stop_path.exists():
+        print(f"Stop file exists ({stop_path}), skipping rip.", flush=True)
+        sys.exit(0)
+
     conf_path = script_dir / "rip.conf"
     if not conf_path.exists():
         print(f"Error: {conf_path} not found. Copy rip.conf.example to rip.conf and edit it.", file=sys.stderr)
@@ -198,7 +207,8 @@ def main():
         transcode_and_sync(conf, jobs, run)
 
         # Eject disc
-        run("eject /dev/sr0")
+        if conf.get("AUTO_EJECT", "false").lower() == "true":
+            run("eject /dev/sr0")
 
         notify(conf, notify_msg)
 

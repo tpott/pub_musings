@@ -111,6 +111,18 @@ MOVIE_NAME="The Lion King (2019)" ./rip.py
 systemd-run --user --unit="dvd-rip-$(date +%s)" "$RIP_DIR/rip.py"
 ```
 
+## Pausing auto-rip
+
+Create a `STOP` file in the project directory to prevent `rip.py` from running when a disc is inserted. This is useful when you want to inspect a disc manually or avoid accidental rips.
+
+```sh
+# Disable auto-ripping
+touch STOP
+
+# Re-enable
+rm STOP
+```
+
 ## Stopping a rip
 
 ```sh
