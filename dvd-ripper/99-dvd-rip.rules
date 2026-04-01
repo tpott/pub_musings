@@ -1,0 +1,3 @@
+# Update the RUN path below to match RIP_DIR in rip.conf
+ACTION=="change", SUBSYSTEM=="block", KERNEL=="sr0", ENV{ID_CDROM_MEDIA_DVD}=="1", RUN+="/home/youruser/dvd-ripper/rip-udev.sh"
+ACTION=="change", SUBSYSTEM=="block", KERNEL=="sr0", ENV{ID_CDROM_MEDIA_BD}=="1", RUN+="/home/youruser/dvd-ripper/rip-udev.sh"

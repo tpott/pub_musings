@@ -1,0 +1,48 @@
+#!/bin/bash
+# Forced command script for handbrake SSH key on the HandBrake host
+# Restricts operations to WORK_DIR only.
+
+WORK_DIR="/Users/youruser/handbrake-work"
+
+log_reject() {
+    echo "$(date): Rejected: $SSH_ORIGINAL_COMMAND" >> /tmp/handbrake-receiver.log
+    exit 1
+}
+
+# Reject any command with shell metacharacters (only allow safe chars)
+if [[ "$SSH_ORIGINAL_COMMAND" =~ [^a-zA-Z0-9\ ./_-] ]]; then
+    log_reject
+fi
+
+# Reject path traversal
+if [[ "$SSH_ORIGINAL_COMMAND" == *..* ]]; then
+    log_reject
+fi
+
+case "$SSH_ORIGINAL_COMMAND" in
+    "mkdir -p $WORK_DIR"*)
+        eval "$SSH_ORIGINAL_COMMAND"
+        ;;
+    "scp -t $WORK_DIR"/*)
+        eval "$SSH_ORIGINAL_COMMAND"
+        ;;
+    "scp -f $WORK_DIR"/*)
+        eval "$SSH_ORIGINAL_COMMAND"
+        ;;
+    HandBrakeCLI\ *)
+        # Extract and validate -i and -o paths
+        input="${SSH_ORIGINAL_COMMAND#*-i }"
+        input="${input%% *}"
+        output="${SSH_ORIGINAL_COMMAND#*-o }"
+        output="${output%% *}"
+        case "$input" in "$WORK_DIR"/*) ;; *) log_reject ;; esac
+        case "$output" in "$WORK_DIR"/*) ;; *) log_reject ;; esac
+        eval "$SSH_ORIGINAL_COMMAND"
+        ;;
+    "rm $WORK_DIR"/*)
+        eval "$SSH_ORIGINAL_COMMAND"
+        ;;
+    *)
+        log_reject
+        ;;
+esac

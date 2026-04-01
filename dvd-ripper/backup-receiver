@@ -1,0 +1,12 @@
+#!/bin/bash
+# Forced command script for backup SSH key on the backup host (e.g. mini).
+# Restricts operations to ALLOWED_PATH only.
+
+ALLOWED_PATH="/Volumes/backup/Movies/"
+
+if [[ "$SSH_ORIGINAL_COMMAND" == rsync\ --server*\ "$ALLOWED_PATH"* ]]; then
+    eval "$SSH_ORIGINAL_COMMAND"
+else
+    echo "$(date): Rejected: $SSH_ORIGINAL_COMMAND" >> /tmp/backup-receiver.log
+    exit 1
+fi

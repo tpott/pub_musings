@@ -1,0 +1,36 @@
+# dvd-ripper configuration
+# Copy this file to rip.conf and edit to match your environment:
+#   cp rip.conf.example rip.conf
+
+# Where this project lives (must match 99-dvd-rip.rules path)
+RIP_DIR="/home/youruser/dvd-ripper"
+
+# User for systemd-run (udev runs as root, launches rip.py as this user)
+RIP_USER="youruser"
+
+# SSH host aliases (must match ~/.ssh/config entries)
+HANDBRAKE_HOST="qemuhost"
+BACKUP_HOST="mini"
+
+# Remote working directory on the HandBrake host (transcoding scratch space)
+HANDBRAKE_WORK_DIR="/Users/youruser/handbrake-work"
+
+# Remote destination for finished files (ex: your Jellyfin media library)
+BACKUP_DEST="/Volumes/backup/Movies"
+
+# Remote destination for TV shows (Jellyfin TV library)
+# Falls back to BACKUP_DEST if not set
+BACKUP_DEST_TV="/Volumes/backup/TV"
+
+# Notification settings
+OPENCLAW_BIN="$HOME/.local/bin/openclaw"
+OPENCLAW_TARGET="@youruser:matrix.org"
+
+# Encoding settings
+HANDBRAKE_ENCODER="x265"
+HANDBRAKE_PRESET="medium"
+HANDBRAKE_QUALITY="22"
+HANDBRAKE_AUDIO_BITRATE="160"
+
+# Eject disc after ripping (true/false)
+AUTO_EJECT="false"
