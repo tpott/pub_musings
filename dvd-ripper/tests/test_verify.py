@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.test_data import AVATAR_DISC_INFO, MOVIE_DISC_INFO
-from titles import parse_makemkv_info
+from tests.test_data import AVATAR_DISC_INFO, MOVIE_DISC_INFO, SHE_RA_DISC_INFO
+from titles import parse_makemkv_info, select_episode_titles
 from verify import (
     VerificationError,
     check_duration_anomaly,
@@ -62,6 +62,29 @@ class TestCheckEpisodeCount(unittest.TestCase):
         }
         issues = check_episode_count(state)
         self.assertEqual(issues, [])
+
+    def test_she_ra_count_mismatch(self):
+        """She-Ra: 7 episode-length disc titles, only 2 selected → error."""
+        titles = parse_makemkv_info(SHE_RA_DISC_INFO)
+        # Simulate what select_episode_titles would return (2 titles due to dedup bug)
+        selected = select_episode_titles(titles)
+        self.assertEqual(len(selected), 2, "Precondition: dedup bug gives 2")
+
+        state = {
+            "titles": titles,
+            "plan": {
+                "episodes": [
+                    {"title_id": t["id"], "duration_secs": t["duration_secs"]}
+                    for t in selected
+                ],
+            },
+        }
+        issues = check_episode_count(state)
+        errors = [i for i in issues if i["severity"] == "error"]
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0]["type"], "count_mismatch")
+        self.assertIn("7", errors[0]["detail"])
+        self.assertIn("2", errors[0]["detail"])
 
     def test_fewer_disc_titles_than_selected_is_ok(self):
         """If disc has 3 episode-length but we selected 3, that's fine."""

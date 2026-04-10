@@ -353,14 +353,33 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         try:
-            # Include verification details in failure notification
-            issues = state.get("verification", {}).get("issues", [])
-            if issues:
-                details = "; ".join(i["detail"] for i in issues
-                                    if i["severity"] == "error")
-                fail_msg = f"Rip FAILED: {details}"
+            verification = state.get("verification", {})
+            claude_verdict = verification.get("claude_verdict")
+
+            if claude_verdict and claude_verdict.get("verdict") == "fail":
+                fix_cmd = claude_verdict.get("fix_command", "")
+                recommendation = claude_verdict.get("recommendation", str(e))
+                state_file = state.get("_state_path", "")
+
+                fail_msg = (
+                    f"Rip HALTED: {state.get('disc_label', 'unknown')}\n"
+                    f"{recommendation}"
+                )
+                if fix_cmd:
+                    fail_msg += f"\nFix: {fix_cmd}"
+                if state_file:
+                    fail_msg += f"\nState: {state_file}"
             else:
-                fail_msg = f"Rip FAILED: {e}"
+                issues = verification.get("issues", [])
+                if issues:
+                    details = "; ".join(
+                        i["detail"] for i in issues
+                        if i["severity"] == "error"
+                    )
+                    fail_msg = f"Rip FAILED: {details}"
+                else:
+                    fail_msg = f"Rip FAILED: {e}"
+
             notify(conf, fail_msg)
         except Exception:
             pass
