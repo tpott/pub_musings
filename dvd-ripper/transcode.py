@@ -33,13 +33,12 @@ def find_mkv_for_title(output_dir, title_id, filename=None):
     return None
 
 
-def transcode_and_sync(conf, jobs, run_fn):
-    """Transcode MKV files on the HandBrake host and sync to backup.
+def transcode_only(conf, jobs, run_fn):
+    """Transcode MKV files on the HandBrake host (no sync).
 
     Each job is a dict with: mkv_path, output_name, output_dir, remote_dir
     """
     handbrake_host = conf["HANDBRAKE_HOST"]
-    backup_host = conf["BACKUP_HOST"]
     handbrake_work_dir = conf["HANDBRAKE_WORK_DIR"]
     handbrake_encoder = conf["HANDBRAKE_ENCODER"]
     handbrake_preset = conf["HANDBRAKE_PRESET"]
@@ -52,7 +51,6 @@ def transcode_and_sync(conf, jobs, run_fn):
         mkv_path = job["mkv_path"]
         output_name = job["output_name"]
         output_dir = job["output_dir"]
-        remote_dir = job["remote_dir"]
         safe_mkv = safe_name(mkv_path.name)
         safe_out = safe_name(output_name)
 
@@ -83,7 +81,25 @@ def transcode_and_sync(conf, jobs, run_fn):
         # Clean up local MKV
         mkv_path.unlink()
 
-        # Sync to backup host
+
+def sync_only(conf, jobs, run_fn):
+    """Sync transcoded MP4 files to the backup host."""
+    backup_host = conf["BACKUP_HOST"]
+
+    for job in jobs:
+        output_name = job["output_name"]
+        output_dir = job["output_dir"]
+        remote_dir = job["remote_dir"]
+
         run_fn(f"rsync --mkpath -avz"
                f" '{output_dir}/{output_name}.mp4'"
                f" {backup_host}:'{remote_dir}/{output_name}.mp4'")
+
+
+def transcode_and_sync(conf, jobs, run_fn):
+    """Transcode MKV files on the HandBrake host and sync to backup.
+
+    Each job is a dict with: mkv_path, output_name, output_dir, remote_dir
+    """
+    transcode_only(conf, jobs, run_fn)
+    sync_only(conf, jobs, run_fn)
