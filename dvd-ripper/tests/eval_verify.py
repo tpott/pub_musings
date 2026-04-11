@@ -7,7 +7,10 @@ are logged but not hard-asserted.
 
 import json
 import shutil
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 from tests.test_data import AVATAR_DISC_INFO, SHE_RA_DISC_INFO
 from titles import parse_makemkv_info, select_episode_titles
@@ -156,6 +159,51 @@ class TestEvalVerify(unittest.TestCase):
         )
         self.assertTrue(mentions_anomaly,
                         f"Expected Claude to mention duration anomaly: {result}")
+
+
+    def test_eval_title_frame_scanner_invoked(self):
+        """For TV shows with mp4 files, Claude should invoke /title-frame-scanner."""
+        state = self._make_avatar_state()
+        issues = check_episode_count(state)
+
+        # Create a temp dir with small real mp4 files so the skill has
+        # something to scan.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            episodes = state["plan"]["episodes"]
+            for ep in episodes:
+                mp4_name = f"{ep['ep_name']}.mp4"
+                mp4_path = output_dir / mp4_name
+                ep["mp4_path"] = str(mp4_path)
+                # Generate a 2-second silent black video
+                subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-f", "lavfi", "-i",
+                        "color=c=black:s=320x240:d=2",
+                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+                        "-t", "2", "-c:v", "libx264", "-c:a", "aac",
+                        "-shortest", str(mp4_path),
+                    ],
+                    capture_output=True,
+                )
+
+            state["plan"]["output_dir"] = str(output_dir)
+            conf = {"RIP_DIR": str(output_dir)}
+            prompt = build_verify_prompt(state, issues, conf)
+
+            result = run_claude_verify(prompt, conf)
+
+            print(f"\n  Claude verdict: {json.dumps(result, indent=2)}")
+            tfc = result.get("title_frame_check")
+            self.assertIsNotNone(
+                tfc,
+                f"Expected title_frame_check in response, got keys: "
+                f"{list(result.keys())}",
+            )
+            self.assertTrue(
+                tfc.get("attempted"),
+                f"Expected title_frame_check.attempted=true, got: {tfc}",
+            )
 
 
 if __name__ == "__main__":

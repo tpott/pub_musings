@@ -20,6 +20,11 @@ VERIFY_SYSTEM_PROMPT = """\
 You are a DVD ripping verification assistant. You analyze rip results to detect \
 issues like missing episodes, incorrect title selection, or combined episodes.
 
+For TV shows: you MUST use the /title-frame-scanner skill on EVERY episode mp4 \
+file to visually verify episode identity. Pass each mp4_path from the plan. \
+Report all results in the title_frame_check field. If the skill is unavailable \
+or a file cannot be scanned, set attempted=true with an error note.
+
 Your response must be ONLY a valid JSON object (no markdown fences, no explanation \
 before or after) with this exact schema:
 {
@@ -31,7 +36,12 @@ before or after) with this exact schema:
      "severity": "error or warning"}
   ],
   "recommendation": "human-readable recommendation for the user",
-  "fix_command": "complete shell command to fix the issue, or null"
+  "fix_command": "complete shell command to fix the issue, or null",
+  "title_frame_check": {
+    "attempted": true,
+    "results": [{"file": "path", "title_text": "detected text or null"}],
+    "error": "error message if scan failed, or null"
+  }
 }
 
 Guidelines:
@@ -248,9 +258,8 @@ def run_claude_verify(prompt, conf):
         "--system-prompt", VERIFY_SYSTEM_PROMPT,
     ]
 
-    model = conf.get("VERIFY_MODEL")
-    if model:
-        cmd.extend(["--model", model])
+    model = conf.get("VERIFY_MODEL") or "sonnet"
+    cmd.extend(["--model", model])
 
     cwd = conf.get("RIP_DIR")
     if cwd and not Path(cwd).is_dir():
