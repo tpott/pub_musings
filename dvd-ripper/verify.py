@@ -4,6 +4,7 @@ Optionally invokes Claude CLI for intelligent analysis when checkers flag issues
 """
 
 import json
+import os
 import shutil
 import statistics
 import subprocess
@@ -43,7 +44,8 @@ Guidelines:
     --setenv=SHOW_NAME="Show Name" \\
     --setenv=SEASON=N \\
     --setenv=DISC=N \\
-    "$RIP_DIR/rip.py"
+    "$RIP_DIR/rip.py" --force
+- Always include --force because the previous failed state file still exists
 - List TITLES= IDs in intended episode order based on the makemkv info
 - Analyze the raw makemkv segment data to determine correct title ordering
 - If all episode titles share the same segments (dedup bug), recommend all title IDs
@@ -185,10 +187,13 @@ def build_verify_prompt(state, checker_results, conf):
         f"Episodes selected: {len(state.get('plan', {}).get('episodes', []))}",
     ])
     for ep in state.get("plan", {}).get("episodes", []):
-        parts.append(
+        line = (
             f"  - Title {ep.get('title_id')}: {ep.get('ep_name', '?')} "
             f"({ep.get('duration_secs', 0)}s, segments={ep.get('segments', '?')})"
         )
+        if ep.get("mp4_path"):
+            line += f" -> {ep['mp4_path']}"
+        parts.append(line)
 
     parts.extend([
         "",
@@ -214,8 +219,9 @@ def run_claude_verify(prompt, conf):
 
     Returns a dict with verdict, confidence, issues, recommendation, fix_command.
     """
+    claude_bin = conf.get("CLAUDE_BIN", "claude")
     cmd = [
-        "claude", "--print",
+        claude_bin, "--print",
         "--dangerously-skip-permissions",
         "--system-prompt", VERIFY_SYSTEM_PROMPT,
     ]
@@ -224,10 +230,13 @@ def run_claude_verify(prompt, conf):
     if model:
         cmd.extend(["--model", model])
 
+    cwd = conf.get("RIP_DIR")
+    if cwd and not Path(cwd).is_dir():
+        cwd = None
     print(f"+ claude --print (verification)", flush=True)
     proc = subprocess.Popen(
         cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True,
+        stderr=subprocess.PIPE, text=True, cwd=cwd,
     )
     stdout, stderr = proc.communicate(input=prompt)
 
@@ -281,7 +290,9 @@ def stage_verify(conf, state):
         or conf.get("VERIFY_CLAUDE_ALWAYS", "false").lower() == "true"
     )
 
-    if should_invoke_claude and shutil.which("claude"):
+    claude_bin = conf.get("CLAUDE_BIN", "claude")
+    claude_available = Path(claude_bin).exists() if os.path.isabs(claude_bin) else shutil.which(claude_bin)
+    if should_invoke_claude and claude_available:
         prompt = build_verify_prompt(state, issues, conf)
         claude_result = run_claude_verify(prompt, conf)
         state["verification"]["claude_verdict"] = claude_result

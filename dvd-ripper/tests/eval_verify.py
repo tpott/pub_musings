@@ -109,6 +109,8 @@ class TestEvalVerify(unittest.TestCase):
         fix_cmd = result.get("fix_command") or ""
         self.assertIn("TITLES=", fix_cmd,
                       f"fix_command should contain TITLES=, got: {fix_cmd}")
+        self.assertIn("--force", fix_cmd,
+                      f"fix_command should contain --force, got: {fix_cmd}")
 
     def test_eval_duration_anomaly(self):
         """46m episode among 23m episodes → verdict mentions anomaly."""

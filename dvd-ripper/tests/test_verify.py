@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.test_data import AVATAR_DISC_INFO, MOVIE_DISC_INFO, SHE_RA_DISC_INFO
 from titles import parse_makemkv_info, select_episode_titles
@@ -265,8 +266,17 @@ class TestStageVerify(unittest.TestCase):
             "verification": {"issues": []},
         }
         conf = {"VERIFY_ENABLED": "true"}
-        with self.assertRaises(VerificationError) as ctx:
-            stage_verify(conf, state)
+        fake_verdict = {
+            "verdict": "fail",
+            "confidence": 0.9,
+            "issues": [{"type": "count_mismatch", "detail": "7 vs 2",
+                         "severity": "error"}],
+            "recommendation": "Re-rip with all 7 titles",
+            "fix_command": 'systemd-run --user --unit="dvd-rip-$(date +%s)" --setenv=TITLES="0,1,2,3,4,5,6" "$RIP_DIR/rip.py" --force',
+        }
+        with patch("verify.run_claude_verify", return_value=fake_verdict):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
         self.assertIn("7", str(ctx.exception))
         self.assertIn("2", str(ctx.exception))
 
