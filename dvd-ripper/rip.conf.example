@@ -40,5 +40,6 @@ CLAUDE_BIN="$HOME/.local/bin/claude"
 VERIFY_ENABLED="true"
 VERIFY_FRAME_OFFSET="75"
 VERIFY_CLAUDE_ALWAYS="false"
+# Model for Claude verification (default: sonnet)
 VERIFY_MODEL=""
 ANTHROPIC_API_KEY=""

@@ -20,6 +20,11 @@ VERIFY_SYSTEM_PROMPT = """\
 You are a DVD ripping verification assistant. You analyze rip results to detect \
 issues like missing episodes, incorrect title selection, or combined episodes.
 
+For TV shows: you MUST use the /title-frame-scanner skill on EVERY episode mp4 \
+file to visually verify episode identity. Pass each mp4_path from the plan. \
+Report all results in the title_frame_check field. If the skill is unavailable \
+or a file cannot be scanned, set attempted=true with an error note.
+
 Your response must be ONLY a valid JSON object (no markdown fences, no explanation \
 before or after) with this exact schema:
 {
@@ -31,7 +36,12 @@ before or after) with this exact schema:
      "severity": "error or warning"}
   ],
   "recommendation": "human-readable recommendation for the user",
-  "fix_command": "complete shell command to fix the issue, or null"
+  "fix_command": "complete shell command to fix the issue, or null",
+  "title_frame_check": {
+    "attempted": true,
+    "results": [{"file": "path", "title_text": "detected text or null"}],
+    "error": "error message if scan failed, or null"
+  }
 }
 
 Guidelines:
@@ -49,7 +59,11 @@ Guidelines:
 - List TITLES= IDs in intended episode order based on the makemkv info
 - Analyze the raw makemkv segment data to determine correct title ordering
 - If all episode titles share the same segments (dedup bug), recommend all title IDs
-- Include notes about the code bug if you can identify one from the data\
+- Include notes about the code bug if you can identify one from the data
+- Use the "All existing episodes for this show" section to determine the correct \
+SEASON and DISC values. The next disc should continue from the last existing \
+episode. If Season N is complete and the disc has new episodes, set SEASON=N+1 \
+and DISC=1. Compare file sizes to detect potential duplicates across seasons.\
 """
 
 
@@ -211,6 +225,24 @@ def build_verify_prompt(state, checker_results, conf):
         if not mp4s:
             parts.append("  (no mp4 files)")
 
+    # Include all existing episodes across all seasons for this show
+    plan = state.get("plan", {})
+    show_name = plan.get("show_name")
+    if show_name:
+        show_dir = Path(conf.get("RIP_DIR", "")) / "TV" / show_name
+        if show_dir.is_dir():
+            parts.extend(["", "### All existing episodes for this show"])
+            for season_path in sorted(show_dir.iterdir()):
+                if not season_path.is_dir():
+                    continue
+                mp4s = sorted(season_path.glob("*.mp4"))
+                if mp4s:
+                    parts.append(f"  {season_path.name}/")
+                    for mp4 in mp4s:
+                        parts.append(
+                            f"    - {mp4.name} ({mp4.stat().st_size} bytes)"
+                        )
+
     return "\n".join(parts)
 
 
@@ -226,9 +258,8 @@ def run_claude_verify(prompt, conf):
         "--system-prompt", VERIFY_SYSTEM_PROMPT,
     ]
 
-    model = conf.get("VERIFY_MODEL")
-    if model:
-        cmd.extend(["--model", model])
+    model = conf.get("VERIFY_MODEL") or "sonnet"
+    cmd.extend(["--model", model])
 
     cwd = conf.get("RIP_DIR")
     if cwd and not Path(cwd).is_dir():
