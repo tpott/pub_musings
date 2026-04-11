@@ -171,6 +171,24 @@ def stage_plan(conf, state):
                 "remote_dir": f"{backup_dest}/{show_name}/{season_dir}",
             })
 
+        # Check for mp4 files that would be overwritten
+        existing_mp4s = []
+        for ep in plan_episodes:
+            mp4 = output_dir / f"{ep['ep_name']}.mp4"
+            if mp4.exists():
+                existing_mp4s.append(mp4.name)
+        if existing_mp4s:
+            names = ", ".join(existing_mp4s)
+            if conf.get("_force"):
+                print(f"WARNING: --force overwriting {len(existing_mp4s)} "
+                      f"existing files: {names}", file=sys.stderr)
+            else:
+                raise RuntimeError(
+                    f"Would overwrite {len(existing_mp4s)} existing files: "
+                    f"{names}. Use --force to override, or set SEASON=/DISC= "
+                    f"to target the correct season and disc."
+                )
+
         ep_end = ep_start + len(plan_episodes) - 1
         state["plan"] = {
             "show_name": show_name,
@@ -315,6 +333,7 @@ def main():
         sys.exit(1)
 
     conf = parse_conf(conf_path)
+    conf["_force"] = args.force
 
     try:
         if args.resume:

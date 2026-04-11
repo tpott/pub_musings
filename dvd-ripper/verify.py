@@ -49,7 +49,11 @@ Guidelines:
 - List TITLES= IDs in intended episode order based on the makemkv info
 - Analyze the raw makemkv segment data to determine correct title ordering
 - If all episode titles share the same segments (dedup bug), recommend all title IDs
-- Include notes about the code bug if you can identify one from the data\
+- Include notes about the code bug if you can identify one from the data
+- Use the "All existing episodes for this show" section to determine the correct \
+SEASON and DISC values. The next disc should continue from the last existing \
+episode. If Season N is complete and the disc has new episodes, set SEASON=N+1 \
+and DISC=1. Compare file sizes to detect potential duplicates across seasons.\
 """
 
 
@@ -210,6 +214,24 @@ def build_verify_prompt(state, checker_results, conf):
             parts.append(f"  - {mp4.name} ({mp4.stat().st_size} bytes)")
         if not mp4s:
             parts.append("  (no mp4 files)")
+
+    # Include all existing episodes across all seasons for this show
+    plan = state.get("plan", {})
+    show_name = plan.get("show_name")
+    if show_name:
+        show_dir = Path(conf.get("RIP_DIR", "")) / "TV" / show_name
+        if show_dir.is_dir():
+            parts.extend(["", "### All existing episodes for this show"])
+            for season_path in sorted(show_dir.iterdir()):
+                if not season_path.is_dir():
+                    continue
+                mp4s = sorted(season_path.glob("*.mp4"))
+                if mp4s:
+                    parts.append(f"  {season_path.name}/")
+                    for mp4 in mp4s:
+                        parts.append(
+                            f"    - {mp4.name} ({mp4.stat().st_size} bytes)"
+                        )
 
     return "\n".join(parts)
 
