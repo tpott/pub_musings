@@ -34,3 +34,11 @@ HANDBRAKE_AUDIO_BITRATE="160"
 
 # Eject disc after ripping (true/false)
 AUTO_EJECT="false"
+
+# Verification (optional)
+CLAUDE_BIN="$HOME/.local/bin/claude"
+VERIFY_ENABLED="true"
+VERIFY_FRAME_OFFSET="75"
+VERIFY_CLAUDE_ALWAYS="false"
+VERIFY_MODEL=""
+ANTHROPIC_API_KEY=""

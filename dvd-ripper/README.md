@@ -111,6 +111,24 @@ MOVIE_NAME="The Lion King (2019)" ./rip.py
 systemd-run --user --unit="dvd-rip-$(date +%s)" "$RIP_DIR/rip.py"
 ```
 
+## Resuming a failed rip
+
+```sh
+# Auto-detect from inserted disc
+./rip.py --resume
+
+# Resume by disc label (no disc needed)
+./rip.py --resume SHE_RA_S1_D1
+
+# Resume from a specific state file
+./rip.py --resume .state/SHE_RA_S1_D1.json
+
+# Override an existing state file for a fresh rip
+./rip.py --force
+```
+
+State files live in `.state/` and are archived to `.state/history/` on success.
+
 ## Pausing auto-rip
 
 Create a `STOP` file in the project directory to prevent `rip.py` from running when a disc is inserted. This is useful when you want to inspect a disc manually or avoid accidental rips.
@@ -211,6 +229,14 @@ systemd-run --user --unit="dvd-rip-$(date +%s)" \
 ```
 
 Run `makemkvcon --robot info disc:0` to see available title IDs and their segments.
+
+## Post-rip verification
+
+After transcoding, the pipeline checks episode count, duration anomalies, and file integrity before syncing to Jellyfin. If the `claude` CLI is available and a check fails, Claude analyzes the results and recommends a fix command in the failure notification.
+
+Configure in `rip.conf`:
+- `VERIFY_ENABLED` — toggle verification (default: true)
+- `VERIFY_CLAUDE_ALWAYS` — invoke Claude even on clean rips (default: false)
 
 ## Future improvements
 

@@ -2,3 +2,5 @@ Movies/
 TV/
 rip.conf
 STOP
+.state/
+.frames/

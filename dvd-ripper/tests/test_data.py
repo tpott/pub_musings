@@ -255,6 +255,60 @@ AVATAR_S03_DISC2_INFO = textwrap.dedent("""\
 """)
 
 
+# --- She-Ra Season 1 Disc 1 (TV with dedup bug) ---
+# 7 episode titles, all multi-segment with 2 segments each.
+# Titles 1-6 all share segments "1-4,5" — select_episode_titles() deduplicates
+# by segment frozenset, so only title 0 ("1-5,6") and one of titles 1-6 ("1-4,5")
+# survive. Result: 2 of 7 episodes ripped.
+# Title 7: play-all (all episodes concatenated)
+#
+# The play-all discovery path also fails because all episode titles are
+# multi-segment, so there are no single-segment titles for seg_to_title mapping.
+
+SHE_RA_DISC_INFO = textwrap.dedent("""\
+    TINFO:0,2,0,"SHE_RA_S1_D1"
+    TINFO:0,9,0,"0:23:14"
+    TINFO:0,25,0,"2"
+    TINFO:0,26,0,"1-5,6"
+    TINFO:0,27,0,"SHE_RA_t00.mkv"
+    TINFO:1,2,0,"SHE_RA_S1_D1"
+    TINFO:1,9,0,"0:22:58"
+    TINFO:1,25,0,"2"
+    TINFO:1,26,0,"1-4,5"
+    TINFO:1,27,0,"SHE_RA_t01.mkv"
+    TINFO:2,2,0,"SHE_RA_S1_D1"
+    TINFO:2,9,0,"0:23:01"
+    TINFO:2,25,0,"2"
+    TINFO:2,26,0,"1-4,5"
+    TINFO:2,27,0,"SHE_RA_t02.mkv"
+    TINFO:3,2,0,"SHE_RA_S1_D1"
+    TINFO:3,9,0,"0:22:45"
+    TINFO:3,25,0,"2"
+    TINFO:3,26,0,"1-4,5"
+    TINFO:3,27,0,"SHE_RA_t03.mkv"
+    TINFO:4,2,0,"SHE_RA_S1_D1"
+    TINFO:4,9,0,"0:23:18"
+    TINFO:4,25,0,"2"
+    TINFO:4,26,0,"1-4,5"
+    TINFO:4,27,0,"SHE_RA_t04.mkv"
+    TINFO:5,2,0,"SHE_RA_S1_D1"
+    TINFO:5,9,0,"0:22:52"
+    TINFO:5,25,0,"2"
+    TINFO:5,26,0,"1-4,5"
+    TINFO:5,27,0,"SHE_RA_t05.mkv"
+    TINFO:6,2,0,"SHE_RA_S1_D1"
+    TINFO:6,9,0,"0:23:09"
+    TINFO:6,25,0,"2"
+    TINFO:6,26,0,"1-4,5"
+    TINFO:6,27,0,"SHE_RA_t06.mkv"
+    TINFO:7,2,0,"SHE_RA_S1_D1"
+    TINFO:7,9,0,"2:41:17"
+    TINFO:7,25,0,"14"
+    TINFO:7,26,0,"1-5,6,1-4,5,1-4,5,1-4,5,1-4,5,1-4,5,1-4,5"
+    TINFO:7,27,0,"SHE_RA_t07.mkv"
+""")
+
+
 MOVIE_DISC_INFO = textwrap.dedent("""\
     TINFO:0,2,0,"Ender's Game"
     TINFO:0,8,0,"13"
