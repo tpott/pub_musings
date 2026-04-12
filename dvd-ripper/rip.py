@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from disc import compute_episode_start, parse_disc_label
+from error_analysis import analyze_error
 from pipeline import run_pipeline
 from state import (
     archive_state,
@@ -372,34 +373,26 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         try:
-            verification = state.get("verification", {})
-            claude_verdict = verification.get("claude_verdict")
+            st = locals().get("state", {}) or {}
 
-            if claude_verdict and claude_verdict.get("verdict") == "fail":
-                fix_cmd = claude_verdict.get("fix_command", "")
-                recommendation = claude_verdict.get("recommendation", str(e))
-                state_file = state.get("_state_path", "")
+            # VerificationError carries structured attrs; other exceptions
+            # get routed through Claude for diagnosis.
+            recommendation = getattr(e, "recommendation", None)
+            fix_command = getattr(e, "fix_command", None)
+            if recommendation is None:
+                verdict = analyze_error(conf, st, e)
+                recommendation = verdict.get("recommendation") or str(e)
+                fix_command = verdict.get("fix_command")
 
-                fail_msg = (
-                    f"Rip HALTED: {state.get('disc_label', 'unknown')}\n"
-                    f"{recommendation}"
-                )
-                if fix_cmd:
-                    fail_msg += f"\nFix: {fix_cmd}"
-                if state_file:
-                    fail_msg += f"\nState: {state_file}"
-            else:
-                issues = verification.get("issues", [])
-                if issues:
-                    details = "; ".join(
-                        i["detail"] for i in issues
-                        if i["severity"] == "error"
-                    )
-                    fail_msg = f"Rip FAILED: {details}"
-                else:
-                    fail_msg = f"Rip FAILED: {e}"
+            label = st.get("disc_label", "unknown")
+            summary = f"Rip FAILED: {label}\n{recommendation}"
+            state_file = st.get("_state_path", "")
+            if state_file:
+                summary += f"\nState: {state_file}"
 
-            notify(conf, fail_msg)
+            notify(conf, summary)
+            if fix_command:
+                notify(conf, fix_command)
         except Exception:
             pass
         sys.exit(1)

@@ -43,3 +43,8 @@ VERIFY_CLAUDE_ALWAYS="false"
 # Model for Claude verification (default: sonnet)
 VERIFY_MODEL=""
 ANTHROPIC_API_KEY=""
+
+# Route non-verify pipeline errors through Claude for a recommendation and
+# fix_command (e.g. overwrite-guard failures during planning). Set "false" to
+# disable and notify only with the raw exception text.
+ERROR_CLAUDE_ENABLED="true"

@@ -3,17 +3,23 @@
 Optionally invokes Claude CLI for intelligent analysis when checkers flag issues.
 """
 
-import json
-import os
-import shutil
 import statistics
-import subprocess
 from pathlib import Path
+
+import claude
 
 
 class VerificationError(Exception):
-    """Raised when verification finds errors that should halt the pipeline."""
-    pass
+    """Raised when verification finds errors that should halt the pipeline.
+
+    Carries structured recommendation/fix_command attributes so the caller
+    can render them as separate notifications.
+    """
+
+    def __init__(self, message, recommendation=None, fix_command=None):
+        super().__init__(message)
+        self.recommendation = recommendation or message
+        self.fix_command = fix_command
 
 
 VERIFY_SYSTEM_PROMPT = """\
@@ -48,13 +54,16 @@ Guidelines:
 - verdict="fail" if episodes are missing or incorrectly selected
 - verdict="warn" if suspicious but not definitively wrong
 - verdict="pass" if everything looks correct
-- When recommending a fix_command, use this format:
+- When recommending a fix_command, use this format (substitute the \
+absolute RIP_DIR path shown in the prompt — do NOT emit the literal \
+string "$RIP_DIR", since the copy-pasted command runs outside any shell \
+where that variable is defined):
   systemd-run --user --unit="dvd-rip-$(date +%s)" \\
     --setenv=TITLES="0,1,2,3,4,5,6" \\
     --setenv=SHOW_NAME="Show Name" \\
     --setenv=SEASON=N \\
     --setenv=DISC=N \\
-    "$RIP_DIR/rip.py" --force
+    "/absolute/path/to/rip.py" --force
 - Always include --force because the previous failed state file still exists
 - List TITLES= IDs in intended episode order based on the makemkv info
 - Analyze the raw makemkv segment data to determine correct title ordering
@@ -251,51 +260,13 @@ def run_claude_verify(prompt, conf):
 
     Returns a dict with verdict, confidence, issues, recommendation, fix_command.
     """
-    claude_bin = conf.get("CLAUDE_BIN", "claude")
-    cmd = [
-        claude_bin, "--print",
-        "--dangerously-skip-permissions",
-        "--system-prompt", VERIFY_SYSTEM_PROMPT,
-    ]
-
-    model = conf.get("VERIFY_MODEL") or "sonnet"
-    cmd.extend(["--model", model])
-
-    cwd = conf.get("RIP_DIR")
-    if cwd and not Path(cwd).is_dir():
-        cwd = None
-    print(f"+ claude --print (verification)", flush=True)
-    proc = subprocess.Popen(
-        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, cwd=cwd,
-    )
-    stdout, stderr = proc.communicate(input=prompt)
-
-    if proc.returncode != 0:
-        return {
-            "verdict": "warn", "confidence": 0.0,
-            "issues": [],
-            "recommendation": f"Claude CLI failed (rc={proc.returncode}): {stderr[:500]}",
-            "fix_command": None,
-        }
-
-    # The system prompt requests JSON-only output. Parse it, stripping
-    # any markdown code fences Claude might wrap around it.
-    text = stdout.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        end = -1 if lines[-1].strip().startswith("```") else len(lines)
-        text = "\n".join(lines[1:end]).strip()
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {
-            "verdict": "warn", "confidence": 0.0,
-            "issues": [],
-            "recommendation": f"Could not parse Claude response: {stdout[:500]}",
-            "fix_command": None,
-        }
+    fallback = {
+        "verdict": "warn", "confidence": 0.0,
+        "issues": [],
+        "recommendation": "",
+        "fix_command": None,
+    }
+    return claude.run(prompt, VERIFY_SYSTEM_PROMPT, conf, fallback=fallback)
 
 
 def stage_verify(conf, state):
@@ -321,9 +292,7 @@ def stage_verify(conf, state):
         or conf.get("VERIFY_CLAUDE_ALWAYS", "false").lower() == "true"
     )
 
-    claude_bin = conf.get("CLAUDE_BIN", "claude")
-    claude_available = Path(claude_bin).exists() if os.path.isabs(claude_bin) else shutil.which(claude_bin)
-    if should_invoke_claude and claude_available:
+    if should_invoke_claude and claude.is_available(conf):
         prompt = build_verify_prompt(state, issues, conf)
         claude_result = run_claude_verify(prompt, conf)
         state["verification"]["claude_verdict"] = claude_result
@@ -336,8 +305,10 @@ def stage_verify(conf, state):
             recommendation = claude_verdict.get("recommendation", "")
             fix_command = claude_verdict["fix_command"]
             detail = recommendation + f"\nFix: {fix_command}"
-        else:
-            detail = "; ".join(e["detail"] for e in errors)
-        raise VerificationError(detail)
+            raise VerificationError(
+                detail, recommendation=recommendation, fix_command=fix_command,
+            )
+        detail = "; ".join(e["detail"] for e in errors)
+        raise VerificationError(detail, recommendation=detail)
 
     return state
