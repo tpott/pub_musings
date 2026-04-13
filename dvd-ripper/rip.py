@@ -361,9 +361,10 @@ def main():
 
             state_path = state_path_for_label(conf["RIP_DIR"], disc_label)
             if state_path.exists() and not args.force:
-                print(f"State file already exists: {state_path}. "
-                      f"Use --force to override.", file=sys.stderr)
-                sys.exit(1)
+                raise RuntimeError(
+                    f"State file already exists: {state_path}. "
+                    f"Use --force to override."
+                )
 
             state = new_state(conf["RIP_DIR"], disc_label)
 
