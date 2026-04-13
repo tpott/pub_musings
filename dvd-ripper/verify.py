@@ -3,10 +3,17 @@
 Optionally invokes Claude CLI for intelligent analysis when checkers flag issues.
 """
 
+import re
 import statistics
 from pathlib import Path
 
 import claude
+
+
+# Disc label patterns that suggest TV content, not a movie
+_TV_LABEL_RE = re.compile(
+    r'[_\s](?:S\d|Season|Series|Book|Disc[_\s]?\d|Vol)', re.IGNORECASE)
+
 
 
 class VerificationError(Exception):
@@ -186,6 +193,130 @@ def check_file_integrity(state):
     return issues
 
 
+def check_is_movie(state):
+    """Sanity-check movie classification with heuristics.
+
+    For items classified as "movie", warn if the disc label contains TV
+    indicators or the disc has 3+ similar-duration titles in the episode
+    range — signs that it might actually be a TV disc.
+    """
+    if state.get("media_type") != "movie":
+        return []
+
+    issues = []
+    disc_label = state.get("disc_label", "")
+
+    # Check disc label for TV indicators
+    if _TV_LABEL_RE.search(disc_label):
+        issues.append({
+            "type": "suspect_movie",
+            "severity": "warning",
+            "detail": (
+                f"Classified as movie but disc label '{disc_label}' "
+                f"contains TV indicators (season/series/book/disc/vol)"
+            ),
+        })
+
+    # Check for 3+ similar-duration titles in episode range (5-65 min)
+    titles = state.get("titles", [])
+    ep_titles = [t for t in titles if 300 <= t.get("duration_secs", 0) <= 3900]
+    if len(ep_titles) >= 3:
+        durations = [t["duration_secs"] for t in ep_titles]
+        median = statistics.median(durations)
+        if median > 0:
+            cluster = [d for d in durations
+                       if abs(d - median) / median <= 0.30]
+            if len(cluster) >= 3:
+                issues.append({
+                    "type": "suspect_movie",
+                    "severity": "warning",
+                    "detail": (
+                        f"Classified as movie but disc has {len(cluster)} "
+                        f"similar-duration titles in episode range "
+                        f"(median {median:.0f}s)"
+                    ),
+                })
+
+    return issues
+
+
+def check_is_show(state):
+    """Sanity-check TV classification with heuristics.
+
+    For items classified as "tv", warn if only 1 episode was selected
+    from a disc with only 1 title in the episode range — might be a movie.
+    """
+    if state.get("media_type") != "tv":
+        return []
+
+    episodes = state.get("plan", {}).get("episodes", [])
+    if len(episodes) != 1:
+        return []
+
+    titles = state.get("titles", [])
+    ep_titles = [t for t in titles if 300 <= t.get("duration_secs", 0) <= 3900]
+    if len(ep_titles) == 1:
+        return [{
+            "type": "suspect_show",
+            "severity": "warning",
+            "detail": (
+                "Classified as TV but only 1 episode selected from a disc "
+                "with only 1 episode-length title — might be a movie"
+            ),
+        }]
+
+    return []
+
+
+def check_expected_duration(state):
+    """Flag suspiciously short movies and missed longer titles.
+
+    For movies: warn if the selected title is under 60 minutes, or if
+    there are much longer titles on the disc that weren't selected.
+    """
+    if state.get("media_type") != "movie":
+        return []
+
+    episodes = state.get("plan", {}).get("episodes", [])
+    if not episodes:
+        return []
+
+    issues = []
+    selected = episodes[0]
+    selected_dur = selected.get("duration_secs", 0)
+
+    # Flag very short movies (under 60 min)
+    if 0 < selected_dur < 3600:
+        issues.append({
+            "type": "short_movie",
+            "severity": "warning",
+            "detail": (
+                f"Movie is only {selected_dur // 60}m{selected_dur % 60}s "
+                f"— suspiciously short for a feature film"
+            ),
+        })
+
+    # Flag if there are much longer titles on disc that weren't selected
+    titles = state.get("titles", [])
+    selected_id = selected.get("title_id")
+    for t in titles:
+        if t.get("id") == selected_id:
+            continue
+        t_dur = t.get("duration_secs", 0)
+        if t_dur > selected_dur * 2 and t_dur > 3600:
+            issues.append({
+                "type": "longer_title_exists",
+                "severity": "warning",
+                "detail": (
+                    f"Title {t.get('id')} is {t_dur // 60}m "
+                    f"({t_dur}s) — much longer than selected "
+                    f"{selected_dur // 60}m title"
+                ),
+            })
+
+    return issues
+
+
 def build_verify_prompt(state, checker_results, conf):
     """Build the dynamic prompt for Claude CLI verification."""
     parts = [
@@ -283,13 +414,17 @@ def stage_verify(conf, state):
     issues.extend(check_episode_count(state))
     issues.extend(check_duration_anomaly(state))
     issues.extend(check_file_integrity(state))
+    issues.extend(check_is_movie(state))
+    issues.extend(check_is_show(state))
+    issues.extend(check_expected_duration(state))
 
     state["verification"] = {"issues": issues}
 
     errors = [i for i in issues if i["severity"] == "error"]
+    warnings = [i for i in issues if i["severity"] == "warning"]
     should_invoke_claude = (
-        bool(errors)
-        or conf.get("VERIFY_CLAUDE_ALWAYS", "false").lower() == "true"
+        bool(errors) or bool(warnings)
+        or conf.get("VERIFY_CLAUDE_ALWAYS", "true").lower() == "true"
     )
 
     if should_invoke_claude and claude.is_available(conf):
