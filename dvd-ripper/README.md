@@ -193,7 +193,7 @@ python3 -m unittest discover tests
 
 ## TV show support
 
-TV discs are auto-detected by analyzing title durations from `makemkvcon`. If 3+ titles cluster in the 15–65 minute range with similar durations, the disc is treated as TV. Episodes are deduplicated by preferring single-segment titles over bumper-prepended variants.
+TV discs are auto-detected by analyzing title durations from `makemkvcon`. If 3+ titles cluster in the 5–65 minute range with similar durations, the disc is treated as TV. Episodes are deduplicated by preferring single-segment titles over bumper-prepended variants.
 
 **Multi-disc TV sets must be ripped in sequential disc order** (disc 1, then disc 2, etc.). Episode numbering is determined automatically: disc 1 starts at E01, and subsequent discs continue from where the previous disc left off by counting existing `.mp4` files in the output directory. Ripping out of order will result in an error.
 

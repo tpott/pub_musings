@@ -39,7 +39,7 @@ class TestDetectMediaType(unittest.TestCase):
     def test_scattered_durations_is_movie(self):
         """Titles in episode range but not clustered should be movie."""
         titles = [
-            {"id": 0, "duration_secs": 900, "segment_count": 1, "segments": "1"},
+            {"id": 0, "duration_secs": 300, "segment_count": 1, "segments": "1"},
             {"id": 1, "duration_secs": 2400, "segment_count": 1, "segments": "2"},
             {"id": 2, "duration_secs": 3800, "segment_count": 1, "segments": "3"},
         ]

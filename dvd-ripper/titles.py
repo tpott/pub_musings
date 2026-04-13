@@ -43,10 +43,10 @@ def parse_makemkv_info(output):
 def detect_media_type(titles):
     """Detect whether a disc is a movie or TV show based on title durations.
 
-    Returns "tv" if 3+ titles cluster in the episode range (15-65 min)
+    Returns "tv" if 3+ titles cluster in the episode range (5-65 min)
     within 30% of the median duration. Otherwise returns "movie".
     """
-    episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
+    episode_range = [t for t in titles if 300 <= t["duration_secs"] <= 3900]
     if len(episode_range) < 3:
         return "movie"
     durations = [t["duration_secs"] for t in episode_range]
@@ -145,7 +145,7 @@ def select_episode_titles(titles):
         return play_all_result
 
     # Fall back to duration-based approach
-    episode_range = [t for t in titles if 900 <= t["duration_secs"] <= 3900]
+    episode_range = [t for t in titles if 300 <= t["duration_secs"] <= 3900]
     if not episode_range:
         return []
     durations = [t["duration_secs"] for t in episode_range]

@@ -215,7 +215,7 @@ class TestStageVerify(unittest.TestCase):
     def test_clean_rip_passes(self):
         """No issues → stage completes normally."""
         titles = parse_makemkv_info(AVATAR_DISC_INFO)
-        episode_titles = [t for t in titles if 900 <= t["duration_secs"] <= 3900
+        episode_titles = [t for t in titles if 300 <= t["duration_secs"] <= 3900
                           and t["segment_count"] == 1]
         episodes = []
         for t in episode_titles:

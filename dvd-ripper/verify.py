@@ -79,7 +79,7 @@ and DISC=1. Compare file sizes to detect potential duplicates across seasons.\
 def check_episode_count(state):
     """Compare episode-length disc titles against selected episode count.
 
-    Counts titles in the 15-65 minute range on the disc, excluding bumper
+    Counts titles in the 5-65 minute range on the disc, excluding bumper
     duplicates (titles whose segments are a strict superset of another
     title's segments). Compares against the plan's episode count.
     """
@@ -89,8 +89,8 @@ def check_episode_count(state):
     titles = state.get("titles", [])
     episodes = state.get("plan", {}).get("episodes", [])
 
-    # Episode-length titles on disc (15-65 min)
-    ep_titles = [t for t in titles if 900 <= t.get("duration_secs", 0) <= 3900]
+    # Episode-length titles on disc (5-65 min)
+    ep_titles = [t for t in titles if 300 <= t.get("duration_secs", 0) <= 3900]
     seg_sets = [frozenset(t.get("segments", "").split(",")) for t in ep_titles]
 
     # Exclude bumper duplicates: titles whose segments are a strict superset
