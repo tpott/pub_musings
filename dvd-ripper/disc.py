@@ -41,6 +41,10 @@ def parse_disc_label(label, media_type="movie"):
     # Clean up: underscores to spaces, strip trailing separators
     name = name.replace("_", " ").strip(" -")
 
+    # Normalize to title case so disc labels like "Legend_of_Korra" and
+    # SHOW_NAME="Legend Of Korra" produce the same directory name.
+    name = name.title()
+
     return {"show_name": name, "season": season, "disc": disc}
 
 
