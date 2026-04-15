@@ -248,6 +248,56 @@ class TestStageVerify(unittest.TestCase):
         result = stage_verify(conf, state)
         self.assertEqual(result["verification"]["issues"], [])
 
+    def test_claude_fail_verdict_raises_without_checker_errors(self):
+        """Claude verdict=fail with no deterministic errors should still halt.
+
+        Reproduces the Bluey S01E50 bug: all deterministic checks pass but
+        Claude's title frame scan finds the wrong episode. The pipeline
+        should raise VerificationError, not silently continue to sync.
+        """
+        titles = [
+            {"id": i, "duration_secs": 440, "segment_count": 1,
+             "segments": str(i), "name": "", "filename": ""}
+            for i in range(26)
+        ]
+        episodes = []
+        for t in titles:
+            mp4 = Path(self.tmpdir) / f"ep{t['id']}.mp4"
+            mp4.write_text("fake content")
+            episodes.append({
+                "title_id": t["id"],
+                "duration_secs": t["duration_secs"],
+                "mp4_path": str(mp4),
+                "ep_name": f"S01E{28 + t['id']:02d}",
+            })
+        state = {
+            "titles": titles,
+            "media_type": "tv",
+            "plan": {"episodes": episodes},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true", "VERIFY_CLAUDE_ALWAYS": "true"}
+        fake_verdict = {
+            "verdict": "fail",
+            "confidence": 0.97,
+            "issues": [
+                {"type": "wrong_episode", "severity": "error",
+                 "detail": "S01E54 is a French-only duplicate of S01E52"},
+            ],
+            "recommendation": "Re-rip omitting Title 27",
+            "fix_command": (
+                'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+                '--setenv=TITLES="1,2,3,4,5,6,7,8,9,10,11,12,13,14,'
+                '15,16,17,18,19,20,21,22,23,24,25,26" '
+                '"$RIP_DIR/rip.py" --force'
+            ),
+        }
+        with patch("verify.run_claude_verify", return_value=fake_verdict):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("Re-rip", str(ctx.exception))
+        self.assertEqual(ctx.exception.fix_command, fake_verdict["fix_command"])
+
     def test_count_mismatch_raises(self):
         """Episode count mismatch should raise VerificationError."""
         titles = [

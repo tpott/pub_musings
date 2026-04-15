@@ -432,6 +432,18 @@ def stage_verify(conf, state):
         claude_result = run_claude_verify(prompt, conf)
         state["verification"]["claude_verdict"] = claude_result
 
+    # Claude's fail verdict halts the pipeline even without checker errors
+    claude_verdict = state.get("verification", {}).get("claude_verdict")
+    if claude_verdict and claude_verdict.get("verdict") == "fail":
+        recommendation = claude_verdict.get("recommendation", "")
+        fix_command = claude_verdict.get("fix_command")
+        detail = recommendation
+        if fix_command:
+            detail += f"\nFix: {fix_command}"
+        raise VerificationError(
+            detail, recommendation=recommendation, fix_command=fix_command,
+        )
+
     # Checker errors always halt the pipeline; Claude's verdict enriches
     # the error message with a recommendation and fix_command
     if errors:
