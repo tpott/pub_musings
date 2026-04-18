@@ -60,15 +60,26 @@ def archive_state(state):
 
 
 def discover_active_state(rip_dir):
-    """Find active state file for the currently inserted disc via blkid."""
+    """Find active state file for the currently inserted disc via blkid.
+
+    Returns a 3-tuple (state, reason, label):
+      - ("ok", loaded_state_dict, label) when the disc is present and a
+        matching state file was found.
+      - (None, "no_state", label) when the disc is present and readable
+        but no matching state file exists.
+      - (None, "no_disc", None) when blkid reports no media in the drive
+        (exit code 2) or blkid is unavailable.
+
+    Detection relies on blkid's exit code rather than stderr parsing.
+    """
     try:
         label = subprocess.run(
             ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+        return (None, "no_disc", None)
     path = state_path_for_label(rip_dir, label)
     if path.exists():
-        return load_state(path)
-    return None
+        return (load_state(path), "ok", label)
+    return (None, "no_state", label)

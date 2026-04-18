@@ -339,10 +339,15 @@ def main():
     try:
         if args.resume:
             if args.resume is True:
-                state = discover_active_state(conf["RIP_DIR"])
+                state, reason, label = discover_active_state(conf["RIP_DIR"])
                 if state is None:
+                    if reason == "no_disc":
+                        raise RuntimeError(
+                            "No disc in drive (/dev/sr0). "
+                            "Insert a disc and retry."
+                        )
                     raise RuntimeError(
-                        "No active state found for inserted disc."
+                        f"No state file matches inserted disc {label}."
                     )
             elif Path(args.resume).exists():
                 state = load_state(args.resume)

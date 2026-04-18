@@ -33,7 +33,10 @@ class TestNoActiveStateNotification(unittest.TestCase):
 
     @patch("rip.notify")
     @patch("rip.analyze_error", return_value={"recommendation": "No state"})
-    @patch("rip.discover_active_state", return_value=None)
+    @patch(
+        "rip.discover_active_state",
+        return_value=(None, "no_disc", None),
+    )
     def test_no_active_state_sends_notification(
         self, mock_discover, mock_analyze, mock_notify
     ):
