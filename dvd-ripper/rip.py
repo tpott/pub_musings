@@ -341,9 +341,9 @@ def main():
             if args.resume is True:
                 state = discover_active_state(conf["RIP_DIR"])
                 if state is None:
-                    print("No active state found for inserted disc.",
-                          file=sys.stderr)
-                    sys.exit(1)
+                    raise RuntimeError(
+                        "No active state found for inserted disc."
+                    )
             elif Path(args.resume).exists():
                 state = load_state(args.resume)
             else:
