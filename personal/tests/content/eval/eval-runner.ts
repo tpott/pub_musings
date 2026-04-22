@@ -16,7 +16,7 @@ export interface EvalResult {
   commentary: string;
 }
 
-const MODEL = process.env.EVAL_MODEL || 'claude-sonnet-4-20250514';
+const MODEL = process.env.EVAL_MODEL || 'claude-sonnet-4-6';
 
 export async function evaluatePost(
   postContent: string,

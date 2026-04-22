@@ -1,14 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { getPublishedPosts } from '../helpers/parse-posts';
+import { getAllPosts, getPublishedPosts } from '../helpers/parse-posts';
 import { personas } from './personas';
 import { rubrics } from './rubrics';
 import { evaluatePost } from './eval-runner';
 
 const MIN_AVERAGE_SCORE = 2.5;
 
-const posts = getPublishedPosts();
 const evalPost = process.env.EVAL_POST;
 const evalPersona = process.env.EVAL_PERSONA;
+
+const posts = evalPost ? getAllPosts() : getPublishedPosts();
 
 const filteredPosts = evalPost
   ? posts.filter(p => p.slug === evalPost)
