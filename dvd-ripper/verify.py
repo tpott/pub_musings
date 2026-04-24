@@ -35,8 +35,10 @@ issues like missing episodes, incorrect title selection, or combined episodes.
 
 For TV shows: you MUST use the /title-frame-scanner skill on EVERY episode mp4 \
 file to visually verify episode identity. Pass each mp4_path from the plan. \
-Report all results in the title_frame_check field. If the skill is unavailable \
-or a file cannot be scanned, set attempted=true with an error note.
+Report all results in the title_frame_check field, including the timestamp \
+(in seconds from the start of the file) where the title card appeared. \
+If the skill is unavailable or a file cannot be scanned, set attempted=true \
+with an error note.
 
 Your response must be ONLY a valid JSON object (no markdown fences, no explanation \
 before or after) with this exact schema:
@@ -52,7 +54,11 @@ before or after) with this exact schema:
   "fix_command": "complete shell command to fix the issue, or null",
   "title_frame_check": {
     "attempted": true,
-    "results": [{"file": "path", "title_text": "detected text or null"}],
+    "results": [
+      {"file": "path",
+       "title_text": "detected text or null",
+       "timestamp_secs": "seconds into the file where the title card was seen, or null if not detected"}
+    ],
     "error": "error message if scan failed, or null"
   }
 }
