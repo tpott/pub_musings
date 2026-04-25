@@ -59,6 +59,22 @@ def archive_state(state):
     return state
 
 
+def archive_existing_state_file(rip_dir, label):
+    """If a state file already exists for this label, move it to history.
+
+    Used before starting a fresh rip so previous state is preserved instead
+    of being clobbered. Returns the archived path, or None if no file existed.
+    """
+    src = state_path_for_label(rip_dir, label)
+    if not src.exists():
+        return None
+    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest = src.parent / "history" / f"{label}-{ts}.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(dest)
+    return dest
+
+
 def discover_active_state(rip_dir):
     """Find active state file for the currently inserted disc via blkid.
 

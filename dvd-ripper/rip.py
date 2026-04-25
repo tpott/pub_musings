@@ -17,6 +17,7 @@ from disc import compute_episode_start, parse_disc_label
 from error_analysis import analyze_error
 from pipeline import run_pipeline
 from state import (
+    archive_existing_state_file,
     archive_state,
     discover_active_state,
     load_state,
@@ -369,6 +370,13 @@ def main():
                 raise RuntimeError(
                     f"State file already exists: {state_path}. "
                     f"Use --force to override."
+                )
+
+            archived = archive_existing_state_file(conf["RIP_DIR"], disc_label)
+            if archived is not None:
+                print(
+                    f"Archived prior state file to {archived}",
+                    flush=True,
                 )
 
             state = new_state(conf["RIP_DIR"], disc_label)
