@@ -117,6 +117,10 @@ def stage_plan(conf, state):
     media_type = state["media_type"]
     rip_dir = conf["RIP_DIR"]
 
+    if os.environ.get("TITLES"):
+        media_type = "tv"
+        state["media_type"] = "tv"
+
     if media_type == "movie":
         movie_name = os.environ.get("MOVIE_NAME", disc_label)
         output_dir = Path(rip_dir) / "Movies" / movie_name
