@@ -232,7 +232,8 @@ class TestStageVerify(unittest.TestCase):
             "verification": {"issues": []},
         }
         conf = {"VERIFY_ENABLED": "true"}
-        result = stage_verify(conf, state)
+        with patch("verify.claude.is_available", return_value=False):
+            result = stage_verify(conf, state)
         errors = [i for i in result["verification"]["issues"]
                   if i["severity"] == "error"]
         self.assertEqual(errors, [])
@@ -292,7 +293,8 @@ class TestStageVerify(unittest.TestCase):
                 '"$RIP_DIR/rip.py" --force'
             ),
         }
-        with patch("verify.run_claude_verify", return_value=fake_verdict):
+        with patch("verify.claude.is_available", return_value=True), \
+             patch("verify.run_claude_verify", return_value=fake_verdict):
             with self.assertRaises(VerificationError) as ctx:
                 stage_verify(conf, state)
         self.assertIn("Re-rip", str(ctx.exception))
@@ -324,7 +326,8 @@ class TestStageVerify(unittest.TestCase):
             "recommendation": "Re-rip with all 7 titles",
             "fix_command": 'systemd-run --user --unit="dvd-rip-$(date +%s)" --setenv=TITLES="0,1,2,3,4,5,6" "$RIP_DIR/rip.py" --force',
         }
-        with patch("verify.run_claude_verify", return_value=fake_verdict):
+        with patch("verify.claude.is_available", return_value=True), \
+             patch("verify.run_claude_verify", return_value=fake_verdict):
             with self.assertRaises(VerificationError) as ctx:
                 stage_verify(conf, state)
         self.assertIn("7", str(ctx.exception))

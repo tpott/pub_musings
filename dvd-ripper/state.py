@@ -75,6 +75,47 @@ def archive_existing_state_file(rip_dir, label):
     return dest
 
 
+def approve_state(state):
+    """Mark verify stage as manually approved and reset pipeline to running."""
+    now = datetime.now().isoformat()
+    state["stages"]["verify"] = {
+        "status": "complete",
+        "completed_at": now,
+        "approved": True,
+        "approved_at": now,
+    }
+    state["status"] = "running"
+
+
+def resolve_state_arg(rip_dir, arg):
+    """Resolve a --resume/--approve argument to a loaded state dict.
+
+    arg=True  → auto-detect from inserted disc via blkid
+    arg=str (existing path) → load that file directly
+    arg=str (label) → load .state/<label>.json
+
+    Raises RuntimeError with a user-facing message on failure.
+    """
+    if arg is True:
+        state, reason, label = discover_active_state(rip_dir)
+        if state is None:
+            if reason == "no_disc":
+                raise RuntimeError(
+                    "No disc in drive (/dev/sr0). Insert a disc and retry."
+                )
+            raise RuntimeError(
+                f"No state file matches inserted disc {label}."
+            )
+        return state
+    path_arg = Path(arg)
+    if path_arg.exists():
+        return load_state(str(path_arg))
+    path = state_path_for_label(rip_dir, arg)
+    if not path.exists():
+        raise RuntimeError(f"No state file for {arg!r}: {path}")
+    return load_state(path)
+
+
 def discover_active_state(rip_dir):
     """Find active state file for the currently inserted disc via blkid.
 

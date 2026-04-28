@@ -17,11 +17,13 @@ from disc import compute_episode_start, parse_disc_label
 from error_analysis import analyze_error
 from pipeline import run_pipeline
 from state import (
+    approve_state,
     archive_existing_state_file,
     archive_state,
     discover_active_state,
     load_state,
     new_state,
+    resolve_state_arg,
     save_state,
     state_path_for_label,
 )
@@ -32,7 +34,7 @@ from titles import (
     select_movie_title,
 )
 from transcode import find_mkv_for_title, sync_only, transcode_only
-from verify import stage_verify
+from verify import VerificationError, stage_verify
 
 
 def parse_conf(conf_path):
@@ -282,6 +284,9 @@ def stage_finalize(conf, state):
         notes = "; ".join(w["detail"] for w in warnings)
         notify_msg += f" ({notes})"
 
+    if state.get("stages", {}).get("verify", {}).get("approved"):
+        notify_msg += " (verification manually approved)"
+
     notify(conf, notify_msg)
     return state
 
@@ -314,10 +319,16 @@ def main():
     parser = argparse.ArgumentParser(
         description="Automated DVD/Blu-ray ripping pipeline"
     )
-    parser.add_argument(
+    exclusive = parser.add_mutually_exclusive_group()
+    exclusive.add_argument(
         "--resume", nargs="?", const=True, default=None,
         metavar="LABEL_OR_PATH",
         help="Resume from state file (no arg: auto-detect from disc)",
+    )
+    exclusive.add_argument(
+        "--approve", nargs="?", const=True, default=None,
+        metavar="LABEL_OR_PATH",
+        help="Approve a failed verification and run remaining stages",
     )
     parser.add_argument(
         "--force", action="store_true",
@@ -342,7 +353,11 @@ def main():
     conf["_force"] = args.force
 
     try:
-        if args.resume:
+        if args.approve:
+            state = resolve_state_arg(conf["RIP_DIR"], args.approve)
+            approve_state(state)
+            save_state(state)
+        elif args.resume:
             if args.resume is True:
                 state, reason, label = discover_active_state(conf["RIP_DIR"])
                 if state is None:
@@ -411,6 +426,19 @@ def main():
             notify(conf, summary)
             if fix_command:
                 notify(conf, fix_command)
+            # When Claude assessed as warn with no fix, the rip is likely fine —
+            # suggest --approve so the user can bypass verify and finish the pipeline.
+            if (isinstance(e, VerificationError)
+                    and not fix_command
+                    and st.get("verification", {})
+                          .get("claude_verdict", {})
+                          .get("verdict") == "warn"):
+                rip_script = str(Path(__file__).resolve())
+                approve_cmd = (
+                    f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+                    f'{shlex.quote(rip_script)} --approve {shlex.quote(label)}'
+                )
+                notify(conf, approve_cmd)
         except Exception:
             pass
         sys.exit(1)

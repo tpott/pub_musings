@@ -187,8 +187,16 @@ cat /tmp/backup-receiver.log
 
 ## Testing
 
+Deterministic tests:
+
 ```sh
 python3 -m unittest discover tests
+```
+
+Eval tests (invoke the real `claude` CLI; skipped if not installed):
+
+```sh
+python3 -m unittest discover tests -p 'eval_*.py'
 ```
 
 ## TV show support
