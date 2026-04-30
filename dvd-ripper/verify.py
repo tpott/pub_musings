@@ -216,7 +216,7 @@ def check_is_movie(state):
     if _TV_LABEL_RE.search(disc_label):
         issues.append({
             "type": "suspect_movie",
-            "severity": "warning",
+            "severity": "error",
             "detail": (
                 f"Classified as movie but disc label '{disc_label}' "
                 f"contains TV indicators (season/series/book/disc/vol)"
@@ -235,7 +235,7 @@ def check_is_movie(state):
             if len(cluster) >= 3:
                 issues.append({
                     "type": "suspect_movie",
-                    "severity": "warning",
+                    "severity": "error",
                     "detail": (
                         f"Classified as movie but disc has {len(cluster)} "
                         f"similar-duration titles in episode range "
@@ -264,7 +264,7 @@ def check_is_show(state):
     if len(ep_titles) == 1:
         return [{
             "type": "suspect_show",
-            "severity": "warning",
+            "severity": "error",
             "detail": (
                 "Classified as TV but only 1 episode selected from a disc "
                 "with only 1 episode-length title — might be a movie"

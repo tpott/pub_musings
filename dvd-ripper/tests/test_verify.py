@@ -334,5 +334,95 @@ class TestStageVerify(unittest.TestCase):
         self.assertIn("2", str(ctx.exception))
 
 
+class TestStageVerifyMisclassification(unittest.TestCase):
+    """Tests for check_is_movie / check_is_show promoted to error severity."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _fake_mp4(self, name):
+        p = Path(self.tmpdir) / name
+        p.write_text("fake")
+        return str(p)
+
+    def test_suspect_movie_tv_label_raises(self):
+        """Movie with TV-indicator disc label should raise VerificationError."""
+        titles = [{"id": 0, "duration_secs": 6000, "segment_count": 1,
+                   "segments": "0", "name": "", "filename": ""}]
+        state = {
+            "media_type": "movie",
+            "disc_label": "Avatar_Book_1_Disc_1",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 6000,
+                                    "mp4_path": self._fake_mp4("avatar.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("classified as movie", str(ctx.exception).lower())
+
+    def test_suspect_movie_3_similar_titles_raises(self):
+        """Movie with 3+ similar-duration episode-length titles should raise."""
+        titles = [
+            {"id": i, "duration_secs": 1400, "segment_count": 1,
+             "segments": str(i), "name": "", "filename": ""}
+            for i in range(3)
+        ]
+        state = {
+            "media_type": "movie",
+            "disc_label": "MY_MOVIE",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 1400,
+                                    "mp4_path": self._fake_mp4("movie.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("classified as movie", str(ctx.exception).lower())
+
+    def test_suspect_show_single_title_raises(self):
+        """TV with 1 episode selected from a disc with 1 episode-range title should raise."""
+        titles = [{"id": 0, "duration_secs": 1400, "segment_count": 1,
+                   "segments": "0", "name": "", "filename": ""}]
+        state = {
+            "media_type": "tv",
+            "disc_label": "MY_SHOW",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 1400,
+                                    "mp4_path": self._fake_mp4("ep.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("classified as tv", str(ctx.exception).lower())
+
+    def test_movie_with_unrelated_label_passes(self):
+        """Clean movie (no TV indicators, single long title) should not raise."""
+        titles = [{"id": 0, "duration_secs": 7000, "segment_count": 1,
+                   "segments": "0", "name": "", "filename": ""}]
+        state = {
+            "media_type": "movie",
+            "disc_label": "INCEPTION",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 7000,
+                                    "mp4_path": self._fake_mp4("inception.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            result = stage_verify(conf, state)
+        self.assertIsNotNone(result)
+
+
 if __name__ == "__main__":
     unittest.main()
