@@ -145,7 +145,7 @@ rm STOP
 
 ```sh
 # List running dvd-rip units
-systemctl --user list-units 'dvd-rip-*'
+systemctl --user list-units 'dvd-rip-*' --all
 
 # Stop a specific one (sends SIGTERM)
 systemctl --user stop dvd-rip-1711234567
