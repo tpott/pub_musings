@@ -215,7 +215,7 @@ class TestStageVerify(unittest.TestCase):
     def test_clean_rip_passes(self):
         """No issues → stage completes normally."""
         titles = parse_makemkv_info(AVATAR_DISC_INFO)
-        episode_titles = [t for t in titles if 900 <= t["duration_secs"] <= 3900
+        episode_titles = [t for t in titles if 300 <= t["duration_secs"] <= 3900
                           and t["segment_count"] == 1]
         episodes = []
         for t in episode_titles:
@@ -232,7 +232,8 @@ class TestStageVerify(unittest.TestCase):
             "verification": {"issues": []},
         }
         conf = {"VERIFY_ENABLED": "true"}
-        result = stage_verify(conf, state)
+        with patch("verify.claude.is_available", return_value=False):
+            result = stage_verify(conf, state)
         errors = [i for i in result["verification"]["issues"]
                   if i["severity"] == "error"]
         self.assertEqual(errors, [])
@@ -247,6 +248,57 @@ class TestStageVerify(unittest.TestCase):
         conf = {"VERIFY_ENABLED": "false"}
         result = stage_verify(conf, state)
         self.assertEqual(result["verification"]["issues"], [])
+
+    def test_claude_fail_verdict_raises_without_checker_errors(self):
+        """Claude verdict=fail with no deterministic errors should still halt.
+
+        Reproduces the Bluey S01E50 bug: all deterministic checks pass but
+        Claude's title frame scan finds the wrong episode. The pipeline
+        should raise VerificationError, not silently continue to sync.
+        """
+        titles = [
+            {"id": i, "duration_secs": 440, "segment_count": 1,
+             "segments": str(i), "name": "", "filename": ""}
+            for i in range(26)
+        ]
+        episodes = []
+        for t in titles:
+            mp4 = Path(self.tmpdir) / f"ep{t['id']}.mp4"
+            mp4.write_text("fake content")
+            episodes.append({
+                "title_id": t["id"],
+                "duration_secs": t["duration_secs"],
+                "mp4_path": str(mp4),
+                "ep_name": f"S01E{28 + t['id']:02d}",
+            })
+        state = {
+            "titles": titles,
+            "media_type": "tv",
+            "plan": {"episodes": episodes},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true", "VERIFY_CLAUDE_ALWAYS": "true"}
+        fake_verdict = {
+            "verdict": "fail",
+            "confidence": 0.97,
+            "issues": [
+                {"type": "wrong_episode", "severity": "error",
+                 "detail": "S01E54 is a French-only duplicate of S01E52"},
+            ],
+            "recommendation": "Re-rip omitting Title 27",
+            "fix_command": (
+                'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+                '--setenv=TITLES="1,2,3,4,5,6,7,8,9,10,11,12,13,14,'
+                '15,16,17,18,19,20,21,22,23,24,25,26" '
+                '"$RIP_DIR/rip.py" --force'
+            ),
+        }
+        with patch("verify.claude.is_available", return_value=True), \
+             patch("verify.run_claude_verify", return_value=fake_verdict):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("Re-rip", str(ctx.exception))
+        self.assertEqual(ctx.exception.fix_command, fake_verdict["fix_command"])
 
     def test_count_mismatch_raises(self):
         """Episode count mismatch should raise VerificationError."""
@@ -274,11 +326,102 @@ class TestStageVerify(unittest.TestCase):
             "recommendation": "Re-rip with all 7 titles",
             "fix_command": 'systemd-run --user --unit="dvd-rip-$(date +%s)" --setenv=TITLES="0,1,2,3,4,5,6" "$RIP_DIR/rip.py" --force',
         }
-        with patch("verify.run_claude_verify", return_value=fake_verdict):
+        with patch("verify.claude.is_available", return_value=True), \
+             patch("verify.run_claude_verify", return_value=fake_verdict):
             with self.assertRaises(VerificationError) as ctx:
                 stage_verify(conf, state)
         self.assertIn("7", str(ctx.exception))
         self.assertIn("2", str(ctx.exception))
+
+
+class TestStageVerifyMisclassification(unittest.TestCase):
+    """Tests for check_is_movie / check_is_show promoted to error severity."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _fake_mp4(self, name):
+        p = Path(self.tmpdir) / name
+        p.write_text("fake")
+        return str(p)
+
+    def test_suspect_movie_tv_label_raises(self):
+        """Movie with TV-indicator disc label should raise VerificationError."""
+        titles = [{"id": 0, "duration_secs": 6000, "segment_count": 1,
+                   "segments": "0", "name": "", "filename": ""}]
+        state = {
+            "media_type": "movie",
+            "disc_label": "Avatar_Book_1_Disc_1",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 6000,
+                                    "mp4_path": self._fake_mp4("avatar.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("classified as movie", str(ctx.exception).lower())
+
+    def test_suspect_movie_3_similar_titles_raises(self):
+        """Movie with 3+ similar-duration episode-length titles should raise."""
+        titles = [
+            {"id": i, "duration_secs": 1400, "segment_count": 1,
+             "segments": str(i), "name": "", "filename": ""}
+            for i in range(3)
+        ]
+        state = {
+            "media_type": "movie",
+            "disc_label": "MY_MOVIE",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 1400,
+                                    "mp4_path": self._fake_mp4("movie.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("classified as movie", str(ctx.exception).lower())
+
+    def test_suspect_show_single_title_raises(self):
+        """TV with 1 episode selected from a disc with 1 episode-range title should raise."""
+        titles = [{"id": 0, "duration_secs": 1400, "segment_count": 1,
+                   "segments": "0", "name": "", "filename": ""}]
+        state = {
+            "media_type": "tv",
+            "disc_label": "MY_SHOW",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 1400,
+                                    "mp4_path": self._fake_mp4("ep.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("classified as tv", str(ctx.exception).lower())
+
+    def test_movie_with_unrelated_label_passes(self):
+        """Clean movie (no TV indicators, single long title) should not raise."""
+        titles = [{"id": 0, "duration_secs": 7000, "segment_count": 1,
+                   "segments": "0", "name": "", "filename": ""}]
+        state = {
+            "media_type": "movie",
+            "disc_label": "INCEPTION",
+            "titles": titles,
+            "plan": {"episodes": [{"title_id": 0, "duration_secs": 7000,
+                                    "mp4_path": self._fake_mp4("inception.mp4")}]},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true"}
+        with patch("verify.claude.is_available", return_value=False):
+            result = stage_verify(conf, state)
+        self.assertIsNotNone(result)
 
 
 if __name__ == "__main__":

@@ -59,16 +59,122 @@ def archive_state(state):
     return state
 
 
+def archive_existing_state_file(rip_dir, label):
+    """If a state file already exists for this label, move it to history.
+
+    Used before starting a fresh rip so previous state is preserved instead
+    of being clobbered. Checks for the exact label first, then falls back to a
+    case-insensitive scan to catch old files written before label normalization.
+    Returns the archived path, or None if no file existed.
+    """
+    src = state_path_for_label(rip_dir, label)
+    archive_label = label
+    if not src.exists():
+        state_dir = Path(rip_dir) / ".state"
+        if state_dir.is_dir():
+            label_lower = label.lower()
+            for p in state_dir.glob("*.json"):
+                if p.stem.lower() == label_lower:
+                    src = p
+                    archive_label = p.stem
+                    break
+    if not src.exists():
+        return None
+    ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest = src.parent / "history" / f"{archive_label}-{ts}.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(dest)
+    return dest
+
+
+def approve_state(state):
+    """Mark verify stage as manually approved and reset pipeline to running."""
+    now = datetime.now().isoformat()
+    state["stages"]["verify"] = {
+        "status": "complete",
+        "completed_at": now,
+        "approved": True,
+        "approved_at": now,
+    }
+    state["status"] = "running"
+
+
+def resolve_state_arg(rip_dir, arg):
+    """Resolve a --resume/--approve argument to a loaded state dict.
+
+    arg=True  → auto-detect from inserted disc via blkid
+    arg=str (existing path) → load that file directly
+    arg=str (label) → load .state/<label>.json
+
+    Raises RuntimeError with a user-facing message on failure.
+    """
+    if arg is True:
+        state, reason, label = discover_active_state(rip_dir)
+        if state is None:
+            if reason == "no_disc":
+                raise RuntimeError(
+                    "No disc in drive (/dev/sr0). Insert a disc and retry."
+                )
+            raise RuntimeError(
+                f"No state file matches inserted disc {label}."
+            )
+        return state
+    path_arg = Path(arg)
+    if path_arg.exists():
+        return load_state(str(path_arg))
+    path = state_path_for_label(rip_dir, arg)
+    if path.exists():
+        return load_state(path)
+    # Case-insensitive fallback for labels written before normalization
+    state_dir = Path(rip_dir) / ".state"
+    if state_dir.is_dir():
+        arg_lower = arg.lower()
+        lower_to_paths: dict[str, list] = {}
+        for p in state_dir.glob("*.json"):
+            lower_to_paths.setdefault(p.stem.lower(), []).append(p)
+        if arg_lower in lower_to_paths:
+            matched = lower_to_paths[arg_lower]
+            if len(matched) == 1:
+                return load_state(matched[0])
+            candidates = ", ".join(str(p) for p in sorted(matched))
+            raise RuntimeError(
+                f"Ambiguous label {arg!r}: multiple case variants found: {candidates}"
+            )
+    raise RuntimeError(f"No state file for {arg!r}: {path}")
+
+
 def discover_active_state(rip_dir):
-    """Find active state file for the currently inserted disc via blkid."""
+    """Find active state file for the currently inserted disc via blkid.
+
+    Returns a 3-tuple (state, reason, label):
+      - ("ok", loaded_state_dict, label) when the disc is present and a
+        matching state file was found.
+      - (None, "no_state", label) when the disc is present and readable
+        but no matching state file exists.
+      - (None, "no_disc", None) when blkid reports no media in the drive
+        (exit code 2) or blkid is unavailable.
+
+    Detection relies on blkid's exit code rather than stderr parsing.
+    """
     try:
         label = subprocess.run(
             ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+        return (None, "no_disc", None)
     path = state_path_for_label(rip_dir, label)
     if path.exists():
-        return load_state(path)
-    return None
+        return (load_state(path), "ok", label)
+    # Case-insensitive fallback for old non-normalized state files
+    state_dir = Path(rip_dir) / ".state"
+    if state_dir.is_dir():
+        label_lower = label.lower()
+        lower_to_paths: dict[str, list] = {}
+        for p in state_dir.glob("*.json"):
+            lower_to_paths.setdefault(p.stem.lower(), []).append(p)
+        if label_lower in lower_to_paths:
+            matched = lower_to_paths[label_lower]
+            if len(matched) == 1:
+                return (load_state(matched[0]), "ok", label)
+    return (None, "no_state", label)

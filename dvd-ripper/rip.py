@@ -13,13 +13,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-from disc import compute_episode_start, parse_disc_label
+from disc import compute_episode_start, normalize_disc_label, parse_disc_label
+from error_analysis import analyze_error
 from pipeline import run_pipeline
 from state import (
+    approve_state,
+    archive_existing_state_file,
     archive_state,
     discover_active_state,
     load_state,
     new_state,
+    resolve_state_arg,
     save_state,
     state_path_for_label,
 )
@@ -30,7 +34,7 @@ from titles import (
     select_movie_title,
 )
 from transcode import find_mkv_for_title, sync_only, transcode_only
-from verify import stage_verify
+from verify import VerificationError, stage_verify
 
 
 def parse_conf(conf_path):
@@ -82,15 +86,21 @@ def run_capture(cmd, **kwargs):
 
 # --- Stage functions ---
 
-def stage_scan_disc(conf, state):
-    """Read disc label and scan titles with MakeMKV."""
+def _read_disc_label():
+    """Read disc label from blkid and normalize its token casing."""
     try:
-        disc_label = subprocess.run(
+        label = subprocess.run(
             ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except subprocess.CalledProcessError:
-        disc_label = "UnknownDisc"
+        label = "UnknownDisc"
+    return normalize_disc_label(label)
+
+
+def stage_scan_disc(conf, state):
+    """Read disc label and scan titles with MakeMKV."""
+    disc_label = _read_disc_label()
 
     info_output = subprocess.run(
         ["makemkvcon", "--robot", "info", "disc:0"],
@@ -114,6 +124,10 @@ def stage_plan(conf, state):
     disc_label = state["disc_label"]
     media_type = state["media_type"]
     rip_dir = conf["RIP_DIR"]
+
+    if os.environ.get("TITLES"):
+        media_type = "tv"
+        state["media_type"] = "tv"
 
     if media_type == "movie":
         movie_name = os.environ.get("MOVIE_NAME", disc_label)
@@ -276,6 +290,9 @@ def stage_finalize(conf, state):
         notes = "; ".join(w["detail"] for w in warnings)
         notify_msg += f" ({notes})"
 
+    if state.get("stages", {}).get("verify", {}).get("approved"):
+        notify_msg += " (verification manually approved)"
+
     notify(conf, notify_msg)
     return state
 
@@ -289,6 +306,38 @@ def notify(conf, message):
         f" --channel matrix --target {openclaw_target}"
         f" --message {shlex.quote(message)}"
     )
+
+
+def _default_fix_command(state, exception, rip_script_path):
+    """Return a fallback systemd-run fix command when Claude returns fix_command=None.
+
+    Decision tree:
+      state file on disk + VerificationError  → --approve <label> (artifacts present)
+      state file on disk + other exception    → --resume <label>  (retry tail of pipeline)
+      no state file + disc_label known        → --force (fresh re-run)
+      no state file + disc_label unknown      → None (manual diagnosis)
+    """
+    state_path = state.get("_state_path", "")
+    disc_label = state.get("disc_label", "")
+    quoted_script = shlex.quote(str(rip_script_path))
+
+    if state_path and Path(state_path).exists():
+        quoted_label = shlex.quote(disc_label) if disc_label else "unknown"
+        if isinstance(exception, VerificationError):
+            return (
+                f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+                f'{quoted_script} --approve {quoted_label}'
+            )
+        return (
+            f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+            f'{quoted_script} --resume {quoted_label}'
+        )
+    if disc_label:
+        return (
+            f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+            f'{quoted_script} --force'
+        )
+    return None
 
 
 STOP_FILE = "STOP"
@@ -308,10 +357,16 @@ def main():
     parser = argparse.ArgumentParser(
         description="Automated DVD/Blu-ray ripping pipeline"
     )
-    parser.add_argument(
+    exclusive = parser.add_mutually_exclusive_group()
+    exclusive.add_argument(
         "--resume", nargs="?", const=True, default=None,
         metavar="LABEL_OR_PATH",
         help="Resume from state file (no arg: auto-detect from disc)",
+    )
+    exclusive.add_argument(
+        "--approve", nargs="?", const=True, default=None,
+        metavar="LABEL_OR_PATH",
+        help="Approve a failed verification and run remaining stages",
     )
     parser.add_argument(
         "--force", action="store_true",
@@ -336,33 +391,43 @@ def main():
     conf["_force"] = args.force
 
     try:
-        if args.resume:
+        if args.approve:
+            state = resolve_state_arg(conf["RIP_DIR"], args.approve)
+            approve_state(state)
+            save_state(state)
+        elif args.resume:
             if args.resume is True:
-                state = discover_active_state(conf["RIP_DIR"])
+                state, reason, label = discover_active_state(conf["RIP_DIR"])
                 if state is None:
-                    print("No active state found for inserted disc.",
-                          file=sys.stderr)
-                    sys.exit(1)
+                    if reason == "no_disc":
+                        raise RuntimeError(
+                            "No disc in drive (/dev/sr0). "
+                            "Insert a disc and retry."
+                        )
+                    raise RuntimeError(
+                        f"No state file matches inserted disc {label}."
+                    )
             elif Path(args.resume).exists():
                 state = load_state(args.resume)
             else:
-                path = state_path_for_label(conf["RIP_DIR"], args.resume)
-                state = load_state(path)
+                state = resolve_state_arg(conf["RIP_DIR"], args.resume)
         else:
             # Fresh run — read disc label for state file
-            try:
-                disc_label = subprocess.run(
-                    ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
-                    capture_output=True, text=True, check=True,
-                ).stdout.strip()
-            except subprocess.CalledProcessError:
-                disc_label = "UnknownDisc"
+            disc_label = _read_disc_label()
 
             state_path = state_path_for_label(conf["RIP_DIR"], disc_label)
             if state_path.exists() and not args.force:
-                print(f"State file already exists: {state_path}. "
-                      f"Use --force to override.", file=sys.stderr)
-                sys.exit(1)
+                raise RuntimeError(
+                    f"State file already exists: {state_path}. "
+                    f"Use --force to override."
+                )
+
+            archived = archive_existing_state_file(conf["RIP_DIR"], disc_label)
+            if archived is not None:
+                print(
+                    f"Archived prior state file to {archived}",
+                    flush=True,
+                )
 
             state = new_state(conf["RIP_DIR"], disc_label)
 
@@ -372,34 +437,30 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         try:
-            verification = state.get("verification", {})
-            claude_verdict = verification.get("claude_verdict")
+            st = locals().get("state", {}) or {}
+            rip_script = Path(__file__).resolve()
 
-            if claude_verdict and claude_verdict.get("verdict") == "fail":
-                fix_cmd = claude_verdict.get("fix_command", "")
-                recommendation = claude_verdict.get("recommendation", str(e))
-                state_file = state.get("_state_path", "")
+            # VerificationError carries structured attrs; other exceptions
+            # get routed through Claude for diagnosis.
+            recommendation = getattr(e, "recommendation", None)
+            fix_command = getattr(e, "fix_command", None)
+            if recommendation is None:
+                verdict = analyze_error(conf, st, e)
+                recommendation = verdict.get("recommendation") or str(e)
+                fix_command = verdict.get("fix_command")
 
-                fail_msg = (
-                    f"Rip HALTED: {state.get('disc_label', 'unknown')}\n"
-                    f"{recommendation}"
-                )
-                if fix_cmd:
-                    fail_msg += f"\nFix: {fix_cmd}"
-                if state_file:
-                    fail_msg += f"\nState: {state_file}"
-            else:
-                issues = verification.get("issues", [])
-                if issues:
-                    details = "; ".join(
-                        i["detail"] for i in issues
-                        if i["severity"] == "error"
-                    )
-                    fail_msg = f"Rip FAILED: {details}"
-                else:
-                    fail_msg = f"Rip FAILED: {e}"
+            if fix_command is None:
+                fix_command = _default_fix_command(st, e, rip_script)
 
-            notify(conf, fail_msg)
+            label = st.get("disc_label", "unknown")
+            summary = f"Rip FAILED: {label}\n{recommendation}"
+            state_file = st.get("_state_path", "")
+            if state_file:
+                summary += f"\nState: {state_file}"
+
+            notify(conf, summary)
+            if fix_command:
+                notify(conf, fix_command)
         except Exception:
             pass
         sys.exit(1)

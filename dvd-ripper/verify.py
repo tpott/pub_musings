@@ -3,17 +3,30 @@
 Optionally invokes Claude CLI for intelligent analysis when checkers flag issues.
 """
 
-import json
-import os
-import shutil
+import re
 import statistics
-import subprocess
 from pathlib import Path
+
+import claude
+
+
+# Disc label patterns that suggest TV content, not a movie
+_TV_LABEL_RE = re.compile(
+    r'[_\s](?:S\d|Season|Series|Book|Disc[_\s]?\d|Vol)', re.IGNORECASE)
+
 
 
 class VerificationError(Exception):
-    """Raised when verification finds errors that should halt the pipeline."""
-    pass
+    """Raised when verification finds errors that should halt the pipeline.
+
+    Carries structured recommendation/fix_command attributes so the caller
+    can render them as separate notifications.
+    """
+
+    def __init__(self, message, recommendation=None, fix_command=None):
+        super().__init__(message)
+        self.recommendation = recommendation or message
+        self.fix_command = fix_command
 
 
 VERIFY_SYSTEM_PROMPT = """\
@@ -22,8 +35,10 @@ issues like missing episodes, incorrect title selection, or combined episodes.
 
 For TV shows: you MUST use the /title-frame-scanner skill on EVERY episode mp4 \
 file to visually verify episode identity. Pass each mp4_path from the plan. \
-Report all results in the title_frame_check field. If the skill is unavailable \
-or a file cannot be scanned, set attempted=true with an error note.
+Report all results in the title_frame_check field, including the timestamp \
+(in seconds from the start of the file) where the title card appeared. \
+If the skill is unavailable or a file cannot be scanned, set attempted=true \
+with an error note.
 
 Your response must be ONLY a valid JSON object (no markdown fences, no explanation \
 before or after) with this exact schema:
@@ -39,7 +54,11 @@ before or after) with this exact schema:
   "fix_command": "complete shell command to fix the issue, or null",
   "title_frame_check": {
     "attempted": true,
-    "results": [{"file": "path", "title_text": "detected text or null"}],
+    "results": [
+      {"file": "path",
+       "title_text": "detected text or null",
+       "timestamp_secs": "seconds into the file where the title card was seen, or null if not detected"}
+    ],
     "error": "error message if scan failed, or null"
   }
 }
@@ -48,13 +67,16 @@ Guidelines:
 - verdict="fail" if episodes are missing or incorrectly selected
 - verdict="warn" if suspicious but not definitively wrong
 - verdict="pass" if everything looks correct
-- When recommending a fix_command, use this format:
+- When recommending a fix_command, use this format (substitute the \
+absolute RIP_DIR path shown in the prompt — do NOT emit the literal \
+string "$RIP_DIR", since the copy-pasted command runs outside any shell \
+where that variable is defined):
   systemd-run --user --unit="dvd-rip-$(date +%s)" \\
     --setenv=TITLES="0,1,2,3,4,5,6" \\
     --setenv=SHOW_NAME="Show Name" \\
     --setenv=SEASON=N \\
     --setenv=DISC=N \\
-    "$RIP_DIR/rip.py" --force
+    "/absolute/path/to/rip.py" --force
 - Always include --force because the previous failed state file still exists
 - List TITLES= IDs in intended episode order based on the makemkv info
 - Analyze the raw makemkv segment data to determine correct title ordering
@@ -70,7 +92,7 @@ and DISC=1. Compare file sizes to detect potential duplicates across seasons.\
 def check_episode_count(state):
     """Compare episode-length disc titles against selected episode count.
 
-    Counts titles in the 15-65 minute range on the disc, excluding bumper
+    Counts titles in the 5-65 minute range on the disc, excluding bumper
     duplicates (titles whose segments are a strict superset of another
     title's segments). Compares against the plan's episode count.
     """
@@ -80,8 +102,8 @@ def check_episode_count(state):
     titles = state.get("titles", [])
     episodes = state.get("plan", {}).get("episodes", [])
 
-    # Episode-length titles on disc (15-65 min)
-    ep_titles = [t for t in titles if 900 <= t.get("duration_secs", 0) <= 3900]
+    # Episode-length titles on disc (5-65 min)
+    ep_titles = [t for t in titles if 300 <= t.get("duration_secs", 0) <= 3900]
     seg_sets = [frozenset(t.get("segments", "").split(",")) for t in ep_titles]
 
     # Exclude bumper duplicates: titles whose segments are a strict superset
@@ -177,6 +199,130 @@ def check_file_integrity(state):
     return issues
 
 
+def check_is_movie(state):
+    """Sanity-check movie classification with heuristics.
+
+    For items classified as "movie", warn if the disc label contains TV
+    indicators or the disc has 3+ similar-duration titles in the episode
+    range — signs that it might actually be a TV disc.
+    """
+    if state.get("media_type") != "movie":
+        return []
+
+    issues = []
+    disc_label = state.get("disc_label", "")
+
+    # Check disc label for TV indicators
+    if _TV_LABEL_RE.search(disc_label):
+        issues.append({
+            "type": "suspect_movie",
+            "severity": "error",
+            "detail": (
+                f"Classified as movie but disc label '{disc_label}' "
+                f"contains TV indicators (season/series/book/disc/vol)"
+            ),
+        })
+
+    # Check for 3+ similar-duration titles in episode range (5-65 min)
+    titles = state.get("titles", [])
+    ep_titles = [t for t in titles if 300 <= t.get("duration_secs", 0) <= 3900]
+    if len(ep_titles) >= 3:
+        durations = [t["duration_secs"] for t in ep_titles]
+        median = statistics.median(durations)
+        if median > 0:
+            cluster = [d for d in durations
+                       if abs(d - median) / median <= 0.30]
+            if len(cluster) >= 3:
+                issues.append({
+                    "type": "suspect_movie",
+                    "severity": "error",
+                    "detail": (
+                        f"Classified as movie but disc has {len(cluster)} "
+                        f"similar-duration titles in episode range "
+                        f"(median {median:.0f}s)"
+                    ),
+                })
+
+    return issues
+
+
+def check_is_show(state):
+    """Sanity-check TV classification with heuristics.
+
+    For items classified as "tv", warn if only 1 episode was selected
+    from a disc with only 1 title in the episode range — might be a movie.
+    """
+    if state.get("media_type") != "tv":
+        return []
+
+    episodes = state.get("plan", {}).get("episodes", [])
+    if len(episodes) != 1:
+        return []
+
+    titles = state.get("titles", [])
+    ep_titles = [t for t in titles if 300 <= t.get("duration_secs", 0) <= 3900]
+    if len(ep_titles) == 1:
+        return [{
+            "type": "suspect_show",
+            "severity": "error",
+            "detail": (
+                "Classified as TV but only 1 episode selected from a disc "
+                "with only 1 episode-length title — might be a movie"
+            ),
+        }]
+
+    return []
+
+
+def check_expected_duration(state):
+    """Flag suspiciously short movies and missed longer titles.
+
+    For movies: warn if the selected title is under 60 minutes, or if
+    there are much longer titles on the disc that weren't selected.
+    """
+    if state.get("media_type") != "movie":
+        return []
+
+    episodes = state.get("plan", {}).get("episodes", [])
+    if not episodes:
+        return []
+
+    issues = []
+    selected = episodes[0]
+    selected_dur = selected.get("duration_secs", 0)
+
+    # Flag very short movies (under 60 min)
+    if 0 < selected_dur < 3600:
+        issues.append({
+            "type": "short_movie",
+            "severity": "warning",
+            "detail": (
+                f"Movie is only {selected_dur // 60}m{selected_dur % 60}s "
+                f"— suspiciously short for a feature film"
+            ),
+        })
+
+    # Flag if there are much longer titles on disc that weren't selected
+    titles = state.get("titles", [])
+    selected_id = selected.get("title_id")
+    for t in titles:
+        if t.get("id") == selected_id:
+            continue
+        t_dur = t.get("duration_secs", 0)
+        if t_dur > selected_dur * 2 and t_dur > 3600:
+            issues.append({
+                "type": "longer_title_exists",
+                "severity": "warning",
+                "detail": (
+                    f"Title {t.get('id')} is {t_dur // 60}m "
+                    f"({t_dur}s) — much longer than selected "
+                    f"{selected_dur // 60}m title"
+                ),
+            })
+
+    return issues
+
+
 def build_verify_prompt(state, checker_results, conf):
     """Build the dynamic prompt for Claude CLI verification."""
     parts = [
@@ -251,51 +397,13 @@ def run_claude_verify(prompt, conf):
 
     Returns a dict with verdict, confidence, issues, recommendation, fix_command.
     """
-    claude_bin = conf.get("CLAUDE_BIN", "claude")
-    cmd = [
-        claude_bin, "--print",
-        "--dangerously-skip-permissions",
-        "--system-prompt", VERIFY_SYSTEM_PROMPT,
-    ]
-
-    model = conf.get("VERIFY_MODEL") or "sonnet"
-    cmd.extend(["--model", model])
-
-    cwd = conf.get("RIP_DIR")
-    if cwd and not Path(cwd).is_dir():
-        cwd = None
-    print(f"+ claude --print (verification)", flush=True)
-    proc = subprocess.Popen(
-        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, cwd=cwd,
-    )
-    stdout, stderr = proc.communicate(input=prompt)
-
-    if proc.returncode != 0:
-        return {
-            "verdict": "warn", "confidence": 0.0,
-            "issues": [],
-            "recommendation": f"Claude CLI failed (rc={proc.returncode}): {stderr[:500]}",
-            "fix_command": None,
-        }
-
-    # The system prompt requests JSON-only output. Parse it, stripping
-    # any markdown code fences Claude might wrap around it.
-    text = stdout.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        end = -1 if lines[-1].strip().startswith("```") else len(lines)
-        text = "\n".join(lines[1:end]).strip()
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {
-            "verdict": "warn", "confidence": 0.0,
-            "issues": [],
-            "recommendation": f"Could not parse Claude response: {stdout[:500]}",
-            "fix_command": None,
-        }
+    fallback = {
+        "verdict": "warn", "confidence": 0.0,
+        "issues": [],
+        "recommendation": "",
+        "fix_command": None,
+    }
+    return claude.run(prompt, VERIFY_SYSTEM_PROMPT, conf, fallback=fallback)
 
 
 def stage_verify(conf, state):
@@ -312,21 +420,35 @@ def stage_verify(conf, state):
     issues.extend(check_episode_count(state))
     issues.extend(check_duration_anomaly(state))
     issues.extend(check_file_integrity(state))
+    issues.extend(check_is_movie(state))
+    issues.extend(check_is_show(state))
+    issues.extend(check_expected_duration(state))
 
     state["verification"] = {"issues": issues}
 
     errors = [i for i in issues if i["severity"] == "error"]
+    warnings = [i for i in issues if i["severity"] == "warning"]
     should_invoke_claude = (
-        bool(errors)
-        or conf.get("VERIFY_CLAUDE_ALWAYS", "false").lower() == "true"
+        bool(errors) or bool(warnings)
+        or conf.get("VERIFY_CLAUDE_ALWAYS", "true").lower() == "true"
     )
 
-    claude_bin = conf.get("CLAUDE_BIN", "claude")
-    claude_available = Path(claude_bin).exists() if os.path.isabs(claude_bin) else shutil.which(claude_bin)
-    if should_invoke_claude and claude_available:
+    if should_invoke_claude and claude.is_available(conf):
         prompt = build_verify_prompt(state, issues, conf)
         claude_result = run_claude_verify(prompt, conf)
         state["verification"]["claude_verdict"] = claude_result
+
+    # Claude's fail verdict halts the pipeline even without checker errors
+    claude_verdict = state.get("verification", {}).get("claude_verdict")
+    if claude_verdict and claude_verdict.get("verdict") == "fail":
+        recommendation = claude_verdict.get("recommendation", "")
+        fix_command = claude_verdict.get("fix_command")
+        detail = recommendation
+        if fix_command:
+            detail += f"\nFix: {fix_command}"
+        raise VerificationError(
+            detail, recommendation=recommendation, fix_command=fix_command,
+        )
 
     # Checker errors always halt the pipeline; Claude's verdict enriches
     # the error message with a recommendation and fix_command
@@ -336,8 +458,10 @@ def stage_verify(conf, state):
             recommendation = claude_verdict.get("recommendation", "")
             fix_command = claude_verdict["fix_command"]
             detail = recommendation + f"\nFix: {fix_command}"
-        else:
-            detail = "; ".join(e["detail"] for e in errors)
-        raise VerificationError(detail)
+            raise VerificationError(
+                detail, recommendation=recommendation, fix_command=fix_command,
+            )
+        detail = "; ".join(e["detail"] for e in errors)
+        raise VerificationError(detail, recommendation=detail)
 
     return state

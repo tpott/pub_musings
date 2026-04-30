@@ -22,7 +22,7 @@ run_claude_verify(prompt, conf) -> dict
 stage_verify(conf, state) -> state
 ```
 
-**Checkers** are pure functions. `check_episode_count` counts episode-length titles (15-65 min) in `state["scan_disc"]["makemkv_info"]` and compares against `len(state["plan"]["episodes"])`. This alone would have caught She-Ra (7 disc titles vs 2 selected).
+**Checkers** are pure functions. `check_episode_count` counts episode-length titles (5-65 min) in `state["scan_disc"]["makemkv_info"]` and compares against `len(state["plan"]["episodes"])`. This alone would have caught She-Ra (7 disc titles vs 2 selected).
 
 **Claude invocation** adapts the ralph pattern from `ralph/src/ralph/loop.py:543-598`:
 - `subprocess.Popen(["claude", "--print", "--dangerously-skip-permissions", "--output-format=stream-json", "--system-prompt", SYSTEM_PROMPT], stdin=PIPE, stdout=PIPE)`
