@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from disc import compute_episode_start, parse_disc_label
+from disc import compute_episode_start, normalize_disc_label, parse_disc_label
 from error_analysis import analyze_error
 from pipeline import run_pipeline
 from state import (
@@ -86,15 +86,21 @@ def run_capture(cmd, **kwargs):
 
 # --- Stage functions ---
 
-def stage_scan_disc(conf, state):
-    """Read disc label and scan titles with MakeMKV."""
+def _read_disc_label():
+    """Read disc label from blkid and normalize its token casing."""
     try:
-        disc_label = subprocess.run(
+        label = subprocess.run(
             ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except subprocess.CalledProcessError:
-        disc_label = "UnknownDisc"
+        label = "UnknownDisc"
+    return normalize_disc_label(label)
+
+
+def stage_scan_disc(conf, state):
+    """Read disc label and scan titles with MakeMKV."""
+    disc_label = _read_disc_label()
 
     info_output = subprocess.run(
         ["makemkvcon", "--robot", "info", "disc:0"],
@@ -372,17 +378,10 @@ def main():
             elif Path(args.resume).exists():
                 state = load_state(args.resume)
             else:
-                path = state_path_for_label(conf["RIP_DIR"], args.resume)
-                state = load_state(path)
+                state = resolve_state_arg(conf["RIP_DIR"], args.resume)
         else:
             # Fresh run — read disc label for state file
-            try:
-                disc_label = subprocess.run(
-                    ["blkid", "-o", "value", "-s", "LABEL", "/dev/sr0"],
-                    capture_output=True, text=True, check=True,
-                ).stdout.strip()
-            except subprocess.CalledProcessError:
-                disc_label = "UnknownDisc"
+            disc_label = _read_disc_label()
 
             state_path = state_path_for_label(conf["RIP_DIR"], disc_label)
             if state_path.exists() and not args.force:

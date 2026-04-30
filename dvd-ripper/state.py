@@ -63,13 +63,25 @@ def archive_existing_state_file(rip_dir, label):
     """If a state file already exists for this label, move it to history.
 
     Used before starting a fresh rip so previous state is preserved instead
-    of being clobbered. Returns the archived path, or None if no file existed.
+    of being clobbered. Checks for the exact label first, then falls back to a
+    case-insensitive scan to catch old files written before label normalization.
+    Returns the archived path, or None if no file existed.
     """
     src = state_path_for_label(rip_dir, label)
+    archive_label = label
+    if not src.exists():
+        state_dir = Path(rip_dir) / ".state"
+        if state_dir.is_dir():
+            label_lower = label.lower()
+            for p in state_dir.glob("*.json"):
+                if p.stem.lower() == label_lower:
+                    src = p
+                    archive_label = p.stem
+                    break
     if not src.exists():
         return None
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
-    dest = src.parent / "history" / f"{label}-{ts}.json"
+    dest = src.parent / "history" / f"{archive_label}-{ts}.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     src.rename(dest)
     return dest
@@ -111,9 +123,24 @@ def resolve_state_arg(rip_dir, arg):
     if path_arg.exists():
         return load_state(str(path_arg))
     path = state_path_for_label(rip_dir, arg)
-    if not path.exists():
-        raise RuntimeError(f"No state file for {arg!r}: {path}")
-    return load_state(path)
+    if path.exists():
+        return load_state(path)
+    # Case-insensitive fallback for labels written before normalization
+    state_dir = Path(rip_dir) / ".state"
+    if state_dir.is_dir():
+        arg_lower = arg.lower()
+        lower_to_paths: dict[str, list] = {}
+        for p in state_dir.glob("*.json"):
+            lower_to_paths.setdefault(p.stem.lower(), []).append(p)
+        if arg_lower in lower_to_paths:
+            matched = lower_to_paths[arg_lower]
+            if len(matched) == 1:
+                return load_state(matched[0])
+            candidates = ", ".join(str(p) for p in sorted(matched))
+            raise RuntimeError(
+                f"Ambiguous label {arg!r}: multiple case variants found: {candidates}"
+            )
+    raise RuntimeError(f"No state file for {arg!r}: {path}")
 
 
 def discover_active_state(rip_dir):
@@ -139,4 +166,15 @@ def discover_active_state(rip_dir):
     path = state_path_for_label(rip_dir, label)
     if path.exists():
         return (load_state(path), "ok", label)
+    # Case-insensitive fallback for old non-normalized state files
+    state_dir = Path(rip_dir) / ".state"
+    if state_dir.is_dir():
+        label_lower = label.lower()
+        lower_to_paths: dict[str, list] = {}
+        for p in state_dir.glob("*.json"):
+            lower_to_paths.setdefault(p.stem.lower(), []).append(p)
+        if label_lower in lower_to_paths:
+            matched = lower_to_paths[label_lower]
+            if len(matched) == 1:
+                return (load_state(matched[0]), "ok", label)
     return (None, "no_state", label)

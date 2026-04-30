@@ -11,6 +11,17 @@ _DISC_RE = re.compile(
     r'[_\s](?:D|Disc[_\s]?)(\d+)', re.IGNORECASE)
 
 
+def normalize_disc_label(label: str) -> str:
+    """Normalize disc label to title-case per underscore-delimited token.
+
+    "Legend_of_Korra_Book_3_Disc_1" → "Legend_Of_Korra_Book_3_Disc_1"
+    Empty string and labels without underscores pass through unchanged.
+    """
+    if not label or "_" not in label:
+        return label
+    return "_".join(token.title() for token in label.split("_"))
+
+
 def parse_disc_label(label, media_type="movie"):
     """Parse a disc label into structured metadata.
 

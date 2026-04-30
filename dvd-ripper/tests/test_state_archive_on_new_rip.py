@@ -14,12 +14,15 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import rip
+from disc import normalize_disc_label
 
 
 class TestStateArchiveOnNewRip(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         self.disc_label = "MY_DISC"
+        # blkid output is normalized at entry; MY_DISC → My_Disc
+        self.normalized_label = normalize_disc_label(self.disc_label)
         self.state_dir = Path(self.tmpdir) / ".state"
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.existing_path = self.state_dir / f"{self.disc_label}.json"
@@ -98,21 +101,23 @@ class TestStateArchiveOnNewRip(unittest.TestCase):
         )
 
     def test_force_writes_fresh_state_at_label_path(self):
-        """After --force, a fresh state file should exist at the label path
+        """After --force, a fresh state file should exist at the normalized label path
         (and it must NOT contain the original marker)."""
         self._run_main_with_force()
 
+        # blkid output is normalized, so new state lives at the normalized path
+        fresh_path = self.state_dir / f"{self.normalized_label}.json"
         self.assertTrue(
-            self.existing_path.exists(),
-            "a fresh state file should exist at the label path after the rip starts",
+            fresh_path.exists(),
+            "a fresh state file should exist at the normalized label path after the rip starts",
         )
-        with open(self.existing_path) as f:
+        with open(fresh_path) as f:
             current = json.load(f)
         self.assertNotEqual(
             current.get("marker"), "ORIGINAL_STATE_DO_NOT_LOSE",
             "current state file must be a fresh one, not the old payload",
         )
-        self.assertEqual(current.get("disc_label"), self.disc_label)
+        self.assertEqual(current.get("disc_label"), self.normalized_label)
 
 
 if __name__ == "__main__":
