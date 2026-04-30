@@ -59,13 +59,18 @@ class TestVerificationErrorApproveNotify(unittest.TestCase):
         self.assertIn("systemd-run", approve_msgs[0])
 
     @patch("rip.notify")
-    def test_fail_verdict_no_approve_suggestion(self, mock_notify):
-        """VerificationError with verdict=fail must NOT suggest --approve."""
+    def test_fail_verdict_no_fix_suggests_approve(self, mock_notify):
+        """VerificationError with verdict=fail and no fix_command should suggest --approve.
+
+        Even a fail verdict with no specific fix command is recoverable — the user
+        can --approve to bypass verify and inspect the files manually.
+        """
         err = VerificationError("episodes missing", recommendation="re-rip", fix_command=None)
         self._run_with_pipeline_error(err, verdict="fail")
 
         msgs = [c[0][1] for c in mock_notify.call_args_list]
-        self.assertFalse(any("--approve" in m for m in msgs), f"unexpected --approve in: {msgs}")
+        approve_msgs = [m for m in msgs if "--approve" in m]
+        self.assertEqual(len(approve_msgs), 1, f"expected one --approve notification, got: {msgs}")
 
     @patch("rip.notify")
     def test_warn_with_fix_command_no_approve_suggestion(self, mock_notify):

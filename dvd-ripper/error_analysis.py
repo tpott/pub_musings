@@ -40,13 +40,13 @@ partially ripped (E01..EK exist), this is likely the next physical disc of \
 Season N — set SEASON=N and DISC=(number of discs already ripped for that \
 season)+1. Typical TV seasons are split across 3-5 discs.
 - For subprocess failures during rip/transcode/sync stages, recommend \
-`--resume <label>` using the absolute rip.py path, e.g.:
+`--resume <label>` using the absolute rip.py path — this retries the tail \
+of the pipeline without restarting from scratch. Example:
   systemd-run --user --unit="dvd-rip-$(date +%s)" "/absolute/path/to/rip.py" --resume LABEL
 - Use `--resume LABEL` when the state file exists and the failure was \
-mid-pipeline (rip/transcode/sync). This continues the pipeline without \
-restarting from scratch.
-- Use `--approve LABEL` when artifacts are on disk and only verify failed. \
-This bypasses verify and finishes sync, e.g.:
+mid-pipeline (rip/transcode/sync).
+- Use `--approve LABEL` when artifacts are already on disk and only verify \
+failed. This bypasses verify and finishes sync. Example:
   systemd-run --user --unit="dvd-rip-$(date +%s)" "/absolute/path/to/rip.py" --approve LABEL\
 """
 

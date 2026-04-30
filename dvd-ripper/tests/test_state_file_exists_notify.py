@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import rip
+from disc import normalize_disc_label
 
 
 class TestStateFileExistsNotification(unittest.TestCase):
@@ -28,10 +29,12 @@ class TestStateFileExistsNotification(unittest.TestCase):
             'OPENCLAW_TARGET="@user:matrix.org"\n'
         )
         self.disc_label = "MY_DISC"
-        # Create pre-existing state file to trigger the collision
+        # blkid output is normalized; write the pre-existing file at the normalized
+        # path so the collision check fires as expected
+        self.normalized_label = normalize_disc_label(self.disc_label)
         state_dir = Path(self.tmpdir) / ".state"
         state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / f"{self.disc_label}.json").write_text('{"dummy": true}')
+        (state_dir / f"{self.normalized_label}.json").write_text('{"dummy": true}')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)

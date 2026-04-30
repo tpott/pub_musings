@@ -308,6 +308,38 @@ def notify(conf, message):
     )
 
 
+def _default_fix_command(state, exception, rip_script_path):
+    """Return a fallback systemd-run fix command when Claude returns fix_command=None.
+
+    Decision tree:
+      state file on disk + VerificationError  → --approve <label> (artifacts present)
+      state file on disk + other exception    → --resume <label>  (retry tail of pipeline)
+      no state file + disc_label known        → --force (fresh re-run)
+      no state file + disc_label unknown      → None (manual diagnosis)
+    """
+    state_path = state.get("_state_path", "")
+    disc_label = state.get("disc_label", "")
+    quoted_script = shlex.quote(str(rip_script_path))
+
+    if state_path and Path(state_path).exists():
+        quoted_label = shlex.quote(disc_label) if disc_label else "unknown"
+        if isinstance(exception, VerificationError):
+            return (
+                f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+                f'{quoted_script} --approve {quoted_label}'
+            )
+        return (
+            f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+            f'{quoted_script} --resume {quoted_label}'
+        )
+    if disc_label:
+        return (
+            f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
+            f'{quoted_script} --force'
+        )
+    return None
+
+
 STOP_FILE = "STOP"
 
 STAGES = [
@@ -406,6 +438,7 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         try:
             st = locals().get("state", {}) or {}
+            rip_script = Path(__file__).resolve()
 
             # VerificationError carries structured attrs; other exceptions
             # get routed through Claude for diagnosis.
@@ -416,6 +449,9 @@ def main():
                 recommendation = verdict.get("recommendation") or str(e)
                 fix_command = verdict.get("fix_command")
 
+            if fix_command is None:
+                fix_command = _default_fix_command(st, e, rip_script)
+
             label = st.get("disc_label", "unknown")
             summary = f"Rip FAILED: {label}\n{recommendation}"
             state_file = st.get("_state_path", "")
@@ -425,19 +461,6 @@ def main():
             notify(conf, summary)
             if fix_command:
                 notify(conf, fix_command)
-            # When Claude assessed as warn with no fix, the rip is likely fine —
-            # suggest --approve so the user can bypass verify and finish the pipeline.
-            if (isinstance(e, VerificationError)
-                    and not fix_command
-                    and st.get("verification", {})
-                          .get("claude_verdict", {})
-                          .get("verdict") == "warn"):
-                rip_script = str(Path(__file__).resolve())
-                approve_cmd = (
-                    f'systemd-run --user --unit="dvd-rip-$(date +%s)" '
-                    f'{shlex.quote(rip_script)} --approve {shlex.quote(label)}'
-                )
-                notify(conf, approve_cmd)
         except Exception:
             pass
         sys.exit(1)
