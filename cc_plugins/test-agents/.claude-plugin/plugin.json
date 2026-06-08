@@ -1,0 +1,8 @@
+{
+  "name": "test-agents",
+  "description": "Test multiple agent personas and agent UX",
+  "version": "0.1.0",
+  "author": {
+    "name": "tpott"
+  }
+}
