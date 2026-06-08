@@ -1,0 +1,8 @@
+{
+  "name": "python-debuggin",
+  "description": "A PoC skill for teaching claude how to debug python scripts",
+  "version": "0.1.0",
+  "author": {
+    "name": "tpott"
+  }
+}
