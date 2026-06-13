@@ -438,8 +438,21 @@ def stage_verify(conf, state):
         claude_result = run_claude_verify(prompt, conf)
         state["verification"]["claude_verdict"] = claude_result
 
-    # Claude's fail verdict halts the pipeline even without checker errors
+    # A Claude verdict we couldn't even read (CLI failed or unparseable
+    # output) must halt the pipeline and surface in the notification —
+    # otherwise the fallback verdict ("warn") silently looks like a soft
+    # pass and the rip syncs to Jellyfin with no verification.
     claude_verdict = state.get("verification", {}).get("claude_verdict")
+    if claude_verdict and (
+        claude_verdict.get("_parse_failed") or claude_verdict.get("_cli_failed")
+    ):
+        detail = (
+            "Claude verification could not be run: "
+            + claude_verdict.get("recommendation", "unknown error")
+        )
+        raise VerificationError(detail, recommendation=detail)
+
+    # Claude's fail verdict halts the pipeline even without checker errors
     if claude_verdict and claude_verdict.get("verdict") == "fail":
         recommendation = claude_verdict.get("recommendation", "")
         fix_command = claude_verdict.get("fix_command")

@@ -300,6 +300,87 @@ class TestStageVerify(unittest.TestCase):
         self.assertIn("Re-rip", str(ctx.exception))
         self.assertEqual(ctx.exception.fix_command, fake_verdict["fix_command"])
 
+    def test_claude_parse_failure_raises(self):
+        """Unparseable Claude verdict must halt the pipeline, not soft-pass.
+
+        Reproduces the Brooklyn-99 bug: deterministic checks pass, but the
+        Claude CLI output couldn't be parsed, so claude.run returned the
+        fallback dict (verdict="warn") with recommendation prefixed
+        "Could not parse Claude response: ...". A "warn" verdict is normally
+        non-blocking, so the rip silently synced to Jellyfin without anyone
+        seeing that verification never actually ran. stage_verify must raise.
+        """
+        titles = [
+            {"id": i, "duration_secs": 1400, "segment_count": 1,
+             "segments": str(i), "name": "", "filename": ""}
+            for i in range(3)
+        ]
+        episodes = []
+        for t in titles:
+            mp4 = Path(self.tmpdir) / f"ep{t['id']}.mp4"
+            mp4.write_text("fake content")
+            episodes.append({
+                "title_id": t["id"],
+                "duration_secs": t["duration_secs"],
+                "mp4_path": str(mp4),
+            })
+        state = {
+            "titles": titles,
+            "media_type": "tv",
+            "plan": {"episodes": episodes},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true", "VERIFY_CLAUDE_ALWAYS": "true"}
+        # Mirror what claude.run returns on a parse failure: the fallback
+        # dict with only recommendation overwritten (+ sentinel flag).
+        parse_fail_verdict = {
+            "verdict": "warn", "confidence": 0.0, "issues": [],
+            "recommendation": "Could not parse Claude response: blah blah",
+            "fix_command": None,
+            "_parse_failed": True,
+        }
+        with patch("verify.claude.is_available", return_value=True), \
+             patch("verify.run_claude_verify", return_value=parse_fail_verdict):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("could not", str(ctx.exception).lower())
+        self.assertIn("parse", str(ctx.exception).lower())
+
+    def test_claude_cli_failure_raises(self):
+        """CLI nonzero exit must halt the pipeline, not soft-pass."""
+        titles = [
+            {"id": i, "duration_secs": 1400, "segment_count": 1,
+             "segments": str(i), "name": "", "filename": ""}
+            for i in range(3)
+        ]
+        episodes = []
+        for t in titles:
+            mp4 = Path(self.tmpdir) / f"ep{t['id']}.mp4"
+            mp4.write_text("fake content")
+            episodes.append({
+                "title_id": t["id"],
+                "duration_secs": t["duration_secs"],
+                "mp4_path": str(mp4),
+            })
+        state = {
+            "titles": titles,
+            "media_type": "tv",
+            "plan": {"episodes": episodes},
+            "verification": {"issues": []},
+        }
+        conf = {"VERIFY_ENABLED": "true", "VERIFY_CLAUDE_ALWAYS": "true"}
+        cli_fail_verdict = {
+            "verdict": "warn", "confidence": 0.0, "issues": [],
+            "recommendation": "Claude CLI failed (rc=1): boom",
+            "fix_command": None,
+            "_cli_failed": True,
+        }
+        with patch("verify.claude.is_available", return_value=True), \
+             patch("verify.run_claude_verify", return_value=cli_fail_verdict):
+            with self.assertRaises(VerificationError) as ctx:
+                stage_verify(conf, state)
+        self.assertIn("could not", str(ctx.exception).lower())
+
     def test_count_mismatch_raises(self):
         """Episode count mismatch should raise VerificationError."""
         titles = [
