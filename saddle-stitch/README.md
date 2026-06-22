@@ -4,10 +4,16 @@
 that's what I've been using to describe what I have been printing. Maybe [zine](https://en.wikipedia.org/wiki/Zine)
 is more appropriate.
 
-# Install
+# Project directories
+
+Each `books/{book}/` dir should have a `images/` subdir. All `books/` dirs get `.gitignore`'d
+
+# Impose Install
 
 Assuming this is for a Mac/Ubuntu that doesn't have `python` but does have `python3`:
 `python3 -m venv .venv && source .venv/bin/activate && python -m pip install -r requirements.txt` (to get `pypdf` to run `python impose.py {source pdf} {target pdf}`)
+
+Saddle-stitch imposition takes a reading order pdf as input and outputs landscape letter faces interleaved ((last page, 1st page), (last-1, 2nd page), and so on). Saddle-stitch face order is 1-based, front then back of each sheet, outside-in.
 
 # History
 

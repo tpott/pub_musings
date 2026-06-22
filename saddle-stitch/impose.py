@@ -1,16 +1,29 @@
-"""True saddle-stitch imposition: 32 half-letter pages (reading order)
--> 16 landscape-Letter faces (8 sheets, front/back interleaved)."""
+"""True saddle-stitch imposition: half-letter pages (reading order)
+-> landscape-Letter faces (front/back interleaved).
+
+Saddle stitch needs the page count to be a multiple of 4 (one folded sheet
+holds 4 pages). Rather than require the source PDF to already be a multiple of
+4, we pad the end with blank pages up to the next multiple of 4."""
 
 import sys
 from pypdf import PdfReader, PdfWriter, Transformation
+from pypdf import PageObject
 
 src, dst = sys.argv[1], sys.argv[2]
 r = PdfReader(src)
 pages = list(r.pages)
-N = len(pages)
-assert N % 4 == 0, f"page count {N} not divisible by 4"
 W = float(pages[0].mediabox.width)
 H = float(pages[0].mediabox.height)
+
+# Pad up to the next multiple of 4 with blank half-letter pages so the booklet
+# folds cleanly. These trailing blanks land on the inside back cover / endpapers.
+src_count = len(pages)
+pad = (-src_count) % 4
+for _ in range(pad):
+    pages.append(PageObject.create_blank_page(width=W, height=H))
+N = len(pages)
+if pad:
+    print(f"padded {src_count} -> {N} pages with {pad} blank page(s)")
 
 # Saddle-stitch face order (1-based), front then back of each sheet, outside-in
 order = []
