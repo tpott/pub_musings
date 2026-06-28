@@ -8,6 +8,14 @@ is more appropriate.
 
 Each `books/{book}/` dir should have a `images/` subdir. All `books/` dirs get `.gitignore`'d
 
+# Page budget & blank covers
+
+The front cover, inside front cover, inside back cover, and back cover are 4 overhead
+pages; the inside covers (and back cover) are always left blank. Books are sized by
+the remaining **content pages**: minimum 6, default 8. Total pages must be a multiple
+of 4 (`impose.py` pads with blanks), so 6 content → 12 pages and 8 content → 12 pages,
+both 3 folded sheets.
+
 # Impose Install
 
 Assuming this is for a Mac/Ubuntu that doesn't have `python` but does have `python3`:

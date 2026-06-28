@@ -114,6 +114,38 @@ Transform `pg14838-images.html` into a print-friendly HTML document that can be 
 - Bottom outer corner, ~9pt, light grey.
 - Implemented via CSS counter on `.scene` elements, surfaced through `@page :left { @bottom-left { content: counter(scene); } }` and `:right { @bottom-right ... }`.
 
+## Ink-saving / pencil image modes
+
+Optional, **print-only** image treatments that reduce printer ink usage. They are
+opt-in via a single class on `<body>` and change nothing on screen (all rules live
+inside `@media print`). They apply uniformly to the three image hooks
+(`.scene-image img`, `.cover-image img`, `.colophon-device img`) and leave the
+existing image-sizing rules untouched.
+
+| `<body>` class | Effect | Ink |
+|----------------|--------|-----|
+| *(none)* | Full-tone images — current default, unchanged | most |
+| `ink-lite` | Grayscale + brightened + softened contrast; photo preserved | less |
+| `pencil` | Edge-detect line-art via an SVG filter; hand-drawn sketch look | least |
+
+Two ways to select a mode (both print-only, screen is untouched):
+- **Per-view:** append a URL `#hash` — `peter-rabbit.html#ink-lite` or `#pencil`
+  (bare URL = full tone). This is pure CSS: two empty `.mode-anchor` spans at the
+  top of `<body>` match `:target`, and `~ *` sibling selectors reach the images.
+  Handy for toggling right before "Save as PDF". (CSS can't read `?query` params,
+  only the `#hash`.)
+- **Default:** change the `class` attribute on `<body>` (e.g. `<body class="pencil">`)
+  to set what a bare URL shows. A `#hash` overrides the body class.
+`ink-lite` is pure CSS (`grayscale + brightness + contrast`). `pencil` references a
+hidden, inert `<svg>` filter (`#pencil`) defined just inside `<body>`; that filter
+carries inline comments for its three tuning knobs (line strength, line darkness,
+line softness). We intentionally do **not** set `print-color-adjust: exact`, so the
+printer's economy default still saves ink.
+
+**Chrome-print caveat:** SVG `filter:url()` rendering in Chrome's print path can be
+version-sensitive. Check Print Preview at 5.5″ × 8.5″ and print a single trial sheet
+before committing to a full run, especially in `pencil` mode.
+
 ## Imposition workflow (manual, this time)
 
 1. **Render**: open the modified HTML in Chrome → Print → "Save as PDF" → set custom paper size 5.5in × 8.5in. Result: a 32-page half-letter PDF in reading order.

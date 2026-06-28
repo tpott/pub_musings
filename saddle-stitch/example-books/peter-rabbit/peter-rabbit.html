@@ -70,6 +70,12 @@ p {
 .pageno {
     display: none;
     }
+/* URL #hash image-mode anchors: never rendered. display:none keeps them out
+   of flow (no stray leading blank page) while :target + sibling selectors
+   still work, since combinators act on the DOM tree regardless of display. */
+.mode-anchor {
+    display: none;
+    }
 
 /* ---- Screen view: readable, with page boundaries visible ---- */
 @media screen {
@@ -154,6 +160,63 @@ p {
     .scene .pageno::after {
         content: counter(scene);
         }
+
+    /* ============================================================
+       Opt-in, PRINT-ONLY ink-saving image treatments.
+
+       Two ways to pick a mode (both print-only):
+         A) Permanent default: set the class on <body>:
+              (no class)      -> full-tone images, current behavior (unchanged)
+              body.ink-lite   -> lightened photo: less ink, image preserved
+              body.pencil     -> edge-detect line-art: least ink, sketch look
+         B) Per-view override: append a #hash to the URL (pure CSS via the
+            :target anchors near the top of <body>) -- handy for toggling
+            before "Save as PDF" without editing the file:
+              peter-rabbit.html           -> full tone
+              peter-rabbit.html#ink-lite  -> ink-lite
+              peter-rabbit.html#pencil    -> pencil
+            A #hash wins over the <body> class (id beats class specificity).
+
+       Screen view is unaffected (these rules live only in @media print).
+       All three image hooks are treated identically:
+       .scene-image img, .cover-image img, .colophon-device img.
+       Image sizing rules above are left untouched; the filter is
+       orthogonal to sizing. We deliberately do NOT set
+       print-color-adjust: exact, so the printer's economy default can
+       still save ink.
+
+       The pencil look relies on the inert <svg> #sketch filter defined
+       just inside <body>; tuning knobs are documented there.
+       ------------------------------------------------------------ */
+    body.ink-lite .scene-image img,
+    body.ink-lite .cover-image img,
+    body.ink-lite .colophon-device img {
+        /* grayscale + lift brightness; keep contrast >= 1 so the paper
+           stays white (a contrast < 1 greys the whole background) */
+        filter: grayscale(100%) brightness(1.5) contrast(1.05);
+        }
+    body.pencil .scene-image img,
+    body.pencil .cover-image img,
+    body.pencil .colophon-device img {
+        filter: url(#sketch);
+        }
+
+    /* URL #hash overrides (pure CSS, no JS). The empty .mode-anchor spans
+       near the top of <body> match :target when the URL ends in #ink-lite
+       or #pencil; "~ *" then reaches the image hooks inside every following
+       page div. No hash -> no match -> the <body>-class default applies.
+       The id selector outranks the body.* class rules above, so a #hash
+       always wins. */
+    #ink-lite:target ~ * .scene-image img,
+    #ink-lite:target ~ * .cover-image img,
+    #ink-lite:target ~ * .colophon-device img {
+        filter: grayscale(100%) brightness(1.5) contrast(1.05);
+        }
+    #pencil:target ~ * .scene-image img,
+    #pencil:target ~ * .cover-image img,
+    #pencil:target ~ * .colophon-device img {
+        filter: url(#sketch);
+        }
     }
 </style>
 <link rel="schema.dc" href="http://purl.org/dc/elements/1.1/">
@@ -174,6 +237,52 @@ p {
 <meta property="og:image" content="https://www.gutenberg.org/cache/epub/14838/pg14838.cover.medium.jpg">
 </head>
 <body>
+
+<!-- Hidden, inert SVG filter for the pencil image mode (print only).
+     Its id is "sketch" (NOT "pencil") so it can't collide with the
+     id="pencil" :target anchor below. It draws nothing on its own; it is
+     referenced via filter:url(#sketch).
+     Pipeline: desaturate -> edge detect -> slight blur -> map bright edges
+     on black back to dark lines on white (so the page comes out mostly white).
+
+     Beatrix Potter's art is soft watercolour with delicate outlines, so the
+     raw edges come out faint. We boost them with a linear transfer
+     (out = intercept + slope*edge) that drives even weak edges to black ink
+     on a white page.
+
+     Three tuning knobs:
+       1. feConvolveMatrix kernel CENTER value (the "8") = line strength.
+          Higher -> bolder/heavier edges; lower -> fainter lines.
+          Keep it equal to the sum of the eight -1 neighbours for a balanced
+          high-pass (8 = eight neighbours), or raise it to thicken lines.
+       2. feFunc* SLOPE (the "-6") = line darkness / gain. More negative ->
+          darker, bolder lines (more ink); closer to 0 -> fainter lines (less
+          ink). intercept="1" keeps the background white.
+       3. feGaussianBlur stdDeviation (the "0.3") = line softness / grain.
+          Higher -> softer, more pencil-like; lower -> crisper, more ink. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="sketch" color-interpolation-filters="sRGB">
+    <!-- color-interpolation-filters="sRGB" is required: the default
+         linearRGB makes the output come out wrong/too dark. -->
+    <feColorMatrix type="saturate" values="0" result="gray"/>
+    <feConvolveMatrix in="gray" order="3"
+        kernelMatrix="-1 -1 -1  -1 8 -1  -1 -1 -1"
+        preserveAlpha="true" result="edges"/>
+    <feGaussianBlur in="edges" stdDeviation="0.3" result="soft"/>
+    <feComponentTransfer in="soft">
+      <feFuncR type="linear" slope="-6" intercept="1"/>
+      <feFuncG type="linear" slope="-6" intercept="1"/>
+      <feFuncB type="linear" slope="-6" intercept="1"/>
+    </feComponentTransfer>
+  </filter>
+</svg>
+
+<!-- Image-mode anchors for the URL #hash overrides (print only). These are
+     empty and inert; append #ink-lite or #pencil to the URL to switch modes
+     without editing the file. They must stay BEFORE the page divs below so
+     the "~ *" sibling selectors in the print CSS can reach the images. -->
+<span id="ink-lite" class="mode-anchor"></span>
+<span id="pencil" class="mode-anchor"></span>
 
 <!-- ===== Page 1: Cover ===== -->
 <div class="cover">
