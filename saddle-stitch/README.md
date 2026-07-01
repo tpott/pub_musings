@@ -16,6 +16,9 @@ the remaining **content pages**: minimum 6, default 8. Total pages must be a mul
 of 4 (`impose.py` pads with blanks), so 6 content → 12 pages and 8 content → 12 pages,
 both 3 folded sheets.
 
+Max is probably about 36 content pages, or 9 real pages. That way we can include a cover
+and the back rear for a single real page..
+
 # Impose Install
 
 Assuming this is for a Mac/Ubuntu that doesn't have `python` but does have `python3`:
