@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Moderator's Grimoire: Running Werewolf &amp; Mafia</title>
+<style>
+/* ============================================================
+   Saddle-stitch print design for *The Moderator's Grimoire*.
+   Pages are emitted in reading order (1..24) at half-letter
+   (5.5in x 8.5in); impose.py reorders them for the booklet.
+   Every figure is an inline SVG wireframe, so there is no
+   images/ subdir and nothing to fetch. Stylesheet adapted from
+   example-books/sailboats/sailboats.html.
+
+   24 pages = 6 folded sheets.
+     1  Cover                     13 (10) Neutral roles
+     2  Blank (inside front)      14 (11) Scenarios (table)
+     3  Contents / how to read    15 (12) Scenario: mafia/western
+     4  (1) Game in a picture     16 (13) Scenario: pirates/zombies
+        + how many wolves         17 (14) Scenario: space/fairy tale
+     5  (2) Setup, deck, equipment 18 (15) Kid-friendly versions
+     6  (3) The loop & first day  19 (16) One Night variant
+     7  (4) Day: accuse/vote      20 (17) Moderator's craft
+     8  (5) Night: wake-order     21 (18) Reveal & balancing
+     9  (6) Dawn: resolving       22 Colophon / THE END
+     10 (7) Winning: parity       23 Blank (inside back cover)
+     11 (8) Village roles         24 Back cover (blank)
+     12 (9) Wolf & mafia roles
+   Pages 4..21 are the eighteen numbered content pages.
+   ============================================================ */
+
+/* ---- Shared typography (screen + print) ---- */
+body {
+    font-family: Georgia, "Times New Roman", serif;
+    text-align: justify;
+    }
+h1, h2, h3, h4, h5 {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    text-align: center;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-top: 0.4em;
+    margin-bottom: 0.5em;
+    }
+h1 {
+    font-size: 232%;
+    margin-top: 0.6em;
+    margin-bottom: 0.4em;
+    letter-spacing: 0.06em;
+    }
+h2 {
+    font-size: 140%;
+    margin-top: 0.2em;
+    margin-bottom: 0.5em;
+    letter-spacing: 0.02em;
+    }
+h3 { font-size: 118%; }
+hr {
+    width: 60%;
+    border: 0;
+    border-top: 1px solid #333;
+    margin: 1.4em auto;
+    }
+p {
+    text-indent: 0;
+    margin-top: 0.4em;
+    margin-bottom: 0.4em;
+    line-height: 1.45;
+    }
+em { font-style: italic; }
+.subtitle {
+    text-align: center;
+    font-style: italic;
+    font-family: Georgia, serif;
+    color: #333;
+    }
+.cap {
+    text-align: center;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 80%;
+    color: #555;
+    text-indent: 0;
+    margin: 0.15em 0 0;
+    letter-spacing: 0.01em;
+    }
+.credit {
+    text-align: center;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 70%;
+    color: #777;
+    margin-top: 1.6em;
+    line-height: 1.5;
+    }
+.lede {
+    font-style: italic;
+    color: #333;
+    text-align: center;
+    }
+/* Role names, underlined wherever they appear. Only roles with an entry in the
+   bestiary (pages 8-10) are named in the text, and only there are they marked. */
+.role {
+    text-decoration: underline;
+    text-underline-offset: 0.13em;
+    }
+
+/* ---- Wireframe figure styling (screen + print) ---- */
+.diagram { text-align: center; margin: 0.6em auto; }
+.diagram svg { width: 100%; height: auto; }
+svg.wire { color: #1b1b1b; }
+svg.wire .ln    { fill: none; stroke: #1b1b1b; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
+svg.wire .thin  { fill: none; stroke: #1b1b1b; stroke-width: 1; }
+svg.wire .fill  { fill: #d8d8d8; stroke: #1b1b1b; stroke-width: 1.5; stroke-linejoin: round; }
+svg.wire .fill2 { fill: #c2c2c2; stroke: #1b1b1b; stroke-width: 1.5; stroke-linejoin: round; }
+svg.wire .dark  { fill: #3a3a3a; stroke: #1b1b1b; stroke-width: 1.5; stroke-linejoin: round; }
+svg.wire .ghost { fill: none; stroke: #1b1b1b; stroke-width: 1.7; opacity: 0.4; stroke-linejoin: round; }
+svg.wire .lead  { fill: none; stroke: #1b1b1b; stroke-width: 0.6; }
+svg.wire .dash  { stroke-dasharray: 6 4; }
+svg.wire .flow  { fill: none; stroke: #1b1b1b; stroke-width: 1.2; }
+svg.wire .arr   { fill: none; stroke: #1b1b1b; stroke-width: 1.5; marker-end: url(#ah); }
+svg.wire .arrl  { fill: none; stroke: #1b1b1b; stroke-width: 1.1; marker-end: url(#ah); }
+svg.wire .box   { fill: #fff; stroke: #1b1b1b; stroke-width: 1.6; }
+svg.wire .chip  { fill: #f0f0f0; stroke: #1b1b1b; stroke-width: 1.2; }
+svg.wire text   { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; fill: #1b1b1b; }
+svg.wire text.sm{ font-size: 10.5px; }
+svg.wire text.lg{ font-size: 14px; font-weight: 600; }
+svg.wire text.it{ font-style: italic; }
+svg.wire text.mono { font-family: "SF Mono", Menlo, Consolas, monospace; }
+
+/* ---- Comparison / mapping table (scenarios page) ---- */
+table.cmp { width: 100%; border-collapse: collapse; margin: 0.5em 0; }
+table.cmp th, table.cmp td {
+    border: 1px solid #ccc; padding: 3px 5px;
+    text-align: left; vertical-align: top; font-size: 92%;
+    }
+table.cmp th {
+    background: #efefef;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 600;
+    }
+table.cmp td:first-child, table.cmp th:first-child {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 88%;
+    }
+
+/* ---- Compact role lists (village / wolf pages) & vote steps ---- */
+ul.roles, ol.steps {
+    padding-left: 1.15em;
+    margin: 0.35em 0;
+    text-align: left;
+    }
+ul.roles li, ol.steps li {
+    margin: 0.22em 0;
+    line-height: 1.35;
+    }
+
+/* ---- Colophon reference list ---- */
+ol.refs {
+    text-align: left;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 78%;
+    color: #555;
+    padding-left: 1.5em;
+    margin: 0.4em 0;
+    }
+ol.refs li {
+    margin: 0.35em 0;
+    line-height: 1.45;
+    }
+
+/* ---- Contents page: one line per numbered page ---- */
+p.toc {
+    text-align: left;
+    text-indent: 0;
+    margin: 0.08em 0;
+    line-height: 1.4;
+    }
+p.toc-group {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 600;
+    text-align: left;
+    margin: 0.7em 0 0.15em;
+    }
+.toc .n {
+    display: inline-block;
+    min-width: 1.5em;
+    text-align: right;
+    margin-right: 0.5em;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #555;
+    }
+
+/* ---- Theme / scenario half-pages ---- */
+.theme h3 {
+    text-align: left;
+    margin: 0.7em 0 0.2em;
+    }
+.theme p { margin: 0.25em 0; }
+.theme .tag {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 85%;
+    color: #555;
+    }
+
+/* ---- Screen view: readable, with page boundaries visible ---- */
+@media screen {
+    body { margin-left: 16%; margin-right: 16%; }
+    .cover, .blank-page, .colophon, .contents, .scene {
+        padding-bottom: 1.5em;
+        margin-bottom: 1.5em;
+        border-bottom: 1px solid #ddd;
+        }
+    .blank-page { min-height: 4em; }
+    table.cmp { font-size: 100%; }
+    }
+
+/* ---- Print view: half-letter booklet pages in reading order ---- */
+@media print {
+    @page {
+        size: 5.5in 8.5in;
+        margin: 0.55in 0.5in 0.5in 0.6in;   /* top right bottom left; gutter (inner) on left = recto */
+        }
+    @page :left {
+        margin: 0.55in 0.6in 0.5in 0.5in;   /* gutter (inner) on right = verso */
+        }
+    html, body { margin: 0; padding: 0; }
+    body {
+        font-size: 11.5pt;
+        counter-reset: page;                 /* numbered content pages start at 1 */
+        }
+    .cover, .blank-page, .colophon, .contents, .scene {
+        page-break-before: always;
+        page-break-inside: avoid;
+        position: relative;
+        margin: 0;
+        border: 0;
+        padding: 0;
+        }
+    .cover:first-child { page-break-before: avoid; }
+    .diagram svg { max-height: 3.1in; }
+    .cover .diagram svg { max-height: 4.0in; }
+    /* pages that stack a figure with a dense table/list tighten up */
+    .dense .diagram { margin: 0.3em auto; }
+    .dense .diagram svg { max-height: 2.6in; }
+    .dense p { line-height: 1.4; margin-top: 0.3em; margin-bottom: 0.3em; }
+    table.cmp { font-size: 8.4pt; page-break-inside: avoid; }
+    table.cmp th, table.cmp td { padding: 2px 4px; }
+    /* contents page: 18 toc lines + groups must share one page */
+    .contents p.toc { font-size: 10pt; margin: 0.04em 0; line-height: 1.35; }
+    .contents p.toc-group { font-size: 10.5pt; margin: 0.45em 0 0.08em; }
+    .contents hr { margin: 0.7em auto; }
+    ul.roles li, ol.steps li { font-size: 10.5pt; }
+    .scene {
+        counter-increment: page;
+        display: flex;
+        flex-direction: column;
+        min-height: 7.1in;
+        }
+    /* page number stays in normal flow, pushed to the bottom, so it can never
+       overlap content the way an absolutely-positioned number can */
+    .scene .pageno {
+        display: block;
+        margin-top: auto;
+        padding-top: 0.12in;
+        text-align: center;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 9pt;
+        color: #888;
+        }
+    .scene .pageno::after { content: counter(page); }
+    }
+/* page number hidden by default, revealed only in print */
+.pageno { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ===== Page 1: Cover ===== -->
+<div class="cover">
+<h1>THE MODERATOR'S<br>GRIMOIRE</h1>
+<p class="subtitle">Running Werewolf &amp; Mafia — a field guide for the narrator</p>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 340" role="img" aria-label="Nine villagers in a ring; two are shaded — the wolves only the moderator can see">
+  <circle class="thin dash" cx="220" cy="168" r="150" fill="none"/>
+  <!-- ring of nine; i2 and i6 are wolves (dark) -->
+  <use href="#ig-vil"  x="200" y="35"  width="40" height="50"/>
+  <use href="#ig-vil"  x="269" y="60"  width="40" height="50"/>
+  <use href="#ig-wolf" x="306" y="124" width="40" height="50"/>
+  <use href="#ig-vil"  x="294" y="197" width="40" height="50"/>
+  <use href="#ig-vil"  x="237" y="245" width="40" height="50"/>
+  <use href="#ig-vil"  x="163" y="245" width="40" height="50"/>
+  <use href="#ig-wolf" x="107" y="197" width="40" height="50"/>
+  <use href="#ig-vil"  x="94"  y="124" width="40" height="50"/>
+  <use href="#ig-vil"  x="131" y="60"  width="40" height="50"/>
+  <text x="220" y="173" text-anchor="middle" class="it sm">the village</text>
+</svg>
+</div>
+<p class="credit">A neutral narrator's primer on the one game behind Werewolf,<br>
+Mafia, Among Us and a hundred other scenarios</p>
+</div>
+
+<!-- ===== Page 2: Blank (inside front cover) ===== -->
+<div class="blank-page">&nbsp;</div>
+
+<!-- ===== Page 3: Contents / how to read ===== -->
+<div class="contents">
+<h2>What's inside</h2>
+<p class="lede">One engine — an informed minority hidden in an uninformed majority —
+restaged a hundred ways.</p>
+<p class="toc-group">Foundations</p>
+<p class="toc"><span class="n">1</span>The game in one picture &mdash; and how many wolves</p>
+<p class="toc"><span class="n">2</span>Setup: moderator, deck, equipment</p>
+<p class="toc-group">Running a round</p>
+<p class="toc"><span class="n">3</span>The loop &mdash; and how the first day starts</p>
+<p class="toc"><span class="n">4</span>Day: accuse, defend, vote</p>
+<p class="toc"><span class="n">5</span>Night: the wake-order (in person &amp; remote)</p>
+<p class="toc"><span class="n">6</span>Dawn: resolving the night</p>
+<p class="toc"><span class="n">7</span>Winning: parity and the endgame</p>
+<p class="toc-group">The roles</p>
+<p class="toc"><span class="n">8</span>The village: informers, protectors, trust</p>
+<p class="toc"><span class="n">9</span>Wolves &amp; mafia</p>
+<p class="toc"><span class="n">10</span>Neutrals &amp; third parties</p>
+<p class="toc-group">Making it yours</p>
+<p class="toc"><span class="n">11</span>Scenarios: one skeleton, many costumes</p>
+<p class="toc"><span class="n">12</span>Running the scenario: mafia &amp; western</p>
+<p class="toc"><span class="n">13</span>Running the scenario: pirates &amp; zombies</p>
+<p class="toc"><span class="n">14</span>Running the scenario: space &amp; fairy tale</p>
+<p class="toc"><span class="n">15</span>For kids: sleep, not death</p>
+<p class="toc"><span class="n">16</span>One Night: no moderator, ten minutes</p>
+<p class="toc"><span class="n">17</span>The moderator's craft</p>
+<p class="toc"><span class="n">18</span>Reveal-on-death &amp; balancing</p>
+<hr>
+<p class="cap">Role names and powers are <em>not</em> standardized across editions.
+Agree on the exact deck before you deal.</p>
+</div>
+
+<!-- ===== Page 4 / no.1: The game in one picture + how many wolves ===== -->
+<div class="scene dense">
+<h2>The game in one picture</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 250" role="img" aria-label="Two shaded wolves hidden among seven outlined villagers inside a dashed ring; a label outside the ring marks the wolves only the moderator knows">
+  <circle class="thin dash" cx="220" cy="120" r="112" fill="none"/>
+  <use href="#ig-vil"  x="150" y="26"  width="38" height="48"/>
+  <use href="#ig-vil"  x="252" y="26"  width="38" height="48"/>
+  <use href="#ig-wolf" x="316" y="96"  width="38" height="48"/>
+  <use href="#ig-vil"  x="270" y="170" width="38" height="48"/>
+  <use href="#ig-vil"  x="201" y="188" width="38" height="48"/>
+  <use href="#ig-vil"  x="132" y="170" width="38" height="48"/>
+  <use href="#ig-wolf" x="86"  y="96"  width="38" height="48"/>
+  <text x="392" y="34" text-anchor="middle" class="sm it">wolves</text>
+  <text x="392" y="46" text-anchor="middle" class="sm it">(you alone know)</text>
+  <line class="lead" x1="378" y1="52" x2="348" y2="92"/>
+</svg>
+</div>
+<p>Werewolf and Mafia are one game: an <em>informed minority</em> (the wolves, who secretly know each other) hidden inside an <em>uninformed majority</em> (the villagers, who don't). Dmitry Davidoff built it as a psychology exercise at Moscow State University in 1987; Andrew Plotkin re-themed it as Werewolf in 1997. Play alternates <em>NIGHT</em> &mdash; the wolves secretly kill one villager &mdash; and <em>DAY</em> &mdash; everyone debates and votes one player out. The <em>village wins</em> when every wolf is gone. The <em>wolves win at parity</em>: the moment they equal the remaining non-wolves, they can no longer be out-voted.</p>
+<p><em>How many wolves?</em> Balance is a dial, not a fixed number. A common rule of thumb is <em>one wolf per four players, rounded up</em>; Plotkin's simulations add the third wolf only around seventeen. Braverman, Etesami &amp; Mossel proved the dial's shape: with <em>no <span class="role">Seer</span></em> the sides are even when wolves &asymp; <em>&radic;(players)</em>; <em>with a <span class="role">Seer</span></em> the wolves must hold a fixed share of the table. Real games settle on <em>2&ndash;3 wolves for 8&ndash;15 players</em>; if roles aren't revealed on death the village loses information, so run thinner &mdash; one wolf per five. Everything else in this booklet is flavor and dials on this one engine.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 5 / no.2: Setup & the deck ===== -->
+<div class="scene">
+<h2>Setup: pick a moderator, deal the deck</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 170" role="img" aria-label="Nine role cards in a row: two Wolves, one Seer, six Villagers">
+  <!-- 9 cards, step 46 from x=24 -->
+  <g>
+    <rect class="dark" x="24"  y="52" width="34" height="56" rx="4"/>
+    <path class="ln" d="M31,58 L35,66 M51,58 L47,66" />
+    <text x="41"  y="126" text-anchor="middle" class="sm">W</text>
+  </g>
+  <g>
+    <rect class="dark" x="70"  y="52" width="34" height="56" rx="4"/>
+    <path class="ln" d="M77,58 L81,66 M97,58 L93,66" />
+    <text x="87"  y="126" text-anchor="middle" class="sm">W</text>
+  </g>
+  <g>
+    <rect class="box"  x="116" y="52" width="34" height="56" rx="4"/>
+    <ellipse class="thin" cx="133" cy="80" rx="12" ry="7" fill="none"/>
+    <circle class="fill" cx="133" cy="80" r="3.5"/>
+    <text x="133" y="126" text-anchor="middle" class="sm">Seer</text>
+  </g>
+  <g><rect class="box" x="162" y="52" width="34" height="56" rx="4"/><text x="179" y="86" text-anchor="middle" class="sm">V</text></g>
+  <g><rect class="box" x="208" y="52" width="34" height="56" rx="4"/><text x="225" y="86" text-anchor="middle" class="sm">V</text></g>
+  <g><rect class="box" x="254" y="52" width="34" height="56" rx="4"/><text x="271" y="86" text-anchor="middle" class="sm">V</text></g>
+  <g><rect class="box" x="300" y="52" width="34" height="56" rx="4"/><text x="317" y="86" text-anchor="middle" class="sm">V</text></g>
+  <g><rect class="box" x="346" y="52" width="34" height="56" rx="4"/><text x="363" y="86" text-anchor="middle" class="sm">V</text></g>
+  <g><rect class="box" x="392" y="52" width="34" height="56" rx="4"/><text x="409" y="86" text-anchor="middle" class="sm">V</text></g>
+  <text x="64"  y="34" text-anchor="middle" class="sm it">2 wolves</text>
+  <line class="lead" x1="41" y1="40" x2="41" y2="50"/>
+  <line class="lead" x1="87" y1="40" x2="87" y2="50"/>
+  <text x="225" y="150" text-anchor="middle" class="sm it">the minimal deck for nine players</text>
+</svg>
+</div>
+<p>Choose a neutral <em>moderator</em> &mdash; you &mdash; who runs the game but plays no side. <em>Player counts in this booklet never include the moderator:</em> "nine players" means nine dealt cards plus you, ten people in the room. Seven players is a workable floor, <em>nine to eleven is the sweet spot.</em> Seat everyone in a circle so you can see all faces at night. The classic nine-player deck is <em>2 <span class="role">Werewolves</span>, 1 <span class="role">Seer</span>, 6 Villagers</em> &mdash; one card each, dealt face-down; each player peeks and keeps it secret.</p>
+<p>No printed deck is required. A standard 52-card deck works (the two black jacks are wolves, the queen of hearts the <span class="role">Seer</span>, anything else a villager); so do labeled scraps of paper in a hat. With no props at all, walk the circle with every eye closed and assign roles by a whisper or a tap on the shoulder.</p>
+<p>Settle the <em>tie rule before you deal</em>, so nobody litigates it mid-vote: a tied vote goes to a run-off among the tied players only, and if that ties again nobody is eliminated and the day is lost. A <span class="role">Mayor</span>, whose vote counts double, breaks most ties outright (page 4). Announce two more things before dealing: whether a dead player's card is revealed, and whether the game ends at parity or plays to the last body.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 6 / no.3: The loop & how the first day starts ===== -->
+<div class="scene">
+<h2>The loop &mdash; and how it starts</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 240" role="img" aria-label="A three-node cycle: NIGHT to DAWN to DAY and back, with an arrow marking that the game starts at night zero">
+  <rect class="box" x="168" y="24" width="104" height="42" rx="6"/>
+  <text x="220" y="50" text-anchor="middle" class="lg">NIGHT</text>
+  <rect class="box" x="300" y="150" width="118" height="42" rx="6"/>
+  <text x="359" y="176" text-anchor="middle" class="lg">DAWN</text>
+  <rect class="box" x="22" y="150" width="118" height="42" rx="6"/>
+  <text x="81" y="170" text-anchor="middle" class="lg">DAY</text>
+  <text x="81" y="184" text-anchor="middle" class="sm it">discuss + vote</text>
+  <!-- start-here arrow into NIGHT -->
+  <text x="88" y="30" text-anchor="middle" class="sm it">start here</text>
+  <text x="88" y="42" text-anchor="middle" class="sm it">("night 0")</text>
+  <path class="arrl" d="M120,36 Q148,36 164,42"/>
+  <!-- clockwise arrows -->
+  <path class="arr" d="M276,58 Q372,86 366,146"/>
+  <path class="arr" d="M300,178 Q220,214 142,178"/>
+  <path class="arr" d="M78,146 Q72,86 164,56"/>
+  <text x="392" y="112" text-anchor="middle" class="sm it">resolve</text>
+  <text x="220" y="230" text-anchor="middle" class="sm it">one player dies at night &middot; one is voted out by day</text>
+</svg>
+</div>
+<p>The game opens at night, not day. "Everyone, close your eyes" starts <em>Night 0</em>, when the one-time roles fire: the wolves open their eyes and learn each other, <span class="role">Cupid</span> ties the <span class="role">Lovers</span>, <span class="role">Masons</span> meet. Many groups let the wolves kill on Night 0; gentler tables make it <em>meet-only</em>, so the first day opens with no body and the table gets one round of introductions before the stakes rise. Either way, <em>the first day starts when you say "everyone, open your eyes" and announce what dawn brought</em> &mdash; a death, or a quiet night.</p>
+<p>From there, three beats cycle until someone wins. <em>NIGHT:</em> eyes closed; the wolves and special roles act in secret. <em>DAWN:</em> you resolve the night privately &mdash; protections, then kills, then triggers like a <span class="role">Hunter</span>'s dying shot. <em>DAY:</em> you announce the dead, and the living discuss, accuse, and vote one player out (next page). Then night falls again. On later nights only the recurring actions repeat &mdash; the one-time roles never fire twice.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 7 / no.4: Day vote (moved to follow the loop) ===== -->
+<div class="scene dense">
+<h2>Day: accuse, defend, vote</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 220" role="img" aria-label="Five heads with accusation arrows converging on one, and a tally of votes beneath it">
+  <use href="#ig-vil" x="30"  y="30" width="40" height="50"/>
+  <use href="#ig-vil" x="110" y="30" width="40" height="50"/>
+  <use href="#ig-vil" x="200" y="30" width="40" height="50"/>
+  <use href="#ig-vil" x="290" y="30" width="40" height="50"/>
+  <use href="#ig-vil" x="370" y="30" width="40" height="50"/>
+  <!-- accusation arrows toward the accused (x~220) -->
+  <path class="arrl" d="M56,86 Q140,150 206,96"/>
+  <path class="arrl" d="M132,90 Q170,140 208,100"/>
+  <path class="arrl" d="M312,90 Q272,140 232,100"/>
+  <path class="arrl" d="M392,86 Q300,150 234,96"/>
+  <circle class="thin dash" cx="220" cy="55" r="28" fill="none"/>
+  <text x="220" y="150" text-anchor="middle" class="sm it">the accused</text>
+  <!-- tally -->
+  <line class="ln" x1="196" y1="176" x2="196" y2="200"/>
+  <line class="ln" x1="206" y1="176" x2="206" y2="200"/>
+  <line class="ln" x1="216" y1="176" x2="216" y2="200"/>
+  <line class="ln" x1="226" y1="176" x2="226" y2="196" transform="rotate(-24 226 186)"/>
+  <line class="ln" x1="236" y1="176" x2="236" y2="200"/>
+  <text x="266" y="194" class="sm it">majority &rarr; out</text>
+</svg>
+</div>
+<p>"Open your eyes; it's morning." Announce the night's deaths (and roles, if that's your policy). The <em>dead are out</em> &mdash; no speaking, gesturing, or reacting. <em>Time-box the day out loud</em>: five minutes in a small game, ten in a large one. Nobody is tried until an accusation is seconded.</p>
+<ol class="steps">
+<li><em>Accusation &amp; second</em> &mdash; anyone living may accuse anyone living, but the accusation dies unless a second player seconds it. <em>No second, no trial</em>: discussion resumes.</li>
+<li><em>The case</em> &mdash; the accuser, then the seconder, each give one short reason the accused is a wolf.</li>
+<li><em>Defense</em> &mdash; the accused answers, uninterrupted.</li>
+<li><em>Open floor</em> &mdash; the table questions the accused, but <em>the accused chooses who speaks</em>; two or three questions is plenty.</li>
+<li><em>Last words</em> &mdash; one closing line from the accused, then silence.</li>
+<li><em>Vote</em> &mdash; simultaneous hands on "three &mdash; two &mdash; one," so nobody waits to see the bandwagon. A majority eliminates; ties go to the run-off you announced (page 2).</li>
+</ol>
+<p>Then read the result. <em>Someone voted out</em>, or <em>the clock run out</em> &mdash; either way, night falls. <em>Otherwise</em> the day carries on, and anyone may raise a fresh accusation.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 8 / no.5: Night wake-order ===== -->
+<div class="scene dense">
+<h2>Night: eyes closed, the wake-order</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 268" role="img" aria-label="A numbered vertical wake-order: Cupid, Bodyguard, Werewolves, Little Girl, Seer, Witch">
+  <line class="thin dash" x1="70" y1="28" x2="70" y2="240"/>
+  <!-- rows at y = 30,66,102,138,174,210 -->
+  <!-- reusable eye drawn inline per row -->
+  <g><circle class="box" cx="42" cy="30" r="12"/><text x="42" y="34" text-anchor="middle" class="sm">1</text>
+     <ellipse class="thin" cx="70" cy="30" rx="12" ry="7" fill="none"/><circle class="fill" cx="70" cy="30" r="3"/>
+     <text x="92" y="34" class="sm">Cupid — ties the Lovers <tspan class="it">(first night)</tspan></text></g>
+  <g><circle class="box" cx="42" cy="66" r="12"/><text x="42" y="70" text-anchor="middle" class="sm">2</text>
+     <ellipse class="thin" cx="70" cy="66" rx="12" ry="7" fill="none"/><circle class="fill" cx="70" cy="66" r="3"/>
+     <text x="92" y="70" class="sm">Bodyguard / Doctor — protects one</text></g>
+  <g><circle class="dark" cx="42" cy="102" r="12"/><text x="42" y="106" text-anchor="middle" class="sm" fill="#fff">3</text>
+     <ellipse class="thin" cx="70" cy="102" rx="12" ry="7" fill="none"/><circle class="fill" cx="70" cy="102" r="3"/>
+     <text x="92" y="106" class="sm lg">Werewolves — choose a victim</text></g>
+  <g><circle class="box" cx="42" cy="138" r="12"/><text x="42" y="142" text-anchor="middle" class="sm">4</text>
+     <ellipse class="thin" cx="70" cy="138" rx="12" ry="7" fill="none"/><circle class="fill" cx="70" cy="138" r="3"/>
+     <text x="92" y="142" class="sm">Little Girl — may risk a peek</text></g>
+  <g><circle class="box" cx="42" cy="174" r="12"/><text x="42" y="178" text-anchor="middle" class="sm">5</text>
+     <ellipse class="thin" cx="70" cy="174" rx="12" ry="7" fill="none"/><circle class="fill" cx="70" cy="174" r="3"/>
+     <text x="92" y="178" class="sm">Seer — you signal wolf / not</text></g>
+  <g><circle class="box" cx="42" cy="210" r="12"/><text x="42" y="214" text-anchor="middle" class="sm">6</text>
+     <ellipse class="thin" cx="70" cy="210" rx="12" ry="7" fill="none"/><circle class="fill" cx="70" cy="210" r="3"/>
+     <text x="92" y="214" class="sm">Witch — may heal or poison</text></g>
+  <text x="220" y="256" text-anchor="middle" class="sm it">same order, same words, every night</text>
+</svg>
+</div>
+<p>"Everyone, close your eyes." Players <em>hum or tap</em> to mask the sound of pointing. Then call each night role in a <em>fixed order</em>, one at a time: it opens its eyes, silently points at a target, closes them again. Keep every action silent, and keep your phrasing identical each night so word-order never leaks who is acting. You alone answer the <span class="role">Seer</span> &mdash; a silent thumb up or down. If a special role is dead, keep calling it anyway, so the living can't tell which powers are still in play.</p>
+<p><em>On Zoom or Meet</em>, typing replaces pointing and there is nothing to mask &mdash; skip the humming. Deal roles by private message before the first night. At night, everyone mutes and turns cameras off while you narrate; the wolves agree on a victim in a private group chat (a Discord thread works), and the <span class="role">Seer</span> messages you a name &mdash; you answer the same way. By day, cameras come back on and the dead stay muted. Companion apps (werewolv.es, Wolvesville, the One Night app) will run the night for you.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 9 / no.6: Dawn resolving ===== -->
+<div class="scene dense">
+<h2>Dawn: resolving the night</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 220" role="img" aria-label="A shielded target survives; an unshielded target dies and a Hunter's arrow drags another down">
+  <!-- LEFT: protected survives -->
+  <use href="#ig-vil" x="46" y="60" width="46" height="58"/>
+  <path class="ln" d="M43,52 C43,42 95,42 95,52 C95,86 69,102 69,102 C69,102 43,86 43,52 Z" fill="#fff" opacity="0.86"/>
+  <text x="69" y="80" text-anchor="middle" class="lg">&#10003;</text>
+  <text x="69" y="140" text-anchor="middle" class="sm it">protected</text>
+  <text x="69" y="154" text-anchor="middle" class="sm it">&rarr; survives</text>
+  <line class="thin dash" x1="150" y1="30" x2="150" y2="185"/>
+  <!-- RIGHT: unshielded dies + hunter arrow -->
+  <use href="#ig-dead" x="196" y="60" width="46" height="58"/>
+  <text x="219" y="140" text-anchor="middle" class="sm it">killed</text>
+  <use href="#ig-dead" x="352" y="60" width="46" height="58"/>
+  <path class="arr" d="M250,86 Q305,66 348,86"/>
+  <text x="300" y="52" text-anchor="middle" class="sm it">Hunter's dying shot</text>
+  <text x="375" y="140" text-anchor="middle" class="sm it">taken too</text>
+</svg>
+</div>
+<p>Between the last night action and the morning announcement, quietly settle what actually happened. Work the same three steps every dawn, <em>in this order</em> &mdash; the order is what makes the outcome fair:</p>
+<ol class="steps">
+<li><em>Protections</em> &mdash; if the <span class="role">Doctor</span> or <span class="role">Bodyguard</span> covered the wolves' target, the attack fails. Announce it as "someone was attacked but survived," and nobody dies.</li>
+<li><em>Kills</em> &mdash; apply every attack that landed: the wolves' victim, plus any independent killer (a <span class="role">Serial Killer</span>, the <span class="role">Witch</span>'s poison).</li>
+<li><em>Triggers</em> &mdash; deaths that cause deaths. A <span class="role">Hunter</span> shot on death drags one player down with him; the <span class="role">Lovers</span> die together; a <span class="role">Cursed</span> villager attacked by the wolves <em>turns into a wolf</em> instead of dying.</li>
+</ol>
+<p>Only once the ledger settles do you open the day and name the dead &mdash; and name them <em>in character</em>. Pick your scenario from the table on page 11 and steal its dawn lines from pages 12&ndash;14: "the river gave him back at dawn, shoes full of cement" seeds a day of suspicion in a way that "Tony is dead" never will.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 10 / no.7: Winning / parity ===== -->
+<div class="scene">
+<h2>Winning: parity and the endgame</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 220" role="img" aria-label="A level balance beam: two wolves equal two villagers, meaning parity and a wolf win">
+  <!-- fulcrum -->
+  <path class="fill" d="M210,150 L230,150 L224,120 L216,120 Z"/>
+  <line class="ln" x1="150" y1="120" x2="290" y2="120"/>
+  <!-- left pan (wolves) -->
+  <path class="thin" d="M150,120 L120,158 M150,120 L180,158" fill="none"/>
+  <path class="ln" d="M116,158 A34 12 0 0 0 184,158" fill="none"/>
+  <use href="#ig-wolf" x="126" y="120" width="26" height="33"/>
+  <use href="#ig-wolf" x="150" y="120" width="26" height="33"/>
+  <text x="150" y="184" text-anchor="middle" class="sm">2 wolves</text>
+  <!-- right pan (villagers) -->
+  <path class="thin" d="M290,120 L260,158 M290,120 L320,158" fill="none"/>
+  <path class="ln" d="M256,158 A34 12 0 0 0 324,158" fill="none"/>
+  <use href="#ig-vil" x="266" y="120" width="26" height="33"/>
+  <use href="#ig-vil" x="290" y="120" width="26" height="33"/>
+  <text x="290" y="184" text-anchor="middle" class="sm">2 villagers</text>
+  <text x="220" y="34" text-anchor="middle" class="lg it">parity &rarr; wolves win</text>
+  <text x="220" y="208" text-anchor="middle" class="sm it">they can no longer be out-voted</text>
+</svg>
+</div>
+<p>Three win conditions sit on the table at once. The <em>village</em> wins the instant the last wolf (and any third-party killer) is gone. The <em>wolves</em> win at <em>parity</em> &mdash; when wolves equal the non-wolves, because they can no longer be out-voted. <em>Neutrals</em> have private conditions: the <span class="role">Tanner</span> wins only if voted out; the <span class="role">Serial Killer</span> or <span class="role">Piper</span> wins by being last standing or by charming everyone. Davidoff's original declared the mafia the winner the moment they equaled the innocents; many modern groups instead play until a whole faction is eliminated, because it's easier to explain.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 11 / no.8: Village roles (condensed) ===== -->
+<div class="scene dense">
+<h2>The village: informers, protectors, trust</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 200" role="img" aria-label="A Seer at a crystal ball points at a target head; the moderator answers with a silent check or cross">
+  <!-- Seer + crystal ball -->
+  <use href="#ig-vil" x="26" y="40" width="46" height="58"/>
+  <path class="fill" d="M40,150 L84,150 L74,132 L50,132 Z"/>
+  <circle class="box" cx="62" cy="118" r="20"/>
+  <path class="thin" d="M52,112 q10,-8 20,0 M55,122 q7,6 14,0" fill="none"/>
+  <text x="62" y="176" text-anchor="middle" class="sm it">Seer</text>
+  <!-- arrow to target -->
+  <path class="arr" d="M96,96 Q170,72 236,96"/>
+  <text x="168" y="66" text-anchor="middle" class="sm it">looks at&hellip;</text>
+  <use href="#ig-vil" x="230" y="60" width="46" height="58"/>
+  <text x="253" y="140" text-anchor="middle" class="sm it">a target</text>
+  <!-- moderator signal -->
+  <line class="thin dash" x1="320" y1="30" x2="320" y2="170"/>
+  <text x="380" y="52" text-anchor="middle" class="sm it">you signal</text>
+  <circle class="box" cx="360" cy="92" r="18"/><text x="360" y="98" text-anchor="middle" class="lg">&#10003;</text>
+  <circle class="box" cx="404" cy="92" r="18"/><text x="404" y="98" text-anchor="middle" class="lg">&#10007;</text>
+  <text x="382" y="140" text-anchor="middle" class="sm it">wolf? / not?</text>
+</svg>
+</div>
+<p>The village's power is <em>information</em>; its armor, <em>protection</em>; its glue, <em>confirmed trust</em>. The starter kit:</p>
+<ul class="roles">
+<li><span class="role">Seer</span> (Fortune Teller, Cop) &mdash; points at one player a night; you silently signal wolf or not. The wolves' prime target once revealed; an <span class="role">Apprentice Seer</span> can inherit the job.</li>
+<li><span class="role">Doctor</span> / <span class="role">Bodyguard</span> (Healer, Guardian) &mdash; protects one player a night ("someone was attacked but survived"); usually can't guard the same target twice running.</li>
+<li><span class="role">Hunter</span> &mdash; when killed, by night or by vote, immediately drags one player down with him.</li>
+<li><span class="role">Witch</span> &mdash; two one-shot potions, one heal and one poison; best hoarded for the endgame.</li>
+<li><span class="role">Cupid</span> &amp; the <span class="role">Lovers</span> &mdash; first night only: two players are tied together; if one dies, both die. A wolf&ndash;human pair can win as a couple.</li>
+<li><span class="role">Masons</span> &mdash; wake once to learn each other are innocent: an anchor of trust.</li>
+<li><span class="role">Mayor</span> (Sheriff) &mdash; votes double; breaks tied days.</li>
+<li><span class="role">Little Girl</span> &mdash; may peek during the wolves' turn, but dies in the victim's place if caught.</li>
+</ul>
+<p>Take one or two, not eight. Give the village too much intel and the wolves have nowhere left to hide.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 12 / no.9: Wolf & mafia roles ===== -->
+<div class="scene dense">
+<h2>Wolf &amp; mafia roles</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 200" role="img" aria-label="A Godfather: a dark wolf behind a white innocent mask, reading clean to the Seer's eye">
+  <!-- Godfather: dark wolf with white mask -->
+  <use href="#ig-wolf" x="130" y="34" width="70" height="88"/>
+  <!-- mask over face -->
+  <ellipse class="box" cx="176" cy="66" rx="26" ry="30"/>
+  <path class="thin" d="M164,60 q5,-5 10,0 M180,60 q5,-5 10,0 M167,80 q9,7 18,0" fill="none"/>
+  <text x="176" y="150" text-anchor="middle" class="sm it">Godfather</text>
+  <text x="176" y="164" text-anchor="middle" class="sm it">wolf behind an innocent mask</text>
+  <!-- Seer eye reads clean -->
+  <path class="arr" d="M232,72 Q290,58 336,72"/>
+  <ellipse class="thin" cx="366" cy="72" rx="20" ry="12" fill="none"/><circle class="fill" cx="366" cy="72" r="5"/>
+  <text x="366" y="112" text-anchor="middle" class="lg">&#10003;</text>
+  <text x="366" y="150" text-anchor="middle" class="sm it">reads "innocent"</text>
+</svg>
+</div>
+<p>The pack has its own toolbox:</p>
+<ul class="roles">
+<li><span class="role">Werewolves</span> (Mafiosi, Goons) &mdash; wake together each night and agree on one victim.</li>
+<li><span class="role">Godfather</span> &mdash; reads as <em>innocent</em> to the <span class="role">Seer</span>; the signature mafia deceiver.</li>
+<li><span class="role">Minion</span> &mdash; knows the wolves and wins with them but isn't one, so the wolves never eat him and the <span class="role">Seer</span> clears him.</li>
+<li><span class="role">Sorcerer</span> &mdash; an evil <span class="role">Seer</span>, hunting the real one to expose them.</li>
+<li><span class="role">Wolf Cub</span> &mdash; if killed, the pack takes two kills the next night.</li>
+<li><span class="role">Cursed</span> &mdash; a villager who <em>becomes a wolf</em> when attacked, instead of dying.</li>
+<li><span class="role">Janitor</span> &mdash; hides a victim's role to deny the village its clue.</li>
+</ul>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 13 / no.10: Neutral roles ===== -->
+<div class="scene dense">
+<h2>Neutral &amp; third-party roles</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 200" role="img" aria-label="A Tanner in a jester's cap grinning as votes point at him; a lone Serial Killer standing apart">
+  <!-- Tanner / jester -->
+  <use href="#ig-vil" x="70" y="52" width="50" height="63"/>
+  <!-- jester hat: two bells -->
+  <path class="fill" d="M78,58 C74,40 66,32 60,30 C66,42 66,50 78,58 Z"/>
+  <path class="fill" d="M112,58 C116,40 124,32 130,30 C124,42 124,50 112,58 Z"/>
+  <circle class="fill" cx="59" cy="29" r="4"/><circle class="fill" cx="131" cy="29" r="4"/>
+  <path class="thin" d="M86,88 q9,8 18,0" fill="none"/> <!-- grin -->
+  <path class="arrl" d="M40,150 Q70,120 90,110"/>
+  <path class="arrl" d="M150,150 Q118,120 104,110"/>
+  <text x="95" y="176" text-anchor="middle" class="sm it">Tanner &mdash; wins if voted out</text>
+  <line class="thin dash" x1="250" y1="24" x2="250" y2="176"/>
+  <!-- serial killer, apart -->
+  <use href="#ig-dark" x="330" y="52" width="50" height="63"/>
+  <circle class="thin dash" cx="355" cy="82" r="42" fill="none"/>
+  <text x="355" y="176" text-anchor="middle" class="sm it">Serial Killer &mdash; last one alive</text>
+</svg>
+</div>
+<p>Some players answer to no faction. Each carries a private win condition, and each one bends the table around it:</p>
+<ul class="roles">
+<li><span class="role">Tanner</span> (Jester, Fool) &mdash; wins <em>only if the village votes him out</em>, so he acts guilty on purpose and warps every vote.</li>
+<li><span class="role">Serial Killer</span> &mdash; kills one player a night, is often immune to attack, and wins by being the last one alive: the hardest role in the game.</li>
+<li><span class="role">Arsonist</span> &mdash; douses players over several nights, then ignites them all at once, bypassing every heal.</li>
+<li><span class="role">Survivor</span> &mdash; needs only to be alive at the end, so he sides with whoever is winning.</li>
+<li><span class="role">Piper</span> &mdash; charms two players a night and wins the moment every living player is charmed.</li>
+</ul>
+<p>One neutral is plenty; two turn a hunt into a free-for-all. And say so out loud before dealing, because a neutral killer moves the goalposts &mdash; the village cannot win until <em>every</em> third-party killer is gone, not just the wolves (page 7).</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 14 / no.11: Scenarios (table) ===== -->
+<div class="scene dense">
+<h2>Scenarios: one skeleton, many costumes</h2>
+<table class="cmp">
+<tr><th>Function</th><th>Werewolf</th><th>Mafia</th><th>Western</th><th>Pirate</th><th>Zombie</th><th>Aliens</th></tr>
+<tr><td>Killers</td><td>Werewolves</td><td>Mafia</td><td>Outlaws</td><td>Mutineers</td><td>Zombies</td><td>Impostors</td></tr>
+<tr><td>Majority</td><td>Villagers</td><td>Townsfolk</td><td>Deputies</td><td>Loyal crew</td><td>Survivors</td><td>Crewmates</td></tr>
+<tr><td>Investigator</td><td>Seer</td><td>Detective</td><td>Sheriff</td><td>Lookout</td><td>Scientist</td><td>Scanner</td></tr>
+<tr><td>Protector</td><td>Bodyguard</td><td>Doctor</td><td>Doc</td><td>Surgeon</td><td>Medic</td><td>Engineer</td></tr>
+<tr><td>Evil leader</td><td>Alpha</td><td>Godfather</td><td>Outlaw boss</td><td>Captain</td><td>Patient Zero</td><td>Alien queen</td></tr>
+<tr><td>"Death"</td><td>Eaten</td><td>Whacked</td><td>Shot</td><td>Overboard</td><td>Devoured</td><td>Ejected</td></tr>
+</table>
+<p>A <em>scenario</em> changes nothing under the hood. Only the <em>flavor</em> moves: of the killers, the investigator, the protector, and "death." The wolves become mafia, outlaws, mutineers, zombies, or impostors; the <span class="role">Seer</span> becomes a detective, a sheriff, a lookout, a scientist, a scanner; "death" becomes whacked, shot, thrown overboard, devoured, ejected. Every column above is the same game. <em>Bang!</em> (2002) is a published Western cousin of the same engine.</p>
+<p>Because the rules don't move, you can dress a game in your group's favorite setting <em>without rebalancing a thing</em> &mdash; a scenario is not a variant, and it costs you nothing. What it does cost is <em>your mouth</em>: a scenario lives or dies in how you narrate each dawn and seed each day. The next three pages are narration ammunition for six of them.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 15 / no.12: Running the scenario — mafia & western ===== -->
+<div class="scene dense theme">
+<h2>Running the scenario: mafia &amp; western</h2>
+<p>Each scenario needs three lines from you, in the order you will use them: a <em>first-morning prompt</em> that drops the table into character before anyone has spoken, a <em>dawn kill</em>, and a <em>dawn save</em> for the mornings a protector blocked the hit.</p>
+<h3>Mafia: the neighborhood</h3>
+<p class="tag">Rain, neon, nobody saw anything.</p>
+<p><em>First morning:</em> "The Family has moved into the neighborhood, and someone at this table takes their coffee with them. Who's new in town &mdash; and who vouches for whom?"</p>
+<p><em>Kill:</em> "The town woke to sirens. Tony never made it home &mdash; the river gave him back at dawn, shoes full of cement."</p>
+<p><em>Save:</em> "Shots rang out on Fifth Street, but the bullet only found the doorframe. Everyone lived."</p>
+<h3>Western: the frontier town</h3>
+<p class="tag">Dust, spurs, a too-quiet saloon.</p>
+<p><em>First morning:</em> "Strangers stepped off the stagecoach this week. The sheriff wants everyone's alibi for last night &mdash; starting with yours."</p>
+<p><em>Kill:</em> "Sun came up over the corral and found Big Jim face-down in it, six-shooter cold, boots still on."</p>
+<p><em>Save:</em> "Lead flew in the night &mdash; but Doc dug the slug out by lamplight. She'll ride by noon."</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 16 / no.13: Running the scenario — pirates & zombies ===== -->
+<div class="scene dense theme">
+<h2>Running the scenario: pirates &amp; zombies</h2>
+<h3>Pirates: mutiny aboard</h3>
+<p class="tag">Creaking rigging, a crew that counts its knives.</p>
+<p><em>First morning:</em> "The captain's compass is gone and the powder's been moved. There's mutiny aboard &mdash; who stood watch, and who will swear to it?"</p>
+<p><em>Kill:</em> "The sea lay flat calm all night &mdash; and still the bosun went over the rail. No storm did that."</p>
+<p><em>Save:</em> "Steel flashed below decks, but the ship's surgeon stitched fast. He'll live to haul rope."</p>
+<h3>Zombies: the last camp</h3>
+<p class="tag">A boarded-up camp, a generator on its last can of fuel.</p>
+<p><em>First morning:</em> "The latch was lifted from the inside. One of us is already bitten and hiding it. Who was near the gate after dark?"</p>
+<p><em>Kill:</em> "At sunup, Maria's bunk was empty. The fence gate hung open, and the drag marks led out &mdash; not in."</p>
+<p><em>Save:</em> "The fever hit Old Sam at midnight, but the medic's last dose held. By morning his eyes were clear."</p>
+<p>Deaths in character keep the dread alive; saves in character make the protector feel mighty without ever naming them.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 17 / no.14: Running the scenario — space & fairy tale ===== -->
+<div class="scene dense theme">
+<h2>Running the scenario: space &amp; fairy tale</h2>
+<h3>Space: the crew and the impostor</h3>
+<p class="tag">Humming vents, a crew badge that doesn't scan.</p>
+<p><em>First morning:</em> "Sensors logged movement in the vents while every bunk read occupied. Run the numbers: one of these badges is forged."</p>
+<p><em>Kill:</em> "The airlock cycled at 03:00, ship's time. Kai's suit is still on its hook. Kai isn't."</p>
+<p><em>Save:</em> "Life support dipped in the night, but the engineer rerouted the O2 before anyone woke."</p>
+<h3>Fairy tale: the fox in the henhouse</h3>
+<p class="tag">A sunny farmyard where nothing ever really dies &mdash; built for the kids' table (next page).</p>
+<p><em>First morning:</em> "Someone in this farmyard has a bushy tail tucked under their coat. Who was awake when the moon was up?"</p>
+<p><em>"Kill":</em> "This morning one nest was empty, feathers by the gate &mdash; Henrietta has been led off to nap in the fox's den until we catch him."</p>
+<p><em>Save:</em> "The old sheepdog slept by the coop last night, and the fox went home hungry."</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 18 / no.15: Kid-friendly / Sandman ===== -->
+<div class="scene dense">
+<h2>For kids: sleep, not death &mdash; and when</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 200" role="img" aria-label="A Sandman sprinkles sleep; a villager rests head-down with a Zzz, asleep not dead">
+  <!-- Sandman sprinkling -->
+  <use href="#ig-vil" x="56" y="50" width="52" height="65"/>
+  <path class="ln" d="M108,64 L150,52" fill="none"/> <!-- arm -->
+  <circle class="fill" cx="154" cy="50" r="6"/>
+  <circle class="fill" cx="168" cy="66" r="2.5"/>
+  <circle class="fill" cx="176" cy="54" r="2"/>
+  <circle class="fill" cx="164" cy="80" r="2"/>
+  <circle class="fill" cx="180" cy="72" r="1.6"/>
+  <text x="82" y="150" text-anchor="middle" class="sm it">Sandman sprinkles sleep</text>
+  <line class="thin dash" x1="238" y1="24" x2="238" y2="176"/>
+  <!-- sleeping villager, head-down -->
+  <circle class="box" cx="330" cy="96" r="24"/>
+  <path class="thin" d="M318,96 q6,6 12,0 M330,96 q6,6 12,0" fill="none"/> <!-- closed eyes -->
+  <path class="ln" d="M300,132 C300,116 360,116 360,132" fill="#fff"/>
+  <text x="372" y="66" class="lg it">z</text>
+  <text x="386" y="54" class="it">z</text>
+  <text x="398" y="44" class="sm it">z</text>
+  <text x="330" y="164" text-anchor="middle" class="sm it">asleep, not dead</text>
+</svg>
+</div>
+<p>The barrier to family play is the <em>violence, not the logic.</em> So recast death as <em>sleep</em>: instead of a killer, a <em>Sandman</em> puts players "to sleep" &mdash; head down, eyes closed &mdash; and a counter-role can wake them. The eliminated player is napping, not dead (the fox's den, previous page), which keeps the mechanics intact while removing the blood.</p>
+<p><em>When are they ready?</em> Developmental research (Kang Lee's "peeking game" studies) finds most children can <em>tell</em> a lie by four &mdash; but <em>sustaining</em> one under questioning leans on second-order theory of mind ("she thinks that I think&hellip;") that matures around <em>seven or eight</em>. The game boxes agree: One Night is commonly rated 8+, Miller's Hollow 10+, big-table Ultimate Werewolf 13+, and Among Us is rated E10+ by the ESRB (PEGI 7). So from about five, a child can hold a secret role in a short, gentle round; from seven or eight they can bluff under cross-examination &mdash; and love it.</p>
+<p><em>Simplify hard:</em> wolves and villagers only (add a <span class="role">Seer</span> once the first game lands); an adult narrator; days capped at two or three minutes; fantastical themes over mafia. Above all keep <em>every child in the game</em> &mdash; run short back-to-back rounds, or make the just-eliminated kid your co-narrator.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 19 / no.16: One Night ===== -->
+<div class="scene dense">
+<h2>One Night: no moderator, ten minutes</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 200" role="img" aria-label="A single NIGHT block and a single DAY-with-one-vote block, plus a swap arrow between two cards">
+  <rect class="box" x="30" y="40" width="150" height="60" rx="6"/>
+  <text x="105" y="66" text-anchor="middle" class="lg">NIGHT</text>
+  <text x="105" y="86" text-anchor="middle" class="sm it">roles swap cards</text>
+  <path class="arr" d="M184,70 L256,70"/>
+  <rect class="box" x="260" y="40" width="150" height="60" rx="6"/>
+  <text x="335" y="66" text-anchor="middle" class="lg">DAY</text>
+  <text x="335" y="86" text-anchor="middle" class="sm it">one vote</text>
+  <path class="ln" d="M330,30 l6,10 l10,-4" fill="none"/> <!-- little star tick -->
+  <!-- swap illustration -->
+  <rect class="chip" x="120" y="130" width="34" height="48" rx="4"/>
+  <rect class="chip" x="286" y="130" width="34" height="48" rx="4"/>
+  <path class="arrl" d="M158,142 Q222,116 282,142"/>
+  <path class="arrl" d="M282,166 Q222,192 158,166"/>
+  <text x="220" y="112" text-anchor="middle" class="sm it">Robber, Troublemaker, Drunk swap roles</text>
+  <text x="220" y="196" text-anchor="middle" class="sm it">no elimination &middot; ~10 minutes</text>
+</svg>
+</div>
+<p><em>One Night Ultimate Werewolf</em> (Bezier Games, 2014) compresses the whole game into a single night and a single day &mdash; about ten minutes, 3&ndash;10 players, <em>no elimination and no moderator</em>: a player-Announcer runs the script with eyes closed, or the free app narrates. Deal one card per player and <em>always three more to the center</em>, so any role may be in nobody's hands. The night churns cards instead of killing: the <span class="role">Werewolves</span> find each other (a lone wolf may peek at one center card); the <span class="role">Seer</span> views one player's card <em>or two</em> center cards; the <em>Robber</em> swaps his card with a player's and peeks at his new self; the <em>Troublemaker</em> swaps two <em>other</em> players' cards blind; the <em>Drunk</em> must trade with the center, no peeking; the <em>Insomniac</em> wakes last to re-check what she now is.</p>
+<p>Day is a few minutes of debate, then one simultaneous vote on "three&ndash;two&ndash;one." Everyone tied for most votes dies; if no one takes two votes, no one dies. <em>You are whatever card sits in front of you at dawn</em> &mdash; swapped players win and die as their new role. The village wins if a wolf dies, or if there are no wolves and no one dies; the <span class="role">Tanner</span> wins only by dying. Great with kids &mdash; but these swap roles are this variant's alone; never mix them into a classic multi-round game.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 20 / no.17: Moderator's craft ===== -->
+<div class="scene">
+<h2>The moderator's craft</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 210" role="img" aria-label="The narrator at the center of the circle with a script, still waking a dead role so the living cannot tell what remains">
+  <circle class="thin dash" cx="220" cy="105" r="86" fill="none"/>
+  <!-- moderator center with script -->
+  <use href="#ig-vil" x="196" y="72" width="48" height="60"/>
+  <rect class="box" x="200" y="112" width="40" height="26" rx="2"/>
+  <line class="thin" x1="206" y1="120" x2="234" y2="120"/><line class="thin" x1="206" y1="127" x2="234" y2="127"/>
+  <text x="220" y="158" text-anchor="middle" class="sm it">script</text>
+  <!-- surrounding players; one is dead but "woken" -->
+  <use href="#ig-vil"  x="150" y="10" width="34" height="43"/>
+  <use href="#ig-vil"  x="256" y="10" width="34" height="43"/>
+  <use href="#ig-dead" x="322" y="86" width="34" height="43"/>
+  <use href="#ig-vil"  x="84"  y="86" width="34" height="43"/>
+  <ellipse class="thin" cx="339" cy="104" rx="11" ry="6" fill="none"/><circle class="fill" cx="339" cy="104" r="2.6"/>
+  <text x="392" y="96" text-anchor="middle" class="sm it">dead &mdash;</text>
+  <text x="392" y="108" text-anchor="middle" class="sm it">still</text>
+  <text x="392" y="120" text-anchor="middle" class="sm it">"woken"</text>
+  <text x="220" y="204" text-anchor="middle" class="sm it">talk toward the center &middot; the dead stay silent</text>
+</svg>
+</div>
+<p>You are the neutral engine, and your discipline is the game's quality. Keep a <em>fixed script</em> and identical phrasing ("Werewolves, open your eyes") so word-order leaks nothing. <em>Talk toward the center</em> of the circle so no one hears who you face. The single most important rule: <em>the dead stay silent</em> &mdash; and you must not correct even their misremembered history. Keep <em>"waking" dead special roles</em> anyway ("Seer, open your eyes") so the living can't deduce which powers remain. Add only <em>one or two</em> special roles per game; more roles is not more fun.</p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 21 / no.18: Reveal & balancing ===== -->
+<div class="scene">
+<h2>Reveal-on-death &amp; balancing</h2>
+<div class="diagram">
+<svg class="wire" viewBox="0 0 440 200" role="img" aria-label="Two cards: one face-up revealing a role at 3 to 1, one face-down at 4 to 5 to 1">
+  <!-- reveal: face-up card -->
+  <rect class="box" x="66" y="34" width="86" height="118" rx="6"/>
+  <ellipse class="thin" cx="109" cy="74" rx="16" ry="9" fill="none"/><circle class="fill" cx="109" cy="74" r="4.5"/>
+  <text x="109" y="112" text-anchor="middle" class="sm">Seer</text>
+  <text x="109" y="132" text-anchor="middle" class="sm it">revealed</text>
+  <text x="109" y="176" text-anchor="middle" class="lg">3 : 1</text>
+  <text x="109" y="20" text-anchor="middle" class="sm it">reveal on death</text>
+  <line class="thin dash" x1="220" y1="20" x2="220" y2="184"/>
+  <!-- no-reveal: face-down card -->
+  <rect class="dark" x="288" y="34" width="86" height="118" rx="6"/>
+  <path class="thin" d="M288,58 L374,128 M288,98 L374,152 M288,128 L338,152" opacity="0.5"/>
+  <text x="331" y="100" text-anchor="middle" class="lg" fill="#fff">?</text>
+  <text x="331" y="176" text-anchor="middle" class="lg">4&ndash;5 : 1</text>
+  <text x="331" y="20" text-anchor="middle" class="sm it">no reveal</text>
+</svg>
+</div>
+<p>Your biggest early choice is whether to show an eliminated player's card. <em>Reveal-on-death</em> hands the village a powerful information engine &mdash; the default for new and casual groups; pay for it with an extra wolf or fewer village powers. <em>No-reveal</em> (Davidoff's original) is harder and swingier, so lean the ratio to 4:1 or 5:1. Whatever you pick, announce it <em>before</em> dealing. To balance a deck, start from one your group knows and <em>change one thing at a time</em>; counter a strong <span class="role">Seer</span> with a <span class="role">Sorcerer</span> or an extra wolf, and blunt a strong pack by cutting a wolf or adding a <span class="role">Tanner</span> to muddy every vote. <em>Playtest &mdash; psychology beats math.</em></p>
+<div class="pageno"></div>
+</div>
+
+<!-- ===== Page 22: Colophon / THE END ===== -->
+<div class="colophon">
+<h2>THE END</h2>
+<p class="lede">One engine, endless costumes. Now go deal the cards.</p>
+<hr>
+<p class="cap"><strong>Sources</strong></p>
+<ol class="refs">
+<li>D. Davidoff (Davydov), <em>Mafia</em> &mdash; Psychology Dept., Moscow State
+University, spring 1987 (some accounts say 1986) &mdash;
+en.wikipedia.org/wiki/Mafia_(party_game)</li>
+<li>A. Plotkin, <em>Werewolf</em> rules, 1997 (incl. his third-wolf-at-seventeen
+simulations) &mdash; eblong.com/zarf/werewolf.html</li>
+<li>M. Braverman, O. Etesami &amp; E. Mossel, "Mafia: a theoretical study of
+players and coalitions in a partial information environment," <em>Annals of
+Applied Probability</em> 18(3):825&ndash;846, 2008 &mdash; doi:10.1214/07-AAP456</li>
+<li>T. Alspach, <em>Ultimate Werewolf</em> (Bezier Games, 2008); T. Alspach &amp;
+A. Okui, <em>One Night Ultimate Werewolf</em> (Bezier Games, 2014) &mdash;
+boardgamegeek.com/boardgame/147949</li>
+<li>P. des Palli&egrave;res &amp; H. Marly, <em>The Werewolves of Miller's
+Hollow</em> (Lui-m&ecirc;me, 2001) &mdash; boardgamegeek.com/boardgame/25821</li>
+<li>E. Sciarra, <em>Bang!</em> (dV Giochi, 2002) &mdash;
+boardgamegeek.com/boardgame/3955</li>
+<li>K. Lee, "Little liars: development of verbal deception in children,"
+<em>Child Development Perspectives</em> 7(2):91&ndash;96, 2013 &mdash;
+doi:10.1111/cdep.12023</li>
+</ol>
+<p class="cap">Role names and powers are <em>not standardized</em> &mdash; the same
+name means different things across editions, so agree on exact powers before
+play. Balance numbers are heuristics, not guarantees (the one-wolf-per-four rule
+of thumb is community folklore, not a published result). The traditional day-kill
+is often called a "lynch"; this guide uses "vote out / eliminate" throughout.</p>
+<p class="credit">Printed in 2026 by Trevor Pottinger</p>
+</div>
+
+<!-- ===== Page 23: Blank (inside back cover) ===== -->
+<div class="blank-page">&nbsp;</div>
+
+<!-- ===== Page 24: Back cover (blank) ===== -->
+<div class="blank-page back-cover">&nbsp;</div>
+
+<!-- ===== Global SVG defs: arrowhead + reusable figure glyphs =====
+     Placed last so the cover keeps :first-child; SVG resolves these
+     references by id document-wide regardless of DOM order. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#1b1b1b"/>
+  </marker>
+  <!-- villager: outlined head + shoulders -->
+  <symbol id="ig-vil" viewBox="0 0 40 50">
+    <circle cx="20" cy="13" r="11" fill="#fff" stroke="#1b1b1b" stroke-width="1.7"/>
+    <path d="M4,49 C5,32 35,32 36,49" fill="#fff" stroke="#1b1b1b" stroke-width="1.7"/>
+  </symbol>
+  <!-- werewolf: dark head with pointed ears -->
+  <symbol id="ig-wolf" viewBox="0 0 40 50">
+    <path d="M8,4 L14,16 M32,4 L26,16" stroke="#1b1b1b" stroke-width="1.7" fill="none" stroke-linejoin="round"/>
+    <circle cx="20" cy="15" r="11" fill="#3a3a3a" stroke="#1b1b1b" stroke-width="1.7"/>
+    <path d="M4,49 C5,33 35,33 36,49" fill="#3a3a3a" stroke="#1b1b1b" stroke-width="1.7"/>
+    <circle cx="16" cy="14" r="1.4" fill="#fff"/><circle cx="24" cy="14" r="1.4" fill="#fff"/>
+  </symbol>
+  <!-- generic dark figure (neutral killer) -->
+  <symbol id="ig-dark" viewBox="0 0 40 50">
+    <circle cx="20" cy="13" r="11" fill="#3a3a3a" stroke="#1b1b1b" stroke-width="1.7"/>
+    <path d="M4,49 C5,32 35,32 36,49" fill="#3a3a3a" stroke="#1b1b1b" stroke-width="1.7"/>
+  </symbol>
+  <!-- dead: outlined head with X eyes -->
+  <symbol id="ig-dead" viewBox="0 0 40 50">
+    <circle cx="20" cy="13" r="11" fill="#eee" stroke="#1b1b1b" stroke-width="1.7"/>
+    <path d="M13,10 L18,15 M18,10 L13,15 M22,10 L27,15 M27,10 L22,15" stroke="#1b1b1b" stroke-width="1.4" fill="none"/>
+    <path d="M4,49 C5,32 35,32 36,49" fill="#eee" stroke="#1b1b1b" stroke-width="1.7"/>
+  </symbol>
+</defs>
+</svg>
+
+</body>
+</html>

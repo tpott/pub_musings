@@ -35,7 +35,9 @@ section of the main README for the convention. In short:
 | 11 | Blank (inside back cover) | — |
 | 12 | Back cover (blank) | — |
 
-Every content page is kept to **at most 200 words**.
+Each content page is one idea: a figure plus a tight block of prose (see the
+[Style](../../README.md#style-words-per-page) section of the main README for
+per-book-type word budgets).
 
 ## Drawing style
 
