@@ -33,9 +33,31 @@ rules — the real test is the print preview (see [Verifying](#verifying-books))
 
 # Impose Install
 
-Assuming this is for a Mac/Ubuntu that doesn't have `python` but does have `python3`:
-`python3 -m venv .venv && source .venv/bin/activate && python -m pip install -r requirements.txt`
-(to get `pypdf` to run `python impose.py {source pdf} {target pdf}`)
+Assuming this is for a Mac/Ubuntu that doesn't have `python` but does have `python3`,
+from this directory (`saddle-stitch/`):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+That gets `pypdf`, which both `impose.py` and `verify.py` need. The venv lives at
+`saddle-stitch/.venv/` and is `.gitignore`'d. Every `python` command below assumes
+it is active; without sourcing the activate script, use `.venv/bin/python` instead.
+
+## Finding Chrome
+
+`verify.py` looks for Chrome in the usual places (the Mac app bundle, then
+`google-chrome` / `chromium` / `chromium-browser` on `PATH`). If it lives somewhere
+else — a container, a CI image, a Playwright install — point `$CHROME` at it:
+
+```bash
+export CHROME=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
+```
+
+When running as root (the normal case inside a container) `verify.py` adds
+`--no-sandbox`, which Chrome's setuid sandbox requires there.
 
 Saddle-stitch imposition takes a reading order pdf as input and outputs landscape letter faces
 interleaved ((last page, 1st page), (last-1, 2nd page), and so on). Saddle-stitch face order is

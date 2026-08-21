@@ -24,6 +24,7 @@ Exit codes: 0 clean, 1 defects found, 2 tooling error.
 """
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -44,6 +45,13 @@ CONTENT_WORDS = 40
 
 
 def find_chrome():
+    # An explicit $CHROME wins: containers and CI images park Chrome in paths
+    # no candidate list can guess (e.g. Playwright's /opt/pw-browsers).
+    override = os.environ.get("CHROME")
+    if override:
+        if Path(override).exists() or shutil.which(override):
+            return override
+        raise RuntimeError(f"$CHROME is set to {override!r}, which is not executable")
     for candidate in CHROME_CANDIDATES:
         if candidate.startswith("/"):
             if Path(candidate).exists():
@@ -60,6 +68,12 @@ def render_pdf(chrome, html_path):
         "--headless=new",
         "--disable-gpu",
         "--no-pdf-header-footer",
+    ]
+    # Chrome's setuid sandbox refuses to start as root, which is the normal
+    # user inside a container. Nothing untrusted is being rendered here.
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        cmd.append("--no-sandbox")
+    cmd += [
         f"--print-to-pdf={pdf_path}",
         html_path.resolve().as_uri(),
     ]
@@ -132,9 +146,13 @@ def main():
         if not pdf_path.exists():
             sys.exit(f"error: {pdf_path} does not exist (drop --skip-render)")
     else:
-        chrome = find_chrome()
+        try:
+            chrome = find_chrome()
+        except RuntimeError as exc:
+            sys.exit(f"error: {exc}")
         if not chrome:
-            sys.exit("error: no Chrome/Chromium binary found")
+            sys.exit("error: no Chrome/Chromium binary found "
+                     "(set $CHROME to its path)")
         pdf_path = render_pdf(chrome, args.html)
         print(f"rendered: {pdf_path}")
 
