@@ -31,50 +31,61 @@ rules — the real test is the print preview (see [Verifying](#verifying-books))
   page — a figure plus roughly **250–300 words**. A page with no figure (or a small one)
   can carry **~350–400 words**.
 
-# Impose Install
+# Install
 
 Assuming this is for a Mac/Ubuntu that doesn't have `python` but does have `python3`:
 `python3 -m venv .venv && source .venv/bin/activate && python -m pip install -r requirements.txt`
-(to get `pypdf` to run `python impose.py {source pdf} {target pdf}`)
+(`pypdf` for `impose.py`, `playwright` for `render.py`).
 
-Saddle-stitch imposition takes a reading order pdf as input and outputs landscape letter faces
-interleaved ((last page, 1st page), (last-1, 2nd page), and so on). Saddle-stitch face order is
-1-based, front then back of each sheet, outside-in.
+`render.py` drives headless Chromium. It uses whatever chromium playwright already
+has in `~/.cache/ms-playwright` (any other playwright install on the machine puts
+them there); if there is none, run `playwright install chromium` once.
 
 # Printing
 
 Two steps: render the book HTML to a reading-order PDF, then impose it into
-printable letter faces.
+printable letter faces. With the venv active (see [Install](#install)):
 
-**1. Render the PDF.** Headless Chrome renders exactly what Ctrl+P → "Save as
-PDF" would. From the book's directory:
+**1. Render.**
 
 ```bash
-chrome --headless=new --disable-gpu --no-pdf-header-footer \
-  --print-to-pdf="{book}.pdf" \
-  "file://$PWD/{book}.html"
+python render.py books/{book}/{book}.html books/{book}/{book}.pdf
 ```
 
-**2. Impose.** With the venv active (see [Impose Install](#impose-install)):
+`render.py` is the scripted equivalent of opening the book in a browser and
+hitting Print to PDF: it emulates print media and passes `preferCSSPageSize`, so
+the book's `@page { size: 5.5in 8.5in }` is what comes out. Backgrounds are off
+by default, like a browser's print dialog — pass `--background` to keep them. For
+books with hash-selected print modes (see
+[peter rabbit](example-books/peter-rabbit/README.md)), pass e.g.
+`--fragment ink-lite`. It prints the resulting page count and page size so the
+page budget is easy to check.
+
+**2. Impose.**
 
 ```bash
 python impose.py books/{book}/{book}.pdf books/{book}/{book}.print.pdf
 ```
 
-`impose.py` pads to a multiple of 4 and interleaves the pages into landscape
-letter faces. Print the `.print.pdf` duplex (flip on **short edge**), fold the
-stack in half, and staple the spine.
+Saddle-stitch imposition takes a reading order pdf as input and outputs landscape letter faces
+interleaved ((last page, 1st page), (last-1, 2nd page), and so on). Saddle-stitch face order is
+1-based, front then back of each sheet, outside-in. `impose.py` pads to a multiple of 4. Print
+the `.print.pdf` duplex (flip on **short edge**), fold the stack in half, and staple the spine.
 
 # Verifying books
 
 Needs a PDF rasterizer for Claude's `Read` tool to see pages: `brew install poppler`
 (without `pdftoppm`, `Read` on a PDF just errors).
 
-**1. Deterministic scan.** Renders with headless Chrome, then asserts on the PDF's text:
+**1. Deterministic scan.** Asserts on the PDF's text — page count, overflow, folio sequence:
 
 ```bash
 python verify.py books/{book}/{book}.html
 ```
+
+Note that `verify.py` does its own render rather than calling `render.py`: it shells out to a
+system `chrome --headless=new --print-to-pdf` found on `PATH`, and writes `{book}.pdf` next to
+the HTML.
 
 **2. Visual audit.** For what only eyes catch — underfull pages and figure defects:
 
