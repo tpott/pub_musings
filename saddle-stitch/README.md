@@ -83,9 +83,22 @@ Needs a PDF rasterizer for Claude's `Read` tool to see pages: `brew install popp
 python verify.py books/{book}/{book}.html
 ```
 
-Note that `verify.py` does its own render rather than calling `render.py`: it shells out to a
-system `chrome --headless=new --print-to-pdf` found on `PATH`, and writes `{book}.pdf` next to
-the HTML.
+`verify.py` renders through `render.py`, so what it checks is the same pagination you
+print; it writes `{book}.pdf` next to the HTML. Pass `--skip-render` to check an existing
+PDF, or `--background` / `--fragment` to forward those through to `render.py`.
+
+It also checks **spreads**. A two-page event only works if both halves land on one physical
+opening. Page 1 is a recto, so the openings are (2,3), (4,5), (6,7)... — every opening starts
+on an *even* sheet page. Tag the two pages `spread-left` and `spread-right`:
+
+```html
+<div class="scene spread-left"> ... </div>
+<div class="scene spread-right"> ... </div>
+```
+
+and `verify.py` fails if the left half lands on an odd page, or if the two are not adjacent.
+Adding or removing a single page anywhere earlier flips the parity of every spread after it,
+which is exactly the mistake this check exists to catch.
 
 **2. Visual audit.** For what only eyes catch — underfull pages and figure defects:
 

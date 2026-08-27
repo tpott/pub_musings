@@ -1,4 +1,4 @@
-"""Render a book HTML to PDF with headless Chrome, then check what is countable.
+"""Render a book HTML to PDF via render.py, then check what is countable.
 
 Usage:
     python verify.py books/{book}/{book}.html
@@ -11,6 +11,12 @@ caused the odd count, but got the arithmetic wrong. Counting is not delegated.
 The visual audit (underfull pages, figure defects) lives in the README as a
 `claude -p` prompt you read with your own eyes, not as a pass/fail exit code.
 
+The render goes through render.py so that verify and print agree: render.py
+emulates print media and passes `preferCSSPageSize`, which is what makes the
+book come out at its `@page { size: 5.5in 8.5in }`. An earlier version of this
+script shelled out to a system Chrome with a bare `--print-to-pdf`, which does
+neither, so it could paginate differently from the PDF you actually print.
+
 Checks:
 1. Total page count, and whether it is a multiple of 4.
 2. Overflow — a `.scene` that spilled onto a second physical page. Two symptoms,
@@ -19,54 +25,39 @@ Checks:
    stub page that received the tail (a word-count outlier).
 3. Page numbers — the folio is text, so the printed sequence must read
    1, 2, 3, ... A folio of "0" is a known CSS failure mode.
+4. Spreads — a two-page event tagged `spread-left` / `spread-right` in the HTML
+   must land on one physical opening, which means the left half has to sit on an
+   even sheet page. See `check_spreads`.
 
 Exit codes: 0 clean, 1 defects found, 2 tooling error.
 """
 
 import argparse
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 from pypdf import PdfReader
 
-CHROME_CANDIDATES = [
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "google-chrome",
-    "chromium",
-    "chromium-browser",
-]
+import render
 
 # A page holding this much text is carrying real content, not a cover or blank.
 CONTENT_WORDS = 40
 
-
-def find_chrome():
-    for candidate in CHROME_CANDIDATES:
-        if candidate.startswith("/"):
-            if Path(candidate).exists():
-                return candidate
-        elif shutil.which(candidate):
-            return candidate
-    return None
+# Every element whose class *starts* with one of these is one physical page
+# (they all carry `page-break-before: always` in the books' print CSS). The
+# trailing (?=[\s"]) is what keeps `scene-image` from matching `scene`.
+PAGE_CLASSES = ("cover", "blank", "colophon", "intro", "scene", "end")
+PAGE_DIV = re.compile(
+    r'<div\s+class="(?P<classes>(?:' + "|".join(PAGE_CLASSES) + r')(?=[\s"])[^"]*)"')
 
 
-def render_pdf(chrome, html_path):
+def render_pdf(html_path, background=False, fragment=""):
+    """Render through render.py, writing the sibling {book}.pdf."""
     pdf_path = html_path.with_suffix(".pdf")
-    cmd = [
-        chrome,
-        "--headless=new",
-        "--disable-gpu",
-        "--no-pdf-header-footer",
-        f"--print-to-pdf={pdf_path}",
-        html_path.resolve().as_uri(),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    if result.returncode != 0 or not pdf_path.exists():
-        raise RuntimeError(
-            f"Chrome render failed (exit {result.returncode}):\n{result.stderr}")
+    render.render(str(html_path), str(pdf_path), background=background, fragment=fragment)
+    if not pdf_path.exists():
+        raise RuntimeError(f"render.py produced no {pdf_path}")
     return pdf_path
 
 
@@ -117,11 +108,56 @@ def find_defects(pages):
     return defects
 
 
+def check_spreads(html_path, page_count):
+    """A `spread-left` page must face its `spread-right` page.
+
+    Page 1 is a recto (the front cover, a right-hand page), so once the book is
+    folded the physical openings are (2,3), (4,5), (6,7) ... — every opening
+    starts on an EVEN sheet page. A two-page event therefore only works if its
+    left half lands on an even page; one page added or removed anywhere earlier
+    in the book flips the parity of everything after it and silently splits the
+    spread across two openings.
+
+    Sheet page numbers come from the order of the page-level divs in the HTML,
+    which is the print order as long as nothing overflowed — and overflow is
+    already its own check, reported separately.
+    """
+    source = html_path.read_text(encoding="utf-8")
+    pages = [m.group("classes").split() for m in PAGE_DIV.finditer(source)]
+    defects = []
+
+    if pages and len(pages) != page_count:
+        defects.append(
+            f"{len(pages)} page-level divs in the HTML but {page_count} pages in "
+            f"the PDF — spread positions below are unreliable until that is fixed")
+
+    for i, classes in enumerate(pages, 1):
+        if "spread-left" in classes:
+            if i % 2:
+                defects.append(
+                    f"p{i}: spread-left on an odd page — it faces p{i - 1}, not "
+                    f"p{i + 1}, so the two halves land on different openings")
+            nxt = pages[i] if i < len(pages) else None   # pages[i] is 1-based page i+1
+            if nxt is None or "spread-right" not in nxt:
+                defects.append(f"p{i}: spread-left is not followed by a spread-right page")
+        elif "spread-right" in classes:
+            prev = pages[i - 2] if i >= 2 else None
+            if prev is None or "spread-left" not in prev:
+                defects.append(f"p{i}: spread-right is not preceded by a spread-left page")
+
+    return defects
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("html", type=Path, help="path to the book HTML")
     parser.add_argument("--skip-render", action="store_true",
                         help="check the existing sibling PDF without re-rendering")
+    parser.add_argument("--background", action="store_true",
+                        help="passed through to render.py: print CSS background fills")
+    parser.add_argument("--fragment", default="",
+                        help="passed through to render.py: URL #hash for books with "
+                             "hash-selected print modes (e.g. ink-lite)")
     args = parser.parse_args()
 
     if not args.html.exists():
@@ -132,14 +168,11 @@ def main():
         if not pdf_path.exists():
             sys.exit(f"error: {pdf_path} does not exist (drop --skip-render)")
     else:
-        chrome = find_chrome()
-        if not chrome:
-            sys.exit("error: no Chrome/Chromium binary found")
-        pdf_path = render_pdf(chrome, args.html)
+        pdf_path = render_pdf(args.html, args.background, args.fragment)
         print(f"rendered: {pdf_path}")
 
     pages = read_pages(pdf_path)
-    defects = find_defects(pages)
+    defects = find_defects(pages) + check_spreads(args.html, len(pages))
 
     print(f"pages: {len(pages)}", end="")
     if len(pages) % 4 == 0:
